@@ -19,7 +19,7 @@ Dragon GL is a high-performance 3D multi-user client-server dungeon exploration 
   <tr>
     <td align="center">
       <img
-        src="readme_assets/logo/dungeongllogo.png"
+        src="readme_assets/logo/dragongllogo.png"
         alt="Dungeon GL Logo"
         width="800"
       />
