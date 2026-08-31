@@ -1,0 +1,45 @@
+#!/bin/bash
+# DRAGON GL
+# Dragon GL - Copyright (C) 2026 Nicola Taibi
+# License: GPL-3.0-or-later
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# Professional Startup Script
+
+echo "======================================"
+echo "    DRAGON GL - WORLD RESET SCRIPT"
+echo "======================================"
+echo "This script will delete all player saves"
+echo "and reset the world state (artifacts, ghosts, logs)."
+echo "Are you sure you want to continue? (y/n)"
+
+read -r response
+if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]
+then
+    echo "[*] Deleting player saves and tombstones..."
+    rm -f saves/*.save
+    rm -f saves/tombstone_*.dat
+    echo "    -> Done."
+
+    echo "[*] Deleting world persistence files..."
+    rm -f data/world.dat
+    rm -f data/artifacts.dat
+    rm -f data/npcs.dat
+    rm -f data/bones_*.dat
+    echo "    -> Done."
+
+    echo "[*] Cleaning log and dump files..."
+    rm -f combat_log.json
+    rm -f map_dump.txt
+    rm -f server_log.txt
+    echo "    -> Done."
+
+    echo "======================================"
+    echo " WORLD RESET COMPLETED SUCCESSFULLY!"
+    echo " You can restart the server to generate a new world."
+    echo "======================================"
+else
+    echo "Operation cancelled."
+fi

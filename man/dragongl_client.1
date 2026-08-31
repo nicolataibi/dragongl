@@ -1,0 +1,31 @@
+.TH DRAGONGL_CLIENT 1 "2026-08-24" "DragonGL 2026.05.26.01" "User Commands"
+.SH NAME
+dragongl_client \- Dragon GL 3D game client
+.SH SYNOPSIS
+.B dragongl_client
+.I backend
+.SH DESCRIPTION
+.B dragongl_client
+is the 3D client of the Dragon GL dungeon crawler. It connects to a
+.B dragongl_server , lets the player create or load a character, and renders
+the dungeon in real time with a graphical in-engine HUD (stats, minimap,
+equipment, boss trophies, AR compass).
+
+After selecting the backend, the client interactively prompts for the server
+IP address (default: 127.0.0.1), the server password, and the player
+credentials; new players are then asked to choose race and class.
+.SH ARGUMENTS
+.TP
+.B gl
+Start with the OpenGL backend (legacy).
+.TP
+.B vk
+Start with the Vulkan backend (modern), featuring dynamic lighting computed
+via SPIR-V shaders.
+.SH SEE ALSO
+.BR dragongl_server (1),
+.BR dragongl-client (1)
+.SH AUTHOR
+Nicola Taibi <nicola.taibi.1967@gmail.com>
+.SH LICENSE
+GPL-3.0-or-later

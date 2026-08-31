@@ -1,0 +1,43 @@
+.TH DRAGONGL_SERVER 1 "2026-08-24" "DragonGL 2026.05.26.01" "User Commands"
+.SH NAME
+dragongl_server \- Dragon GL master game server
+.SH SYNOPSIS
+.B dragongl_server
+.RI "[\-\-password\ |\ -p\ " pwd ]
+.RI "[\-\-help\ |\ -h ]"
+.SH DESCRIPTION
+.B dragongl_server
+is the authoritative server of the Dragon GL client/server dungeon crawler.
+It generates and maintains the master world (a 1000x1000 dungeon spanning
+100 floors), runs monster AI, resolves combat, and synchronizes the game
+state with all connected clients over TCP.
+
+The server listens on port
+.BR 8080 .
+.SH OPTIONS
+.TP
+.BI \-p ", " \-\-password " pwd"
+Set the password required by clients to join the server.
+Default:
+.I dragongl_secret
+.TP
+.B \-h , \-\-help
+Show a short help message and exit.
+.SH FILES
+.TP
+.I combat_log.json
+Tactical combat log, written in the working directory.
+.TP
+.IR saves/ "directory"
+Player save files (*.save).
+.TP
+.IR data/ "directory"
+World persistence files (world.dat, artifacts.dat, npcs.dat, bones_*.dat).
+.SH SEE ALSO
+.BR dragongl_client (1),
+.BR dragongl-server (1),
+.BR dragongl_reset_world (1)
+.SH AUTHOR
+Nicola Taibi <nicola.taibi.1967@gmail.com>
+.SH LICENSE
+GPL-3.0-or-later

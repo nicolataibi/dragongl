@@ -1,0 +1,26 @@
+# Directory BUILD
+build/
+_build/
+
+# Directory SAVES
+saves/
+
+# others
+*.o
+*.d
+*.tar.gz
+*.sha256
+*.spv
+*.key
+identity.hash
+*.save
+
+# Directory RPM
+rpmbuild/
+_local_build/
+_srpm_test/
+
+# ignore
+npcs.dat
+world.dat
+combat_log.json

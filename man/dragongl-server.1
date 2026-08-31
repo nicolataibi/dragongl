@@ -1,0 +1,38 @@
+.TH DRAGONGL-SERVER 1 "2026-08-24" "DragonGL 2026.05.26.01" "User Commands"
+.SH NAME
+dragongl-server \- Dragon GL server launcher script
+.SH SYNOPSIS
+.B dragongl-server
+.RI "[\-\-password\ |\ -p\ " pwd ]
+.RI "[\-\-help\ |\ -h ]"
+.SH DESCRIPTION
+.B dragongl-server
+is a convenience launcher for the Dragon GL master server. Before starting
+the server it prints diagnostic information about the host (operating
+system, uptime and load, memory usage, disk space, network interfaces) and
+then executes
+.B build/dragongl_server
+from the project root directory, passing the selected password.
+
+The password is mandatory: if no option is given, the script prints an error
+and exits.
+.SH OPTIONS
+.TP
+.BI \-p ", " \-\-password " pwd"
+Set the server access password (required).
+.TP
+.B \-h , \-\-help
+Show a short help message and exit.
+.SH EXAMPLES
+Start the server with a custom password:
+.PP
+.RS
+.B dragongl-server --password segreto123
+.RE
+.SH SEE ALSO
+.BR dragongl_server (1),
+.BR dragongl-client (1)
+.SH AUTHOR
+Nicola Taibi <nicola.taibi.1967@gmail.com>
+.SH LICENSE
+GPL-3.0-or-later

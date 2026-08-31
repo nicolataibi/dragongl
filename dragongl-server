@@ -1,0 +1,86 @@
+#!/bin/bash
+# DRAGON GL
+# Dragon GL - Copyright (C) 2026 Nicola Taibi
+# License: GPL-3.0-or-later
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# Professional Startup Script
+
+# DragonGL Server Launcher
+cat << "EOF"
+###############################################################################
+#                                                                             #
+#                      Dragon GL - Arcane Game Engine                         #
+#                              SERVER MODULE                                  #
+#                                                                             #
+###############################################################################
+EOF
+
+show_help() {
+    echo -e "\nUsage: $0 [opzioni]"
+    echo "Options:"
+    echo "  -p, --password <pwd>    Sets the server access password"
+    echo "  -h, --help              Shows this help message"
+    echo -e "\nExample:"
+    echo "  $0 --password segreto123"
+}
+
+# Parsing parameters
+PASSWORD=""
+while [[ $# -gt 0 ]]; do
+    key="$1"
+    case $key in
+        -p|--password)
+            PASSWORD="$2"
+            shift # past argument
+            shift # past value
+            ;;
+        -h|--help)
+            show_help
+            exit 0
+            ;;
+        *)    # unknown option
+            echo "Unknown option: $1"
+            show_help
+            exit 1
+            ;;
+    esac
+done
+
+if [ -z "$PASSWORD" ]; then
+    echo -e "\n[ERROR] A server password is required."
+    show_help
+    exit 1
+fi
+
+# Check if executable exists
+BIN="./build/dragongl_server"
+if [ ! -f "$BIN" ]; then
+    echo -e "\n[ERROR] Server executable not found in build/."
+    echo "Compile the project with:"
+    echo "  cd build && cmake .. && make -j\$(nproc)"
+    exit 1
+fi
+
+# Start the server from root (data/ e saves/ sono relativi a questa directory)
+cd "$(dirname "$0")"
+
+echo -e "\n========================================"
+echo -e "[SYSTEM] Diagnostic Data for the Master"
+echo -e "========================================"
+echo -e "\n[OS]"
+uname -a
+echo -e "\n[UPTIME & LOAD]"
+uptime
+echo -e "\n[MEMORY]"
+free -m
+echo -e "\n[DISK SPACE]"
+df -h /
+echo -e "\n[NETWORK (IP Addresses)]"
+ip -brief address show || ifconfig || hostname -I
+echo -e "\n========================================\n"
+
+CMD="$BIN --password $PASSWORD"
+$CMD

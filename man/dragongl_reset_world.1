@@ -1,0 +1,35 @@
+.TH DRAGONGL_RESET_WORLD 1 "2026-08-24" "DragonGL 2026.05.26.01" "User Commands"
+.SH NAME
+dragongl_reset_world \- reset the Dragon GL world state
+.SH SYNOPSIS
+.B dragongl_reset_world
+.SH DESCRIPTION
+.B dragongl_reset_world
+wipes all player saves, tombstones, and the world persistence state of a
+Dragon GL installation (artifacts, NPCs, bones, logs). After confirmation,
+the next server start will generate a brand new world.
+
+The script is interactive: it asks for confirmation (y/n) before deleting
+anything and must be run from the project root directory.
+.SH FILES REMOVED
+.TP
+.IR saves/*.save
+Player save files.
+.TP
+.IR saves/tombstone_*.dat
+Tombstone files (death locations and loot, reloaded by the server at start).
+.TP
+.IR data/world.dat ", " data/artifacts.dat ", " data/npcs.dat ", " data/bones_*.dat
+World persistence files.
+.TP
+.IR combat_log.json ", " map_dump.txt ", " server_log.txt
+Log and dump files.
+.SH WARNING
+This operation is destructive and cannot be undone: all player progress and
+world state will be lost.
+.SH SEE ALSO
+.BR dragongl-server (1)
+.SH AUTHOR
+Nicola Taibi <nicola.taibi.1967@gmail.com>
+.SH LICENSE
+GPL-3.0-or-later

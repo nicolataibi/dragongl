@@ -1,0 +1,44 @@
+.TH DRAGONGL-CLIENT 1 "2026-08-24" "DragonGL 2026.05.26.01" "User Commands"
+.SH NAME
+dragongl-client \- Dragon GL client launcher script
+.SH SYNOPSIS
+.B dragongl-client
+.RI "[\-\-help\ |\ -h ]"
+.I backend
+.SH DESCRIPTION
+.B dragongl-client
+is a convenience launcher for the Dragon GL 3D client. It executes
+.B build/dragongl_client
+from the project root directory with the selected rendering backend, so that
+the relative
+.I data/
+and
+.I saves/
+directories are resolved correctly.
+
+The backend argument is mandatory: if it is missing, the script prints an
+error and exits.
+.SH ARGUMENTS
+.TP
+.B gl
+Start the client with the OpenGL backend (legacy).
+.TP
+.B vk
+Start the client with the Vulkan backend (modern).
+.SH OPTIONS
+.TP
+.B \-h , \-\-help
+Show a short help message and exit.
+.SH EXAMPLES
+Start the client with the Vulkan backend:
+.PP
+.RS
+.B dragongl-client vk
+.RE
+.SH SEE ALSO
+.BR dragongl_client (1),
+.BR dragongl-server (1)
+.SH AUTHOR
+Nicola Taibi <nicola.taibi.1967@gmail.com>
+.SH LICENSE
+GPL-3.0-or-later

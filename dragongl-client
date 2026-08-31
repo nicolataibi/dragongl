@@ -1,0 +1,68 @@
+#!/bin/bash
+# DRAGON GL
+# Dragon GL - Copyright (C) 2026 Nicola Taibi
+# License: GPL-3.0-or-later
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# Professional Startup Script
+
+# DragonGL Client Launcher
+cat << "EOF"
+###############################################################################
+#                                                                             #
+#                      Dragon GL - Arcane Game Engine                         #
+#                              CLIENT MODULE                                  #
+#                                                                             #
+###############################################################################
+EOF
+
+show_help() {
+    echo -e "\nUsage: $0 [opzioni] <backend>"
+    echo "Options:"
+    echo "  -h, --help    Shows this help message"
+    echo -e "\nBackend:"
+    echo "  gl            Start with OpenGL backend (Legacy)"
+    echo "  vk            Start with Vulkan backend (Modern)"
+    echo -e "\nExample:"
+    echo "  $0 gl"
+}
+
+# Check if executable exists
+BIN="./build/dragongl_client"
+if [ ! -f "$BIN" ]; then
+    echo -e "\n[ERROR] Client executable not found in build/."
+    echo "Compile the project with:"
+    echo "  cd build && cmake .. && make -j\$(nproc)"
+    exit 1
+fi
+
+# Parsing parametri
+BACKEND=""
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -h|--help)
+            show_help
+            exit 0
+            ;;
+        gl|vk)
+            BACKEND="$1"
+            shift
+            ;;
+        *)
+            echo "Unknown option: $1"
+            show_help
+            exit 1
+            ;;
+    esac
+done
+
+if [ -z "$BACKEND" ]; then
+    show_help
+    exit 1
+fi
+
+# Start the client from root (data/ e saves/ sono relativi a questa directory)
+cd "$(dirname "$0")"
+$BIN "$BACKEND"
