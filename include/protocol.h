@@ -115,10 +115,18 @@ typedef struct {
     char eq_ring[10][32];
     char eq_belt[4][32];
     int  is_merchant;   /*1 = entity is a merchant*/
+    int  shop_spec;    /*MerchantSpecialization of the shop (SHOP_SPEC_NONE if not a merchant)*/
     int  is_tombstone;  /*1 = entity is a tombstone*/
     int  is_player;
     char username[32];
 } MsgState;
+
+/* Values for MsgState.shop_spec - they must match the
+ * MerchantSpecialization enum in src/server/server_entities.h.
+ * The client only needs to recognize the martial bookshop to
+ * draw its unique sprite.*/
+#define SHOP_SPEC_NONE          (-1)
+#define SHOP_SPEC_BOOKS_MARTIAL 11
 
 /*Sent by the server when a tombstone is removed (item recovery)*/
 typedef struct {

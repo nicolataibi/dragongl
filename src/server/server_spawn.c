@@ -132,6 +132,12 @@ static bool is_item_matching_spec(int item_idx, MerchantSpecialization spec) {
                                     (1u << CLASS_DRUID) |
                                     (1u << CLASS_PALADIN) |
                                     (1u << CLASS_RANGER))));
+  case BOOKS_MARTIAL:
+    return (it->category == ITEM_BOOK &&
+            (it->book_class_mask & ((1u << CLASS_FIGHTER) |
+                                    (1u << CLASS_BARBARIAN) |
+                                    (1u << CLASS_ROGUE) |
+                                    (1u << CLASS_MONK))));
   case CURRENCY_EXCHANGE:
     return (it->category == ITEM_MISC &&
             (strstr(it->name, "Gold") || strstr(it->name, "Silver") ||
@@ -350,10 +356,11 @@ void spawn_city_merchants(NPC *npcs, int *next_id) {
   int cx = MAP_CENTER_X;
   int cy = MAP_CENTER_Y;
 
-  // We assign circular coordinates for merchants 0..4
+  // We assign circular coordinates for merchants 0..4.
+  // Slot i of the 11-store ring (radius 26), same formula as map.c.
   int coords_x[5], coords_y[5];
   for (int i = 0; i < 5; i++) {
-      float angle = (i * 36.0f) * (M_PI / 180.0f);
+      float angle = (i * (360.0f / 11.0f)) * (M_PI / 180.0f);
       coords_x[i] = cx + (int)(cosf(angle) * 26.0f);
       coords_y[i] = cy + (int)(sinf(angle) * 26.0f);
   }
@@ -444,10 +451,11 @@ void spawn_magic_shops(NPC *npcs, int *next_id) {
   int cx = MAP_CENTER_X;
   int cy = MAP_CENTER_Y;
 
-  // We assign circular coordinates for merchants 5..9
+  // We assign circular coordinates for merchants 5..9.
+  // Slot i of the 11-store ring (radius 26), same formula as map.c.
   int coords_x[5], coords_y[5];
   for (int i = 5; i < 10; i++) {
-      float angle = (i * 36.0f) * (M_PI / 180.0f);
+      float angle = (i * (360.0f / 11.0f)) * (M_PI / 180.0f);
       coords_x[i-5] = cx + (int)(cosf(angle) * 26.0f);
       coords_y[i-5] = cy + (int)(sinf(angle) * 26.0f);
   }
@@ -520,7 +528,7 @@ void spawn_magic_shops(NPC *npcs, int *next_id) {
   fill_shop_by_specialization(r, 100);
   r->merchant.restock_timer = 100;
 
-  //9: Temple Library (books of clerics, druids, etc.)
+  // 9: Temple Library (books of clerics, druids, etc.)
   NPC *b = &npcs[9];
   b->active = true;
   b->archetype = ARCH_MERCHANT;
@@ -538,8 +546,40 @@ void spawn_magic_shops(NPC *npcs, int *next_id) {
   b->merchant.restock_timer = 100;
 }
 
+/* =========================================================================
+ * spawn_martial_archive - Spawns the martial-arts bookshop on floor 0.
+ * Sells the discipline codices of Fighter, Barbarian, Rogue and Monk.
+ * Building: slot 10 of the 11-store ring (radius 26) in map.c,
+ * built by the same generic shop loop as the other ten stores.
+ * Occupies NPC slot 10.
+ * ========================================================================= */
+void spawn_martial_archive(NPC *npcs, int *next_id) {
+  int cx = MAP_CENTER_X;
+  int cy = MAP_CENTER_Y;
+  // Slot 10 of the 11-store ring (radius 26), same formula as map.c
+  float angle = (10 * (360.0f / 11.0f)) * (M_PI / 180.0f);
+  int ax = cx + (int)(cosf(angle) * 26.0f);
+  int ay = cy + (int)(sinf(angle) * 26.0f);
+
+  NPC *a = &npcs[10];
+  a->active = true;
+  a->archetype = ARCH_MERCHANT;
+  a->entity_id = (*next_id)++;
+  a->floor_id = 0;
+  a->x = a->spawn_x = ax;
+  a->y = a->spawn_y = ay;
+  a->respawn_timer = -1;
+  a->hp = 1; //hp>0 required: the client drops entities with hp<=0
+  a->max_hp = 1;
+  a->template = &bestiary_data[0];
+  a->merchant.spec = BOOKS_MARTIAL;
+  strncpy(a->merchant.shop_name, "The Archive of a Thousand Battles", 63);
+  fill_shop_by_specialization(a, 100);
+  a->merchant.restock_timer = 100;
+}
+
 void populate_dungeons(NPC *npcs, int *next_id) {
-  int npc_idx = 10; // The 10 city merchants occupy slots 0-9
+  int npc_idx = 11; // The 11 city merchants occupy slots 0-10
 
 
 

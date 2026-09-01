@@ -857,21 +857,23 @@ void generate_procedural_dungeon(Map* map, int floor_id) {
         // Each structure has: temple (11x11), dedicated fountain, dedicated statue.
 
         // Warrior's Arena (North, r=78) - COBBLE Floor, ORANGE Crystal
-        map_fill_rect(map, 144,  67, 11, 11, VOXEL_ROCK);
-        map_fill_rect(map, 145,  68,  9,  9, VOXEL_COBBLE);
-        map_fill_rect(map, 148,  71,  3,  3, VOXEL_CRYSTAL_ORANGE);
-        map->data[0][79][150] = VOXEL_DOOR;
+        // Centered on the north axis x=150 (temple x145..155), in symmetry
+        // with the other three outer-ring dojos.
+        map_fill_rect(map, 145,  67, 11, 11, VOXEL_ROCK);
+        map_fill_rect(map, 146,  68,  9,  9, VOXEL_COBBLE);
+        map_fill_rect(map, 149,  71,  3,  3, VOXEL_CRYSTAL_ORANGE);
+        map->data[0][77][150] = VOXEL_DOOR; // Door on the south wall (perimeter)
         // Warrior's Fountain
         map_fill_rect(map, 148,  83,  5,  5, VOXEL_MARBLE);
         map_fill_rect(map, 149,  84,  3,  3, VOXEL_WATER);
         // Warrior's Statue
-        map_fill_rect(map, 148,  59,  3,  3, VOXEL_CRYSTAL_ORANGE);
+        map_fill_rect(map, 149,  59,  3,  3, VOXEL_CRYSTAL_ORANGE);
 
         // Barbarian's Pit (East, r=78) - GRASS floor, RED crystal
         map_fill_rect(map, 223, 145, 11, 11, VOXEL_ROCK);
         map_fill_rect(map, 224, 146,  9,  9, VOXEL_GRASS);
         map_fill_rect(map, 227, 149,  3,  3, VOXEL_CRYSTAL_RED);
-        map->data[0][150][221] = VOXEL_DOOR;
+        map->data[0][150][223] = VOXEL_DOOR; // Door on the west wall (perimeter)
         // Barbarian's Fountain
         map_fill_rect(map, 213, 148,  5,  5, VOXEL_COBBLE);
         map_fill_rect(map, 214, 149,  3,  3, VOXEL_WATER);
@@ -882,7 +884,7 @@ void generate_procedural_dungeon(Map* map, int floor_id) {
         map_fill_rect(map, 145, 223, 11, 11, VOXEL_ROCK);
         map_fill_rect(map, 146, 224,  9,  9, VOXEL_WOOD);
         map_fill_rect(map, 149, 227,  3,  3, VOXEL_CRYSTAL_PURPLE);
-        map->data[0][221][150] = VOXEL_DOOR;
+        map->data[0][223][150] = VOXEL_DOOR; // Door on the north wall (perimeter)
         //Thief's Fountain
         map_fill_rect(map, 148, 213,  5,  5, VOXEL_ASH);
         map_fill_rect(map, 149, 214,  3,  3, VOXEL_WATER);
@@ -893,7 +895,7 @@ void generate_procedural_dungeon(Map* map, int floor_id) {
         map_fill_rect(map,  67, 145, 11, 11, VOXEL_ROCK);
         map_fill_rect(map,  68, 146,  9,  9, VOXEL_WOOD);
         map_fill_rect(map,  71, 149,  3,  3, VOXEL_CRYSTAL_WHITE);
-        map->data[0][150][79] = VOXEL_DOOR;
+        map->data[0][150][77] = VOXEL_DOOR; // Door on the east wall (perimeter)
         //Fountain of the Monk
         map_fill_rect(map,  83, 148,  5,  5, VOXEL_MARBLE);
         map_fill_rect(map,  84, 149,  3,  3, VOXEL_WATER);
@@ -942,16 +944,19 @@ void generate_procedural_dungeon(Map* map, int floor_id) {
         map_fill_rect(map, 103, 103, 3, 3, VOXEL_CRYSTAL_CYAN);
 
 
-        //Positioning of 10 stores in a circle
-        int shop_coords[10][2];
-        for (int i = 0; i < 10; i++) {
-            float angle = (i * 36.0f) * (M_PI / 180.0f);
+        //Positioning of the 11 city stores in a circle (radius 26).
+        //Slot i sits at angle i * (360/11) degrees, so the ring stays
+        //perfectly symmetric. Slot 10 is The Archive of a Thousand Battles
+        //(martial bookshop, see spawn_martial_archive in server_spawn.c).
+        int shop_coords[11][2];
+        for (int i = 0; i < 11; i++) {
+            float angle = (i * (360.0f / 11.0f)) * (M_PI / 180.0f);
             shop_coords[i][0] = cx + (int)(cosf(angle) * 26.0f);
             shop_coords[i][1] = cy + (int)(sinf(angle) * 26.0f);
         }
 
-        // Construction of the 10 buildings
-        for (int i = 0; i < 10; i++) {
+        // Construction of the 11 buildings
+        for (int i = 0; i < 11; i++) {
             int sx = shop_coords[i][0];
             int sy = shop_coords[i][1];
             
@@ -973,7 +978,7 @@ void generate_procedural_dungeon(Map* map, int floor_id) {
                 else        map->data[0][sy - 4][sx] = VOXEL_DOOR; // Nord
             }
         }
-        
+
         //Central island safe for stairs
         map_fill_rect(map, cx - 2, cy - 2, 5, 5, VOXEL_MARBLE);
         map_fill_rect(map, cx - 1, cy - 1, 3, 3, VOXEL_COBBLE);

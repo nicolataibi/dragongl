@@ -4,7 +4,7 @@
 %global toolchain clang
 
 Name:           dragongl
-Version:        2026.09.01.01
+Version:        2026.09.01.02
 Release:        %autorelease
 Summary:        Multi-User Client-Server 3D RPG Engine — OpenGL (GLFW) & Vulkan
 
@@ -66,7 +66,6 @@ session logs.
 %autosetup -n %{name}-%{version} -p1
 
 
-
 %conf
 %cmake
 
@@ -93,6 +92,8 @@ session logs.
 %{_mandir}/man1/dragongl-client.1*
 %{_mandir}/man1/dragongl_reset_world.1*
 %{_mandir}/man1/analyze_balance.1*
+%{_mandir}/man1/generate_pdf_map.1*
+
 
 %files data
 %doc HOWTO.txt
@@ -109,9 +110,9 @@ session logs.
 %files tools
 %license LICENSE.txt
 %{_datadir}/%{name}/tools/analyze_balance.py
+%{_datadir}/%{name}/tools/generate_pdf_map.py
 %{_mandir}/man1/analyze_balance.1*
-
-
+%{_mandir}/man1/generate_pdf_map.1*
 
 
 %changelog

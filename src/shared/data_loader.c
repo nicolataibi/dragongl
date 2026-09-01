@@ -555,15 +555,9 @@ static bool load_items_json(const char* filepath) {
                  * Magic Books / Spellbooks / Grimoires
                  * The "properties" field contains "LEVEL_X_Y" where X and Y
                  * are the minimum and maximum levels of the spells contained.
-                 * The class is deduced from the book name:
-                 * spellbook -> Wizard (CLASS_WIZARD)
-                 * "Arcana" -> Wizard/Sorcerer/Warlock
-                 * "Missal"/"Psalter"/"Breviary" -> Cleric
-                 * "Druid"/"Forest"/"Nature" -> Druid
-                 * "Bard"/"Ballads" -> Bard
-                 * "Paladin"/"Vow"/"Precepts" -> Paladin
-                 * "Ranger"/"Tracks"/"Forest" -> Ranger
-                 * default: no specific class (0xFFF = all)
+                 * The "book_class_mask" field is the bitmask of the classes
+                 * (ClassType bits, see include/classes.h) that can read and
+                 * learn spells from this book.
                  * -------------------------------------------------------*/
                 item_database[i].category  = ITEM_BOOK;
                 item_database[i].weight    = 2.0f;
@@ -611,165 +605,16 @@ static bool load_items_json(const char* filepath) {
                     }
                 }
 
-                {
-                    uint32_t bmask = 0;
-                    const char *n_str = name ? name->valuestring : "";
-                    /* Arcane: Wizard, Sorcerer, Warlock */
-                    if (my_strcasestr(n_str, "Arcane")
-                        || my_strcasestr(n_str, "spellbook")
-                        || my_strcasestr(n_str, "Novice")
-                        || my_strcasestr(n_str, "Grimoire")
-                        || my_strcasestr(n_str, "Tome")
-                        || my_strcasestr(n_str, "Codex")
-                        || my_strcasestr(n_str, "Manuscript")
-                        || my_strcasestr(n_str, "Arcanist")
-                        || my_strcasestr(n_str, "Archmage")
-                        || my_strcasestr(n_str, "Scholar")) {
-                        bmask |= (1u << (int)CLASS_WIZARD);
-                    }
-                    if (my_strcasestr(n_str, "Blood")
-                        || my_strcasestr(n_str, "Lineage")
-                        || my_strcasestr(n_str, "Manifestation")
-                        || my_strcasestr(n_str, "Ancestry")
-                        || my_strcasestr(n_str, "Apotheosis")
-                        || my_strcasestr(n_str, "Awakening")) {
-                        bmask |= (1u << (int)CLASS_SORCERER);
-                    }
-                    if (my_strcasestr(n_str, "Pact")
-                        || my_strcasestr(n_str, "Seals")
-                        || my_strcasestr(n_str, "Patron")
-                        || my_strcasestr(n_str, "Infernal")
-                        || my_strcasestr(n_str, "Truth")
-                        || my_strcasestr(n_str, "Entity")) {
-                        bmask |= (1u << (int)CLASS_WARLOCK);
-                    }
-                    /* Divine: Cleric */
-                    if (my_strcasestr(n_str, "Missal")
-                        || my_strcasestr(n_str, "Psalter")
-                        || my_strcasestr(n_str, "Breviary")
-                        || my_strcasestr(n_str, "Liturgy")
-                        || my_strcasestr(n_str, "Testament")
-                        || my_strcasestr(n_str, "Canon")
-                        || my_strcasestr(n_str, "Celestial")
-                        || my_strcasestr(n_str, "Cleric")
-                        || my_strcasestr(n_str, "Devotion")
-                        || my_strcasestr(n_str, "Prophet")) {
-                        bmask |= (1u << (int)CLASS_CLERIC);
-                    }
-                    /* Natural: Druid */
-                    if (my_strcasestr(n_str, "Forest")
-                        || my_strcasestr(n_str, "Nature")
-                        || my_strcasestr(n_str, "Earth Rituals")
-                        || my_strcasestr(n_str, "Cycles")
-                        || my_strcasestr(n_str, "Wild Spirits")
-                        || my_strcasestr(n_str, "Ancient Woods")
-                        || my_strcasestr(n_str, "Heart of the World")
-                        || my_strcasestr(n_str, "Druid")
-                        || my_strcasestr(n_str, "Whispers")) {
-                        bmask |= (1u << (int)CLASS_DRUID);
-                    }
-                    /* Bard */
-                    if (my_strcasestr(n_str, "Ballads")
-                        || my_strcasestr(n_str, "Melodies")
-                        || my_strcasestr(n_str, "Sonatas")
-                        || my_strcasestr(n_str, "Harmonies")
-                        || my_strcasestr(n_str, "Chants")
-                        || my_strcasestr(n_str, "Symphony")
-                        || my_strcasestr(n_str, "Bard")
-                        || my_strcasestr(n_str, "Caster")) {
-                        bmask |= (1u << (int)CLASS_BARD);
-                    }
-                    /* Paladin */
-                    if (my_strcasestr(n_str, "Vow")
-                        || my_strcasestr(n_str, "Precepts")
-                        || my_strcasestr(n_str, "Oaths")
-                        || my_strcasestr(n_str, "Paladin's Codex")
-                        || my_strcasestr(n_str, "Edicts")
-                        || my_strcasestr(n_str, "Eternal Order")
-                        || my_strcasestr(n_str, "Paladin")
-                        || my_strcasestr(n_str, "Sacred")
-                        || my_strcasestr(n_str, "Neophyte")
-                        || my_strcasestr(n_str, "Knight")) {
-                        bmask |= (1u << (int)CLASS_PALADIN);
-                    }
-                    /* Ranger */
-                    if (my_strcasestr(n_str, "Tracks")
-                        || my_strcasestr(n_str, "Signs of the Woods")
-                        || my_strcasestr(n_str, "Cliffs and Woodlands")
-                        || my_strcasestr(n_str, "Arcane Hunter")
-                        || my_strcasestr(n_str, "Paths Beyond")
-                        || my_strcasestr(n_str, "Guardian")
-                        || my_strcasestr(n_str, "Ranger")) {
-                        bmask |= (1u << (int)CLASS_RANGER);
-                    }
-                    /* Martial classes: Fighter, Barbarian, Rogue, Monk */
-                    if (my_strcasestr(n_str, "Treatise of the Sword")
-                        || my_strcasestr(n_str, "Manual of the Shield")
-                        || my_strcasestr(n_str, "Art of the Spear")
-                        || my_strcasestr(n_str, "Doctrine of Armor")
-                        || my_strcasestr(n_str, "Strategies of War")
-                        || my_strcasestr(n_str, "Martial Mastery")
-                        || my_strcasestr(n_str, "Recruit's Manual")
-                        || my_strcasestr(n_str, "Vanguard")
-                        || my_strcasestr(n_str, "Veteran")
-                        || my_strcasestr(n_str, "Commander")
-                        || my_strcasestr(n_str, "Weapon Master")
-                        || my_strcasestr(n_str, "Champion")) {
-                        bmask |= (1u << (int)CLASS_FIGHTER);
-                    }
-                    if (my_strcasestr(n_str, "Way of Fury")
-                        || my_strcasestr(n_str, "War Chants")
-                        || my_strcasestr(n_str, "Predator")
-                        || my_strcasestr(n_str, "Berserker")
-                        || my_strcasestr(n_str, "Tribe")
-                        || my_strcasestr(n_str, "Wrath of the Titan")
-                        || my_strcasestr(n_str, "Chronicles of the Tribe")
-                        || my_strcasestr(n_str, "Ancestors")
-                        || my_strcasestr(n_str, "Clan")
-                        || my_strcasestr(n_str, "Primal")
-                        || my_strcasestr(n_str, "Hunt")) {
-                        bmask |= (1u << (int)CLASS_BARBARIAN);
-                    }
-                    if (my_strcasestr(n_str, "Shadow")
-                        || my_strcasestr(n_str, "Lockpicking")
-                        || my_strcasestr(n_str, "Traps and Devices")
-                        || my_strcasestr(n_str, "Poisons and")
-                        || my_strcasestr(n_str, "Infiltration")
-                        || my_strcasestr(n_str, "Guild")
-                        || my_strcasestr(n_str, "Cutpurse")
-                        || my_strcasestr(n_str, "Assassin")
-                        || my_strcasestr(n_str, "Unseen")
-                        || my_strcasestr(n_str, "Night")
-                        || my_strcasestr(n_str, "Betrayal")) {
-                        bmask |= (1u << (int)CLASS_ROGUE);
-                    }
-                    if (my_strcasestr(n_str, "Scroll of the Lotus")
-                        || my_strcasestr(n_str, "Way of the Wind")
-                        || my_strcasestr(n_str, "Discipline of the Body")
-                        || my_strcasestr(n_str, "Secrets of Ki")
-                        || my_strcasestr(n_str, "Flow of Energy")
-                        || my_strcasestr(n_str, "Master's Enlightenment")
-                        || my_strcasestr(n_str, "Way of the Breath")
-                        || my_strcasestr(n_str, "Body and Spirit")
-                        || my_strcasestr(n_str, "Meridians of Ki")
-                        || my_strcasestr(n_str, "Form of the Dragon")
-                        || my_strcasestr(n_str, "Inner Techniques")
-                        || my_strcasestr(n_str, "Ascetic Balance")
-                        || my_strcasestr(n_str, "Monk")) {
-                        bmask |= (1u << (int)CLASS_MONK);
-                    }
-                    /* If no match: accessible to all casters */
-                    if (bmask == 0) {
-                        bmask = (1u << (int)CLASS_WIZARD)
-                              | (1u << (int)CLASS_SORCERER)
-                              | (1u << (int)CLASS_WARLOCK)
-                              | (1u << (int)CLASS_CLERIC)
-                              | (1u << (int)CLASS_DRUID)
-                              | (1u << (int)CLASS_BARD)
-                              | (1u << (int)CLASS_PALADIN)
-                              | (1u << (int)CLASS_RANGER);
-                    }
-                    item_database[i].book_class_mask = bmask;
+                /* Class mask: read exclusively from the "book_class_mask"
+                 * JSON field (bitmask of ClassType, see include/classes.h).
+                 * Books without a valid mask stay readable by every class. */
+                cJSON *mask_field = cJSON_GetObjectItem(item, "book_class_mask");
+                if (mask_field && cJSON_IsNumber(mask_field) &&
+                    mask_field->valueint > 0) {
+                    item_database[i].book_class_mask =
+                        (uint32_t)mask_field->valueint;
+                } else {
+                    item_database[i].book_class_mask = (1u << CLASS_COUNT) - 1;
                 }
             } else if (strcmp(cat_str, "WONDROUS_ITEMS") == 0) {
 

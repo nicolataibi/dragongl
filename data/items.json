@@ -758,7 +758,7 @@
         {
             "name": "Arcane Focus, Crystal",
             "image": "",
-            "description": "An arcane focus is a special item\u2013an orb, a crystal, a rod, a specially constructed staff, a wand-like length of wood, or some similar item\u2013designed to channel the power of arcane spells. A sorcerer, warlock, or wizard can use such an item as a spellcasting focus. ",
+            "description": "An arcane focus is a special item–an orb, a crystal, a rod, a specially constructed staff, a wand-like length of wood, or some similar item–designed to channel the power of arcane spells. A sorcerer, warlock, or wizard can use such an item as a spellcasting focus. ",
             "category": "ADVENTURING_GEAR",
             "rarity": "COMMON",
             "classification": "",
@@ -771,7 +771,7 @@
         {
             "name": "Arcane Focus, Orb",
             "image": "",
-            "description": "An arcane focus is a special item\u2013an orb, a crystal, a rod, a specially constructed staff, a wand-like length of wood, or some similar item\u2013designed to channel the power of arcane spells. A sorcerer, warlock, or wizard can use such an item as a spellcasting focus. ",
+            "description": "An arcane focus is a special item–an orb, a crystal, a rod, a specially constructed staff, a wand-like length of wood, or some similar item–designed to channel the power of arcane spells. A sorcerer, warlock, or wizard can use such an item as a spellcasting focus. ",
             "category": "ADVENTURING_GEAR",
             "rarity": "COMMON",
             "classification": "",
@@ -784,7 +784,7 @@
         {
             "name": "Arcane Focus, Rod",
             "image": "",
-            "description": "An arcane focus is a special item\u2013an orb, a crystal, a rod, a specially constructed staff, a wand-like length of wood, or some similar item\u2013designed to channel the power of arcane spells. A sorcerer, warlock, or wizard can use such an item as a spellcasting focus. ",
+            "description": "An arcane focus is a special item–an orb, a crystal, a rod, a specially constructed staff, a wand-like length of wood, or some similar item–designed to channel the power of arcane spells. A sorcerer, warlock, or wizard can use such an item as a spellcasting focus. ",
             "category": "ADVENTURING_GEAR",
             "rarity": "COMMON",
             "classification": "",
@@ -797,7 +797,7 @@
         {
             "name": "Arcane Focus, Staff",
             "image": "staff",
-            "description": "An arcane focus is a special item\u2013an orb, a crystal, a rod, a specially constructed staff, a wand-like length of wood, or some similar item\u2013designed to channel the power of arcane spells. A sorcerer, warlock, or wizard can use such an item as a spellcasting focus. ",
+            "description": "An arcane focus is a special item–an orb, a crystal, a rod, a specially constructed staff, a wand-like length of wood, or some similar item–designed to channel the power of arcane spells. A sorcerer, warlock, or wizard can use such an item as a spellcasting focus. ",
             "category": "ADVENTURING_GEAR",
             "rarity": "COMMON",
             "classification": "",
@@ -810,7 +810,7 @@
         {
             "name": "Arcane Focus, Wand",
             "image": "wand",
-            "description": "An arcane focus is a special item\u2013an orb, a crystal, a rod, a specially constructed staff, a wand-like length of wood, or some similar item\u2013designed to channel the power of arcane spells. A sorcerer, warlock, or wizard can use such an item as a spellcasting focus. ",
+            "description": "An arcane focus is a special item–an orb, a crystal, a rod, a specially constructed staff, a wand-like length of wood, or some similar item–designed to channel the power of arcane spells. A sorcerer, warlock, or wizard can use such an item as a spellcasting focus. ",
             "category": "ADVENTURING_GEAR",
             "rarity": "COMMON",
             "classification": "",
@@ -1878,7 +1878,7 @@
         {
             "name": "Tinderbox",
             "image": "",
-            "description": "This small container holds flint, fire steel, and tinder (usually dry cloth soaked in light oil) used to kindle a fire. Using it to light a torch\u2013or anything else with abundant, exposed fuel\u2013takes an action. Lighting any other fire takes 1 minute. ",
+            "description": "This small container holds flint, fire steel, and tinder (usually dry cloth soaked in light oil) used to kindle a fire. Using it to light a torch–or anything else with abundant, exposed fuel–takes an action. Lighting any other fire takes 1 minute. ",
             "category": "ADVENTURING_GEAR",
             "rarity": "COMMON",
             "classification": "",
@@ -2396,9 +2396,9 @@
             "cost": "2500"
         },
         {
-            "name": "Assassin\u2019s Blood",
+            "name": "Assassin’s Blood",
             "image": "",
-            "description": "A creature subjected to this poison must make a DC 10 Constitution saving throw. On a failed save, it takes 6 (1d12) poison damage and is poisoned for 24 hours. On a successful save, the creature takes half damage and isn\u2019t poisoned.",
+            "description": "A creature subjected to this poison must make a DC 10 Constitution saving throw. On a failed save, it takes 6 (1d12) poison damage and is poisoned for 24 hours. On a successful save, the creature takes half damage and isn’t poisoned.",
             "category": "POISONS",
             "rarity": "UNCOMMON",
             "classification": "",
@@ -2502,7 +2502,7 @@
         {
             "name": "Pale Tincture",
             "image": "",
-            "description": "A creature subjected to this poison must succeed on a DC 16 Constitution saving throw or take 3 (1d6) poison damage and become poisoned. The poisoned creature must repeat the saving throw every 24 hours, taking 3 (1d6) poison damage on a failed save. Until this poison ends, the damage the poison deals can\u2019t be healed by any means. After seven successful saving throws, the effect ends and the creature can heal normally.",
+            "description": "A creature subjected to this poison must succeed on a DC 16 Constitution saving throw or take 3 (1d6) poison damage and become poisoned. The poisoned creature must repeat the saving throw every 24 hours, taking 3 (1d6) poison damage on a failed save. Until this poison ends, the damage the poison deals can’t be healed by any means. After seven successful saving throws, the effect ends and the creature can heal normally.",
             "category": "POISONS",
             "rarity": "UNCOMMON",
             "classification": "",
@@ -2554,7 +2554,7 @@
         {
             "name": "Truth Serum",
             "image": "",
-            "description": "A creature subjected to this poison must succeed on a DC 11 Constitution saving throw or become poisoned for 1 hour. The poisoned creature can\u2019t knowingly speak a lie, as if under the effect of a zone of truth spell.",
+            "description": "A creature subjected to this poison must succeed on a DC 11 Constitution saving throw or become poisoned for 1 hour. The poisoned creature can’t knowingly speak a lie, as if under the effect of a zone of truth spell.",
             "category": "POISONS",
             "rarity": "UNCOMMON",
             "classification": "",
@@ -2971,7 +2971,7 @@
         {
             "name": "Ivory Goat (Travail)",
             "image": "",
-            "description": "A figurine of wondrous power is a statuette of a beast small enough to fit in a pocket. If you use an action to speak the command word and throw the figurine to a point on the ground within 60 feet of you, the figurine becomes a living creature. If the space where the creature would appear is occupied by other creatures or objects, or if there isn\u2019t enough space for the creature, the figurine doesn\u2019t become a creature.<br /><br />Ivory Goats. These ivory statuettes of goats are always created in sets of three. Each goat looks unique and functions differently from the others.<br /><br />The goat of travail becomes a giant goat for up to 3 hours. Once it has been used, it can't be used again until 30 days have passed.",
+            "description": "A figurine of wondrous power is a statuette of a beast small enough to fit in a pocket. If you use an action to speak the command word and throw the figurine to a point on the ground within 60 feet of you, the figurine becomes a living creature. If the space where the creature would appear is occupied by other creatures or objects, or if there isn’t enough space for the creature, the figurine doesn’t become a creature.<br /><br />Ivory Goats. These ivory statuettes of goats are always created in sets of three. Each goat looks unique and functions differently from the others.<br /><br />The goat of travail becomes a giant goat for up to 3 hours. Once it has been used, it can't be used again until 30 days have passed.",
             "category": "WONDROUS_ITEMS",
             "rarity": "RARE",
             "classification": "",
@@ -3205,7 +3205,7 @@
         {
             "name": "Eversmoking Bottle",
             "image": "",
-            "description": "Smoke leaks from the lead-stoppered mouth of this brass bottle, which weighs 1 pound. When you use an action to remove the stopper, a cloud of thick smoke pours out in a 60-\u00adfoot radius from the bottle. The cloud's area is heavily obscured. Each minute the bottle remains open and within the cloud, the radius increases by 10 feet until it reaches its maximum radius of 120 feet.<br />The cloud persists as long as the bottle is open. Closing the bottle requires you to speak its Command Word as an action. Once the bottle is closed, the cloud disperses after 10 minutes. A moderate wind (11 to 20 miles per hour) can also disperse the smoke after 1 minute, and a strong wind (21 or more miles per hour) can do so after 1 round.",
+            "description": "Smoke leaks from the lead-stoppered mouth of this brass bottle, which weighs 1 pound. When you use an action to remove the stopper, a cloud of thick smoke pours out in a 60-­foot radius from the bottle. The cloud's area is heavily obscured. Each minute the bottle remains open and within the cloud, the radius increases by 10 feet until it reaches its maximum radius of 120 feet.<br />The cloud persists as long as the bottle is open. Closing the bottle requires you to speak its Command Word as an action. Once the bottle is closed, the cloud disperses after 10 minutes. A moderate wind (11 to 20 miles per hour) can also disperse the smoke after 1 minute, and a strong wind (21 or more miles per hour) can do so after 1 round.",
             "category": "WONDROUS_ITEMS",
             "rarity": "UNCOMMON",
             "classification": "",
@@ -3231,7 +3231,7 @@
         {
             "name": "Ring of Warmth",
             "image": "ring",
-            "description": "While wearing this ring, you have resistance to cold damage. In addition, you and everything you wear and carry are unharmed by temperatures as low as \u221250 degrees Fahrenheit.",
+            "description": "While wearing this ring, you have resistance to cold damage. In addition, you and everything you wear and carry are unharmed by temperatures as low as −50 degrees Fahrenheit.",
             "category": "WONDROUS_ITEMS",
             "rarity": "UNCOMMON",
             "classification": "",
@@ -3244,7 +3244,7 @@
         {
             "name": "Ivory Goat of Traveling",
             "image": "",
-            "description": "A figurine of wondrous power is a statuette of a beast small enough to fit in a pocket. If you use an action to speak the command word and throw the figurine to a point on the ground within 60 feet of you, the figurine becomes a living creature. If the space where the creature would appear is occupied by other creatures or objects, or if there isn\u2019t enough space for the creature, the figurine doesn\u2019t become a creature.<br /><br />Ivory Goats. These ivory statuettes of goats are always created in sets of three. Each goat looks unique and functions differently from the others.<br /><br />The goat of traveling can become a Large goat with the same statistics as a riding horse. It has 24 charges, and each hour or portion thereof it spends in beast form costs 1 charge. While it has charges, you can use it as often as you wish. When it runs out of charges, it reverts to a figurine and can't be used again until 7 days have passed, when it regains all its charges.",
+            "description": "A figurine of wondrous power is a statuette of a beast small enough to fit in a pocket. If you use an action to speak the command word and throw the figurine to a point on the ground within 60 feet of you, the figurine becomes a living creature. If the space where the creature would appear is occupied by other creatures or objects, or if there isn’t enough space for the creature, the figurine doesn’t become a creature.<br /><br />Ivory Goats. These ivory statuettes of goats are always created in sets of three. Each goat looks unique and functions differently from the others.<br /><br />The goat of traveling can become a Large goat with the same statistics as a riding horse. It has 24 charges, and each hour or portion thereof it spends in beast form costs 1 charge. While it has charges, you can use it as often as you wish. When it runs out of charges, it reverts to a figurine and can't be used again until 7 days have passed, when it regains all its charges.",
             "category": "WONDROUS_ITEMS",
             "rarity": "RARE",
             "classification": "",
@@ -3872,7 +3872,7 @@
         {
             "name": "Onyx Dog",
             "image": "",
-            "description": "A figurine of wondrous power is a statuette of a beast small enough to fit in a pocket. If you use an action to speak the command word and throw the figurine to a point on the ground within 60 feet of you, the figurine becomes a living creature. If the space where the creature would appear is occupied by other creatures or objects, or if there isn\u2019t enough space for the creature, the figurine doesn\u2019t become a creature.<br /><br />This onyx statuette of a dog can become a mastiff for up to 6 hours. The mastiff has an Intelligence of 8 and can speak Common. It also has darkvision out to a range of 60 feet and can see invisible creatures and objects within that range. Once it has been used, it can't be used again until 7 days have passed.",
+            "description": "A figurine of wondrous power is a statuette of a beast small enough to fit in a pocket. If you use an action to speak the command word and throw the figurine to a point on the ground within 60 feet of you, the figurine becomes a living creature. If the space where the creature would appear is occupied by other creatures or objects, or if there isn’t enough space for the creature, the figurine doesn’t become a creature.<br /><br />This onyx statuette of a dog can become a mastiff for up to 6 hours. The mastiff has an Intelligence of 8 and can speak Common. It also has darkvision out to a range of 60 feet and can see invisible creatures and objects within that range. Once it has been used, it can't be used again until 7 days have passed.",
             "category": "WONDROUS_ITEMS",
             "rarity": "RARE",
             "classification": "",
@@ -4275,7 +4275,7 @@
         {
             "name": "Silver Raven",
             "image": "",
-            "description": "A figurine of wondrous power is a statuette of a beast small enough to fit in a pocket. If you use an action to speak the command word and throw the figurine to a point on the ground within 60 feet of you, the figurine becomes a living creature. If the space where the creature would appear is occupied by other creatures or objects, or if there isn\u2019t enough space for the creature, the figurine doesn\u2019t become a creature.<br /><br />This silver statuette of a raven can become a raven for up to 12 hours. Once it has been used, it can't be used again until 2 days have passed. While in raven form, the figurine allows you to cast the animal messenger spell on it at will.",
+            "description": "A figurine of wondrous power is a statuette of a beast small enough to fit in a pocket. If you use an action to speak the command word and throw the figurine to a point on the ground within 60 feet of you, the figurine becomes a living creature. If the space where the creature would appear is occupied by other creatures or objects, or if there isn’t enough space for the creature, the figurine doesn’t become a creature.<br /><br />This silver statuette of a raven can become a raven for up to 12 hours. Once it has been used, it can't be used again until 2 days have passed. While in raven form, the figurine allows you to cast the animal messenger spell on it at will.",
             "category": "WONDROUS_ITEMS",
             "rarity": "UNCOMMON",
             "classification": "",
@@ -4380,7 +4380,7 @@
         {
             "name": "Ioun Stone of Reserve",
             "image": "ioun-stone",
-            "description": "An Ioun stone is named after Ioun, a god of knowledge and prophecy revered on some worlds. Many types of Ioun stone exist, each type a distinct combination of shape and color.<br /><br />When you use an action to toss one of these stones into the air, the stone orbits your head at a distance of 1d3 feet and confers a benefit to you. Thereafter, another creature must use an action to grasp or net the stone to separate it from you, either by making a successful attack roll against AC 24 or a successful DC 24 Dexterity (Acrobatics) check. You can use an action to seize and stow the stone, ending its effect.<br /><br />A stone has AC 24, 10 hit points, and resistance to all damage. It is considered to be an object that is being worn while it orbits your head.<br /><br />Effect for this Ioun Stone: This vibrant purple prism stores spells cast into it, holding them until you use them. The stone can store up to 3 levels worth of spells at a time. When found, it contains 1d4\u22121 levels of stored spells chosen by the GM.<br /><br />Any creature can cast a spell of 1st through 3rd level into the stone by touching it as the spell is cast. The spell has no effect, other than to be stored in the stone. If the stone can't hold the spell, the spell is expended without effect. The level of the slot used to cast the spell determines how much space it uses.<br /><br />While this stone orbits your head, you can cast any spell stored in it. The spell uses the slot level, spell save DC, spell attack bonus, and spellcasting ability of the original caster, but is otherwise treated as if you cast the spell. The spell cast from the stone is no longer stored in it, freeing up space.",
+            "description": "An Ioun stone is named after Ioun, a god of knowledge and prophecy revered on some worlds. Many types of Ioun stone exist, each type a distinct combination of shape and color.<br /><br />When you use an action to toss one of these stones into the air, the stone orbits your head at a distance of 1d3 feet and confers a benefit to you. Thereafter, another creature must use an action to grasp or net the stone to separate it from you, either by making a successful attack roll against AC 24 or a successful DC 24 Dexterity (Acrobatics) check. You can use an action to seize and stow the stone, ending its effect.<br /><br />A stone has AC 24, 10 hit points, and resistance to all damage. It is considered to be an object that is being worn while it orbits your head.<br /><br />Effect for this Ioun Stone: This vibrant purple prism stores spells cast into it, holding them until you use them. The stone can store up to 3 levels worth of spells at a time. When found, it contains 1d4−1 levels of stored spells chosen by the GM.<br /><br />Any creature can cast a spell of 1st through 3rd level into the stone by touching it as the spell is cast. The spell has no effect, other than to be stored in the stone. If the stone can't hold the spell, the spell is expended without effect. The level of the slot used to cast the spell determines how much space it uses.<br /><br />While this stone orbits your head, you can cast any spell stored in it. The spell uses the slot level, spell save DC, spell attack bonus, and spellcasting ability of the original caster, but is otherwise treated as if you cast the spell. The spell cast from the stone is no longer stored in it, freeing up space.",
             "category": "WONDROUS_ITEMS",
             "rarity": "RARE",
             "classification": "",
@@ -4510,7 +4510,7 @@
         {
             "name": "Marble Elephant",
             "image": "",
-            "description": "A figurine of wondrous power is a statuette of a beast small enough to fit in a pocket. If you use an action to speak the command word and throw the figurine to a point on the ground within 60 feet of you, the figurine becomes a living creature. If the space where the creature would appear is occupied by other creatures or objects, or if there isn\u2019t enough space for the creature, the figurine doesn\u2019t become a creature.<br /><br />This marble statuette is about 4 inches high and long. It can become an elephant for up to 24 hours. Once it has been used, it can't be used again until 7 days have passed.",
+            "description": "A figurine of wondrous power is a statuette of a beast small enough to fit in a pocket. If you use an action to speak the command word and throw the figurine to a point on the ground within 60 feet of you, the figurine becomes a living creature. If the space where the creature would appear is occupied by other creatures or objects, or if there isn’t enough space for the creature, the figurine doesn’t become a creature.<br /><br />This marble statuette is about 4 inches high and long. It can become an elephant for up to 24 hours. Once it has been used, it can't be used again until 7 days have passed.",
             "category": "WONDROUS_ITEMS",
             "rarity": "RARE",
             "classification": "",
@@ -4523,7 +4523,7 @@
         {
             "name": "Ebony Fly",
             "image": "",
-            "description": "A figurine of wondrous power is a statuette of a beast small enough to fit in a pocket. If you use an action to speak the command word and throw the figurine to a point on the ground within 60 feet of you, the figurine becomes a living creature. If the space where the creature would appear is occupied by other creatures or objects, or if there isn\u2019t enough space for the creature, the figurine doesn\u2019t become a creature.<br /><br />This ebony statuette is carved in the likeness of a horsefly. It can become a giant fly for up to 12 hours and can be ridden as a mount. Once it has been used, it can't be used again until 2 days have passed.",
+            "description": "A figurine of wondrous power is a statuette of a beast small enough to fit in a pocket. If you use an action to speak the command word and throw the figurine to a point on the ground within 60 feet of you, the figurine becomes a living creature. If the space where the creature would appear is occupied by other creatures or objects, or if there isn’t enough space for the creature, the figurine doesn’t become a creature.<br /><br />This ebony statuette is carved in the likeness of a horsefly. It can become a giant fly for up to 12 hours and can be ridden as a mount. Once it has been used, it can't be used again until 2 days have passed.",
             "category": "WONDROUS_ITEMS",
             "rarity": "RARE",
             "classification": "",
@@ -4536,7 +4536,7 @@
         {
             "name": "Deck of Illusions",
             "image": "",
-            "description": "This box contains a set of parchment cards. A full deck has 34 cards. A deck found as treasure is usually missing 1d20 \u2212 1 cards.<br /><br />The magic of the deck functions only if cards are drawn at random (you can use an altered deck of playing cards to simulate the deck). You can use an action to draw a card at random from the deck and throw it to the ground at a point within 30 feet of you.<br /><br />An illusion of one or more creatures forms over the thrown card and remains until dispelled. An illusory creature appears real, of the appropriate size, and behaves as if it were a real creature except that it can do no harm. While you are within 120 feet of the illusory creature and can see it, you can use an action to move it magically anywhere within 30 feet of its card. Any physical interaction with the illusory creature reveals it to be an illusion, because objects pass through it. Someone who uses an action to visually inspect the creature identifies it as illusory with a successful DC 15 Intelligence (Investigation) check. The creature then appears translucent.<br /><br />The illusion lasts until its card is moved or the illusion is dispelled. When the illusion ends, the image on its card disappears, and that card can't be used again.<table> <thead> <tr> <th>Playing Card</th> <th>Illusion</th> </tr> </thead> <tbody> <tr> <td>Ace of hearts</td> <td>Red dragon</td> </tr> <tr> <td>King of hearts</td> <td>Knight and four guards</td> </tr> <tr> <td>Queen of hearts</td> <td>Succubus or incubus</td> </tr> <tr> <td>Jack of hearts</td> <td>Druid</td> </tr> <tr> <td>Ten of hearts</td> <td>Cloud giant</td> </tr> <tr> <td>Nine of hearts</td> <td>Ettin</td> </tr> <tr> <td>Eight of hearts</td> <td>Bugbear</td> </tr> <tr> <td>Two of hearts</td> <td>Goblin</td> </tr> <tr> <td>Ace of diamonds</td> <td>Beholder</td> </tr> <tr> <td>King of diamonds</td> <td>Archmage and mage apprentice</td> </tr> <tr> <td>Queen of diamonds</td> <td>Night hag</td> </tr> <tr> <td>Jack of diamonds</td> <td>Assassin</td> </tr> <tr> <td>Ten of diamonds</td> <td>Fire giant</td> </tr> <tr> <td>Nine of diamonds</td> <td>Ogre mage</td> </tr> <tr> <td>Eight of diamonds</td> <td>Gnoll</td> </tr> <tr> <td>Two of diamonds</td> <td>Kobold</td> </tr> <tr> <td>Ace of spades</td> <td>Lich</td> </tr> <tr> <td>King of spades</td> <td>Priest and two acolytes</td> </tr> <tr> <td>Queen of spades</td> <td>Medusa</td> </tr> <tr> <td>Jack of spades</td> <td>Veteran</td> </tr> <tr> <td>Ten of spades</td> <td>Frost giant</td> </tr> <tr> <td>Nine of spades</td> <td>Troll</td> </tr> <tr> <td>Eight of spades</td> <td>Hobgoblin</td> </tr> <tr> <td>Two of spades</td> <td>Goblin</td> </tr> <tr> <td>Ace of clubs</td> <td>Iron golem</td> </tr> <tr> <td>King of clubs</td> <td>Bandit captain and three bandits</td> </tr> <tr> <td>Queen of clubs</td> <td>Erinyes</td> </tr> <tr> <td>Jack of clubs</td> <td>Berserker</td> </tr> <tr> <td>Ten of clubs</td> <td>Hill giant</td> </tr> <tr> <td>Nine of clubs</td> <td>Ogre</td> </tr> <tr> <td>Eight of clubs</td> <td>Orc</td> </tr> <tr> <td>Two of clubs</td> <td>Kobold</td> </tr> <tr> <td>Jokers (2)</td> <td>You (the deck's owner)</td> </tr> </tbody> </table>",
+            "description": "This box contains a set of parchment cards. A full deck has 34 cards. A deck found as treasure is usually missing 1d20 − 1 cards.<br /><br />The magic of the deck functions only if cards are drawn at random (you can use an altered deck of playing cards to simulate the deck). You can use an action to draw a card at random from the deck and throw it to the ground at a point within 30 feet of you.<br /><br />An illusion of one or more creatures forms over the thrown card and remains until dispelled. An illusory creature appears real, of the appropriate size, and behaves as if it were a real creature except that it can do no harm. While you are within 120 feet of the illusory creature and can see it, you can use an action to move it magically anywhere within 30 feet of its card. Any physical interaction with the illusory creature reveals it to be an illusion, because objects pass through it. Someone who uses an action to visually inspect the creature identifies it as illusory with a successful DC 15 Intelligence (Investigation) check. The creature then appears translucent.<br /><br />The illusion lasts until its card is moved or the illusion is dispelled. When the illusion ends, the image on its card disappears, and that card can't be used again.<table> <thead> <tr> <th>Playing Card</th> <th>Illusion</th> </tr> </thead> <tbody> <tr> <td>Ace of hearts</td> <td>Red dragon</td> </tr> <tr> <td>King of hearts</td> <td>Knight and four guards</td> </tr> <tr> <td>Queen of hearts</td> <td>Succubus or incubus</td> </tr> <tr> <td>Jack of hearts</td> <td>Druid</td> </tr> <tr> <td>Ten of hearts</td> <td>Cloud giant</td> </tr> <tr> <td>Nine of hearts</td> <td>Ettin</td> </tr> <tr> <td>Eight of hearts</td> <td>Bugbear</td> </tr> <tr> <td>Two of hearts</td> <td>Goblin</td> </tr> <tr> <td>Ace of diamonds</td> <td>Beholder</td> </tr> <tr> <td>King of diamonds</td> <td>Archmage and mage apprentice</td> </tr> <tr> <td>Queen of diamonds</td> <td>Night hag</td> </tr> <tr> <td>Jack of diamonds</td> <td>Assassin</td> </tr> <tr> <td>Ten of diamonds</td> <td>Fire giant</td> </tr> <tr> <td>Nine of diamonds</td> <td>Ogre mage</td> </tr> <tr> <td>Eight of diamonds</td> <td>Gnoll</td> </tr> <tr> <td>Two of diamonds</td> <td>Kobold</td> </tr> <tr> <td>Ace of spades</td> <td>Lich</td> </tr> <tr> <td>King of spades</td> <td>Priest and two acolytes</td> </tr> <tr> <td>Queen of spades</td> <td>Medusa</td> </tr> <tr> <td>Jack of spades</td> <td>Veteran</td> </tr> <tr> <td>Ten of spades</td> <td>Frost giant</td> </tr> <tr> <td>Nine of spades</td> <td>Troll</td> </tr> <tr> <td>Eight of spades</td> <td>Hobgoblin</td> </tr> <tr> <td>Two of spades</td> <td>Goblin</td> </tr> <tr> <td>Ace of clubs</td> <td>Iron golem</td> </tr> <tr> <td>King of clubs</td> <td>Bandit captain and three bandits</td> </tr> <tr> <td>Queen of clubs</td> <td>Erinyes</td> </tr> <tr> <td>Jack of clubs</td> <td>Berserker</td> </tr> <tr> <td>Ten of clubs</td> <td>Hill giant</td> </tr> <tr> <td>Nine of clubs</td> <td>Ogre</td> </tr> <tr> <td>Eight of clubs</td> <td>Orc</td> </tr> <tr> <td>Two of clubs</td> <td>Kobold</td> </tr> <tr> <td>Jokers (2)</td> <td>You (the deck's owner)</td> </tr> </tbody> </table>",
             "category": "WONDROUS_ITEMS",
             "rarity": "UNCOMMON",
             "classification": "",
@@ -4783,7 +4783,7 @@
         {
             "name": "Bronze Griffon",
             "image": "",
-            "description": "A figurine of wondrous power is a statuette of a beast small enough to fit in a pocket. If you use an action to speak the command word and throw the figurine to a point on the ground within 60 feet of you, the figurine becomes a living creature. If the space where the creature would appear is occupied by other creatures or objects, or if there isn\u2019t enough space for the creature, the figurine doesn\u2019t become a creature.<br /><br />This bronze statuette is of a griffon rampant. It can become a griffon for up to 6 hours. Once it has been used, it can't be used again until 5 days have passed.",
+            "description": "A figurine of wondrous power is a statuette of a beast small enough to fit in a pocket. If you use an action to speak the command word and throw the figurine to a point on the ground within 60 feet of you, the figurine becomes a living creature. If the space where the creature would appear is occupied by other creatures or objects, or if there isn’t enough space for the creature, the figurine doesn’t become a creature.<br /><br />This bronze statuette is of a griffon rampant. It can become a griffon for up to 6 hours. Once it has been used, it can't be used again until 5 days have passed.",
             "category": "WONDROUS_ITEMS",
             "rarity": "RARE",
             "classification": "",
@@ -4809,7 +4809,7 @@
         {
             "name": "Serpentine Owl",
             "image": "",
-            "description": "A figurine of wondrous power is a statuette of a beast small enough to fit in a pocket. If you use an action to speak the command word and throw the figurine to a point on the ground within 60 feet of you, the figurine becomes a living creature. If the space where the creature would appear is occupied by other creatures or objects, or if there isn\u2019t enough space for the creature, the figurine doesn\u2019t become a creature.<br /><br />This serpentine statuette of an owl can become a giant owl for up to 8 hours. Once it has been used, it can't be used again until 2 days have passed. The owl can telepathically communicate with you at any range if you and it are on the same plane of existence.",
+            "description": "A figurine of wondrous power is a statuette of a beast small enough to fit in a pocket. If you use an action to speak the command word and throw the figurine to a point on the ground within 60 feet of you, the figurine becomes a living creature. If the space where the creature would appear is occupied by other creatures or objects, or if there isn’t enough space for the creature, the figurine doesn’t become a creature.<br /><br />This serpentine statuette of an owl can become a giant owl for up to 8 hours. Once it has been used, it can't be used again until 2 days have passed. The owl can telepathically communicate with you at any range if you and it are on the same plane of existence.",
             "category": "WONDROUS_ITEMS",
             "rarity": "RARE",
             "classification": "",
@@ -4900,7 +4900,7 @@
         {
             "name": "Boots of the Winterlands",
             "image": "boots",
-            "description": "These furred boots are snug and feel quite warm. While you wear them, you gain the following benefits:<ul><li>You have resistance to cold damage.</li><li>You ignore difficult terrain created by ice or snow.</li><li>You can tolerate temperatures as low as \u221250 degrees Fahrenheit without any additional protection. If you wear heavy clothes, you can tolerate temperatures as low as \u2212100 degrees Fahrenheit.</li></ul>",
+            "description": "These furred boots are snug and feel quite warm. While you wear them, you gain the following benefits:<ul><li>You have resistance to cold damage.</li><li>You ignore difficult terrain created by ice or snow.</li><li>You can tolerate temperatures as low as −50 degrees Fahrenheit without any additional protection. If you wear heavy clothes, you can tolerate temperatures as low as −100 degrees Fahrenheit.</li></ul>",
             "category": "WONDROUS_ITEMS",
             "rarity": "UNCOMMON",
             "classification": "",
@@ -4978,7 +4978,7 @@
         {
             "name": "Helm of Telepathy",
             "image": "",
-            "description": "While wearing this helm, you can use an action to cast the detect thoughts spell (save DC 13) from it. As long as you maintain concentration on the spell, you can use a bonus action to send a telepathic message to a creature you are focused on. It can reply\u2014using a bonus action to do so\u2014while your focus on it continues. While focusing on a creature with detect thoughts, you can use an action to cast the suggestion spell (save DC 13) from the helm on that creature. Once used, the suggestion property can't be used again until the next dawn.",
+            "description": "While wearing this helm, you can use an action to cast the detect thoughts spell (save DC 13) from it. As long as you maintain concentration on the spell, you can use a bonus action to send a telepathic message to a creature you are focused on. It can reply—using a bonus action to do so—while your focus on it continues. While focusing on a creature with detect thoughts, you can use an action to cast the suggestion spell (save DC 13) from the helm on that creature. Once used, the suggestion property can't be used again until the next dawn.",
             "category": "WONDROUS_ITEMS",
             "rarity": "UNCOMMON",
             "classification": "",
@@ -5056,7 +5056,7 @@
         {
             "name": "Sphere of Annihilation",
             "image": "",
-            "description": "This 2-foot-diameter black sphere is a hole in the multiverse, hovering in space and stabilized by a magical field surrounding it.<br> The sphere obliterates all matter it passes through and all matter that passes through it. Artifacts are the exception. Unless an artifact is susceptible to damage from a <strong>sphere of annihilation</strong>, it passes through the sphere unscathed. Anything else that touches the sphere but isn't wholly engulfed and obliterated by it takes 4d10 force damage.<br> The sphere is stationary until someone controls it. If you are within 60 feet of an uncontrolled sphere, you can use an action to make a DC 25 Intelligence (Arcana) check. On a success, the sphere levitates in one direction of your choice, up to a number of feet equal to 5 \u00d7 your Intelligence modifier (minimum 5 feet). On a failure, the sphere moves 10 feet toward you. A creature whose space the sphere enters must succeed on a DC 13 Dexterity saving throw or be touched by it, taking 4d10 force damage.<br> If you attempt to control a sphere that is under another creature's control, you make an Intelligence (Arcana) check contested by the other creature's Intelligence (Arcana) check. The winner of the contest gains control of the sphere and can levitate it as normal.<br> If the sphere comes into contact with a planar portal, such as that created by the <strong><em>gate</em></strong> spell, or an extradimensional space, such as that within a <strong>portable hole</strong>, the GM determines randomly what happens, using the following table. <table> <thead> <tr> <th>d100</th> <th>Result</th> </tr> </thead> <tbody> <tr> <td>01-50</td> <td>The sphere is destroyed.</td> </tr> <tr> <td>51-85</td> <td>The sphere moves through the portal or into the extradimensional space.</td> </tr> <tr> <td>86-00</td> <td>A spatial rift sends each creature and object within 180 feet of the sphere, including the sphere, to a random plane of existence.</td> </tr> </tbody> </table>",
+            "description": "This 2-foot-diameter black sphere is a hole in the multiverse, hovering in space and stabilized by a magical field surrounding it.<br> The sphere obliterates all matter it passes through and all matter that passes through it. Artifacts are the exception. Unless an artifact is susceptible to damage from a <strong>sphere of annihilation</strong>, it passes through the sphere unscathed. Anything else that touches the sphere but isn't wholly engulfed and obliterated by it takes 4d10 force damage.<br> The sphere is stationary until someone controls it. If you are within 60 feet of an uncontrolled sphere, you can use an action to make a DC 25 Intelligence (Arcana) check. On a success, the sphere levitates in one direction of your choice, up to a number of feet equal to 5 × your Intelligence modifier (minimum 5 feet). On a failure, the sphere moves 10 feet toward you. A creature whose space the sphere enters must succeed on a DC 13 Dexterity saving throw or be touched by it, taking 4d10 force damage.<br> If you attempt to control a sphere that is under another creature's control, you make an Intelligence (Arcana) check contested by the other creature's Intelligence (Arcana) check. The winner of the contest gains control of the sphere and can levitate it as normal.<br> If the sphere comes into contact with a planar portal, such as that created by the <strong><em>gate</em></strong> spell, or an extradimensional space, such as that within a <strong>portable hole</strong>, the GM determines randomly what happens, using the following table. <table> <thead> <tr> <th>d100</th> <th>Result</th> </tr> </thead> <tbody> <tr> <td>01-50</td> <td>The sphere is destroyed.</td> </tr> <tr> <td>51-85</td> <td>The sphere moves through the portal or into the extradimensional space.</td> </tr> <tr> <td>86-00</td> <td>A spatial rift sends each creature and object within 180 feet of the sphere, including the sphere, to a random plane of existence.</td> </tr> </tbody> </table>",
             "category": "WONDROUS_ITEMS",
             "rarity": "LEGENDARY",
             "classification": "",
@@ -5147,7 +5147,7 @@
         {
             "name": "Rod of Rulership",
             "image": "",
-            "description": "\u00a0You can use an action to present the rod and command obedience from each creature of your choice that you can see within 120 feet of you. Each target must succeed on a DC 15 Wisdom saving throw or be charmed by you for 8 hours. While charmed in this way, the creature regards you as its trusted leader. If harmed by you or your companions, or commanded to do something contrary to its nature, a target ceases to be charmed in this way. The rod can't be used again until the next dawn.",
+            "description": " You can use an action to present the rod and command obedience from each creature of your choice that you can see within 120 feet of you. Each target must succeed on a DC 15 Wisdom saving throw or be charmed by you for 8 hours. While charmed in this way, the creature regards you as its trusted leader. If harmed by you or your companions, or commanded to do something contrary to its nature, a target ceases to be charmed in this way. The rod can't be used again until the next dawn.",
             "category": "WONDROUS_ITEMS",
             "rarity": "RARE",
             "classification": "",
@@ -5225,7 +5225,7 @@
         {
             "name": "Ivory Goat of Terror",
             "image": "",
-            "description": "A figurine of wondrous power is a statuette of a beast small enough to fit in a pocket. If you use an action to speak the command word and throw the figurine to a point on the ground within 60 feet of you, the figurine becomes a living creature. If the space where the creature would appear is occupied by other creatures or objects, or if there isn\u2019t enough space for the creature, the figurine doesn\u2019t become a creature.<br /><br />Ivory Goats. These ivory statuettes of goats are always created in sets of three. Each goat looks unique and functions differently from the others.<br /><br />The goat of terror becomes a giant goat for up to 3 hours. The goat can't attack, but you can remove its horns and use them as weapons. One horn becomes a lance, +1, and the other becomes a longsword, +2. Removing a horn requires an action, and the weapons disappear and the horns return when the goat reverts to figurine form. In addition, the goat radiates a 30-foot-radius aura of terror while you are riding it. Any creature hostile to you that starts its turn in the aura must succeed on a DC 15 Wisdom saving throw or be frightened of the goat for 1 minute, or until the goat reverts to figurine form. The frightened creature can repeat the saving throw at the end of each of its turns, ending the effect on itself on a success. Once it successfully saves against the effect, a creature is immune to the goat's aura for the next 24 hours. Once the figurine has been used, it can't be used again until 15 days have passed.",
+            "description": "A figurine of wondrous power is a statuette of a beast small enough to fit in a pocket. If you use an action to speak the command word and throw the figurine to a point on the ground within 60 feet of you, the figurine becomes a living creature. If the space where the creature would appear is occupied by other creatures or objects, or if there isn’t enough space for the creature, the figurine doesn’t become a creature.<br /><br />Ivory Goats. These ivory statuettes of goats are always created in sets of three. Each goat looks unique and functions differently from the others.<br /><br />The goat of terror becomes a giant goat for up to 3 hours. The goat can't attack, but you can remove its horns and use them as weapons. One horn becomes a lance, +1, and the other becomes a longsword, +2. Removing a horn requires an action, and the weapons disappear and the horns return when the goat reverts to figurine form. In addition, the goat radiates a 30-foot-radius aura of terror while you are riding it. Any creature hostile to you that starts its turn in the aura must succeed on a DC 15 Wisdom saving throw or be frightened of the goat for 1 minute, or until the goat reverts to figurine form. The frightened creature can repeat the saving throw at the end of each of its turns, ending the effect on itself on a success. Once it successfully saves against the effect, a creature is immune to the goat's aura for the next 24 hours. Once the figurine has been used, it can't be used again until 15 days have passed.",
             "category": "WONDROUS_ITEMS",
             "rarity": "RARE",
             "classification": "",
@@ -5238,7 +5238,7 @@
         {
             "name": "Talisman of the Sphere",
             "image": "",
-            "description": "When you make an Intelligence (Arcana) check to control a sphere of annihilation while you are holding this talisman, you double your proficiency bonus on the check. In addition, when you start your turn with control over a sphere of annihilation, you can use an action to levitate it 10 feet plus a number of additional feet equal to 10 \u00d7 your Intelligence modifier.",
+            "description": "When you make an Intelligence (Arcana) check to control a sphere of annihilation while you are holding this talisman, you double your proficiency bonus on the check. In addition, when you start your turn with control over a sphere of annihilation, you can use an action to levitate it 10 feet plus a number of additional feet equal to 10 × your Intelligence modifier.",
             "category": "WONDROUS_ITEMS",
             "rarity": "LEGENDARY",
             "classification": "",
@@ -5264,7 +5264,7 @@
         {
             "name": "Ring of Spell Storing",
             "image": "ring",
-            "description": "This ring stores spells cast into it, holding them until the attuned wearer uses them. The ring can store up to 5 levels worth of spells at a time. When found, it contains 1d6 \u2212 1 levels of stored spells chosen by the GM. <br />Any creature can cast a spell of 1st through 5th level into the ring by touching the ring as the spell is cast. The spell has no effect, other than to be stored in the ring. If the ring can't hold the spell, the spell is expended without effect. The level of the slot used to cast the spell determines how much space it uses. <br />While wearing this ring, you can cast any spell stored in it. The spell uses the slot level, spell save DC, spell attack bonus, and spellcasting ability of the original caster, but is otherwise treated as if you cast the spell. The spell cast from the ring is no longer stored in it, freeing up space.",
+            "description": "This ring stores spells cast into it, holding them until the attuned wearer uses them. The ring can store up to 5 levels worth of spells at a time. When found, it contains 1d6 − 1 levels of stored spells chosen by the GM. <br />Any creature can cast a spell of 1st through 5th level into the ring by touching the ring as the spell is cast. The spell has no effect, other than to be stored in the ring. If the ring can't hold the spell, the spell is expended without effect. The level of the slot used to cast the spell determines how much space it uses. <br />While wearing this ring, you can cast any spell stored in it. The spell uses the slot level, spell save DC, spell attack bonus, and spellcasting ability of the original caster, but is otherwise treated as if you cast the spell. The spell cast from the ring is no longer stored in it, freeing up space.",
             "category": "WONDROUS_ITEMS",
             "rarity": "RARE",
             "classification": "",
@@ -5693,7 +5693,7 @@
         {
             "name": "Staff of Power",
             "image": "staff",
-            "description": "This staff can be wielded as a magic quarterstaff that grants a +2 bonus to attack and damage rolls made with it. While holding it, you gain a +2 bonus to Armor Class, saving throws, and spell attack rolls.  <br> The staff has 20 charges for the following properties. The staff regains 2d8 + 4 expended charges daily at dawn. If you expend the last charge, roll a d20. On a 1, the staff retains its +2 bonus to attack and damage rolls but loses all other properties. On a 20, the staff regains 1d8 + 2 charges.  <br> <strong>Power Strike.</strong> When you hit with a melee attack using the staff, you can expend 1 charge to deal an extra 1d6 force damage to the target.  <br> <strong>Spells.</strong> While holding this staff, you can use an action to expend 1 or more of its charges to cast one of the following spells from it, using your spell save DC and spell attack bonus: <strong><em>cone of cold</em></strong> (5 charges), <strong><em>fireball</em></strong> (5th-level version, 5 charges), <strong><em>globe of invulnerability</em></strong> (6 charges), <strong><em>hold monster</em></strong> (5 charges), <strong><em>levitate</em></strong> (2 charges), <strong><em>lightning bolt</em></strong> (5th-level version, 5 charges), <strong><em>magic missile</em></strong> (1 charge), <strong><em>ray of enfeeblement</em></strong> (1 charge), or <strong><em>wall of force</em></strong> (5 charges).  <br> <strong>Retributive Strike.</strong> You can use an action to break the staff over your knee or against a solid surface, performing a retributive strike. The staff is destroyed and releases its remaining magic in an explosion that expands to fill a 30-foot-radius sphere centered on it.  <br> You have a 50 percent chance to instantly travel to a random plane of existence, avoiding the explosion. If you fail to avoid the effect, you take force damage equal to 16 \u00d7 the number of charges in the staff. Every other creature in the area must make a DC 17 Dexterity saving throw. On a failed save, a creature takes an amount of damage based on how far away it is from the point of origin, as shown in the following table. On a successful save, a creature takes half as much damage. <table> <thead> <tr> <th>Distance from Origin</th> <th>Damage</th> </tr> </thead> <tbody> <tr> <td>10 ft. away or closer</td> <td>8 x the number of charges in the staff</td> </tr> <tr> <td>11 to 20 ft. away</td> <td>6 x the number of charges in the staff</td> </tr> <tr> <td>21 to 30 ft. away</td> <td>4 x the number of charges in the staff</td> </tr> </tbody> </table>",
+            "description": "This staff can be wielded as a magic quarterstaff that grants a +2 bonus to attack and damage rolls made with it. While holding it, you gain a +2 bonus to Armor Class, saving throws, and spell attack rolls.  <br> The staff has 20 charges for the following properties. The staff regains 2d8 + 4 expended charges daily at dawn. If you expend the last charge, roll a d20. On a 1, the staff retains its +2 bonus to attack and damage rolls but loses all other properties. On a 20, the staff regains 1d8 + 2 charges.  <br> <strong>Power Strike.</strong> When you hit with a melee attack using the staff, you can expend 1 charge to deal an extra 1d6 force damage to the target.  <br> <strong>Spells.</strong> While holding this staff, you can use an action to expend 1 or more of its charges to cast one of the following spells from it, using your spell save DC and spell attack bonus: <strong><em>cone of cold</em></strong> (5 charges), <strong><em>fireball</em></strong> (5th-level version, 5 charges), <strong><em>globe of invulnerability</em></strong> (6 charges), <strong><em>hold monster</em></strong> (5 charges), <strong><em>levitate</em></strong> (2 charges), <strong><em>lightning bolt</em></strong> (5th-level version, 5 charges), <strong><em>magic missile</em></strong> (1 charge), <strong><em>ray of enfeeblement</em></strong> (1 charge), or <strong><em>wall of force</em></strong> (5 charges).  <br> <strong>Retributive Strike.</strong> You can use an action to break the staff over your knee or against a solid surface, performing a retributive strike. The staff is destroyed and releases its remaining magic in an explosion that expands to fill a 30-foot-radius sphere centered on it.  <br> You have a 50 percent chance to instantly travel to a random plane of existence, avoiding the explosion. If you fail to avoid the effect, you take force damage equal to 16 × the number of charges in the staff. Every other creature in the area must make a DC 17 Dexterity saving throw. On a failed save, a creature takes an amount of damage based on how far away it is from the point of origin, as shown in the following table. On a successful save, a creature takes half as much damage. <table> <thead> <tr> <th>Distance from Origin</th> <th>Damage</th> </tr> </thead> <tbody> <tr> <td>10 ft. away or closer</td> <td>8 x the number of charges in the staff</td> </tr> <tr> <td>11 to 20 ft. away</td> <td>6 x the number of charges in the staff</td> </tr> <tr> <td>21 to 30 ft. away</td> <td>4 x the number of charges in the staff</td> </tr> </tbody> </table>",
             "category": "WONDROUS_ITEMS",
             "rarity": "VERY_RARE",
             "classification": "",
@@ -5706,7 +5706,7 @@
         {
             "name": "Obsidian Steed",
             "image": "",
-            "description": "A figurine of wondrous power is a statuette of a beast small enough to fit in a pocket. If you use an action to speak the command word and throw the figurine to a point on the ground within 60 feet of you, the figurine becomes a living creature. If the space where the creature would appear is occupied by other creatures or objects, or if there isn\u2019t enough space for the creature, the figurine doesn\u2019t become a creature.<br /><br />This polished obsidian horse can become a nightmare for up to 24 hours. The nightmare fights only to defend itself. Once it has been used, it can't be used again until 5 days have passed.",
+            "description": "A figurine of wondrous power is a statuette of a beast small enough to fit in a pocket. If you use an action to speak the command word and throw the figurine to a point on the ground within 60 feet of you, the figurine becomes a living creature. If the space where the creature would appear is occupied by other creatures or objects, or if there isn’t enough space for the creature, the figurine doesn’t become a creature.<br /><br />This polished obsidian horse can become a nightmare for up to 24 hours. The nightmare fights only to defend itself. Once it has been used, it can't be used again until 5 days have passed.",
             "category": "WONDROUS_ITEMS",
             "rarity": "VERY_RARE",
             "classification": "",
@@ -5719,7 +5719,7 @@
         {
             "name": "Decanter of Endless Water",
             "image": "",
-            "description": "This stoppered flask sloshes when shaken, as if it contains water. The decanter weighs 2 pounds. You can use an action to remove the stopper and speak one of three command words, whereupon an amount of fresh water or salt water (your choice) pours out of the flask. The water stops pouring out at the start of your next turn. Choose from the following options:<br />\u2022 \"Stream\" produces 1 gallon of water.<br />\u2022 \"Fountain\" produces 5 gallons of water.<br />\u2022 \"Geyser\" produces 30 gallons of water that gushes forth in a geyser 30 feet long and 1 foot wide.<br /><br />As a bonus action while holding the decanter, you can aim the geyser at a creature you can see within 30 feet of you. The target must succeed on a DC 13 Strength saving throw or take 1d4 bludgeoning damage and fall prone. Instead of a creature, you can target an object that isn't being worn or carried and that weighs no more than 200 pounds. The object is either knocked over or pushed up to 15 feet away from you.",
+            "description": "This stoppered flask sloshes when shaken, as if it contains water. The decanter weighs 2 pounds. You can use an action to remove the stopper and speak one of three command words, whereupon an amount of fresh water or salt water (your choice) pours out of the flask. The water stops pouring out at the start of your next turn. Choose from the following options:<br />• \"Stream\" produces 1 gallon of water.<br />• \"Fountain\" produces 5 gallons of water.<br />• \"Geyser\" produces 30 gallons of water that gushes forth in a geyser 30 feet long and 1 foot wide.<br /><br />As a bonus action while holding the decanter, you can aim the geyser at a creature you can see within 30 feet of you. The target must succeed on a DC 13 Strength saving throw or take 1d4 bludgeoning damage and fall prone. Instead of a creature, you can target an object that isn't being worn or carried and that weighs no more than 200 pounds. The object is either knocked over or pushed up to 15 feet away from you.",
             "category": "WONDROUS_ITEMS",
             "rarity": "UNCOMMON",
             "classification": "",
@@ -5732,7 +5732,7 @@
         {
             "name": "Amulet of the Planes",
             "image": "",
-            "description": "While wearing this amulet, you can use an action to name a location that you are familiar with on another plane of existence. Then make a DC 15 Intelligence check. On a successful check, you cast the plane shift spell. On a failure, you and each creature and object within 15 feet of you travel to a random destination. Roll a d100. On a 1\u201360, you travel to a random location on the plane you named. On a 61\u2013100, you travel to a randomly determined plane of existence.",
+            "description": "While wearing this amulet, you can use an action to name a location that you are familiar with on another plane of existence. Then make a DC 15 Intelligence check. On a successful check, you cast the plane shift spell. On a failure, you and each creature and object within 15 feet of you travel to a random destination. Roll a d100. On a 1–60, you travel to a random location on the plane you named. On a 61–100, you travel to a randomly determined plane of existence.",
             "category": "WONDROUS_ITEMS",
             "rarity": "VERY_RARE",
             "classification": "",
@@ -6084,7 +6084,7 @@
         {
             "name": "Demon's Vale Wine",
             "image": "",
-            "description": "A one-gallon cask of Demon\u2019s Vale Wine; a fiery red wine known to be made from hot peppers.",
+            "description": "A one-gallon cask of Demon’s Vale Wine; a fiery red wine known to be made from hot peppers.",
             "category": "OTHER",
             "rarity": "MUNDANE",
             "classification": "",
@@ -6188,7 +6188,7 @@
         {
             "name": "Fine Cheese",
             "image": "",
-            "description": "A 5\u2019 diameter wheel of fine, aged cheese",
+            "description": "A 5’ diameter wheel of fine, aged cheese",
             "category": "OTHER",
             "rarity": "MUNDANE",
             "classification": "",
@@ -6553,7 +6553,7 @@
         {
             "name": "Old Round Shield",
             "image": "",
-            "description": "Father\u2019s old round shield.",
+            "description": "Father’s old round shield.",
             "category": "OTHER",
             "rarity": "MUNDANE",
             "classification": "",
@@ -6774,7 +6774,7 @@
         {
             "name": "Raisins",
             "image": "",
-            "description": "\u00bd tin of raisins.",
+            "description": "½ tin of raisins.",
             "category": "OTHER",
             "rarity": "MUNDANE",
             "classification": "",
@@ -7082,7 +7082,7 @@
             "rarity": "COMMON",
             "cost": 10000,
             "weight": 2.0,
-            "book_class_mask": 2,
+            "book_class_mask": 2048,
             "spells": [
                 "Acid Splash",
                 "Blade Ward",
@@ -7135,7 +7135,7 @@
             "rarity": "UNCOMMON",
             "cost": 25000,
             "weight": 2.0,
-            "book_class_mask": 2,
+            "book_class_mask": 2048,
             "spells": [
                 "Hideous Laughter",
                 "Ice Knife",
@@ -7188,7 +7188,7 @@
             "rarity": "RARE",
             "cost": 50000,
             "weight": 2.0,
-            "book_class_mask": 2,
+            "book_class_mask": 2048,
             "spells": [
                 "Misty Step",
                 "Phantasmal Force",
@@ -7241,7 +7241,7 @@
             "rarity": "VERY RARE",
             "cost": 100000,
             "weight": 2.0,
-            "book_class_mask": 2,
+            "book_class_mask": 2048,
             "spells": [
                 "Vampiric Touch",
                 "Wall of Sand",
@@ -7294,7 +7294,7 @@
             "rarity": "LEGENDARY",
             "cost": 250000,
             "weight": 2.0,
-            "book_class_mask": 2,
+            "book_class_mask": 2048,
             "spells": [
                 "Geas",
                 "Hold Monster",
@@ -7347,7 +7347,7 @@
             "rarity": "ARTIFACT",
             "cost": 500000,
             "weight": 2.0,
-            "book_class_mask": 2,
+            "book_class_mask": 2048,
             "spells": [
                 "Delayed Blast Fireball",
                 "Etherealness",
@@ -7626,7 +7626,7 @@
             "rarity": "COMMON",
             "cost": 10000,
             "weight": 2.0,
-            "book_class_mask": 128,
+            "book_class_mask": 1024,
             "spells": [
                 "Blade Ward",
                 "Chill Touch",
@@ -7652,7 +7652,7 @@
             "rarity": "UNCOMMON",
             "cost": 25000,
             "weight": 2.0,
-            "book_class_mask": 128,
+            "book_class_mask": 1024,
             "spells": [
                 "Comprehend Languages",
                 "Expeditious Retreat",
@@ -7678,7 +7678,7 @@
             "rarity": "RARE",
             "cost": 50000,
             "weight": 2.0,
-            "book_class_mask": 128,
+            "book_class_mask": 1024,
             "spells": [
                 "Invisibility",
                 "Mirror Image",
@@ -7703,7 +7703,7 @@
             "rarity": "VERY RARE",
             "cost": 100000,
             "weight": 2.0,
-            "book_class_mask": 128,
+            "book_class_mask": 1024,
             "spells": [
                 "Major Image",
                 "Remove Curse",
@@ -7728,7 +7728,7 @@
             "rarity": "LEGENDARY",
             "cost": 250000,
             "weight": 2.0,
-            "book_class_mask": 128,
+            "book_class_mask": 1024,
             "spells": [
                 "Arcane Gate",
                 "Circle of Death",
@@ -7753,7 +7753,7 @@
             "rarity": "ARTIFACT",
             "cost": 500000,
             "weight": 2.0,
-            "book_class_mask": 128,
+            "book_class_mask": 1024,
             "spells": [
                 "Finger of Death",
                 "Forcecage",
@@ -7958,7 +7958,7 @@
             "rarity": "COMMON",
             "cost": 10000,
             "weight": 2.0,
-            "book_class_mask": 256,
+            "book_class_mask": 8,
             "spells": [
                 "Control Flames",
                 "Create Bonfire",
@@ -7994,7 +7994,7 @@
             "rarity": "UNCOMMON",
             "cost": 25000,
             "weight": 2.0,
-            "book_class_mask": 256,
+            "book_class_mask": 8,
             "spells": [
                 "Earth Tremor",
                 "Entangle",
@@ -8030,7 +8030,7 @@
             "rarity": "RARE",
             "cost": 50000,
             "weight": 2.0,
-            "book_class_mask": 256,
+            "book_class_mask": 8,
             "spells": [
                 "Hold Person",
                 "Lesser Restoration",
@@ -8066,7 +8066,7 @@
             "rarity": "VERY RARE",
             "cost": 100000,
             "weight": 2.0,
-            "book_class_mask": 256,
+            "book_class_mask": 8,
             "spells": [
                 "Water Breathing",
                 "Water Walk",
@@ -8102,7 +8102,7 @@
             "rarity": "LEGENDARY",
             "cost": 250000,
             "weight": 2.0,
-            "book_class_mask": 256,
+            "book_class_mask": 8,
             "spells": [
                 "Conjure Elemental",
                 "Contagion",
@@ -8138,7 +8138,7 @@
             "rarity": "ARTIFACT",
             "cost": 500000,
             "weight": 2.0,
-            "book_class_mask": 256,
+            "book_class_mask": 8,
             "spells": [
                 "Primordial Ward",
                 "Sunbeam",
@@ -8173,7 +8173,7 @@
             "rarity": "COMMON",
             "cost": 10000,
             "weight": 2.0,
-            "book_class_mask": 64,
+            "book_class_mask": 2,
             "spells": [
                 "Blade Ward",
                 "Dancing Lights",
@@ -8206,7 +8206,7 @@
             "rarity": "UNCOMMON",
             "cost": 25000,
             "weight": 2.0,
-            "book_class_mask": 64,
+            "book_class_mask": 2,
             "spells": [
                 "Faerie Fire",
                 "Feather Fall",
@@ -8239,7 +8239,7 @@
             "rarity": "RARE",
             "cost": 50000,
             "weight": 2.0,
-            "book_class_mask": 64,
+            "book_class_mask": 2,
             "spells": [
                 "Heat Metal",
                 "Hold Person",
@@ -8272,7 +8272,7 @@
             "rarity": "VERY RARE",
             "cost": 100000,
             "weight": 2.0,
-            "book_class_mask": 64,
+            "book_class_mask": 2,
             "spells": [
                 "Glyph of Warding",
                 "Hypnotic Pattern",
@@ -8305,7 +8305,7 @@
             "rarity": "LEGENDARY",
             "cost": 250000,
             "weight": 2.0,
-            "book_class_mask": 64,
+            "book_class_mask": 2,
             "spells": [
                 "Dominate Person",
                 "Dream",
@@ -8337,7 +8337,7 @@
             "rarity": "ARTIFACT",
             "cost": 500000,
             "weight": 2.0,
-            "book_class_mask": 64,
+            "book_class_mask": 2,
             "spells": [
                 "True Seeing",
                 "Arcane Sword",
@@ -8369,7 +8369,7 @@
             "rarity": "COMMON",
             "cost": 10000,
             "weight": 2.0,
-            "book_class_mask": 32,
+            "book_class_mask": 64,
             "spells": [
                 "Bless",
                 "Command",
@@ -8389,7 +8389,7 @@
             "rarity": "UNCOMMON",
             "cost": 25000,
             "weight": 2.0,
-            "book_class_mask": 32,
+            "book_class_mask": 64,
             "spells": [
                 "Heroism",
                 "Protection from Evil and Good",
@@ -8409,7 +8409,7 @@
             "rarity": "RARE",
             "cost": 50000,
             "weight": 2.0,
-            "book_class_mask": 32,
+            "book_class_mask": 64,
             "spells": [
                 "Branding Smite",
                 "Find Steed",
@@ -8428,7 +8428,7 @@
             "rarity": "VERY RARE",
             "cost": 100000,
             "weight": 2.0,
-            "book_class_mask": 32,
+            "book_class_mask": 64,
             "spells": [
                 "Aura Of Vitality",
                 "Blinding Smite",
@@ -8447,7 +8447,7 @@
             "rarity": "LEGENDARY",
             "cost": 250000,
             "weight": 2.0,
-            "book_class_mask": 32,
+            "book_class_mask": 64,
             "spells": [
                 "Remove Curse",
                 "Revivify",
@@ -8466,7 +8466,7 @@
             "rarity": "ARTIFACT",
             "cost": 500000,
             "weight": 2.0,
-            "book_class_mask": 32,
+            "book_class_mask": 64,
             "spells": [
                 "Staggering Smite",
                 "Banishing Smite",
@@ -8485,7 +8485,7 @@
             "rarity": "COMMON",
             "cost": 10000,
             "weight": 2.0,
-            "book_class_mask": 16,
+            "book_class_mask": 128,
             "spells": [
                 "Absorb Elements",
                 "Alarm",
@@ -8506,7 +8506,7 @@
             "rarity": "UNCOMMON",
             "cost": 25000,
             "weight": 2.0,
-            "book_class_mask": 16,
+            "book_class_mask": 128,
             "spells": [
                 "Goodberry",
                 "Hail of Thorns",
@@ -8526,7 +8526,7 @@
             "rarity": "RARE",
             "cost": 50000,
             "weight": 2.0,
-            "book_class_mask": 16,
+            "book_class_mask": 128,
             "spells": [
                 "Beast Sense",
                 "Cordon Of Arrows",
@@ -8546,7 +8546,7 @@
             "rarity": "VERY RARE",
             "cost": 100000,
             "weight": 2.0,
-            "book_class_mask": 16,
+            "book_class_mask": 128,
             "spells": [
                 "Protection from Poison",
                 "Silence",
@@ -8566,7 +8566,7 @@
             "rarity": "LEGENDARY",
             "cost": 250000,
             "weight": 2.0,
-            "book_class_mask": 16,
+            "book_class_mask": 128,
             "spells": [
                 "Nondetection",
                 "Plant Growth",
@@ -8586,7 +8586,7 @@
             "rarity": "ARTIFACT",
             "cost": 500000,
             "weight": 2.0,
-            "book_class_mask": 16,
+            "book_class_mask": 128,
             "spells": [
                 "Freedom of Movement",
                 "Grasping Vine",
@@ -8618,7 +8618,8 @@
                 "Frontal Lunge",
                 "Underhand Strike",
                 "Blade Rotation"
-            ]
+            ],
+            "book_class_mask": 16
         },
         {
             "name": "Vanguard Tactics",
@@ -8639,7 +8640,8 @@
                 "Protective Spin",
                 "Shield Push",
                 "Cross Cover"
-            ]
+            ],
+            "book_class_mask": 16
         },
         {
             "name": "Veteran's Code",
@@ -8660,7 +8662,8 @@
                 "Point Parry",
                 "Fan Strike",
                 "Spear Charge"
-            ]
+            ],
+            "book_class_mask": 16
         },
         {
             "name": "Commander's Strategies",
@@ -8681,7 +8684,8 @@
                 "Immovable Wall",
                 "Counter Charge",
                 "Total Defense"
-            ]
+            ],
+            "book_class_mask": 16
         },
         {
             "name": "Weapon Master's Secrets",
@@ -8702,7 +8706,8 @@
                 "Distraction Maneuver",
                 "Decisive Strike",
                 "Team Coordination"
-            ]
+            ],
+            "book_class_mask": 16
         },
         {
             "name": "Champion's Epic",
@@ -8723,7 +8728,8 @@
                 "Supreme Technique",
                 "Martial Focus",
                 "Legacy of a Thousand Battles"
-            ]
+            ],
+            "book_class_mask": 16
         },
         {
             "name": "Way of Fury",
@@ -8744,7 +8750,8 @@
                 "Earth Fist",
                 "Savage Lunge",
                 "Tribe's Resistance"
-            ]
+            ],
+            "book_class_mask": 1
         },
         {
             "name": "War Chants",
@@ -8765,7 +8772,8 @@
                 "Incandescent Fist",
                 "Relentless Fury",
                 "Beast's Cry"
-            ]
+            ],
+            "book_class_mask": 1
         },
         {
             "name": "Predator's Instincts",
@@ -8786,7 +8794,8 @@
                 "Rite of Fire",
                 "Bear's Melody",
                 "Song of the Moon"
-            ]
+            ],
+            "book_class_mask": 1
         },
         {
             "name": "Berserker's Blood",
@@ -8807,7 +8816,8 @@
                 "Trail of the Prey",
                 "Wolf's Claw",
                 "Hunter's Judgment"
-            ]
+            ],
+            "book_class_mask": 1
         },
         {
             "name": "Secrets of the Tribe",
@@ -8828,7 +8838,8 @@
                 "Pact with the Beast",
                 "Rite of Thunder",
                 "Honor of the Clan"
-            ]
+            ],
+            "book_class_mask": 1
         },
         {
             "name": "Wrath of the Titan",
@@ -8849,7 +8860,8 @@
                 "Roar of the Ancient",
                 "Blood and Fury",
                 "Awakening of the Predator"
-            ]
+            ],
+            "book_class_mask": 1
         },
         {
             "name": "Cutpurse's Notes",
@@ -8870,7 +8882,8 @@
                 "Night Slip",
                 "Quick Lunge",
                 "Vanish in the Shadow"
-            ]
+            ],
+            "book_class_mask": 256
         },
         {
             "name": "Shadows and Whispers",
@@ -8891,7 +8904,8 @@
                 "Eye for Locks",
                 "Silent Maneuver",
                 "Skeleton Key"
-            ]
+            ],
+            "book_class_mask": 256
         },
         {
             "name": "Art of the Unseen",
@@ -8912,7 +8926,8 @@
                 "Snap Mechanism",
                 "Nets and Snares",
                 "Perfect Bait"
-            ]
+            ],
+            "book_class_mask": 256
         },
         {
             "name": "Poisons and Betrayals",
@@ -8933,7 +8948,8 @@
                 "Poisonous Mist",
                 "Poisoned Hook",
                 "Secret Antidote"
-            ]
+            ],
+            "book_class_mask": 256
         },
         {
             "name": "Assassin's Manual",
@@ -8954,7 +8970,8 @@
                 "Silent Entry",
                 "Identity Swap",
                 "Quick Escape"
-            ]
+            ],
+            "book_class_mask": 256
         },
         {
             "name": "Legend of the Night",
@@ -8975,7 +8992,8 @@
                 "Silent Order",
                 "Contract of Death",
                 "Legacy of the Shadow"
-            ]
+            ],
+            "book_class_mask": 256
         },
         {
             "name": "Scroll of the Lotus",
@@ -8996,7 +9014,8 @@
                 "Lotus Breath",
                 "Leaf Kick",
                 "Cat's Leap"
-            ]
+            ],
+            "book_class_mask": 32
         },
         {
             "name": "Way of the Wind",
@@ -9017,7 +9036,8 @@
                 "Double Strike",
                 "Mountain Roots",
                 "Ocean Waves"
-            ]
+            ],
+            "book_class_mask": 32
         },
         {
             "name": "Discipline of the Body",
@@ -9038,7 +9058,8 @@
                 "Meridian of Wind",
                 "Meridian of Lightning",
                 "Meridian of Light"
-            ]
+            ],
+            "book_class_mask": 32
         },
         {
             "name": "Secrets of Ki",
@@ -9059,7 +9080,8 @@
                 "Dragon's Scales",
                 "Flight of the Dragon",
                 "Dragon's Roar"
-            ]
+            ],
+            "book_class_mask": 32
         },
         {
             "name": "Flow of Energy",
@@ -9080,7 +9102,8 @@
                 "Spirit of Steel",
                 "Inner Eye",
                 "Crystal Mind"
-            ]
+            ],
+            "book_class_mask": 32
         },
         {
             "name": "Master's Enlightenment",
@@ -9101,7 +9124,8 @@
                 "Perfect Balance",
                 "Inner Awakening",
                 "Unity of Ki"
-            ]
+            ],
+            "book_class_mask": 32
         }
     ]
 }

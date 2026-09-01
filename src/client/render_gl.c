@@ -24,6 +24,7 @@
 #include <GL/glu.h>
 #include <pthread.h>
 #include "client_state.h"
+#include "protocol.h"
 #include "font5x7.h"
 #include "species.h"
 #include "classes.h"
@@ -817,6 +818,16 @@ static void draw_minimap_gl(int width, int height) {
                 glVertex2f(ex, ey + dot * 1.2f);
             glEnd();
             glLineWidth(1.0f);
+        } else if (g_entities[i].is_merchant &&
+                   g_entities[i].shop_spec == SHOP_SPEC_BOOKS_MARTIAL) {
+            /* The Archive of a Thousand Battles: crimson diamond */
+            glColor4f(0.85f, 0.2f, 0.25f, 0.95f);
+            glBegin(GL_QUADS);
+                glVertex2f(ex, ey - dot * 0.9f);
+                glVertex2f(ex + dot * 0.9f, ey);
+                glVertex2f(ex, ey + dot * 0.9f);
+                glVertex2f(ex - dot * 0.9f, ey);
+            glEnd();
         } else if (g_entities[i].is_merchant) {
             glColor4f(1.0f, 0.85f, 0.0f, 0.9f);
             glBegin(GL_QUADS);
@@ -1125,6 +1136,18 @@ void render_gl_start(void) {
                             b = 0.2f;
                             glColor3f(r * total_fade, g * total_fade, b * total_fade);
                             draw_pyramid(ex, 0.5f, ez, 0.7f, 1.0f, 0.7f);
+                        } else if (g_entities[i].is_merchant &&
+                                   g_entities[i].shop_spec == SHOP_SPEC_BOOKS_MARTIAL) {
+                            /* The Archive of a Thousand Battles:
+                             * crimson cube + floating golden tome */
+                            r = 0.75f;
+                            g = 0.15f;
+                            b = 0.2f;
+                            glColor3f(r * total_fade, g * total_fade, b * total_fade);
+                            draw_cube(ex, 0.5f, ez, 0.7f, 1.0f, 0.7f);
+                            float bob = 0.15f * sinf((float)glfwGetTime() * 2.0f + ex);
+                            glColor3f(0.9f * total_fade, 0.75f * total_fade, 0.3f * total_fade);
+                            draw_cube(ex, 1.25f + bob, ez, 0.45f, 0.1f, 0.35f);
                         } else if (g_entities[i].is_merchant) {
                             r = 1.0f;
                             g = 0.8f;

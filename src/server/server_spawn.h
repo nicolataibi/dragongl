@@ -49,6 +49,14 @@ void spawn_city_merchants(NPC *npcs, int *next_id);
 void spawn_magic_shops(NPC *npcs, int *next_id);
 
 /**
+ * spawn_martial_archive - Spawns "The Archive of a Thousand Battles",
+ * the floor-0 bookshop for the martial classes (Fighter, Barbarian,
+ * Rogue, Monk). Occupies NPC slot 10.
+ * @npcs: Array of NPCs.
+ * @next_id: Pointer to the unique ID counter.*/
+void spawn_martial_archive(NPC *npcs, int *next_id);
+
+/**
  * add_item_to_shop - Adds an item to a merchant's inventory.
  * @n: Recipient merchant NPC.
  * @template_idx: Index into the item_database of the template to add.

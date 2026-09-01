@@ -160,6 +160,7 @@ void* net_thread_loop(void* arg) {
                                 g_entities[i].floor_id    = msg_state.floor_id;
                                 g_entities[i].active      = true;
                                 g_entities[i].is_merchant  = (msg_state.is_merchant  != 0);
+                                g_entities[i].shop_spec    = msg_state.shop_spec;
                                 g_entities[i].is_tombstone = (msg_state.is_tombstone != 0);
                                 g_entities[i].is_player = (msg_state.is_player != 0);
                                 strncpy(g_entities[i].username, msg_state.username, 31);
@@ -177,6 +178,7 @@ void* net_thread_loop(void* arg) {
                                     g_entities[i].floor_id    = msg_state.floor_id;
                                     g_entities[i].active      = true;
                                     g_entities[i].is_merchant  = (msg_state.is_merchant  != 0);
+                                    g_entities[i].shop_spec    = msg_state.shop_spec;
                                     g_entities[i].is_tombstone = (msg_state.is_tombstone != 0);
                                 g_entities[i].is_player = (msg_state.is_player != 0);
                                     strncpy(g_entities[i].username, msg_state.username, 31);

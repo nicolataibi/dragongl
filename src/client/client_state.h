@@ -36,6 +36,7 @@ typedef struct {
     int floor_id;
     bool active;
     bool is_merchant;
+    int shop_spec;   /*Merchant specialization (SHOP_SPEC_* from protocol.h)*/
     bool is_tombstone;
     bool is_player;
     char username[32];

@@ -75,6 +75,7 @@ typedef enum {
     JEWELRY,
     BOOKS_MAGE,
     BOOKS_PRIEST,
+    BOOKS_MARTIAL,
     CURRENCY_EXCHANGE,
     SPEC_COUNT
 } MerchantSpecialization;

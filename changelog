@@ -1,3 +1,22 @@
+* Tue Sep 01 2026 nicolataibi <nicola.taibi.1967@gmail.com> - 2026.09.01.02
+- Floor 0: the four outer-ring dojo doors (Gladiator's Arena N, Fighting
+  Pit E, Den of Shadows S, Lotus Dojo W) were floating 2 tiles away from
+  their temple walls, blocking entry. Each door now sits on the perimeter
+  tile facing the city center, like the inner-ring temple doors.
+  Requires a world reset (./dragongl_reset_world) to take effect.
+- The Archive of a Thousand Battles moved into the city shop ring: the
+  floor-0 stores are now 11 buildings evenly spaced (360/11 degrees) on
+  the radius-26 circle, with the Archive occupying slot 10 (it stood
+  outside the ring at 140,99, breaking the symmetric layout).
+  Requires a world reset (./dragongl_reset_world) to take effect.
+- New floor-0 shop: The Archive of a Thousand Battles (BOOKS_MARTIAL),
+  selling the discipline codices of Fighter, Barbarian, Rogue and Monk.
+- book_class_mask is now read exclusively from items.json (name heuristics
+  removed); masks corrected for all 72 books (12 classes x 6 tomes).
+- Protocol: MsgState carries shop_spec so the client renders the Archive
+  with a unique crimson sprite (OpenGL and Vulkan backends).
+- README aligned with the code: 11 city shops, 8 errant traders,
+  temple names/positions and shop book references.
 * Mon Aug 31 2026 nicolataibi <nicola.taibi.1967@gmail.com> - 2026.09.01.01
 - First realease.
 * Tue May 26 2026 nicolataibi <nicola.taibi.1967@gmail.com> - 2026.05.26.01

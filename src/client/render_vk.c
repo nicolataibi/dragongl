@@ -732,13 +732,24 @@ static void update_vertex_buffer(VkState *s, VkVertex *v, float dt) {
             if (fabs(ex) < (float)vr + 1.0f && fabs(ez) < (float)vr + 1.0f) {
                 if (count + 36 <= s->max_vertices) {
                     float er = 0.4f, eg = 0.4f, eb = 1.0f;
-                    if (g_entities[i].is_merchant) { er = 1.0f; eg = 0.8f; eb = 0.0f; }
+                    if (g_entities[i].is_merchant &&
+                        g_entities[i].shop_spec == SHOP_SPEC_BOOKS_MARTIAL) {
+                        er = 0.75f; eg = 0.15f; eb = 0.2f;
+                    }
+                    else if (g_entities[i].is_merchant) { er = 1.0f; eg = 0.8f; eb = 0.0f; }
                     else if (g_entities[i].is_player) { er = 0.2f; eg = 0.8f; eb = 0.2f; }
                     else if (g_entities[i].id < 10) { er = 1.0f; eg = 0.3f; eb = 0.3f; }
                                         if (g_entities[i].is_player) {
                         push_pyramid(v, &count, ex, 0.4f, ez, 0.35f, 0.5f, 0.35f, er, eg, eb);
                     } else {
                         push_box(v, &count, ex, 0.4f, ez, 0.3f, 0.4f, 0.3f, er, eg, eb);
+                        /* The Archive of a Thousand Battles: floating tome */
+                        if (g_entities[i].is_merchant &&
+                            g_entities[i].shop_spec == SHOP_SPEC_BOOKS_MARTIAL &&
+                            count + 36 <= s->max_vertices) {
+                            push_box(v, &count, ex, 1.2f, ez,
+                                     0.45f, 0.1f, 0.35f, 0.9f, 0.75f, 0.3f);
+                        }
                     }
                 }
             }

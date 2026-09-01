@@ -52,6 +52,10 @@
 #include "server_internal.h"
 #include "server_combat.h"
 #include "server_spawn.h"
+
+/*Keep the protocol constant in sync with the server enum*/
+_Static_assert((int)BOOKS_MARTIAL == SHOP_SPEC_BOOKS_MARTIAL,
+               "SHOP_SPEC_BOOKS_MARTIAL must equal MerchantSpecialization::BOOKS_MARTIAL");
 #include "server_world.h"
 #include "server_commands.h"
 #include "spell_router.h"
@@ -1898,7 +1902,7 @@ void print_merchant_inventory(Client *c, NPC *merchant) {
  * The following functions have been migrated to src/server/server_spawn.c:
  * is_item_matching_spec(), fill_shop_by_specialization(), add_item_to_shop(),
  * get_item_idx_by_name(), fill_provisioner_floor0(),
- * spawn_city_merchants(), spawn_magic_shops().
+ * spawn_city_merchants(), spawn_magic_shops(), spawn_martial_archive().
  * ========================================================================================*/
 
 /*The functions give_item_by_name and give_starting_gear remain here because
@@ -2065,6 +2069,9 @@ void broadcast_nearby_entities(Client *c, NPC *npcs) {
       s.max_hp      = npcs[i].max_hp;
       s.floor_id    = npcs[i].floor_id;
       s.is_merchant = (npcs[i].archetype == ARCH_MERCHANT) ? 1 : 0;
+      s.shop_spec = (npcs[i].archetype == ARCH_MERCHANT)
+                        ? (int)npcs[i].merchant.spec
+                        : SHOP_SPEC_NONE;
       s.is_tombstone = 0;
       s.is_player = 0;
       net_send(c->sock, &h, sizeof(h));
@@ -2088,6 +2095,7 @@ void broadcast_nearby_entities(Client *c, NPC *npcs) {
     s.max_hp       = 1;
     s.floor_id     = g_tombstones[i].floor_id;
     s.is_merchant  = 0;
+    s.shop_spec    = SHOP_SPEC_NONE;
     s.is_tombstone = 1;
     s.is_player    = 0;
     net_send(c->sock, &h, sizeof(h));
@@ -2109,6 +2117,7 @@ void broadcast_nearby_entities(Client *c, NPC *npcs) {
       s.max_hp      = g_clients[i].max_hp;
       s.floor_id    = g_clients[i].floor_id;
       s.is_merchant = 0;
+      s.shop_spec   = SHOP_SPEC_NONE;
       s.is_tombstone= 0;
       s.is_player   = 1;
       strncpy(s.username, g_clients[i].username, 31);
@@ -2132,6 +2141,7 @@ void notify_player_left_floor(Client *c, int old_floor) {
   s.max_hp      = c->max_hp;
   s.floor_id    = old_floor;
   s.is_merchant = 0;
+  s.shop_spec   = SHOP_SPEC_NONE;
   s.is_tombstone= 0;
   s.is_player   = 1;
   strncpy(s.username, c->username, 31);
@@ -2156,6 +2166,7 @@ void broadcast_player_state(Client *c) {
   s.max_hp      = c->max_hp;
   s.floor_id    = c->floor_id;
   s.is_merchant = 0;
+  s.shop_spec   = SHOP_SPEC_NONE;
   s.is_tombstone= 0;
   s.is_player   = 1;
   strncpy(s.username, c->username, 31);
@@ -2309,6 +2320,7 @@ int main(int argc, char **argv) {
     world_init(master_world);
     spawn_city_merchants(npcs, &next_id);
     spawn_magic_shops(npcs, &next_id);
+    spawn_martial_archive(npcs, &next_id);
     populate_dungeons(npcs, &next_id);
     world_save(master_world, "data/world.dat");
     FILE *fn = fopen("data/npcs.dat", "wb");

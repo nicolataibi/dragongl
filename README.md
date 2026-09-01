@@ -305,22 +305,24 @@ In addition to classic hazards, Dragon GL introduces complex environmental inter
 
 Dragon GL features a specialized trade system inspired by classic roguelikes, with specialized merchants found in the sanctuary of Floor 0 and wandering the dangerous depths of the dungeon.
 
-- **Specialized Establishments:** City shops include **The Iron Anvil** (Blacksmith), **The Bubbling Cauldron** (Alchemist), and **The Drunken Dragon** (Provisioner).
+- **Specialized Establishments:** City shops include **The Iron Anvil** (Blacksmith), **The Bubbling Cauldron** (Alchemist), **The Drunken Dragon** (Provisioner), and **The Archive of a Thousand Battles** (Martial Codices).
 - **Dynamic Inventories:** Merchants generate stock based on their specialization and the dungeon depth. Use `list` to see items and `browse <n>` for detailed lore and stats.
 - **Haggle Mini-game:** Challenge merchants to a Charisma-based duel using `haggle buy <n>` or `haggle sell <n>` to secure better prices, but beware of increasing their **Impatience**.
 
 ### City Establishments (Floor 0)
-| | | | |
-| :---: | :---: | :---: | :---: |
-| <img src='readme_assets/mercants/the mercant of general stores.png' width='150'><br>**The Drunken Dragon**<br>Provisioner & Rations | <img src='readme_assets/mercants/the mercant of general utility.png' width='150'><br>**Temple of Arcana**<br>Magic & Utility | <img src='readme_assets/mercants/the errant mercant magic arms.png' width='150'><br>**Xanthus's Arcane Curios**<br>Arcane Relics | <img src='readme_assets/mercants/the errant mercant magic scrolls.png' width='150'><br>**Sister Elara's Sanctum**<br>Divine Relics |
-| <img src='readme_assets/mercants/the mercant of magic wands and staffs.png' width='150'><br>**Malchor's Catalysts**<br>Wands & Staffs | <img src='readme_assets/mercants/the mercant of amulets and rings.png' width='150'><br>**The Gilded Ring**<br>Jewelry & Amulets | <img src='readme_assets/mercants/the mercant of gold, silver, gems.png' width='150'><br>**The Vault**<br>Currency & Gems | <img src='readme_assets/mercants/the errant mercant magic armors.png' width='150'><br>**The Shadow's Edge**<br>Black Market |
-| <img src='readme_assets/mercants/the mercant of magic books for mages.png' width='150'><br>**Library of the Arcane**<br>Arcane Tomes | <img src='readme_assets/mercants/the mercant of magic books for priests.png' width='150'><br>**Temple Library**<br>Divine Tomes | | |
+
+| | | |
+| :---: | :---: | :---: |
+| <img src='readme_assets/mercants/the mercant of The Iron Anvil, Weapons & Armor.png' width='200'><br>**The Iron Anvil**<br>Weapons & Armor | <img src='readme_assets/mercants/the mercant of The Bubbling Cauldron Alchemy & Potions.png' width='200'><br>**The Bubbling Cauldron**<br>Alchemy & Potions | <img src='readme_assets/mercants/the mercant of The Drunken Dragon Provisioner & Rations.png' width='200'><br>**The Drunken Dragon**<br>Provisioner & Rations |
+| <img src='readme_assets/mercants/the mercant of Temple of Arcana Magic & Utility.png' width='200'><br>**Temple of Arcana**<br>Magic & Utility | <img src="readme_assets/mercants/the mercant of The Shadow's Edge Black Market.png" width='200'><br>**The Shadow's Edge**<br>Black Market | <img src="readme_assets/mercants/the mercant of Xanthus's Arcane Curios Arcane Relics.png" width='200'><br>**Xanthus's Arcane Curios**<br>Arcane Relics |
+| <img src="readme_assets/mercants/the mercant of Sister Elara's Sanctum Divine Relics.png" width='200'><br>**Sister Elara's Sanctum**<br>Divine Relics | <img src="readme_assets/mercants/the mercant of Master Malchor's Reagents Alchemical Reagents.png" width='200'><br>**Master Malchor's Reagents**<br>Alchemical Reagents | <img src='readme_assets/mercants/the mercant of The Arcane Library Arcane Tomes.png' width='200'><br>**The Arcane Library**<br>Arcane Tomes |
+| <img src='readme_assets/mercants/the mercant of Temple Library Divine Tomes.png' width='200'><br>**Temple Library**<br>Divine Tomes | <img src='readme_assets/mercants/the mercant of The Archive of a Thousand Battles Martial Codices.png' width='200'><br>**The Archive of a Thousand Battles**<br>Martial Codices | |
 
 ### Errant Traders (The Labyrinth)
 | | | | |
 | :---: | :---: | :---: | :---: |
-| <img src='readme_assets/mercants/the errant mercant arms and armors.png' width='150'><br>**Iron Wanderer**<br>Arms & Armor | <img src='readme_assets/mercants/the errant mercant magic arms.png' width='150'><br>**Spellblade**<br>Magic Arms | <img src='readme_assets/mercants/the errant mercant potions.png' width='150'><br>**Hermit Alchemist**<br>Common Potions | <img src='readme_assets/mercants/the errant mercant magic potions.png' width='150'><br>**Arcane Brewer**<br>Rare Elixirs |
-| <img src='readme_assets/mercants/the errant mercant magic scrolls.png' width='150'><br>**Scroll Peddler**<br>Magic Scrolls | <img src='readme_assets/mercants/the errant mercant magic armors.png' width='150'><br>**Shadow Dealer**<br>Black Market | <img src='readme_assets/mercants/the mercant of magic wands and staffs.png' width='150'><br>**Wand Weaver**<br>Wands & Staffs | <img src='readme_assets/mercants/the mercant of amulets and rings.png' width='150'><br>**Glimmering Trader**<br>Jewelry & Amulets |
+| <img src='readme_assets/mercants/the errant mercant Errant Blacksmith Arms & Armor.png' width='150'><br>**Errant Blacksmith**<br>Arms & Armor | <img src='readme_assets/mercants/the errant mercant Hidden Alchemist Potions & Reagents.png' width='150'><br>**Hidden Alchemist**<br>Potions & Reagents | <img src='readme_assets/mercants/the errant mercant Scroll Peddler Magic Scrolls.png' width='150'><br>**Scroll Peddler**<br>Magic Scrolls | <img src='readme_assets/mercants/the errant mercant Wand Weaver Wands & Staffs.jpeg' width='150'><br>**Wand Weaver**<br>Wands & Staffs |
+| <img src='readme_assets/mercants/the errant mercant Glimmering Trader Jewelry & Amulets.jpeg' width='150'><br>**Glimmering Trader**<br>Jewelry & Amulets | <img src='readme_assets/mercants/the errant mercant Arcane Smuggler Arcane Relics.png' width='150'><br>**Arcane Smuggler**<br>Arcane Relics | <img src='readme_assets/mercants/the errant mercant Walking Provisioner Provisions & Rations.jpeg' width='150'><br>**Walking Provisioner**<br>Provisions & Rations | <img src='readme_assets/mercants/the errant mercant Shadow Dealer Black Market.png' width='150'><br>**Shadow Dealer**<br>Black Market |
 
 ### 5. Procedural Generation & Shared MMO Ecology
 - **100-Floor Generation:** Entire dungeon maps are procedurally generated in RAM ahead-of-time upon server startup, utilizing Perlin noise and cellular automata for cave-like structures.
@@ -1104,7 +1106,7 @@ Each spellcasting class channels power from a different source, and their magic 
 | ⚔️ **Paladin** | **Oaths** | Sacred power bound to solemn vows |
 | 🏹 **Ranger** | **Wilderness Arts** | Arcane techniques learned from the wild |
 
-#### ⚡ Wizard (Arcane Spellbooks) — Sold at *Library of the Arcane*
+#### ⚡ Wizard (Arcane Spellbooks) — Sold at *The Arcane Library*
 
 "The Wizard studies his Spells from the Apprentice's Grimoire."
 
@@ -1640,7 +1642,7 @@ Each spellcasting class channels power from a different source, and their magic 
 </details>
 
 
-#### 🔥 Sorcerer (Bloodline Grimoires) — Sold at *Library of the Arcane*
+#### 🔥 Sorcerer (Bloodline Grimoires) — Sold at *The Arcane Library*
 
 "The Sorcerer awakens his Incantations from Dragon Blood."
 
@@ -1996,7 +1998,7 @@ Each spellcasting class channels power from a different source, and their magic 
 </details>
 
 
-#### 👁️ Warlock (Pact Tomes) — Sold at *Library of the Arcane*
+#### 👁️ Warlock (Pact Tomes) — Sold at *The Arcane Library*
 
 "The Warlock invokes his Hexes from the Infernal Contract."
 
@@ -2202,7 +2204,7 @@ Each spellcasting class channels power from a different source, and their magic 
 </details>
 
 
-#### 🎵 Bard (Song Codices) — Sold at *Library of the Arcane*
+#### 🎵 Bard (Song Codices) — Sold at *The Arcane Library*
 
 "The Bard intones his Songs from the Sonatas of Inspiration."
 
@@ -3843,7 +3845,7 @@ Each spellcasting class channels power from a different source, and their magic 
 #### 🏪 Dedicated Book Merchants (Floor 0)
 | Merchant | Specialization | Classes Served |
 |----------|---------------|----------------|
-| 📜 **Library of the Arcane** | Arcane Tomes | ⚡ Wizard, 🔥 Sorcerer, 👁️ Warlock, 🎵 Bard |
+| 📜 **The Arcane Library** | Arcane Tomes | ⚡ Wizard, 🔥 Sorcerer, 👁️ Warlock, 🎵 Bard |
 | 📕 **Temple Library** | Divine & Nature Books | ✝️ Cleric, 🌿 Druid, ⚔️ Paladin, 🏹 Ranger |
 | 🪶 **The Archive of a Thousand Battles** | Discipline Codices, Martial Ki Books | 🗡️ Fighter, 🪓 Barbarian, 🗝️ Rogue, 🥋 Monk|
 
@@ -4165,7 +4167,7 @@ This approach ensures the server remains highly responsive and performant even u
 
 <img src='readme_assets/adventure1/02.png' width='400'>
 
-* **Chapter 2: The First Grimoire.** At the *Arcane Library*, Kaelen invests 10,000 gp to purchase the *Novice Arcane Book*. Using the dedicated study command to decipher the tome, he learns his first spells: *Fire Bolt* for ranged damage and *Mending* to repair worn-out equipment.
+* **Chapter 2: The First Grimoire.** At *The Arcane Library*, Kaelen invests 10,000 gp to purchase the *Novice Arcane Book*. Using the dedicated study command to decipher the tome, he learns his first spells: *Fire Bolt* for ranged damage and *Mending* to repair worn-out equipment.
 
 <img src='readme_assets/adventure1/03.png' width='400'>
 
@@ -4177,7 +4179,7 @@ This approach ensures the server remains highly responsive and performant even u
 
 <img src='readme_assets/adventure1/05.png' width='400'>
 
-* **Chapter 5: The Wanderer and the Alliance.** Exhausted, he meets the *Arcane Brewer*, a wandering merchant. He barters the *Common* and *Uncommon* grade loot he collected to obtain rare healing elixirs. Shortly after, he saves a Cleric from an *Explosive Gas Vein* that would have leveled the corridor; in gratitude, the two form a mutual aid pact.
+* **Chapter 5: The Wanderer and the Alliance.** Exhausted, he meets the *Hidden Alchemist*, a wandering merchant. He barters the *Common* and *Uncommon* grade loot he collected to obtain rare healing elixirs. Shortly after, he saves a Cleric from an *Explosive Gas Vein* that would have leveled the corridor; in gratitude, the two form a mutual aid pact.
 
 
 
@@ -4213,7 +4215,7 @@ This approach ensures the server remains highly responsive and performant even u
 
 <img src='readme_assets/adventure1/12.png' width='400'>
 
-* **Chapter 12: Black Market and Secrets.** They meet the *Shadow Merchant*, a seller who only accepts items imbued with dark magic. Kaelen trades a cursed ring found on floor 50 for the *Arcanist's Code* (*Very Rare* rarity), gaining access to forbidden mass destruction magic.
+* **Chapter 12: Black Market and Secrets.** They meet the *Shadow Dealer*, a seller who only accepts items imbued with dark magic. Kaelen trades a cursed ring found on floor 50 for the *Arcanist's Code* (*Very Rare* rarity), gaining access to forbidden mass destruction magic.
 
 <img src='readme_assets/adventure1/13.png' width='400'>
 
@@ -4274,24 +4276,63 @@ Each class has its **dedicated temple** on Floor 0, with a unique name and a spe
 
 | Class | Temple / Dojo Name | Study Command | Position | Merchant |
 |-------|--------------------|---------------|----------|----------|
-| ⚡ **Wizard** | 🏛️ **Arcane Academy** | **`study <n>`** | NW Temple | 📜 Library of the Arcane |
-| ⚔️ **Paladin** | ⛪ **Cathedral of Justice** | **`celebrate <n>`** | N Temple | 📕 Temple Library |
-| ✝️ **Cleric** | 🕌 **Grand Temple** | **`pray <n>`** | NE Temple | 📕 Temple Library |
-| 🔥 **Sorcerer** | 🗼 **Spire of Blood** | **`pronounce <n>`** | E Temple | 📜 Library of the Arcane |
-| 👁️ **Warlock** | 🕯️ **Altar of Pacts** | **`invoke <n>`** | SE Temple | 📜 Library of the Arcane |
-| 🎵 **Bard** | 🎶 **Conservatory** | **`intone <n>`** | S Temple | 📜 Library of the Arcane |
-| 🌿 **Druid** | 🌳 **Sacred Grove** | **`awaken <n>`** | SW Temple | 📕 Temple Library |
-| 🏹 **Ranger** | 🏕️ **Hunters' Outpost** | **`practice <n>`** | W Temple | 📕 Temple Library |
-| 🗡️ **Fighter** | ⚔️ **Arena of the Blade** | **`drill <n>`** | Archive NE | 🪶 The Archive of a Thousand Battles |
-| 🪓 **Barbarian** | 🔥 **Pit of Fury** | **`rage <n>`** | Archive SE | 🪶 The Archive of a Thousand Battles |
-| 🗝️ **Rogue** | 🌑 **Shadow Den** | **`sneak <n>`** | Archive SW | 🪶 The Archive of a Thousand Battles |
-| 🥋 **Monk** | 🧘 **Silent Dojo** | **`meditate <n>`** | Archive NW | 🪶 The Archive of a Thousand Battles |
+| ⚡ **Wizard** | 🏛️ **Arcane Academy** | **`study <n>`** | N Temple | 📜 The Arcane Library |
+| ⚔️ **Paladin** | ⛪ **Cathedral of Justice** | **`celebrate <n>`** | NE Temple | 📕 Temple Library |
+| ✝️ **Cleric** | 🕌 **Great Temple** | **`pray <n>`** | E Temple | 📕 Temple Library |
+| 🔥 **Sorcerer** | 🗼 **Spire of Blood** | **`pronounce <n>`** | SE Temple | 📜 The Arcane Library |
+| 👁️ **Warlock** | 🕯️ **Altar of Pacts** | **`invoke <n>`** | S Temple | 📜 The Arcane Library |
+| 🎵 **Bard** | 🎶 **Conservatory** | **`intone <n>`** | SW Temple | 📜 The Arcane Library |
+| 🌿 **Druid** | 🌳 **Sacred Grove** | **`awaken <n>`** | W Temple | 📕 Temple Library |
+| 🏹 **Ranger** | 🏕️ **Hunter's Outpost** | **`practice <n>`** | NW Temple | 📕 Temple Library |
+| 🗡️ **Fighter** | ⚔️ **Gladiator's Arena** | **`drill <n>`** | Outer N (r=78) | 🪶 The Archive of a Thousand Battles |
+| 🪓 **Barbarian** | 🔥 **Fighting Pit** | **`rage <n>`** | Outer E (r=78) | 🪶 The Archive of a Thousand Battles |
+| 🗝️ **Rogue** | 🌑 **Den of Shadows** | **`sneak <n>`** | Outer S (r=78) | 🪶 The Archive of a Thousand Battles |
+| 🥋 **Monk** | 🧘 **Lotus Dojo** | **`meditate <n>`** | Outer W (r=78) | 🪶 The Archive of a Thousand Battles |
 
 > 💡 **Tip**: The `look` command inside one of these buildings will tell you the name of the temple/dojo you are in and remind you of the study command to use. If you use the wrong command, the server will report an error and indicate the correct command for your class.
 
-> ⚔️ **Martial Classes** (Fighter, Barbarian, Rogue, Monk): Their training ground is the **🪶 The Archive of a Thousand Battles**. Use **`drill <n>`**, **`rage <n>`**, **`sneak <n>`**, or **`meditate <n>`** inside the respective training grounds to study martial manuals and unlock new techniques.
+> ⚔️ **Martial Classes** (Fighter, Barbarian, Rogue, Monk): Their training grounds are the four outer-ring dojos (Gladiator's Arena, Fighting Pit, Den of Shadows, Lotus Dojo), and their discipline codices are sold at **🪶 The Archive of a Thousand Battles**. Use **`drill <n>`**, **`rage <n>`**, **`sneak <n>`**, or **`meditate <n>`** inside the respective training grounds to study martial manuals and unlock new techniques.
 
-### Merchant Restocking
+## Temples and Dojos
+
+
+![Wizard_Arcane Academy](<readme_assets/temples_and_dojos/Wizard_Arcane Academy.png>)
+Wizard / Arcane Academy
+
+![Paladin_Cathedral of Justice](<readme_assets/temples_and_dojos/Paladin_Cathedral of Justice.png>)
+Paladin / Cathedral of Justice
+
+![Cleric_Great Temple](<readme_assets/temples_and_dojos/Cleric_Great Temple.png>)
+Cleric / Great Temple
+
+![Sorcerer_Spire of Blood](<readme_assets/temples_and_dojos/Sorcerer_Spire of Blood.png>)
+Sorcerer / Spire of Blood
+
+![Warlock_Altar of Pacts](<readme_assets/temples_and_dojos/Warlock_Altar of Pacts.png>)
+Warlock / Altar of Pacts
+
+![Bard_Conservatory](<readme_assets/temples_and_dojos/Bard_Conservatory.png>)
+Bard / Conservatory
+
+![Druid_Sacred Grove](<readme_assets/temples_and_dojos/Druid_Sacred Grove.png>)
+Druid / Sacred Grove
+
+![Ranger_Hunter's Outpost](<readme_assets/temples_and_dojos/Ranger_Hunter's Outpost.png>)
+Ranger / Hunter's Outpost
+
+![Fighter_Gladiator's Arena.png](<readme_assets/temples_and_dojos/Fighter_Gladiator's Arena.png>)
+Fighter / Gladiator's Arena
+
+![Barbarian_Fighting Pit](<readme_assets/temples_and_dojos/Barbarian_Fighting Pit.png>)
+Barbarian / Fighting Pit
+
+![Rogue_Den of Shadows](<readme_assets/temples_and_dojos/Rogue_Den of Shadows.png>)
+Rogue / Den of Shadows
+
+![Monk_Lotus Dojo](<readme_assets/temples_and_dojos/Monk_Lotus Dojo.png>)
+Monk / Lotus Dojo
+
+## Merchant Restocking
 Merchants automatically restock their goods every **100 rounds** (equivalent to roughly 10 real-time minutes, or faster using the `rest` command). When the restock timer expires, all shop inventory quantities are restored to their maximum capacity (`item_stock_max`). Shops carry up to 50 items each.
 
 ---
@@ -4320,7 +4361,7 @@ Before we begin, let us define our intrepid group, selected from the races and c
 
 ## Prologue: The Last Refuge (Floor 0)
 
-The group gathers in the magical sanctuary of Floor 0. They stock up on rations at The Drunken Dragon inn, and Lyra purchases scrolls from the Library of the Arcane. The atmosphere is tense: they know the stairs into the darkness await them.
+The group gathers in the magical sanctuary of Floor 0. They stock up on rations at The Drunken Dragon inn, and Lyra purchases scrolls from The Arcane Library. The atmosphere is tense: they know the stairs into the darkness await them.
 
 <img src='readme_assets/story/0floor.png' width='800'>
 
@@ -4332,7 +4373,7 @@ The warm, flickering glow of The Drunken Dragon's hearth seemed the only reassur
 
 At the corner table, Grog, the mighty Half-Orc, was tearing off the last piece of meat from a roasted leg of mutton with a bite. His greataxe, leaning heavily against the oak bench, was as large as a grown man, its chipped edge telling tales of countless shattered skulls. "If we have to go down into that black hole," he grunted, wiping the grease from his lower tusk with the back of a massive hand, "we might as well do it on a full stomach. Shadows don't get smashed on an empty belly, and I can already feel this place draining our souls, piece by piece."
 
-"Shadows aren't confronted with brute force at all, my rough friend," replied a melodic and detached voice, almost a whisper carried by the wind. Lyra, the Void-Elf, hadn't touched any food. Her eyes gleamed with an unnatural amethyst light as she carefully and reverently stored a handful of enchanted scrolls, just purchased at great expense from the nearby Library of the Arcane. Her Arcane Tome, hovering a few inches above the table without any support, seemed to pulse with its own restless energy. "Shadows are dominated by bending the fabric of reality, or by blinding them with the arcane."
+"Shadows aren't confronted with brute force at all, my rough friend," replied a melodic and detached voice, almost a whisper carried by the wind. Lyra, the Void-Elf, hadn't touched any food. Her eyes gleamed with an unnatural amethyst light as she carefully and reverently stored a handful of enchanted scrolls, just purchased at great expense from the nearby Arcane Library. Her Arcane Tome, hovering a few inches above the table without any support, seemed to pulse with its own restless energy. "Shadows are dominated by bending the fabric of reality, or by blinding them with the arcane."
 
 Under the table, a frantic jingling interrupted the mage's musings. Fizwick, the Kobold, was piling up with exceptionally swift fingers the remaining copper and silver coins from the purchase of survival rations. His small, coppery scales reflected the amber candlelight, helping him blend even into the table's gloom. "Magic or axes, I don't care at all," he hissed, clutching his jingling pouch to his chest. "What matters is that there's a nice haul to grab down there. And that your chatter doesn't distract my eyes from the traps."
 
@@ -4526,7 +4567,7 @@ At the center of the cavern, protected by a circle of runic stones that repelled
 
 It was a Wandering Merchant. A madman, or perhaps a genius, who had chosen to do business in the heart of Dragon's Maw.
 
-"Approach, travelers! Approach, but keep your hands in plain sight!" croaked the Hermit Alchemist. His voice was a metallic rasp, and under his hood, only a long hooked nose and two small, black, quick, calculating eyes were visible. "Potions for wounds? Ointments for poisons? Or are you just desperate for a hot meal that isn't made of poisonous mushrooms?"
+"Approach, travelers! Approach, but keep your hands in plain sight!" croaked the Hidden Alchemist. His voice was a metallic rasp, and under his hood, only a long hooked nose and two small, black, quick, calculating eyes were visible. "Potions for wounds? Ointments for poisons? Or are you just desperate for a hot meal that isn't made of poisonous mushrooms?"
 
 "All three, old man," Grog replied, stepping forward with his mouth watering, staring at a spit on which an indefinable but succulent-looking creature was roasting.
 

@@ -49,6 +49,7 @@
 #include <math.h>
 #include <time.h>
 #include <ctype.h>
+#include <sys/wait.h>
 
 /*Compact structure for temple table*/
 typedef struct { int cls; int x0,x1,y0,y1; const char *name; const char *ritual; } TempleInfo;
@@ -61,7 +62,7 @@ static const TempleInfo TEMPLES[] = {
   { CLASS_BARD,     113,123, 176,186, "Conservatory",             "intone"     },
   { CLASS_DRUID,    101,111, 145,155, "Sacred Grove",           "awaken"     },
   { CLASS_RANGER,   113,123, 113,123, "Hunter's Outpost",  "practice"   },
-  { CLASS_FIGHTER,  144,155,  67, 78, "Gladiator's Arena",      "drill"      },
+  { CLASS_FIGHTER,  145,156,  67, 78, "Gladiator's Arena",      "drill"      },
   { CLASS_BARBARIAN,223,234, 145,156, "Fighting Pit",   "rage"       },
   { CLASS_ROGUE,    145,156, 223,234, "Den of Shadows",          "sneak"      },
   { CLASS_MONK,      67, 78, 145,156, "Lotus Dojo",             "meditate"   },
@@ -225,6 +226,35 @@ static char *trim_spaces(char *s) {
   while (end > s && end[-1] == ' ')
     *--end = '\0';
   return s;
+}
+
+/* Runs tools/generate_pdf_map.py to turn an ASCII dump into a color PDF and
+ * reports the outcome to the client. The wait status returned by system() is
+ * decoded (exit code / signal), so failures are reported as the real exit
+ * code (e.g. "code 2") instead of the raw 8-bit-shifted status (e.g. 512). */
+static void run_pdf_map_generator(int sock, const char *dump, const char *pdf, int floor_id) {
+  char syscmd[512];
+  snprintf(syscmd, sizeof(syscmd),
+           "python3 tools/generate_pdf_map.py %s %s %d", dump, pdf, floor_id);
+  int status = system(syscmd);
+  if (status == -1) {
+    send_text_to_client(sock, "[DM] Error: failed to launch PDF generator.");
+    return;
+  }
+  if (WIFEXITED(status)) {
+    if (WEXITSTATUS(status) == 0) {
+      send_text_to_client(sock, "[DM] Generated PDF Map: %s (Floor %d)", pdf, floor_id);
+    } else {
+      send_text_to_client(sock,
+        "[DM] Error generating PDF: generator exited with code %d (see server console for details).",
+        WEXITSTATUS(status));
+    }
+  } else if (WIFSIGNALED(status)) {
+    send_text_to_client(sock,
+      "[DM] Error generating PDF: generator killed by signal %d.", WTERMSIG(status));
+  } else {
+    send_text_to_client(sock, "[DM] Generated PDF Map: %s (Floor %d)", pdf, floor_id);
+  }
 }
 
 void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
@@ -1413,10 +1443,9 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
             fputc('\n', fp);
           }
           fclose(fp);
-          char syscmd[256];
-          snprintf(syscmd, sizeof(syscmd), "python3 tools/generate_pdf_map.py map_dump.txt map_floor_%d.pdf", f);
-          if (system(syscmd) == -1) {}
-          send_text_to_client(c->sock, "[DM] Generated PDF: map_floor_%d.pdf", f);
+          char pdf_path[128];
+          snprintf(pdf_path, sizeof(pdf_path), "map_floor_%d.pdf", f);
+          run_pdf_map_generator(c->sock, "map_dump.txt", pdf_path, f);
         }
       }
       return;
@@ -1455,16 +1484,7 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
         fputc('\n', fp);
       }
       fclose(fp);
-      char syscmd[512];
-      snprintf(syscmd, sizeof(syscmd),
-               "python3 tools/generate_pdf_map.py %s %s",
-               dump_path, pdf_path);
-      int ret = system(syscmd); (void)ret;
-      if (ret == 0) {
-        send_text_to_client(c->sock, "[DM] Generated PDF Map: %s (Floor %d)", pdf_path, f);
-      } else {
-        send_text_to_client(c->sock, "[DM] Error generating PDF (code %d).", ret);
-      }
+      run_pdf_map_generator(c->sock, dump_path, pdf_path, f);
       return;
     }
     if (strncmp(cmd, "dm_shop ", 8) == 0) {

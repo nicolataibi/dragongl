@@ -1,0 +1,177 @@
+.TH GENERATE_PDF_MAP 1 "September 2026" "Dragon GL" "Dragon GL DM Tools"
+.SH NAME
+generate_pdf_map \- render an ASCII floor dump as a color PDF map
+.SH SYNOPSIS
+.B generate_pdf_map.py
+.I ascii_dump
+.I output_pdf
+.RI [ floor_number ]
+.SH DESCRIPTION
+.B generate_pdf_map.py
+converts an ASCII floor dump produced by the Dragon GL server into a
+readable, color-coded PDF map.
+
+The script is used by the DM commands
+.B dm_pdf
+and
+.B dm_mapfloor
+after the server dumps the whole floor as an ASCII grid.
+
+Each recognized map character is rendered using a dedicated color and is
+also described in a legend. Unexcavated rock, represented by a space
+character, is rendered using a dark background color.
+
+The PDF contains a title identifying the floor and the dimensions of the
+ASCII grid, followed by the rendered map and its legend.
+.SH ARGUMENTS
+.TP
+.I ascii_dump
+Path to the ASCII floor dump to read.
+The file is read as UTF-8 text and all rows are padded to the same width.
+.TP
+.I output_pdf
+Path of the PDF file to create.
+.TP
+.I floor_number
+Optional floor number to display in the PDF title.
+If omitted, the script attempts to extract the floor number from the dump
+filename using a pattern such as
+.BR floor_7
+or
+.BR floor-7 .
+If no floor number can be inferred, the label
+.B Unknown
+is used.
+.SH MAP LEGEND
+The following characters are recognized:
+.TP
+.B #
+Wall / Obsidian
+.TP
+.B +
+Door
+.TP
+.B ~
+Water
+.TP
+.B L
+Lava
+.TP
+.B >
+Stairs Down
+.TP
+.B <
+Stairs Up
+.TP
+.B $
+Gold Vein
+.TP
+.B B
+Crystal (Blue)
+.TP
+.B P
+Crystal (Purple)
+.TP
+.B M
+Glowing Mushroom
+.TP
+.B ,
+Grass
+.TP
+.B .
+Other / carved
+.PP
+A space character represents unexcavated rock and is rendered using the
+map background color.
+Any character not explicitly recognized is rendered using the same color
+as
+.B .
+.SH DEPENDENCIES
+The script requires Python 3 and the following Python packages:
+.TP
+.B reportlab
+Required to create the PDF.
+.TP
+.B Pillow
+Optional. When available, Pillow is used to render the map as a PNG before
+embedding it in the PDF. If Pillow is unavailable, the script falls back
+to drawing individual tiles directly with ReportLab.
+.PP
+On Fedora Linux, the required Python packages can be installed with:
+.PP
+.nf
+python3 -m pip install --user reportlab pillow
+.fi
+.PP
+Alternatively, install distribution packages when available:
+.PP
+.nf
+sudo dnf install python3-reportlab python3-pillow
+.fi
+.SH EXIT STATUS
+.TP
+.B 0
+Success. The PDF was written successfully.
+.TP
+.B 1
+An error occurred. The error description is written to standard error.
+.SH ERRORS
+The script exits with status 1 when:
+.IP \(bu 2
+the command-line arguments are invalid;
+.IP \(bu 2
+the input dump cannot be read;
+.IP \(bu 2
+the input dump is empty;
+.IP \(bu 2
+a required Python dependency is missing; or
+.IP \(bu 2
+the PDF cannot be generated or written.
+.SH EXAMPLES
+Create a PDF and infer the floor number from the dump filename:
+.PP
+.nf
+./generate_pdf_map.py map_dump_floor_7.txt floor_7.pdf
+.fi
+.PP
+Explicitly specify the floor number:
+.PP
+.nf
+./generate_pdf_map.py map_dump_floor_7.txt floor_7.pdf 7
+.fi
+.PP
+The generated PDF title includes the floor number and the dimensions of
+the ASCII grid.
+.SH FILES
+.TP
+.I map_dump_floor_*.txt
+Typical ASCII floor dump files. The script does not require a particular
+filename, but uses the filename to infer the floor number when the third
+argument is omitted.
+.SH NOTES
+The character-to-color mapping is intended to remain synchronized with
+the mapping used by
+.B dm_pdf
+and
+.B dm_mapfloor
+in
+.BR src/server/server_commands.c .
+.PP
+The generated PDF uses a single page whose dimensions are calculated from
+the dimensions of the input grid.
+.SH AUTHOR
+Nicola Taibi
+.SH COPYRIGHT
+Copyright (C) 2026 Nicola Taibi.
+.PP
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+.PP
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
+Public License for more details.
+.SH SEE ALSO
+.BR python3 (1)
