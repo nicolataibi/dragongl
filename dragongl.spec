@@ -4,7 +4,7 @@
 %global toolchain clang
 
 Name:           dragongl
-Version:        2026.09.01.02
+Version:        2026.09.01.03
 Release:        %autorelease
 Summary:        Multi-User Client-Server 3D RPG Engine — OpenGL (GLFW) & Vulkan
 
@@ -59,7 +59,7 @@ Requires:       python3
 This package contains developer and Dungeon Master (DM) utilities
 for Dragon GL, including the combat log statistical analysis tool
 (analyze_balance.py) used to evaluate game balance from server
-session logs.
+session logs, and (generate_pdf_map.py) for maps.
 
 
 %prep
@@ -91,8 +91,6 @@ session logs.
 %{_mandir}/man1/dragongl-server.1*
 %{_mandir}/man1/dragongl-client.1*
 %{_mandir}/man1/dragongl_reset_world.1*
-%{_mandir}/man1/analyze_balance.1*
-%{_mandir}/man1/generate_pdf_map.1*
 
 
 %files data

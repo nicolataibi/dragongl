@@ -159,10 +159,11 @@ set(MAN_PAGES
     man/dragongl-client.1
     man/dragongl_reset_world.1
     man/analyze_balance.1
+    man/generate_pdf_map.1
 )
 install(FILES ${MAN_PAGES}
         DESTINATION ${CMAKE_INSTALL_MANDIR}/man1)
 
 # --- Developer Tools ---
-install(PROGRAMS tools/analyze_balance.py
+install(PROGRAMS tools/analyze_balance.py tools/generate_pdf_map.py
         DESTINATION ${CMAKE_INSTALL_DATADIR}/dragongl/tools)
