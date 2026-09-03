@@ -1,3 +1,12 @@
+* Thu Sep 03 2026 nicolataibi <nicola.taibi.1967@gmail.com> - 2026.09.03.04
+- Floor 0: the second martial statue ring (r=104) is removed. It was a
+  pure duplicate of the r=90 statue ring (same 3x3 crystals, same class
+  colors, same cardinal axes — only the radius differed), so the r=90
+  statues remain the outermost crystal circle. The martial fountains
+  (r=97) are untouched, and the 'statue'/'crystal' meditation still works
+  at the r=90 statues (it detects any nearby crystal generically). README
+  city rings list updated. Requires a world reset (./dragongl_reset_world)
+  to take effect.
 * Thu Sep 03 2026 nicolataibi <nicola.taibi.1967@gmail.com> - 2026.09.03.03
 - Floor 0: the four broken martial fountains (their 3x3 water sat exactly
   on the magic statues ring r=65 and was overwritten by the crystal

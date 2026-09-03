@@ -4,7 +4,7 @@
 %global toolchain clang
 
 Name:           dragongl
-Version:        2026.09.03.03
+Version:        2026.09.03.04
 Release:        %autorelease
 Summary:        Multi-User Client-Server 3D RPG Engine — OpenGL (GLFW) & Vulkan
 

@@ -4295,9 +4295,8 @@ Level 0 is organized in concentric rings around the central plaza:
 - **Fountains (Radius 59):** Each magic temple has a corresponding thematic fountain positioned further outward (e.g., bordered with ice, obsidian, gold vein).
 - **Crystal Statues (Radius 65):** Aligned with the fountains and temples, these statues match the crystal color of their respective altars.
 - **Martial Dojos (Radius 78):** 4 training arenas on the cardinal points — ⚔️ Gladiator's Arena (Fighter, N), 🔥 Fighting Pit (Barbarian, E), 🌑 Den of Shadows (Rogue, S), 🧘 Lotus Dojo (Monk, W).
-- **Martial Statues (Radius 90):** the outermost crystal ring of the dojos, one statue per martial class, aligned with its dojo.
-- **Martial Fountains (Radius 97):** the dedicated fountain of each martial class, on the same axis between the dojo and its statues (marble, cobblestone, ash and marble borders).
-- **Martial Statues (Radius 104):** the second statue ring, the outermost structures of the city, matching the crystal color of each dojo's altar.
+- **Martial Statues (Radius 90):** the outermost crystal statue ring, one statue per martial class, aligned with its dojo and matching the crystal color of its altar.
+- **Martial Fountains (Radius 97):** the dedicated fountain of each martial class, on the same axis beyond the dojo and its statue (marble, cobblestone, ash and marble borders) — the outermost structures of the city.
 - **Vision Radius:** Increased to 50 tiles to allow an expansive view of the open-air city.
 
 ### Learning System (Temples)

@@ -855,9 +855,9 @@ void generate_procedural_dungeon(Map* map, int floor_id) {
         // === MARTIAL TEMPLES (Outer Ring, r=78) ===
         // Positioned on the 4 cardinal directions, outside the magic temples ring (r=44).
         // Each dojo: 11x11 temple with its class crystal altar.
-        // The dedicated fountain and statue of each class live on the two
-        // extra outer rings defined below (fountains r=97, statues r=104);
-        // the first statue ring (r=90) remains the outermost crystal circle.
+        // The dedicated fountain of each class lives on the extra outer
+        // ring defined below (fountains r=97); the statue ring (r=90)
+        // remains the outermost crystal circle of the dojos.
 
         // Gladiator's Arena (Fighter, North, r=78) - COBBLE Floor, ORANGE Crystal
         // Centered on the north axis x=150 (temple x145..155), in symmetry
@@ -893,40 +893,31 @@ void generate_procedural_dungeon(Map* map, int floor_id) {
         // Monk's Statue (first outer ring, r=90)
         map_fill_rect(map,  59, 149,  3,  3, VOXEL_CRYSTAL_WHITE);
 
-        // === MARTIAL FOUNTAINS (r=97) AND STATUES (r=104) ===
-        // Two extra outer rings, one pair per cardinal direction, aligned
-        // with the dojos (r=78) and the first statue ring (r=90).
+        // === MARTIAL FOUNTAINS (r=97) ===
+        // One extra outer ring, one fountain per cardinal direction,
+        // aligned with the dojos (r=78) and the statue ring (r=90).
         // Fountain: 5x5 thematic border + 3x3 water.
-        // Statue:   3x3 crystal of the class color.
         //
-        //   Fighter (N):   fountain (150,53)  statue (150,46)   ORANGE
-        //   Barbarian (E): fountain (247,150) statue (254,150)  RED
-        //   Rogue (S):     fountain (150,247) statue (150,254)  PURPLE
-        //   Monk (W):      fountain (53,150)  statue (46,150)   WHITE
+        //   Fighter (N):   fountain (150,53)   ORANGE
+        //   Barbarian (E): fountain (247,150)  RED
+        //   Rogue (S):     fountain (150,247)  PURPLE
+        //   Monk (W):      fountain (53,150)   WHITE
 
         // Fighter's Fountain (North)
         map_fill_rect(map, 148,  51,  5,  5, VOXEL_MARBLE);
         map_fill_rect(map, 149,  52,  3,  3, VOXEL_WATER);
-        // Fighter's Statue (North)
-        map_fill_rect(map, 149,  45,  3,  3, VOXEL_CRYSTAL_ORANGE);
 
         // Barbarian's Fountain (East)
         map_fill_rect(map, 245, 148,  5,  5, VOXEL_COBBLE);
         map_fill_rect(map, 246, 149,  3,  3, VOXEL_WATER);
-        // Barbarian's Statue (East)
-        map_fill_rect(map, 253, 149,  3,  3, VOXEL_CRYSTAL_RED);
 
         // Rogue's Fountain (South)
         map_fill_rect(map, 148, 245,  5,  5, VOXEL_ASH);
         map_fill_rect(map, 149, 246,  3,  3, VOXEL_WATER);
-        // Rogue's Statue (South)
-        map_fill_rect(map, 149, 253,  3,  3, VOXEL_CRYSTAL_PURPLE);
 
         // Monk's Fountain (West)
         map_fill_rect(map,  51, 148,  5,  5, VOXEL_MARBLE);
         map_fill_rect(map,  52, 149,  3,  3, VOXEL_WATER);
-        // Monk's Statue (West)
-        map_fill_rect(map,  45, 149,  3,  3, VOXEL_CRYSTAL_WHITE);
 
         // === FOUNTAINS AND STATUES === //
         // Wizard — fountain (150,91) statue (150,85) OK
