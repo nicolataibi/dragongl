@@ -1764,13 +1764,14 @@ void check_level_up(Client *c) {
       break;
     case CLASS_FIGHTER:
     case CLASS_MONK:
-      highest_spell_lvl = (c->level + 2) / 3;
-      if (highest_spell_lvl > 6) highest_spell_lvl = 6;
-      break;
     case CLASS_BARBARIAN:
     case CLASS_ROGUE:
-      highest_spell_lvl = (c->level + 3) / 4;
-      if (highest_spell_lvl > 4) highest_spell_lvl = 4;
+      /* Martial arts: all four classes unlock a new Ki tier every
+       * 3 character levels, up to L6, so the six tomes of every
+       * martial codex (sold at The Archive of a Thousand Battles)
+       * are learnable AND castable. */
+      highest_spell_lvl = (c->level + 2) / 3;
+      if (highest_spell_lvl > 6) highest_spell_lvl = 6;
       break;
     default:
       highest_spell_lvl = (c->level + 1) / 2;

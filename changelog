@@ -1,3 +1,26 @@
+* Thu Sep 03 2026 nicolataibi <nicola.taibi.1967@gmail.com> - 2026.09.03.03
+- Floor 0: the four broken martial fountains (their 3x3 water sat exactly
+  on the magic statues ring r=65 and was overwritten by the crystal
+  statues, leaving only the 5x5 borders) are rebuilt on two new outer
+  rings, symmetric on the four cardinal axes: fountains at r=97 (Fighter
+  N, Barbarian E, Rogue S, Monk W, with marble/cobblestone/ash/marble
+  borders) and a second statue ring at r=104 with the class crystal
+  colors. The existing outermost crystal ring (martial statues, r=90)
+  and the rest of floor 0 are left untouched.
+  Requires a world reset (./dragongl_reset_world) to take effect.
+- Martial learning rituals completed: the TEMPLES[] rectangles of the
+  four dojos now match the actual 11x11 buildings (they were 1 tile too
+  wide/tall), so 'drill <n>' (Fighter), 'rage <n>' (Barbarian),
+  'sneak <n>' (Rogue) and 'meditate <n>' (Monk) activate exactly inside
+  the dojo, like the magic 'study' rituals.
+- Ki progression unified for the four martial classes: Barbarian and
+  Rogue now unlock Ki tiers every 3 character levels up to L6 (like
+  Fighter/Monk; previously capped at L4), so tiers 5-6 of every martial
+  codex sold at The Archive of a Thousand Battles are learnable and
+  castable.
+- README updated: city rings (dojos r=78, statues r=90, fountains r=97,
+  statues r=104), martial ritual aliases in the book-commands summary,
+  Ki progression table.
 * Thu Sep 03 2026 nicolataibi <nicola.taibi.1967@gmail.com> - 2026.09.03.02
 - Man file generate_pdf_map.1 updated
 * Thu Sep 03 2026 nicolataibi <nicola.taibi.1967@gmail.com> - 2026.09.03.01

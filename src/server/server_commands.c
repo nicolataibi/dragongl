@@ -62,10 +62,10 @@ static const TempleInfo TEMPLES[] = {
   { CLASS_BARD,     113,123, 176,186, "Conservatory",             "intone"     },
   { CLASS_DRUID,    101,111, 145,155, "Sacred Grove",           "awaken"     },
   { CLASS_RANGER,   113,123, 113,123, "Hunter's Outpost",  "practice"   },
-  { CLASS_FIGHTER,  145,156,  67, 78, "Gladiator's Arena",      "drill"      },
-  { CLASS_BARBARIAN,223,234, 145,156, "Fighting Pit",   "rage"       },
-  { CLASS_ROGUE,    145,156, 223,234, "Den of Shadows",          "sneak"      },
-  { CLASS_MONK,      67, 78, 145,156, "Lotus Dojo",             "meditate"   },
+  { CLASS_FIGHTER,  145,155,  67, 77, "Gladiator's Arena",      "drill"      },
+  { CLASS_BARBARIAN,223,233, 145,155, "Fighting Pit",   "rage"       },
+  { CLASS_ROGUE,    145,155, 223,233, "Den of Shadows",          "sneak"      },
+  { CLASS_MONK,      67, 77, 145,155, "Lotus Dojo",             "meditate"   },
 };
 static const int TEMPLE_COUNT = 12;
 

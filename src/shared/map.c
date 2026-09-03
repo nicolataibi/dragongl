@@ -853,54 +853,80 @@ void generate_procedural_dungeon(Map* map, int floor_id) {
         map->data[0][118][123] = VOXEL_DOOR;
 
         // === MARTIAL TEMPLES (Outer Ring, r=78) ===
-        // Positioned on the 4 cardinal directions, outside the magic temples ring (r=55).
-        // Each structure has: temple (11x11), dedicated fountain, dedicated statue.
+        // Positioned on the 4 cardinal directions, outside the magic temples ring (r=44).
+        // Each dojo: 11x11 temple with its class crystal altar.
+        // The dedicated fountain and statue of each class live on the two
+        // extra outer rings defined below (fountains r=97, statues r=104);
+        // the first statue ring (r=90) remains the outermost crystal circle.
 
-        // Warrior's Arena (North, r=78) - COBBLE Floor, ORANGE Crystal
+        // Gladiator's Arena (Fighter, North, r=78) - COBBLE Floor, ORANGE Crystal
         // Centered on the north axis x=150 (temple x145..155), in symmetry
         // with the other three outer-ring dojos.
         map_fill_rect(map, 145,  67, 11, 11, VOXEL_ROCK);
         map_fill_rect(map, 146,  68,  9,  9, VOXEL_COBBLE);
         map_fill_rect(map, 149,  71,  3,  3, VOXEL_CRYSTAL_ORANGE);
         map->data[0][77][150] = VOXEL_DOOR; // Door on the south wall (perimeter)
-        // Warrior's Fountain
-        map_fill_rect(map, 148,  83,  5,  5, VOXEL_MARBLE);
-        map_fill_rect(map, 149,  84,  3,  3, VOXEL_WATER);
-        // Warrior's Statue
+        // Fighter's Statue (first outer ring, r=90)
         map_fill_rect(map, 149,  59,  3,  3, VOXEL_CRYSTAL_ORANGE);
 
-        // Barbarian's Pit (East, r=78) - GRASS floor, RED crystal
+        // Fighting Pit (Barbarian, East, r=78) - GRASS floor, RED crystal
         map_fill_rect(map, 223, 145, 11, 11, VOXEL_ROCK);
         map_fill_rect(map, 224, 146,  9,  9, VOXEL_GRASS);
         map_fill_rect(map, 227, 149,  3,  3, VOXEL_CRYSTAL_RED);
         map->data[0][150][223] = VOXEL_DOOR; // Door on the west wall (perimeter)
-        // Barbarian's Fountain
-        map_fill_rect(map, 213, 148,  5,  5, VOXEL_COBBLE);
-        map_fill_rect(map, 214, 149,  3,  3, VOXEL_WATER);
-        // Barbarian's Statue
+        // Barbarian's Statue (first outer ring, r=90)
         map_fill_rect(map, 239, 149,  3,  3, VOXEL_CRYSTAL_RED);
 
-        // Thief's Den (South, r=78) - WOOD floor, PURPLE crystal
+        // Den of Shadows (Rogue, South, r=78) - WOOD floor, PURPLE crystal
         map_fill_rect(map, 145, 223, 11, 11, VOXEL_ROCK);
         map_fill_rect(map, 146, 224,  9,  9, VOXEL_WOOD);
         map_fill_rect(map, 149, 227,  3,  3, VOXEL_CRYSTAL_PURPLE);
         map->data[0][223][150] = VOXEL_DOOR; // Door on the north wall (perimeter)
-        //Thief's Fountain
-        map_fill_rect(map, 148, 213,  5,  5, VOXEL_ASH);
-        map_fill_rect(map, 149, 214,  3,  3, VOXEL_WATER);
-        //Statue of the Thief
+        // Rogue's Statue (first outer ring, r=90)
         map_fill_rect(map, 149, 239,  3,  3, VOXEL_CRYSTAL_PURPLE);
 
-        //Dojo of the Monk (West, r=78) - WOOD floor, WHITE crystal
+        // Lotus Dojo (Monk, West, r=78) - WOOD floor, WHITE crystal
         map_fill_rect(map,  67, 145, 11, 11, VOXEL_ROCK);
         map_fill_rect(map,  68, 146,  9,  9, VOXEL_WOOD);
         map_fill_rect(map,  71, 149,  3,  3, VOXEL_CRYSTAL_WHITE);
         map->data[0][150][77] = VOXEL_DOOR; // Door on the east wall (perimeter)
-        //Fountain of the Monk
-        map_fill_rect(map,  83, 148,  5,  5, VOXEL_MARBLE);
-        map_fill_rect(map,  84, 149,  3,  3, VOXEL_WATER);
-        //Monk statue
+        // Monk's Statue (first outer ring, r=90)
         map_fill_rect(map,  59, 149,  3,  3, VOXEL_CRYSTAL_WHITE);
+
+        // === MARTIAL FOUNTAINS (r=97) AND STATUES (r=104) ===
+        // Two extra outer rings, one pair per cardinal direction, aligned
+        // with the dojos (r=78) and the first statue ring (r=90).
+        // Fountain: 5x5 thematic border + 3x3 water.
+        // Statue:   3x3 crystal of the class color.
+        //
+        //   Fighter (N):   fountain (150,53)  statue (150,46)   ORANGE
+        //   Barbarian (E): fountain (247,150) statue (254,150)  RED
+        //   Rogue (S):     fountain (150,247) statue (150,254)  PURPLE
+        //   Monk (W):      fountain (53,150)  statue (46,150)   WHITE
+
+        // Fighter's Fountain (North)
+        map_fill_rect(map, 148,  51,  5,  5, VOXEL_MARBLE);
+        map_fill_rect(map, 149,  52,  3,  3, VOXEL_WATER);
+        // Fighter's Statue (North)
+        map_fill_rect(map, 149,  45,  3,  3, VOXEL_CRYSTAL_ORANGE);
+
+        // Barbarian's Fountain (East)
+        map_fill_rect(map, 245, 148,  5,  5, VOXEL_COBBLE);
+        map_fill_rect(map, 246, 149,  3,  3, VOXEL_WATER);
+        // Barbarian's Statue (East)
+        map_fill_rect(map, 253, 149,  3,  3, VOXEL_CRYSTAL_RED);
+
+        // Rogue's Fountain (South)
+        map_fill_rect(map, 148, 245,  5,  5, VOXEL_ASH);
+        map_fill_rect(map, 149, 246,  3,  3, VOXEL_WATER);
+        // Rogue's Statue (South)
+        map_fill_rect(map, 149, 253,  3,  3, VOXEL_CRYSTAL_PURPLE);
+
+        // Monk's Fountain (West)
+        map_fill_rect(map,  51, 148,  5,  5, VOXEL_MARBLE);
+        map_fill_rect(map,  52, 149,  3,  3, VOXEL_WATER);
+        // Monk's Statue (West)
+        map_fill_rect(map,  45, 149,  3,  3, VOXEL_CRYSTAL_WHITE);
 
         // === FOUNTAINS AND STATUES === //
         // Wizard — fountain (150,91) statue (150,85) OK

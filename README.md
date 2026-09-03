@@ -1097,7 +1097,7 @@ The number of slots is not fixed: it grows as your character levels up. A wizard
 Characters start with a fixed number of slots at Level 1, based on their class type:
 * **Full Casters** start with a massive **4 slots of L1**, **3 of L2**, and **2 of L3**. They unlock a new spell level every 2 character levels (max L9).
 * **Major Martials (Fighter, Monk)** start with **3 Ki slots of L1**. They unlock a new Ki level every 3 character levels (max L6).
-* **Minor Martials (Barbarian, Rogue)** start with **2 Ki slots of L1**. They unlock a new Ki level every 4 character levels (max L4).
+* **Minor Martials (Barbarian, Rogue)** start with **2 Ki slots of L1**. They unlock a new Ki level every 3 character levels (max L6), like the major martials, so all six tomes of their codex are usable.
 * **Half-Casters (Paladin, Ranger)** start with just **1 magic slot of L1**. They unlock a new spell level every 2 character levels (max L5).
 
 ##### How to Recharge Slots
@@ -1114,7 +1114,7 @@ Characters start with a fixed number of slots at Level 1, based on their class t
 
 To avoid confusion, here is an exhaustive list of all commands you can use on magic books and spells:
 * **`lore <book_idx>`**: Browse the book without triggering any rituals. It shows the exact index of the spells contained within, their ID number (useful for quick casting), and the required level. Can be used anytime and anywhere.
-* **`study <book_idx>`** (and class aliases like `pray`, `invoke`, `awaken`, `intone`, `celebrate`, `pronounce`, `practice`): Initiates the learning ritual. **Requires** you to physically be inside your class's temple on Floor 0. Permanently adds the unlocked spells to your spellbook.
+* **`study <book_idx>`** (and class aliases like `pray`, `invoke`, `awaken`, `intone`, `celebrate`, `pronounce`, `practice`; martial rituals `drill` for Fighter, `rage` for Barbarian, `sneak` for Rogue, `meditate` for Monk): Initiates the learning ritual. **Requires** you to physically be inside your class's temple/dojo on Floor 0. Permanently adds the unlocked spells to your spellbook.
 * **`spells`**: Displays your complete personal spellbook, showing all spells you've studied so far categorized by level, along with your remaining daily spell slots.
 * **`cast <book_idx> <spell_num>`** (or `c`): A numerical shortcut to cast spell *m* contained in book *n*. Conditions: you must have the book in your inventory, you must have already studied the spell, and you must have free slots. You can also cast by full name: `cast <spell_name>`.
 * **What NOT to do:** Using **`read <n>`** on a book will return an error. In Dragon GL, the `read` command is *exclusively* used to cast single-use spells from **scrolls**. Books must be "studied" (`study`) or "browsed" (`lore`).
@@ -4291,9 +4291,13 @@ This approach ensures the server remains highly responsive and performant even u
 ### City Layout (Floor 0)
 Level 0 is organized in concentric rings around the central plaza:
 - **Shops (Radius 26):** 11 essential shops for equipment and magical items — including **🪶 The Archive of a Thousand Battles**, the martial arts library dedicated to Fighter, Barbarian, Rogue, and Monk.
-- **Class Temples (Radius 44):** 12 unique temples/dojos, each dedicated to a specific class. Every spellcasting temple features a distinctly colored crystal altar; martial dojos are training arenas.
-- **Fountains (Radius 59):** Each temple has a corresponding thematic fountain positioned further outward (e.g., bordered with ice, obsidian, gold vein).
+- **Class Temples (Radius 44):** 8 spellcasting temples, each with a distinctly colored crystal altar.
+- **Fountains (Radius 59):** Each magic temple has a corresponding thematic fountain positioned further outward (e.g., bordered with ice, obsidian, gold vein).
 - **Crystal Statues (Radius 65):** Aligned with the fountains and temples, these statues match the crystal color of their respective altars.
+- **Martial Dojos (Radius 78):** 4 training arenas on the cardinal points — ⚔️ Gladiator's Arena (Fighter, N), 🔥 Fighting Pit (Barbarian, E), 🌑 Den of Shadows (Rogue, S), 🧘 Lotus Dojo (Monk, W).
+- **Martial Statues (Radius 90):** the outermost crystal ring of the dojos, one statue per martial class, aligned with its dojo.
+- **Martial Fountains (Radius 97):** the dedicated fountain of each martial class, on the same axis between the dojo and its statues (marble, cobblestone, ash and marble borders).
+- **Martial Statues (Radius 104):** the second statue ring, the outermost structures of the city, matching the crystal color of each dojo's altar.
 - **Vision Radius:** Increased to 50 tiles to allow an expansive view of the open-air city.
 
 ### Learning System (Temples)
