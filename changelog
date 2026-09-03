@@ -1,3 +1,5 @@
+* Thu Sep 03 2026 nicolataibi <nicola.taibi.1967@gmail.com> - 2026.09.03.02
+- Man file generate_pdf_map.1 updated
 * Thu Sep 03 2026 nicolataibi <nicola.taibi.1967@gmail.com> - 2026.09.03.01
 - dm_mapfloor/dm_pdf: floor dump upgraded to format v2 (2-digit hex
   VoxelType per tile + header with floor size and player position), so

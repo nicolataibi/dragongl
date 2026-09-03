@@ -1,58 +1,127 @@
 .TH GENERATE_PDF_MAP 1 "September 2026" "Dragon GL" "Dragon GL DM Tools"
 .SH NAME
-generate_pdf_map \- render an ASCII floor dump as a color PDF map
+generate_pdf_map \- render a Dragon GL floor dump as a faithful color PDF map
 .SH SYNOPSIS
 .B generate_pdf_map.py
-.I ascii_dump
+.I dump
 .I output_pdf
 .RI [ floor_number ]
+.RI [ options ]
 .SH DESCRIPTION
 .B generate_pdf_map.py
-converts an ASCII floor dump produced by the Dragon GL server into a
-readable, color-coded PDF map.
+converts a floor dump produced by the Dragon GL server into a readable,
+color-coded PDF map.
 
 The script is used by the DM commands
 .B dm_pdf
 and
 .B dm_mapfloor
-after the server dumps the whole floor as an ASCII grid.
+after the server dumps the whole floor to a text file.
 
-Each recognized map character is rendered using a dedicated color and is
-also described in a legend. Unexcavated rock, represented by a space
-character, is rendered using a dark background color.
+Tile colors are kept in sync with the in-game radar minimap
+(
+.BR src/client/client_minimap.c ,
+.I tile_to_color
+),
+so the PDF matches what the player sees on the 2D top-down view.
 
-The PDF contains a title identifying the floor and the dimensions of the
-ASCII grid, followed by the rendered map and its legend.
+The generated PDF contains:
+.IP \(bu 2
+a title with the floor number and the map dimensions;
+.IP \(bu 2
+a subtitle with the carved percentage, the number of distinct tile types,
+the dump format and the generation time;
+.IP \(bu 2
+coordinate ticks every 25 tiles along the top and left edges of the map;
+.IP \(bu 2
+the framed map;
+.IP \(bu 2
+a legend with a color swatch, the label and the tile count for every tile
+type present in the map;
+.IP \(bu 2
+a player position marker, when the dump carries the player location
+(v2 dumps only).
+.SH DUMP FORMATS
+The script auto-detects two dump formats.
+.PP
+\fBFormat v2 (current).\fR
+Written by the current server. A header block is followed by one line per
+map row; each tile is its 2-digit hexadecimal
+.BR VoxelType
+(
+.B 00
+= unexcavated rock,
+.B 1B
+= last crystal color, see
+.BR include/map.h
+):
+.PP
+.nf
+# DragonGL map dump v2
+floor 3
+width 300
+height 300
+player 142 97
+000001010101...
+.fi
+.PP
+The optional
+.B player
+line carries the DM position on that floor and is rendered as a marker.
+Because every tile type is preserved, the PDF is fully faithful: wood,
+cobble, ice, sand, ash, mud, marble, traps, obsidian and all eight crystal
+colors are each rendered with their own color.
+.PP
+\fBFormat v1 (legacy).\fR
+A plain grid with one ASCII character per tile and no header, written by
+older server versions. Several tile types collapse into a single character
+(\&. lumps floor, wood, cobble, ice, sand, ash, mud, marble, traps and six
+crystal colors; # lumps wall and obsidian). The PDF is still generated and
+a footnote in the legend explains the lumps.
 .SH ARGUMENTS
 .TP
-.I ascii_dump
-Path to the ASCII floor dump to read.
-The file is read as UTF-8 text and all rows are padded to the same width.
+.I dump
+Path to the floor dump to read (v1 or v2 format).
+In v1 dumps all rows are padded to the same width.
 .TP
 .I output_pdf
 Path of the PDF file to create.
 .TP
 .I floor_number
 Optional floor number to display in the PDF title.
-If omitted, the script attempts to extract the floor number from the dump
-filename using a pattern such as
+If omitted, the value is taken from the dump header (v2) or the dump
+filename is searched for a pattern such as
 .BR floor_7
 or
 .BR floor-7 .
 If no floor number can be inferred, the label
 .B Unknown
 is used.
-.SH MAP LEGEND
-The following characters are recognized:
+.SH OPTIONS
+.TP
+.BR \-\-cell " N"
+Points per tile in the PDF (default 4.0).
+.TP
+.BR \-\-px " N"
+Internal PNG pixels per tile (default 3).
+.TP
+.BR \-\-cols " N"
+Maximum number of legend columns (default 4).
+The layout chooses fewer columns when needed so that labels never overlap.
+.TP
+.BR \-\-no-coords
+Omit the coordinate ticks.
+.SH "LEGEND (V1 CHARACTERS)"
+The following characters are recognized in v1 dumps:
 .TP
 .B #
-Wall / Obsidian
+Wall (obsidian in legacy dumps)
 .TP
 .B +
 Door
 .TP
-.B ~
-Water
+.B "\(ti"
+Water (labeled Water / Lava when the dump contains no L)
 .TP
 .B L
 Lava
@@ -79,23 +148,20 @@ Glowing Mushroom
 Grass
 .TP
 .B .
-Other / carved
+Floor / other carved tiles
 .PP
-A space character represents unexcavated rock and is rendered using the
-map background color.
-Any character not explicitly recognized is rendered using the same color
-as
-.B .
+A space character represents unexcavated rock and is rendered with the map
+background color.
+Any character not explicitly recognized is rendered with the floor color
+and listed in the legend as Unknown.
 .SH DEPENDENCIES
-The script requires Python 3 and the following Python packages:
-.TP
-.B reportlab
-Required to create the PDF.
-.TP
-.B Pillow
-Optional. When available, Pillow is used to render the map as a PNG before
-embedding it in the PDF. If Pillow is unavailable, the script falls back
-to drawing individual tiles directly with ReportLab.
+The script requires Python 3 and ReportLab.
+.PP
+When Pillow is available (ReportLab 4.x requires it), the map is rendered
+as a PNG and embedded in the PDF.
+With older ReportLab versions where Pillow is optional and missing, the
+script falls back to drawing the tiles directly as vector rectangles
+(horizontal runs of equal color are merged).
 .PP
 On Fedora Linux, the required Python packages can be installed with:
 .PP
@@ -115,14 +181,17 @@ Success. The PDF was written successfully.
 .TP
 .B 1
 An error occurred. The error description is written to standard error.
+.TP
+.B 2
+The command-line arguments are invalid.
 .SH ERRORS
-The script exits with status 1 when:
+The script exits with a non-zero status when:
 .IP \(bu 2
-the command-line arguments are invalid;
+the command-line arguments are invalid (status 2);
 .IP \(bu 2
-the input dump cannot be read;
+the input dump cannot be read or is empty;
 .IP \(bu 2
-the input dump is empty;
+a v2 dump is malformed (missing header line, wrong grid row length);
 .IP \(bu 2
 a required Python dependency is missing; or
 .IP \(bu 2
@@ -140,22 +209,28 @@ Explicitly specify the floor number:
 ./generate_pdf_map.py map_dump_floor_7.txt floor_7.pdf 7
 .fi
 .PP
-The generated PDF title includes the floor number and the dimensions of
-the ASCII grid.
+Use a smaller tile size and fewer legend columns:
+.PP
+.nf
+./generate_pdf_map.py map_dump_floor_7.txt floor_7.pdf 7 \-\-cell 3 \-\-cols 6
+.fi
 .SH FILES
 .TP
-.I map_dump_floor_*.txt
-Typical ASCII floor dump files. The script does not require a particular
-filename, but uses the filename to infer the floor number when the third
-argument is omitted.
-.SH NOTES
-The character-to-color mapping is intended to remain synchronized with
-the mapping used by
-.B dm_pdf
+.I map_dump.txt , map_dump_floor_*.txt
+Floor dump files written by
+.BR dm_pdf (1)
 and
-.B dm_mapfloor
-in
-.BR src/server/server_commands.c .
+.BR dm_mapfloor (1)
+(v2 format from the current server).
+The script does not require a particular filename; the filename is used to
+infer the floor number when the third argument is omitted.
+.SH NOTES
+The color palette is intended to remain synchronized with the mapping used
+by
+.BR src/client/client_minimap.c ,
+and the v2 dump carries the exact
+.BR VoxelType
+of every tile, so the PDF faithfully reproduces the floor.
 .PP
 The generated PDF uses a single page whose dimensions are calculated from
 the dimensions of the input grid.
