@@ -1,3 +1,18 @@
+* Thu Sep 03 2026 nicolataibi <nicola.taibi.1967@gmail.com> - 2026.09.03.01
+- dm_mapfloor/dm_pdf: floor dump upgraded to format v2 (2-digit hex
+  VoxelType per tile + header with floor size and player position), so
+  the PDF renders every tile with its exact in-game color (the legacy
+  1-char dump collapsed wood/cobble/ice/sand/ash/mud/marble/traps and
+  six crystal colors into '.', and wall with obsidian into '#').
+- tools/generate_pdf_map.py rewritten: tile palette kept in sync with
+  the in-game radar minimap (client_minimap.c tile_to_color), so the
+  PDF matches the 2D top-down view; title + subtitle (size, carved %,
+  tile types, dump format, timestamp); coordinate ticks every 25 tiles;
+  legend with swatches, labels and per-type counts (auto column layout);
+  player position marker; legacy v1 dumps still supported, with a
+  footnote explaining the lumps; vector run-length fallback when
+  Pillow is unavailable (old reportlab).
+- Verified pixel-by-pixel on floors 0 and 1 (22 and 20 tile types).
 * Tue Sep 01 2026 nicolataibi <nicola.taibi.1967@gmail.com> - 2026.09.01.03
 - generate_pdf_map.py build error
 * Tue Sep 01 2026 nicolataibi <nicola.taibi.1967@gmail.com> - 2026.09.01.02

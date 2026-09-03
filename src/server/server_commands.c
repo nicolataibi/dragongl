@@ -228,7 +228,35 @@ static char *trim_spaces(char *s) {
   return s;
 }
 
-/* Runs tools/generate_pdf_map.py to turn an ASCII dump into a color PDF and
+/* Dumps one floor to a text file understood by tools/generate_pdf_map.py.
+ * Format v2: a small header (floor, size, optional player position) followed
+ * by one line per row where each tile is its 2-digit hex VoxelType
+ * (00 = VOXEL_ROCK ... 1B = VOXEL_CRYSTAL_WHITE, see include/map.h), so the
+ * PDF can render every tile with its exact in-game color. The generator
+ * still accepts legacy 1-char-per-tile v1 dumps from older binaries. */
+static int dump_floor_v2(const char *path, int floor_id, const Client *c) {
+  FILE *fp = fopen(path, "w");
+  if (!fp) return -1;
+  fprintf(fp, "# DragonGL map dump v2\n");
+  fprintf(fp, "floor %d\n", floor_id);
+  fprintf(fp, "width %d\n", MAP_WIDTH);
+  fprintf(fp, "height %d\n", MAP_HEIGHT);
+  if (c && floor_id == c->floor_id &&
+      c->x >= 0 && c->x < MAP_WIDTH && c->y >= 0 && c->y < MAP_HEIGHT) {
+    fprintf(fp, "player %d %d\n", c->x, c->y);
+  }
+  for (int y = 0; y < MAP_HEIGHT; y++) {
+    for (int x = 0; x < MAP_WIDTH; x++) {
+      fprintf(fp, "%02x",
+              (int)master_world->floors[floor_id].map.data[0][y][x]);
+    }
+    fputc('\n', fp);
+  }
+  fclose(fp);
+  return 0;
+}
+
+/* Runs tools/generate_pdf_map.py to turn a floor dump into a color PDF and
  * reports the outcome to the client. The wait status returned by system() is
  * decoded (exit code / signal), so failures are reported as the real exit
  * code (e.g. "code 2") instead of the raw 8-bit-shifted status (e.g. 512). */
@@ -1420,29 +1448,7 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
     if (strncmp(cmd, "dm_pdf ", 7) == 0) {
       int f = 0;
       if (sscanf(cmd + 7, "%d", &f) == 1 && f >= 0 && f < 100) {
-        FILE *fp = fopen("map_dump.txt", "w");
-        if (fp) {
-          for (int y = 0; y < MAP_HEIGHT; y++) {
-            for (int x = 0; x < MAP_WIDTH; x++) {
-              int v = master_world->floors[f].map.data[0][y][x];
-              char ch = ' ';
-              if (v == VOXEL_ROCK) ch = ' ';
-              else if (v == VOXEL_WALL || v == VOXEL_OBSIDIAN) ch = '#';
-              else if (v == VOXEL_DOOR) ch = '+';
-              else if (v == VOXEL_WATER || v == VOXEL_LAVA) ch = '~';
-              else if (v == VOXEL_STAIRS_DOWN) ch = '>';
-              else if (v == VOXEL_STAIRS_UP) ch = '<';
-              else if (v == VOXEL_GOLD_VEIN) ch = '$';
-              else if (v == VOXEL_CRYSTAL_BLUE) ch = 'B';
-              else if (v == VOXEL_CRYSTAL_PURPLE) ch = 'P';
-              else if (v == VOXEL_MUSHROOM_GLOW) ch = 'M';
-              else if (v == VOXEL_GRASS) ch = ',';
-              else ch = '.';
-              fputc(ch, fp);
-            }
-            fputc('\n', fp);
-          }
-          fclose(fp);
+        if (dump_floor_v2("map_dump.txt", f, c) == 0) {
           char pdf_path[128];
           snprintf(pdf_path, sizeof(pdf_path), "map_floor_%d.pdf", f);
           run_pdf_map_generator(c->sock, "map_dump.txt", pdf_path, f);
@@ -1456,34 +1462,10 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
       char pdf_path[128];
       snprintf(dump_path, sizeof(dump_path), "map_dump_floor_%d.txt", f);
       snprintf(pdf_path,  sizeof(pdf_path),  "map_floor_%d.pdf", f);
-      FILE *fp = fopen(dump_path, "w");
-      if (!fp) {
+      if (dump_floor_v2(dump_path, f, c) != 0) {
         send_text_to_client(c->sock, "[DM] Error opening temporary file.");
         return;
       }
-      for (int y = 0; y < MAP_HEIGHT; y++) {
-        for (int x = 0; x < MAP_WIDTH; x++) {
-          int v = master_world->floors[f].map.data[0][y][x];
-          char ch = ' ';
-          if      (v == VOXEL_ROCK)           ch = ' ';
-          else if (v == VOXEL_WALL)           ch = '#';
-          else if (v == VOXEL_OBSIDIAN)       ch = '#';
-          else if (v == VOXEL_DOOR)           ch = '+';
-          else if (v == VOXEL_WATER)          ch = '~';
-          else if (v == VOXEL_LAVA)           ch = 'L';
-          else if (v == VOXEL_STAIRS_DOWN)    ch = '>';
-          else if (v == VOXEL_STAIRS_UP)      ch = '<';
-          else if (v == VOXEL_GOLD_VEIN)      ch = '$';
-          else if (v == VOXEL_CRYSTAL_BLUE)   ch = 'B';
-          else if (v == VOXEL_CRYSTAL_PURPLE) ch = 'P';
-          else if (v == VOXEL_MUSHROOM_GLOW)  ch = 'M';
-          else if (v == VOXEL_GRASS)          ch = ',';
-          else                                ch = '.';
-          fputc(ch, fp);
-        }
-        fputc('\n', fp);
-      }
-      fclose(fp);
       run_pdf_map_generator(c->sock, dump_path, pdf_path, f);
       return;
     }

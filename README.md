@@ -39,6 +39,8 @@ Dragon GL is a high-performance, 3D multi-user client-server dungeon exploration
 
 ---
 
+## SCREENSHOTS
+
 <table align="center">
   <tr>
     <td align="center">
@@ -100,8 +102,23 @@ Dragon GL is a high-performance, 3D multi-user client-server dungeon exploration
 </table>
 
 ---
+## MAPS DUMP
 
-## 📜 The Lore: The Deep Descent
+<table align="center">
+  <tr>
+    <td align="center">
+      <img
+        src="readme_assets/screenshot/scr5.png"
+        alt="Map dump"
+        width="600"
+      />
+    </td>
+  </tr>
+</table>
+
+---
+
+# 📜 The Lore: The Deep Descent
 In a legendary world, beneath the ruins of an ancient arcane civilization, lies a subterranean labyrinth of **100 floors** known as the *Dragon's Maw*. At **Floor 0**, a magical sanctuary serves as the last bastion for adventurers: a safe-zone city with merchants, taverns, and portals. Floors **1 through 100** plunge adventurers ever deeper into darkness, each level more treacherous than the last.
 
 - **Tiers of Peril (Floors 1–100):** The upper floors are swarming with Goblins and Giant Spiders. Deeper down, Orcish warbands and undead Ghouls roam the crypts. In the deepest tiers, Vampire Lords and Trolls guard the darkness.
@@ -313,10 +330,20 @@ Dragon GL features a specialized trade system inspired by classic roguelikes, wi
 
 | | | |
 | :---: | :---: | :---: |
+| <img src='readme_assets/shops/The Iron Anvil, Weapons & Armor.png' width='200'><br>**The Iron Anvil**<br>Weapons & Armor | <img src='readme_assets/shops/The Bubbling Cauldron, Alchemy & Potions.png' width='200'><br>**The Bubbling Cauldron**<br>Alchemy & Potions | <img src='readme_assets/shops/The Drunken Dragon, Provisioner & Rations.png' width='200'><br>**The Drunken Dragon**<br>Provisioner & Rations |
+| <img src='readme_assets/shops/Temple of Arcana, Magic & Utility.png' width='200'><br>**Temple of Arcana**<br>Magic & Utility | <img src="readme_assets/shops/The Shadow's Edge, Black Market.png" width='200'><br>**The Shadow's Edge**<br>Black Market | <img src="readme_assets/shops/Xanthus's Arcane Curios, Arcane Relics.png" width='200'><br>**Xanthus's Arcane Curios**<br>Arcane Relics |
+| <img src="readme_assets/shops/Sister Elara's Sanctum, Divine Relics.png" width='200'><br>**Sister Elara's Sanctum**<br>Divine Relics | <img src="readme_assets/shops/Master Malchor's Reagents, Alchemical Reagents.png" width='200'><br>**Master Malchor's Reagents**<br>Alchemical Reagents | <img src='readme_assets/shops/The Arcane Library, Arcane Tomes.png' width='200'><br>**The Arcane Library**<br>Arcane Tomes |
+| <img src='readme_assets/shops/Temple Library, Divine Tomes.png' width='200'><br>**Temple Library**<br>Divine Tomes | <img src='readme_assets/shops/The Archive of a Thousand Battles, Martial Codices.png' width='200'><br>**The Archive of a Thousand Battles**<br>Martial Codices | |
+
+| | | |
+| :---: | :---: | :---: |
 | <img src='readme_assets/mercants/the mercant of The Iron Anvil, Weapons & Armor.png' width='200'><br>**The Iron Anvil**<br>Weapons & Armor | <img src='readme_assets/mercants/the mercant of The Bubbling Cauldron Alchemy & Potions.png' width='200'><br>**The Bubbling Cauldron**<br>Alchemy & Potions | <img src='readme_assets/mercants/the mercant of The Drunken Dragon Provisioner & Rations.png' width='200'><br>**The Drunken Dragon**<br>Provisioner & Rations |
 | <img src='readme_assets/mercants/the mercant of Temple of Arcana Magic & Utility.png' width='200'><br>**Temple of Arcana**<br>Magic & Utility | <img src="readme_assets/mercants/the mercant of The Shadow's Edge Black Market.png" width='200'><br>**The Shadow's Edge**<br>Black Market | <img src="readme_assets/mercants/the mercant of Xanthus's Arcane Curios Arcane Relics.png" width='200'><br>**Xanthus's Arcane Curios**<br>Arcane Relics |
 | <img src="readme_assets/mercants/the mercant of Sister Elara's Sanctum Divine Relics.png" width='200'><br>**Sister Elara's Sanctum**<br>Divine Relics | <img src="readme_assets/mercants/the mercant of Master Malchor's Reagents Alchemical Reagents.png" width='200'><br>**Master Malchor's Reagents**<br>Alchemical Reagents | <img src='readme_assets/mercants/the mercant of The Arcane Library Arcane Tomes.png' width='200'><br>**The Arcane Library**<br>Arcane Tomes |
 | <img src='readme_assets/mercants/the mercant of Temple Library Divine Tomes.png' width='200'><br>**Temple Library**<br>Divine Tomes | <img src='readme_assets/mercants/the mercant of The Archive of a Thousand Battles Martial Codices.png' width='200'><br>**The Archive of a Thousand Battles**<br>Martial Codices | |
+
+### Merchant Restocking
+Merchants automatically restock their goods every **100 rounds** (equivalent to roughly 10 real-time minutes, or faster using the `rest` command). When the restock timer expires, all shop inventory quantities are restored to their maximum capacity (`item_stock_max`). Shops carry up to 50 items each.
 
 ### Errant Traders (The Labyrinth)
 | | | | |
@@ -4332,8 +4359,21 @@ Rogue / Den of Shadows
 ![Monk_Lotus Dojo](<readme_assets/temples_and_dojos/Monk_Lotus Dojo.png>)
 Monk / Lotus Dojo
 
-## Merchant Restocking
-Merchants automatically restock their goods every **100 rounds** (equivalent to roughly 10 real-time minutes, or faster using the `rest` command). When the restock timer expires, all shop inventory quantities are restored to their maximum capacity (`item_stock_max`). Shops carry up to 50 items each.
+## Statues
+
+| | | | |
+| :---: | :---: | :---: | :---: |
+| <img src='readme_assets/statues/wizard.png' width='200'><br>**Wizard**<br>⚡  | <img src='readme_assets/statues/sorcerer.png' Width='200'><br>**Sorcerer**<br>🔥 |  <img src='readme_assets/statues/warlock.png' width='200'><br>**Warlock**<br>👁️ |  <img src='readme_assets/statues/bard.png' width='200'><br>**Bard**<br>🎵 |
+|<img src='readme_assets/statues/Fighter.png' width='200'><br>**Fighter**<br>🗡️ | <img src='readme_assets/statues/Barbarian.png' width='200'><br>**Barbarian**<br>🪓 | <img src='readme_assets/statues/Rogue.png' width='200'><br>**Rogue**<br>🗝️ | <img src='readme_assets/statues/Monk.png' width='200'><br>**Monk**<br>🥋 |
+| <img src='readme_assets/statues/Paladin.png' width='200'><br>**Paladin**<br>⚔️ | <img src='readme_assets/statues/Cleric.png' width='200'><br>**Cleric**<br>✝️ | <img src='readme_assets/statues/Druid.png' width='200'><br>**Druid**<br>🌿 | <img src='readme_assets/statues/Ranger.png' width='200'><br>**Ranger**<br>🏹 |
+
+## Fountains
+
+| | | | |
+| :---: | :---: | :---: | :---: |
+| <img src='readme_assets/fountains/Wizard.png' width='200'><br>**Wizard**<br>⚡  | <img src='readme_assets/fountains/Sorcerer.png' Width='200'><br>**Sorcerer**<br>🔥 |  <img src='readme_assets/fountains/Warlock.png' width='200'><br>**Warlock**<br>👁️ |  <img src='readme_assets/fountains/Bard.png' width='200'><br>**Bard**<br>🎵 |
+|<img src='readme_assets/fountains/Fighter.png' width='200'><br>**Fighter**<br>🗡️ | <img src='readme_assets/fountains/Barbarian.png' width='200'><br>**Barbarian**<br>🪓 | <img src='readme_assets/fountains/Rogue.png' width='200'><br>**Rogue**<br>🗝️ | <img src='readme_assets/fountains/Monk.png' width='200'><br>**Monk**<br>🥋 |
+| <img src='readme_assets/fountains/Paladin.png' width='200'><br>**Paladin**<br>⚔️ | <img src='readme_assets/fountains/Cleric.png' width='200'><br>**Cleric**<br>✝️ | <img src='readme_assets/fountains/Druid.png' width='200'><br>**Druid**<br>🌿 | <img src='readme_assets/fountains/Ranger.png' width='200'><br>**Ranger**<br>🏹 |
 
 ---
 ---
