@@ -280,6 +280,8 @@ Dragon GL introduces an interactive mining system that rewards exploration and d
 - **Geological Inspection (`examine`):** By using this command, players can analyze the surrounding terrain and walls within a 1-tile radius. This reveals a detailed geological table indicating the presence of precious veins (e.g., gold, silver, quartz) or if the surface is marked as "Regular" (non-mining). It also checks your inventory and hands to see if you possess the correct tool for extraction.
 - **Digging & Extraction (`tunnel`):** If a precious vein is found, you can use the `tunnel <direction>` command (e.g., `tunnel w` for digging West, or `tunnel d` for digging under your feet). This action requires a suitable tool (items with names containing *Pick*, *Shovel*, *Hammer*, *Mining*, or *Tool*). With the right tool, the precious material is extracted and added to your wealth or inventory, and the wall/terrain turns into normal rock once depleted.
 
+> **Technical note:** A complete, exhaustive catalogue of every voxel type — numeric encodings, traversal rules, transformation chemistry, respawn behaviour, and rendering definitions — is provided in the *Voxel Type Reference (Technical Appendix)* section further below.
+
 ---
 ## ⚠️ Trap Gallery
 The dungeon is littered with dangers. Here are the traps you might encounter:
@@ -620,6 +622,308 @@ if (c->slot_neck.template_idx != -1)  mask |= (1 << 1);
 ```
 
 The bitmask here is a **derived, read-only projection** used exclusively on the wire for HUD rendering. The authoritative server-side data model always remains the enum-indexed arrays and named slot structs — the bitmask is never written back.
+
+## 🧊 Voxel Type Reference (Technical Appendix)
+
+The complete world of Dragon GL is composed of discrete voxels. Every cell of every floor stores a single value drawn from the `VoxelType` enumeration declared in `include/map.h`; this appendix constitutes the authoritative catalogue of all `VOXEL_*` identifiers. For each type it specifies the numeric encoding, the in-game presentation (3D and minimap), the traversal semantics for players and for the artificial intelligence, the interaction and transformation rules, and the persistence implications. This section complements the gameplay-oriented descriptions found in the *Trap Gallery*, the *Procedural Thematic Rooms*, and the *Complete Save State & Voxel Persistence* sections.
+
+### 1. Data Model, Authority and Lifecycle
+
+- **Grid geometry.** A floor is a three-dimensional lattice of `VoxelType` cells with dimensions `MAP_WIDTH × MAP_HEIGHT × MAP_DEPTH` = `300 × 300 × 1` (the depth axis is reserved for future verticality and is not currently exercised). The world comprises `MAX_FLOORS = 101` floors: Floor 0 is the sanctuary city; Floors 1–100 constitute the dungeon.
+- **Server authority.** The master copy of the world resides on the server (`master_world`, of type `World`). Clients never mutate voxel state; they receive incremental map chunks (`send_map_chunk`, initial view radius `INITIAL_VIEW_RADIUS = 100`) purely for rendering and minimap display.
+- **Generation.** Initial topology is produced by `generate_procedural_dungeon()` in `src/shared/map.c`. Rooms are carved out of a `VOXEL_ROCK` substrate: perimeter cells become `VOXEL_WALL` (the four corners are deliberately retained as `VOXEL_ROCK` so that digging can never pierce the structure at a corner), interiors become `VOXEL_FLOOR`, and navigation (stairs), doors, liquids, flora, resources, and the themed decorations of the 21 room archetypes are then stamped on top.
+- **Runtime mutation.** Voxel state is modified permanently during play by: mining (`tunnel`), door operation (`open`/`close`), terrain spells (Wall of Stone, Mud Field, Ice Storm), elemental area effects (§8.1), environmental traps (Flood, Ceiling Collapse, Stone Tomb), and trap detection/disarmal (`VOXEL_TRAP` markers).
+- **Persistence.** `world_save()` writes the entire `World` structure — every voxel cell, every trap table, every crystal-respawn queue — as a raw binary image to `data/world.dat`. Because the snapshot is a verbatim memory image, the numeric values of the enumeration form part of the on-disk contract: renumbering or reordering `VoxelType` would silently corrupt existing saves.
+- **Textual dumps.** The map dump (format v2) encodes each tile as a two-digit hexadecimal voxel identifier — `00` (`VOXEL_ROCK`) through `1B` (`VOXEL_CRYSTAL_WHITE`) — and is consumed by `tools/generate_pdf_map.py` to render pixel-accurate paper maps.
+
+### 2. Master Enumeration Table
+
+The table below enumerates all thirty `VOXEL_*` identifiers: twenty-eight distinct voxel types (values 0–27) plus two legacy aliases. The *Player* and *AI* columns summarise the traversal semantics detailed in §7.
+
+| # | Identifier | Value | Hex | Class | In-Game Name (`look`) | Player | AI |
+|---:|---|---:|---:|---|---|:---:|:---:|
+| 1 | `VOXEL_ROCK` | 0 | `0x00` | Structural | "Solid Rock" | ✖ | ✖ |
+| 2 | `VOXEL_FLOOR` | 1 | `0x01` | Structural | "Stone floor" | ✔ | ✔ |
+| 3 | `VOXEL_WALL` | 2 | `0x02` | Structural | "Stone Wall" | ✖ | ✖ |
+| 4 | `VOXEL_DOOR` | 3 | `0x03` | Structural | "Door" | ✔ | ✔ |
+| 5 | `VOXEL_STAIRS_UP` | 4 | `0x04` | Navigation | "Stairs to go up ( < )" | ⚠ | ✖ |
+| 6 | `VOXEL_STAIRS_DOWN` | 5 | `0x05` | Navigation | "Stairs to go down ( > )" | ⚠ | ✖ |
+| 7 | `VOXEL_GRASS` | 6 | `0x06` | Terrain | "Grassy Terrain" | ✔ | ✔ |
+| 8 | `VOXEL_WOOD` | 7 | `0x07` | Terrain | "Wooden plank" | ✔ | ✖ |
+| 9 | `VOXEL_WATER` | 8 | `0x08` | Terrain (liquid) | "Clear Water" | ⚠ | ✔ |
+| 10 | `VOXEL_COBBLE` | 9 | `0x09` | Terrain | "Cobblestone street" | ✔ | ✖ |
+| 11 | `VOXEL_TRAP` | 10 | `0x0A` | Hazard marker | "Hidden Trap" | ⚠ | ✖ |
+| 12 | `VOXEL_LAVA` | 11 | `0x0B` | Terrain (liquid) | "Glowing Lava" | ✔ | ✔ |
+| 13 | `VOXEL_ICE` | 12 | `0x0C` | Terrain | "Icy Surface" | ✔ | ✖ |
+| 14 | `VOXEL_SAND` | 13 | `0x0D` | Terrain | "Sand" | ✔ | ✔ |
+| 15 | `VOXEL_ASH` | 14 | `0x0E` | Terrain | "Ash" | ✔ | ✖ |
+| 16 | `VOXEL_MUD` | 15 | `0x0F` | Terrain | "Mud" | ✔ | ✖ |
+| 17 | `VOXEL_MARBLE` | 16 | `0x10` | Terrain | "Marble floor" | ✔ | ✖ |
+| 18 | `VOXEL_MUSHROOM_GLOW` | 17 | `0x11` | Flora / Light source | "Bioluminescent Mushrooms" | ✔ | ✔ |
+| 19 | `VOXEL_CRYSTAL_BLUE` | 18 | `0x12` | Crystal | "Magic Crystal" | ✔ | ✔ |
+| 20 | `VOXEL_CRYSTAL_PURPLE` | 19 | `0x13` | Crystal | "Magic Crystal" | ✔ | ✔ |
+| 21 | `VOXEL_GOLD_VEIN` | 20 | `0x14` | Resource | *no dedicated name*† | ✔ | ✖ |
+| 22 | `VOXEL_OBSIDIAN` | 21 | `0x15` | Terrain | "Obsidian" | ✔ | ✔ |
+| 23 | `VOXEL_CRYSTAL_RED` | 22 | `0x16` | Crystal | "Magic Crystal" | ✔ | ✖ |
+| 24 | `VOXEL_CRYSTAL_GREEN` | 23 | `0x17` | Crystal | "Magic Crystal" | ✔ | ✖ |
+| 25 | `VOXEL_CRYSTAL_YELLOW` | 24 | `0x18` | Crystal | "Magic Crystal" | ✔ | ✖ |
+| 26 | `VOXEL_CRYSTAL_ORANGE` | 25 | `0x19` | Crystal | "Magic Crystal" | ✔ | ✖ |
+| 27 | `VOXEL_CRYSTAL_CYAN` | 26 | `0x1A` | Crystal | "Magic Crystal" | ✔ | ✖ |
+| 28 | `VOXEL_CRYSTAL_WHITE` | 27 | `0x1B` | Crystal | "Magic Crystal" | ✔ | ✖ |
+| 29 | `VOXEL_EMPTY` | 1 | `0x01` | Legacy alias | — (alias of `VOXEL_FLOOR`) | ✔ | ✔ |
+| 30 | `VOXEL_SOLID` | 0 | `0x00` | Legacy alias | — (alias of `VOXEL_ROCK`) | ✖ | ✖ |
+
+**Legend.** ✔ = freely traversable; ✖ = impassable; ⚠ = traversable with an effect or a transition (see §3–§4).
+† `VOXEL_GOLD_VEIN` carries no case in the `look` name table (`get_voxel_name_it()`, `src/server/server_commands.c`) and is therefore reported as "Unknown Terrain"; the geological-inspection pipeline classifies it separately ("⚡ VERY RICH: Pure Gold Vein!").
+
+### 3. Structural & Navigation Voxels
+
+#### 3.1 `VOXEL_ROCK` (0) — "Solid Rock"
+
+- **Role.** The unexcavated bedrock and the world's void. The entire 300×300 lattice is initialised to this value and rooms are carved into it.
+- **Presentation.** Not rendered in 3D (the void); the minimap encodes it as fully transparent black, identical to unexplored territory.
+- **Traversal.** Impassable to players (one of the two blocking voxel types, together with `VOXEL_WALL`) and to the AI.
+- **Structural role.** `map_dig_room()` retains room corners as rock to prevent digging from creating holes at corner positions. The *Ceiling Collapse* trap restores it (floor → rock, 50% probability per cell within a 5×5 area), and Force/Bludgeoning area effects compact walls and cobblestone back into rock (§8.1).
+- **Mining.** Diggable to `VOXEL_FLOOR` via `tunnel`. Without a tool the attempt fails with an 80% probability (−1 HP, floor of 1 HP); with a tool, a deterministic position-based hash (15%) yields a silver bonus of +20 × floor gold coins.
+
+#### 3.2 `VOXEL_FLOOR` (1) — "Stone floor"
+
+- **Role.** The default excavated walking surface and the universal "depleted" target: mined gold veins, crystals, harvested mushrooms, and carved rock all revert to this type.
+- **Presentation.** Dark grey floor tile (0.2, 0.2, 0.2); minimap (40, 40, 50).
+- **Traversal.** Traversable by players and by the AI; a valid host cell for monster and loot spawning.
+- **Transformations.** Source tile of *Wall of Stone* (→ `VOXEL_WALL`), of the *Flood* trap (→ `VOXEL_WATER`), of *Ceiling Collapse* (→ `VOXEL_ROCK`), of the cold reaction from mud (→ `VOXEL_FLOOR`), and of the acid reactions from wood and doors. When dug downward (`tunnel d`/`g`), soft ground surfaces convert to `VOXEL_COBBLE` (§8.4).
+
+#### 3.3 `VOXEL_WALL` (2) — "Stone Wall"
+
+- **Role.** Standard dungeon masonry.
+- **Presentation.** Full cube (1 × 1 × 1) in grey (0.6, 0.6, 0.6); minimap (120, 120, 130).
+- **Traversal.** Impassable to players and to the AI.
+- **Generation & décor.** Forms room perimeters; is also reused decoratively as bookshelves (Ancient Library), web cocoons (Spider Nest), and workbenches (Alchemist Lab).
+- **Transformations.** Diggable like rock (15% silver bonus); compacted to `VOXEL_ROCK` by Force/Bludgeoning area effects; produced by *Wall of Stone* and by the *Stone Tomb* trap (a ring of impassable masonry around the victim).
+
+#### 3.4 `VOXEL_DOOR` (3) — "Door"
+
+- **Role.** A wooden door set into a wall, representing an openable passage.
+- **Presentation.** A 0.9 × 0.8 × 0.9 block in brown (0.5, 0.3, 0.1) at mid-height; minimap (130, 80, 30).
+- **Traversal.** Traversable by players and by the AI.
+- **Operation.** `open <n|s|e|w>` converts the adjacent `VOXEL_DOOR` cell to `VOXEL_FLOOR`; `close <n|s|e|w>` performs the inverse conversion on any floor cell (closing is, by design, permitted on any previously opened passage). Both states are written to the persistent world.
+- **Transformations.** Consumed by Acid area effects (→ `VOXEL_FLOOR`) — acid dissolves doors as readily as wood.
+- **Floor 0.** Sanctuary structures (temples, the inn, the dungeon gate) are constructed with door cells in their perimeters; their open/closed state is part of the persistent world state (see *Complete Save State & Voxel Persistence*).
+
+#### 3.5 `VOXEL_STAIRS_DOWN` (5) — "Stairs to go down ( > )"
+
+- **Presentation.** Yellow inlaid tile (0.9, 0.9, 0.0); minimap (230, 230, 0); reported by `look` as "Stairs-Down (Ndp)" with step distance.
+- **Transition.** Standing on the tile moves the player to the floor below (`floor_id + 1`). The player is teleported onto the geometrically nearest `VOXEL_STAIRS_UP` cell of the destination floor (map centre as fallback), the state is broadcast, and the character is saved immediately.
+- **Multiplayer gating.** On every floor whose number is a multiple of ten (10, 20, …, 100) the descent is sealed unless the player has personally defeated that seal's guardian: if the guardian is still alive the server responds *"The Boss' energy seals the stairs. Defeat him before proceeding!"*; if the guardian is absent and the defeat flag is not set, descent is likewise denied until the encounter takes place.
+- **Collision.** Player–player collision is explicitly waived on stair tiles, so several players may share a staircase simultaneously.
+
+#### 3.6 `VOXEL_STAIRS_UP` (4) — "Stairs to go up ( < )"
+
+- **Presentation.** Cyan inlaid tile (0.0, 0.9, 0.9); minimap (0, 230, 230); reported by `look` as "Stairs-Up (Ndp)".
+- **Transition.** Standing on the tile (on any floor above Floor 0) moves the player to the floor above (`floor_id − 1`), teleporting them onto the nearest `VOXEL_STAIRS_DOWN` cell of that floor. No gating applies to ascent.
+- **Generation.** Placed at the centre of the first room of each procedurally generated floor; when a floor contains more than one room, the centre of the final room receives the descending staircase.
+
+#### 3.7 `VOXEL_TRAP` (10) — "Hidden Trap"
+
+- **Nature.** A transient visual marker rather than a persistent terrain material. When an active trap is revealed by Passive Perception (10 + WIS modifier ≥ the trap's detection DC, while the player is within 2 cells), its cell is repainted as `VOXEL_TRAP` so that the detecting player can see it; the server announces *"You notice something suspicious on the floor…"*.
+- **Presentation.** Dark red tile (0.8, 0.2, 0.1); minimap (200, 50, 30); reported by `look` as "Trap (Ndp)".
+- **Trigger.** Stepping onto a marked cell activates the underlying floor trap; wall-mounted traps (Dart Wall, Spring Spear) instead trigger on the adjacent floor cell in front of the wall.
+- **Lifecycle.** Once the trap fires — or is successfully disarmed — the cell reverts to `VOXEL_FLOOR`, the trap is marked inactive, its detection flag is cleared, and `respawn_timer` is set to `RESPAWN_TRAPS_TICKS` (300 ticks, annotated in-code as ≈ 30 minutes). On expiry the trap re-arms, and its marker reappears only upon re-detection.
+- **AI behaviour.** `VOXEL_TRAP` is not traversable in the AI walkability list, so hostile entities route around detected trap cells.
+
+### 4. Terrain, Biome & Resource Voxels
+
+#### 4.1 `VOXEL_GRASS` (6) — "Grassy Terrain"
+Green floor tile (0.1, 0.5, 0.1); minimap (20, 100, 20). Traversable by players and by the AI; a valid spawn cell; a soft ground surface for downward digging. In *Summon Elemental*, standing on grass (or bare stone floor) manifests an Air Elemental.
+
+#### 4.2 `VOXEL_WOOD` (7) — "Wooden plank"
+Brown floor tile (0.4, 0.3, 0.2); minimap (100, 75, 50). Traversable by players; a valid spawn cell; not traversed by the AI. Used as floor planking and structural décor (Overgrown Garden roots, Ancient Library shelving). Fire area effects burn wood to `VOXEL_ASH`; Acid dissolves it to `VOXEL_FLOOR`.
+
+#### 4.3 `VOXEL_WATER` (8) — "Clear Water"
+Animated, undulating liquid surface (0.1, 0.4, 0.8); minimap (20, 80, 200).
+- **Traversal.** Traversable by players and by the AI (submerged travel is not modelled as a distinct swimming state).
+- **Environmental event.** Stepping onto a water cell triggers a slip event: the entity immediately acquires the *Prone* condition for one round (*"The ground is slippery! You fell to the ground!"*). Note: the slip check is currently implemented against water cells in `check_tile_events()`; the source comment records that ice and mud were also intended candidates.
+- **Fire.** A *Burning* entity standing in water is extinguished immediately.
+- **Lightning.** The Lightning trap deals double damage to a victim standing on a water cell (see also the *Flood* entry in the Trap Gallery).
+- **Chemistry.** Fire reduces water to `VOXEL_MUD`; Cold freezes it to `VOXEL_ICE`.
+- **Generation.** Lakes and rivers, the Slime Pool border, Alchemist Lab potion spills, and the Floor 0 Sacred Fountains (a water disc ringed by an `VOXEL_ICE` rim, reported by `look` as "Sacred-Fountain"). The *Flood* trap converts a 7×7 area of floor to water.
+
+#### 4.4 `VOXEL_COBBLE` (9) — "Cobblestone street"
+Grey floor tile (0.3, 0.3, 0.3); minimap (75, 75, 75). Traversable by players; a valid spawn cell; not traversed by the AI. Produced exclusively by downward digging of soft ground (§8.4); once a cell is cobble it cannot be re-dug (*"This ground has already been dug out"*). Force/Bludgeoning area effects compact cobble back to `VOXEL_ROCK`.
+
+#### 4.5 `VOXEL_LAVA` (11) — "Glowing Lava"
+Animated, pulsating liquid surface (1.0, 0.3·p, 0.0); minimap (255, 60, 0).
+- **Traversal.** Traversable by both players and the AI; no environmental contact damage is currently applied.
+- **Light.** A primary light source for NPC perception: each lava cell within a 5×5 neighbourhood of an entity contributes +4 to its light level.
+- **Chemistry.** Cold area effects quench lava into `VOXEL_OBSIDIAN`.
+- **Summoning.** In *Summon Elemental*, standing on lava (or ash) manifests a Fire Elemental.
+- **Generation.** Lakes, channels (Dwarven Forge, Lava Caldera), and magma veins on the deep floors (56–75, 91–100).
+
+#### 4.6 `VOXEL_ICE` (12) — "Icy Surface"
+Pale blue floor tile (0.6, 0.8, 1.0); minimap (150, 200, 255). Traversable by players; a valid spawn cell; not traversed by the AI. Fire melts ice to water. Produced by *Ice Storm* and by the Cold reaction; the Floor 0 fountain rims are ice.
+
+#### 4.7 `VOXEL_SAND` (13) — "Sand"
+Pale yellow floor tile (0.8, 0.7, 0.4); minimap (200, 180, 100). Traversable by players and by the AI; a valid spawn cell; a soft ground surface for downward digging.
+
+#### 4.8 `VOXEL_ASH` (14) — "Ash"
+Dark grey floor tile (0.25, 0.25, 0.25); minimap (65, 65, 65). Traversable by players; a valid spawn cell; not traversed by the AI; a soft ground surface for downward digging. Together with mud it is the exclusive host substrate of the *Gas Vein* trap. Fire area effects reduce wood to ash; standing on ash (or lava) manifests a Fire Elemental.
+
+#### 4.9 `VOXEL_MUD` (15) — "Mud"
+Dark brown floor tile (0.3, 0.2, 0.1); minimap (75, 50, 25). Traversable by players; a valid spawn cell; not traversed by the AI; a soft ground surface for downward digging; a host substrate for gas-vein traps; the target of the *Mud Field* spell, which is designed to slow enemies crossing it. Cold area effects harden mud back to ordinary floor.
+
+#### 4.10 `VOXEL_MARBLE` (16) — "Marble floor"
+Near-white floor tile (0.9, 0.9, 0.9); minimap (230, 230, 230). Traversable by players; a valid spawn cell; not traversed by the AI. The premium paving of vaults, thrones, observatories, and the Sunken Temple.
+
+#### 4.11 `VOXEL_MUSHROOM_GLOW` (17) — "Bioluminescent Mushrooms"
+A low, pulsating green cluster (0.2, 1.0·p, 0.5) rendered slightly below floor level; minimap (50, 255, 130). Traversable by players and by the AI.
+- **Harvest.** Extracted without a tool: absorbing a cluster restores 15 HP (capped at maximum) and converts the cell to floor.
+- **Light.** A secondary light source: each cluster within a 5×5 neighbourhood of an entity contributes +2 to its light level, like blue and purple crystals.
+- **Generation.** Fungal Forest rooms, deep-floor veins (Floors 11–25), and mutated spores in the Alchemist Lab.
+
+#### 4.12 `VOXEL_GOLD_VEIN` (20) — Pure Gold Vein
+A full cube in gold (0.8, 0.7, 0.1); minimap (200, 180, 20). Traversable by players; not traversed by the AI.
+- **Mining.** Requires a pickaxe-class tool. Yields (50 + rand(0…99)) × floor gold coins and +15 XP; the cell reverts to `VOXEL_FLOOR`. Unlike crystals, no respawn is registered — a mined vein is exhausted permanently.
+- **Inspection.** The geological scan flags it as "⚡ VERY RICH: Pure Gold Vein! Highly recommended dig!".
+- **Generation.** Treasure Vault rooms and deep-floor veins (Floors 26–40 and designated themes).
+
+#### 4.13 `VOXEL_OBSIDIAN` (21) — "Obsidian"
+A tall, dark violet cube (0.1, 0.05, 0.2); minimap (30, 15, 60). Traversable by players and by the AI. An unbreakable decorative and structural material (Armory weapon racks, Summoning Circle altars, Lava Caldera borders) and the quenching product of lava.
+
+### 5. Crystal Family (`VOXEL_CRYSTAL_*`)
+
+Ten gem variants share identical mechanical behaviour and differ only in colour, numeric encoding, and a few perception and interaction privileges. All crystals are rendered as tall (0.8 × 1.6 × 0.8) pulsating spires; all are named "Magic Crystal"; all are mined under the same rules; and all respawn.
+
+| Identifier | Value | Hex | 3D Base Colour (R, G, B) | Minimap (R, G, B) | AI Traversable | Additional Privileges |
+|---|---:|---:|:---:|:---:|:---:|---|
+| `VOXEL_CRYSTAL_BLUE` | 18 | `0x12` | (0.3, 0.7, 1.0) | (80, 180, 255) | ✔ | AI light +2; shattered by Force/Bludgeoning AoE |
+| `VOXEL_CRYSTAL_PURPLE` | 19 | `0x13` | (0.8, 0.2, 1.0) | (200, 50, 255) | ✔ | AI light +2; shattered by Force/Bludgeoning AoE |
+| `VOXEL_CRYSTAL_RED` | 22 | `0x16` | (1.0, 0.1, 0.1) | *—* ¹ | ✖ | — |
+| `VOXEL_CRYSTAL_GREEN` | 23 | `0x17` | (0.1, 1.0, 0.2) | *—* ¹ | ✖ | — |
+| `VOXEL_CRYSTAL_YELLOW` | 24 | `0x18` | (1.0, 0.9, 0.1) | *—* ¹ | ✖ | — |
+| `VOXEL_CRYSTAL_ORANGE` | 25 | `0x19` | (1.0, 0.5, 0.0) | *—* ¹ | ✖ | — |
+| `VOXEL_CRYSTAL_CYAN` | 26 | `0x1A` | (0.0, 0.9, 1.0) | *—* ¹ | ✖ | — |
+| `VOXEL_CRYSTAL_WHITE` | 27 | `0x1B` | (0.9, 0.95, 1.0) | *—* ¹ | ✖ | — |
+
+¹ The minimap palette defines dedicated entries for blue and purple only; the remaining variants fall back to the default (unexplored) rendering.
+
+- **Mining.** Requires a tool. Yields (100 + rand(0…199)) × floor gold coins and +30 XP; the cell reverts to floor, and a coloured burst effect matching the variant is broadcast to all clients on the floor.
+- **Respawn.** Every mined crystal registers an entry in the floor's `crystal_respawns` queue (up to 100 concurrent entries per floor) with a randomised timer of 50–99 ticks. On expiry, the exact variant is restored at the same coordinates, announced by a broadcast effect, and removed from the queue. The queue is part of the persistent world state.
+- **Inspection.** `look` reports nearby crystals as "Crystal (Ndp)"; the geological scan classifies the entire 18–27 range as "✨ PRECIOUS: Raw magic crystal! Extraction recommended!".
+- **Privileges.** Blue and purple are the only variants traversed by the AI, the only variants that emit light to NPC perception (+2 within a 5×5 neighbourhood), and the only variants shattered by Force/Bludgeoning area effects (→ `VOXEL_FLOOR`).
+
+### 6. Legacy Aliases & Compatibility Identifiers
+
+- `VOXEL_EMPTY` (= 1) — a historical alias of `VOXEL_FLOOR`, retained for legacy code paths (it appears, for instance, in the AI walkability list).
+- `VOXEL_SOLID` (= 0) — a historical alias of `VOXEL_ROCK`, retained in documentation and comments (e.g. `src/server/pathfinding.h`).
+- `typedef VoxelType TileType;` together with the macros `TILE_EMPTY`, `TILE_WALL`, `TILE_DOOR`, and `TILE_ROCK` (mapping to `VOXEL_FLOOR`, `VOXEL_WALL`, `VOXEL_DOOR`, and `VOXEL_ROCK` respectively) preserve the naming of the pre-voxel, tile-based code.
+- All four compatibility identifiers deliberately duplicate existing numeric values; they introduce no new state. The duplication must be preserved: the binary world snapshot and the hexadecimal floor dumps encode raw numbers, not names.
+
+### 7. Traversal, Spawning & Perception Rules
+
+- **Player movement.** Movement is four-directional and adjudicated by the server. A move is blocked only if the destination cell is `VOXEL_WALL` or `VOXEL_ROCK`, or is occupied by an entity — with two explicit exceptions: stair tiles never produce player–player collision, and a cell occupied by a treasure chest may be entered in order to open it (the loot drops in place). All other voxel types — liquids, crystals, trap markers — are enterable, and their effects are then applied by `check_tile_events()` and the trap subsystem.
+- **AI pathfinding.** NPC movement employs a four-directional A* search with a Manhattan heuristic. The walkable set is exactly: `VOXEL_FLOOR`, `VOXEL_DOOR`, `VOXEL_LAVA`, `VOXEL_WATER`, `VOXEL_SAND`, `VOXEL_GRASS`, `VOXEL_EMPTY`, `VOXEL_OBSIDIAN`, `VOXEL_MUSHROOM_GLOW`, `VOXEL_CRYSTAL_BLUE`, and `VOXEL_CRYSTAL_PURPLE`. Notably, the AI will not step onto cobble, wood, marble, ice, mud, ash, gold veins, trap markers, or crystal variants other than blue and purple.
+- **Spawning.** Monster and loot placement samples only the following as valid host cells: `VOXEL_FLOOR`, `VOXEL_WOOD`, `VOXEL_SAND`, `VOXEL_MUD`, `VOXEL_ICE`, `VOXEL_GRASS`, `VOXEL_COBBLE`, `VOXEL_MARBLE`, and `VOXEL_ASH`.
+- **NPC light perception.** Each NPC computes a local light level from its 5×5 neighbourhood: +4 per `VOXEL_LAVA` cell, and +2 per `VOXEL_MUSHROOM_GLOW`, `VOXEL_CRYSTAL_BLUE`, or `VOXEL_CRYSTAL_PURPLE` cell.
+- **Point-of-interest survey.** `look` scans the visible radius and, per compass sector, reports staircases ("Stairs-Up/Down (Ndp)"), the Floor 0 Sacred Fountains (water/ice cells), crystals, and detected trap markers, each with an estimated step distance.
+
+### 8. Terrain Transformation & Voxel Chemistry
+
+#### 8.1 Elemental area effects (terraforming)
+
+Area-of-effect spell and projectile resolution applies a fixed chemical conversion table to every voxel inside the affected zone:
+
+| Damage Class | Conversions |
+|:---|:---|
+| Fire | `VOXEL_ICE` → `VOXEL_WATER` · `VOXEL_WOOD` → `VOXEL_ASH` · `VOXEL_WATER` → `VOXEL_MUD` |
+| Cold | `VOXEL_WATER` → `VOXEL_ICE` · `VOXEL_LAVA` → `VOXEL_OBSIDIAN` · `VOXEL_MUD` → `VOXEL_FLOOR` |
+| Acid | `VOXEL_WOOD` → `VOXEL_FLOOR` · `VOXEL_DOOR` → `VOXEL_FLOOR` |
+| Force / Bludgeoning | `VOXEL_WALL` → `VOXEL_ROCK` · `VOXEL_COBBLE` → `VOXEL_ROCK` · `VOXEL_CRYSTAL_BLUE` → `VOXEL_FLOOR` · `VOXEL_CRYSTAL_PURPLE` → `VOXEL_FLOOR` |
+
+#### 8.2 Terrain spells
+
+Three spells rewrite terrain through the shared `spell_terrain_stamp()` primitive (default radii in parentheses):
+
+- **Wall of Stone** — floor → `VOXEL_WALL` (r = 2). The caster's own cell is explicitly preserved, and the modification is permanent in the voxel map.
+- **Mud Field** — floor → `VOXEL_MUD` (r = 3); designed to slow enemies crossing the affected cells.
+- **Ice Storm** — floor → `VOXEL_ICE` (r = 4), in addition to the spell's standard area damage.
+
+#### 8.3 Voxel-based traps
+
+Cross-reference the *Trap Gallery*: **Flood** converts a 7×7 area of floor to `VOXEL_WATER`; **Ceiling Collapse** converts a 5×5 area of floor to `VOXEL_ROCK` (independent 50% probability per cell); **Stone Tomb** erects a ring of `VOXEL_WALL` around the victim.
+
+#### 8.4 Mining & excavation (`tunnel`)
+
+Tool detection scans both hands and the backpack for item names containing *Pick, Piccone, Shovel, Pala, Hammer, Martello, Mining*, or *Tool*.
+
+| Target Voxel | Tool Requirement | Outcome | Resulting Cell |
+|:---|:---|:---|:---|
+| `VOXEL_GOLD_VEIN` | mandatory | +(50–149) × floor gold, +15 XP; no respawn | `VOXEL_FLOOR` |
+| `VOXEL_CRYSTAL_*` (any variant) | mandatory | +(100–299) × floor gold, +30 XP; respawn registered (50–99 ticks) | `VOXEL_FLOOR` |
+| `VOXEL_MUSHROOM_GLOW` | none | +15 HP (capped at maximum) | `VOXEL_FLOOR` |
+| `VOXEL_WALL` / `VOXEL_ROCK` | optional — bare-handed attempts fail 80% (−1 HP) | passage carved; with a tool, a deterministic 15% hash yields +20 × floor gold ("a small supply of silver") | `VOXEL_FLOOR` |
+| `VOXEL_MUD` / `VOXEL_SAND` / `VOXEL_ASH` / `VOXEL_GRASS` / `VOXEL_FLOOR` (downward dig `d`/`g`) | mandatory | deterministic 20% hash: +10 × floor gold ("lost coins") | `VOXEL_COBBLE` |
+
+#### 8.5 Door operation
+
+`open` (door → floor) and `close` (floor → door) mutate the world permanently; both states persist in `data/world.dat` and are visible to all clients on the floor.
+
+### 9. Rendering & Presentation
+
+#### 9.1 3D (OpenGL backend; the Vulkan backend mirrors the palette with simplified geometry)
+
+| Voxel | Geometry | Base Colour (R, G, B) |
+|:---|:---|:---|
+| `VOXEL_WALL` | 1 × 1 × 1 cube | (0.6, 0.6, 0.6) |
+| `VOXEL_OBSIDIAN` | 1 × 1 × 1 cube | (0.1, 0.05, 0.2) |
+| `VOXEL_GOLD_VEIN` | 1 × 1 × 1 cube | (0.8, 0.7, 0.1) |
+| `VOXEL_CRYSTAL_BLUE` … `VOXEL_CRYSTAL_WHITE` | 0.8 × 1.6 × 0.8 pulsating spire | per §5 |
+| `VOXEL_MUSHROOM_GLOW` | 0.6 × 0.8 × 0.6 cluster, below floor level | (0.2, 1.0·p, 0.5) |
+| `VOXEL_DOOR` | 0.9 × 0.8 × 0.9 block, mid-height | (0.5, 0.3, 0.1) |
+| `VOXEL_STAIRS_DOWN` | inlaid floor tile | (0.9, 0.9, 0.0) |
+| `VOXEL_STAIRS_UP` | inlaid floor tile | (0.0, 0.9, 0.9) |
+| `VOXEL_WATER` | undulating liquid slab (animated) | (0.1, 0.4, 0.8) |
+| `VOXEL_LAVA` | undulating liquid slab (animated, pulsating) | (1.0, 0.3·p, 0.0) |
+| `VOXEL_GRASS` | floor tile | (0.1, 0.5, 0.1) |
+| `VOXEL_WOOD` | floor tile | (0.4, 0.3, 0.2) |
+| `VOXEL_COBBLE` | floor tile | (0.3, 0.3, 0.3) |
+| `VOXEL_ICE` | floor tile | (0.6, 0.8, 1.0) |
+| `VOXEL_SAND` | floor tile | (0.8, 0.7, 0.4) |
+| `VOXEL_ASH` | floor tile | (0.25, 0.25, 0.25) |
+| `VOXEL_MUD` | floor tile | (0.3, 0.2, 0.1) |
+| `VOXEL_MARBLE` | floor tile | (0.9, 0.9, 0.9) |
+| `VOXEL_TRAP` | floor tile | (0.8, 0.2, 0.1) |
+| `VOXEL_FLOOR` | floor tile | (0.2, 0.2, 0.2) |
+| `VOXEL_ROCK` | *not rendered* (void) | — |
+
+(`p` denotes the animation pulse factor, oscillating between 0.8 and 1.0 over time.)
+
+#### 9.2 Minimap
+
+Per-cell RGB palette (rock/unexplored = transparent black, α = 0):
+
+| Voxel | Colour (R, G, B) | Voxel | Colour (R, G, B) |
+|:---|:---:|:---|:---:|
+| `VOXEL_FLOOR` | (40, 40, 50) | `VOXEL_WOOD` | (100, 75, 50) |
+| `VOXEL_WALL` | (120, 120, 130) | `VOXEL_COBBLE` | (75, 75, 75) |
+| `VOXEL_OBSIDIAN` | (30, 15, 60) | `VOXEL_MUD` | (75, 50, 25) |
+| `VOXEL_DOOR` | (130, 80, 30) | `VOXEL_MARBLE` | (230, 230, 230) |
+| `VOXEL_STAIRS_DOWN` | (230, 230, 0) | `VOXEL_ASH` | (65, 65, 65) |
+| `VOXEL_STAIRS_UP` | (0, 230, 230) | `VOXEL_ROCK` / unexplored | (0, 0, 0), α = 0 |
+| `VOXEL_WATER` | (20, 80, 200) | `VOXEL_GRASS` | (20, 100, 20) |
+| `VOXEL_LAVA` | (255, 60, 0) | `VOXEL_ICE` | (150, 200, 255) |
+| `VOXEL_SAND` | (200, 180, 100) | `VOXEL_GOLD_VEIN` | (200, 180, 20) |
+| `VOXEL_CRYSTAL_BLUE` | (80, 180, 255) | `VOXEL_CRYSTAL_PURPLE` | (200, 50, 255) |
+| `VOXEL_MUSHROOM_GLOW` | (50, 255, 130) | `VOXEL_TRAP` | (200, 50, 30) |
+
+The remaining crystal variants (red, green, yellow, orange, cyan, white) possess no dedicated minimap entry and consequently render as unexplored on the radar.
+
+### 10. Persistence & Serialization
+
+- **`data/world.dat`** — a verbatim binary image of the `World` structure (101 floors × 300×300 voxel cells, trap tables, crystal-respawn queues). Written at world shutdown and on critical in-game events; the numeric encoding of `VoxelType` is therefore part of the save-format contract.
+- **Floor dumps (v2)** — two hexadecimal digits per cell, `00`–`1B`, consumed by `tools/generate_pdf_map.py`.
+- **Network protocol** — the client's local map is populated exclusively from `send_map_chunk` payloads; the 3D renderer and the minimap are pure projections of the server-authoritative voxel state.
+
+---
 
 ## 🏰 Procedural Thematic Rooms
 
