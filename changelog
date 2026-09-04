@@ -1,3 +1,15 @@
+* Fri Sep 04 2026 nicolataibi <nicola.taibi.1967@gmail.com> - 2026.09.04.01
+- dm_pdf/dm_mapfloor: the PDF map legend now lists the coordinates of
+  every staircase. The Stairs Up and Stairs Down entries append '@ x,y'
+  for each staircase tile found in the dump (Floor 0: the central
+  STAIRS_DOWN on the marble island; sub-floors 1-100: the STAIRS_UP in
+  the first room and the STAIRS_DOWN in the last room; all coordinates
+  are listed when a floor has more than one staircase). The player
+  position entry, which already shows the player coordinates, is
+  unchanged. Positions are derived from the tile grid itself (v2 voxel
+  codes 04/05, legacy v1 '<'/'>'), so no server change is required and
+  existing dumps can be re-rendered as-is. Man page
+  generate_pdf_map.1 updated.
 * Thu Sep 03 2026 nicolataibi <nicola.taibi.1967@gmail.com> - 2026.09.03.05
 - VOXEL doc
 * Thu Sep 03 2026 nicolataibi <nicola.taibi.1967@gmail.com> - 2026.09.03.04

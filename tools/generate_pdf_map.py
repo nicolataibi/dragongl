@@ -164,6 +164,17 @@ V1_LEGEND_ORDER = [" ", ".", "#", "+", "<", ">", ",", "~", "L", "$", "B", "P", "
 
 PLAYER_COLOR = (51, 204, 51)   # in-game player entity color (render_vk.c)
 
+# Staircase VoxelTypes (include/map.h) and the legend keys that carry their
+# tile coordinates (v2 decimal hex keys + v1 char keys).
+VOXEL_STAIRS_UP = 4
+VOXEL_STAIRS_DOWN = 5
+STAIRS_LEGEND_KEYS = {
+    str(VOXEL_STAIRS_UP): "stairs_up",
+    str(VOXEL_STAIRS_DOWN): "stairs_down",
+    "v1:<": "stairs_up",
+    "v1:>": "stairs_down",
+}
+
 # ---------------------------------------------------------------------------
 # Layout (PDF points)
 # ---------------------------------------------------------------------------
@@ -200,6 +211,8 @@ class FloorData:
         self.counts = Counter()
         self.floor_label = None
         self.player = None      # (x, y) or None
+        self.stairs_up = []     # list of (x, y) staircase tiles
+        self.stairs_down = []   # list of (x, y) staircase tiles
         self.footnote = None    # optional legend footnote
 
 
@@ -234,8 +247,18 @@ def parse_v1(lines, path):
         if ch not in V1_LEGEND_ORDER:
             f.order.append("v1:%s" % ch)
 
-    # rows as per-tile key strings ("v1:<char>") so color_of() can be shared
-    f.rows = [["v1:%s" % ch for ch in row] for row in rows]
+    # rows as per-tile key strings ("v1:<char>") so color_of() can be shared;
+    # staircase positions are collected for the legend
+    f.rows = []
+    for y, row in enumerate(rows):
+        keys = []
+        for x, ch in enumerate(row):
+            if ch == "<":
+                f.stairs_up.append((x, y))
+            elif ch == ">":
+                f.stairs_down.append((x, y))
+            keys.append("v1:%s" % ch)
+        f.rows.append(keys)
     f.counts = {("v1:%s" % ch): n for ch, n in counts.items()}
     f.footnote = (
         "Legacy v1 dump: '.' lumps floor, wood, cobble, ice, sand, ash, mud, "
@@ -285,6 +308,10 @@ def parse_v2(lines, path):
         keys = []
         for j in range(0, len(line), 2):
             code = int(line[j:j + 2], 16)
+            if code == VOXEL_STAIRS_UP:
+                f.stairs_up.append((j // 2, i))
+            elif code == VOXEL_STAIRS_DOWN:
+                f.stairs_down.append((j // 2, i))
             if code < len(VOXEL_NAMES):
                 key = str(code)
             else:
@@ -471,8 +498,14 @@ def build_pdf(floor, out_path, floor_label, cell=CELL, px=3, cols=4,
     def legend_text(key):
         if key == "__player__":
             return "Player position %s" % (floor.player,)
-        return "%s  (%s)" % (floor.meta[key][0],
+        text = "%s  (%s)" % (floor.meta[key][0],
                              format(floor.counts.get(key, 0), ","))
+        # Stairs Up/Down entries list the coordinates of every staircase
+        attr = STAIRS_LEGEND_KEYS.get(key)
+        if attr:
+            text += "  @ " + "  ".join("%d,%d" % p
+                                       for p in getattr(floor, attr))
+        return text
 
     # Choose as many columns as fit without text overflow, so labels never
     # collide on small maps; if one column is still wider than the grid the
