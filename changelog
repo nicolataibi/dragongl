@@ -1,3 +1,5 @@
+* Fri Sep 04 2026 nicolataibi <nicola.taibi.1967@gmail.com> - 2026.09.04.02
+- Updated the README to replace the Italian term “razza” with the English term “races”.
 * Fri Sep 04 2026 nicolataibi <nicola.taibi.1967@gmail.com> - 2026.09.04.01
 - dm_pdf/dm_mapfloor: the PDF map legend now lists the coordinates of
   every staircase. The Stairs Up and Stairs Down entries append '@ x,y'
