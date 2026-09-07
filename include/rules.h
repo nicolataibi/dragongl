@@ -130,6 +130,17 @@ void rules_apply_modifiers(RuleContext* ctx, ActiveEffect* effects, int effect_c
 int rules_roll_dice(int count, int sides);
 bool rules_update_effects(ActiveEffect* effects, int* effect_count);
 int rules_get_modifier(int score);
+
+/*Canonical ConditionType <-> display-name table (single source of truth:
+ * renaming an effect is a one-line change in rules.c, and every consumer
+ * keeps working because comparisons go through the table).*/
+const char* condition_to_name(ConditionType cond);
+/*Returns the ConditionType for a display name (case-insensitive), or
+ * MAX_CONDITIONS when the name is not a known condition.*/
+ConditionType condition_from_name(const char* condition_name);
+/*Enum-based condition test (PREFERRED): compares by value, so a renamed
+ * effect string can no longer break the logic silently.*/
+bool rules_has_condition_t(ActiveEffect* effects, int effect_count, ConditionType cond);
 bool rules_has_condition(ActiveEffect* effects, int effect_count, const char* condition_name);
 
 //Extended functions

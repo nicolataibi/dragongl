@@ -22,6 +22,9 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+/*Maximum number of spells that a magic book can explicitly list.*/
+#define MAX_BOOK_SPELLS 64
+
 typedef enum { ITEM_MISC, ITEM_WEAPON, ITEM_SHIELD, ITEM_ARMOR, ITEM_HEAD, ITEM_NECK, ITEM_BACK, ITEM_HANDS, ITEM_FEET, ITEM_RING, ITEM_LIGHT_SOURCE, ITEM_CONSUMABLE, ITEM_FUEL, ITEM_AMMO, ITEM_BOOK, ITEM_BRACELET } ItemCategory;
 
 typedef enum { MAT_NONE, MAT_CLOTH, MAT_LEATHER, MAT_WOOD, MAT_BONE, MAT_STONE, MAT_IRON, MAT_STEEL, MAT_MITHRIL, MAT_GLASS, MAT_PAPER } MaterialType;
@@ -59,7 +62,6 @@ typedef struct {
      *
      * PG level gate: global_idx = book_seq * 10 + local_location
      * required_level = global_idx / 3 (60 spell / 20 lv = 3/lv)*/
-#define MAX_BOOK_SPELLS 64
     uint32_t book_class_mask;
     int      book_min_level;
     int      book_max_level;

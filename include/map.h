@@ -34,6 +34,10 @@
 #define MAP_CENTER_Y (MAP_HEIGHT / 2)
 #define INITIAL_VIEW_RADIUS 100
 
+/*Logical voxel identifiers (33 types). Kept as an enum for readable names;
+ * the values MUST stay in the uint8_t range because maps are stored with
+ * VoxelType (1 byte/tile: 360 KB per floor instead of 1.4 MB, world.dat
+ * 19 MB instead of 73 MB, map chunks on the wire 4x smaller).*/
 typedef enum {
     VOXEL_ROCK = 0,
     VOXEL_FLOOR = 1,
@@ -63,9 +67,25 @@ typedef enum {
     VOXEL_CRYSTAL_ORANGE = 25,
     VOXEL_CRYSTAL_CYAN = 26,
     VOXEL_CRYSTAL_WHITE = 27,
-    VOXEL_EMPTY = 1,
-    VOXEL_SOLID = 0
-} VoxelType;
+    VOXEL_COUNT = 28
+} VoxelId;
+
+/*Explicit legacy synonyms — documented here on purpose:
+ * VOXEL_EMPTY == VOXEL_FLOOR (1) and VOXEL_SOLID == VOXEL_ROCK (0).
+ * They are aliases of the same tiles, NOT distinct values: code that
+ * compares against VOXEL_SOLID is comparing against rock. Prefer the
+ * canonical names (VOXEL_FLOOR / VOXEL_ROCK) in new code.*/
+#define VOXEL_EMPTY VOXEL_FLOOR
+#define VOXEL_SOLID VOXEL_ROCK
+
+/*Compact storage type: 1 byte per tile. All VoxelId values fit (checked
+ * below), so every existing comparison/assignment keeps its meaning.*/
+typedef uint8_t VoxelType;
+
+_Static_assert(VOXEL_COUNT <= 256,
+               "VoxelId values must fit in a uint8_t (VoxelType)");
+_Static_assert(VOXEL_EMPTY == VOXEL_FLOOR && VOXEL_SOLID == VOXEL_ROCK,
+               "Legacy voxel aliases must stay in sync");
 
 typedef VoxelType TileType;
 #define TILE_EMPTY VOXEL_FLOOR

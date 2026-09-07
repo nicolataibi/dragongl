@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang cmake ninja-build pkg-config \
+            libglfw3-dev libgl1-mesa-dev libglu1-mesa-dev \
+            libvulkan-dev glslc python3
+
+      - name: Configure (Release)
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build
+
+      # The unit-test suite is a standalone CMake project (tests/);
+      # the main project no longer references it.
+      - name: Configure tests (Release)
+        run: cmake -B build-tests -G Ninja -DCMAKE_BUILD_TYPE=Release tests
+
+      - name: Build tests
+        run: cmake --build build-tests
+
+      - name: Unit tests
+        run: ctest --test-dir build-tests --output-on-failure
+
+      - name: Configure (Debug + ASan/UBSan)
+        run: |
+          cmake -B build-asan -G Ninja -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_C_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer" \
+            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
+
+      - name: Build with sanitizers
+        run: cmake --build build-asan
+
+      - name: Configure tests (Debug + ASan/UBSan)
+        run: |
+          cmake -B build-tests-asan -G Ninja -DCMAKE_BUILD_TYPE=Debug tests \
+            -DCMAKE_C_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer" \
+            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
+
+      - name: Build tests with sanitizers
+        run: cmake --build build-tests-asan
+
+      - name: Unit tests (ASan/UBSan)
+        run: ctest --test-dir build-tests-asan --output-on-failure

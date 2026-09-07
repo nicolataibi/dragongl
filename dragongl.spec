@@ -4,7 +4,7 @@
 %global toolchain clang
 
 Name:           dragongl
-Version:        2026.09.04.02
+Version:        2026.09.07.01
 Release:        %autorelease
 Summary:        Multi-User Client-Server 3D RPG Engine — OpenGL (GLFW) & Vulkan
 
@@ -34,11 +34,14 @@ and Vulkan.
 %package data
 Summary:        Game assets for %{name}
 BuildArch:      noarch
-Requires:       %{name} = %{version}-%{release}
+#NOTE: no "Requires: %{name}" here on purpose — the main package already
+#Requires: %{name}-data, and the reverse requirement would be a circular
+#dependency that rpmlint flags. Subpackages should never require their
+#main package (it breaks atomic removal and mock builds).
 
 %description data
-This package contains shaders and other runtime data
-required by Dragon GL.
+This package contains the shaders, the game datasets (bestiary, items
+and spells JSON) and other runtime data required by Dragon GL.
 
 
 %package doc
@@ -97,6 +100,8 @@ session logs, and (generate_pdf_map.py) for maps.
 %doc HOWTO.txt
 %dir %{_datadir}/%{name}
 %{_datadir}/%{name}/shaders/
+%dir %{_datadir}/%{name}/data
+%{_datadir}/%{name}/data/*.json
 
 
 %files doc

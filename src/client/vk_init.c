@@ -37,6 +37,12 @@ static uint32_t vk_find_memory_type(VkState *s, uint32_t filter, VkMemoryPropert
     return 0;
 }
 
+/*Resolve a shader path in order:
+ *  1. relative to CWD (development layout, the shaders directory)
+ *  2. build/<path> (unpacked build tree)
+ *  3. /usr/share/dragongl/<path> (RPM install: the client runs from
+ *     /usr/bin where no local shaders/ exists — without this fallback
+ *     the packaged client could never start the Vulkan backend).*/
 static VkShaderModule vk_load_shader(VkState *s, const char *path) {
     FILE *f;
     long size;
@@ -48,8 +54,14 @@ static VkShaderModule vk_load_shader(VkState *s, const char *path) {
         char alt_path[256];
         snprintf(alt_path, sizeof(alt_path), "build/%s", path);
         f = fopen(alt_path, "rb");
+    }
+    if (!f) {
+        char sys_path[256];
+        snprintf(sys_path, sizeof(sys_path), "/usr/share/dragongl/%s", path);
+        f = fopen(sys_path, "rb");
         if (!f) {
-            printf("Shader opening error: Both '%s' and '%s' failed.\n", path, alt_path);
+            printf("Shader opening error: '%s', 'build/%s' and '/usr/share/dragongl/%s' all failed.\n",
+                   path, path, path);
             return VK_NULL_HANDLE;
         }
     }
@@ -619,17 +631,22 @@ bool vk_init(VkState *s) {
     cb_ai.commandBufferCount = 1;
     vkAllocateCommandBuffers(s->device, &cb_ai, &s->command_buffer);
 
+    /*One semaphore pair + fence per in-flight frame (triple buffering);
+     * fences start SIGNALED so the first wait per slot returns at once.*/
     memset(&sem_ci, 0, sizeof(sem_ci));
     sem_ci.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-    vkCreateSemaphore(s->device, &sem_ci, NULL, &s->sem_image);
-    vkCreateSemaphore(s->device, &sem_ci, NULL, &s->sem_render);
     memset(&fen_ci, 0, sizeof(fen_ci));
     fen_ci.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fen_ci.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-    vkCreateFence(s->device, &fen_ci, NULL, &s->fence_flight);
+    s->current_frame = 0;
+    for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        vkCreateSemaphore(s->device, &sem_ci, NULL, &s->sem_image[i]);
+        vkCreateSemaphore(s->device, &sem_ci, NULL, &s->sem_render[i]);
+        vkCreateFence(s->device, &fen_ci, NULL, &s->fences[i]);
+    }
 
     /*3D scene vertices: 201x201 tiles * 36 vertices/cube + 36 for the player + NPC*/
-    uint32_t scene_verts = 201 * 201 * 36 + 36 + MAX_NPCS * 36 + MAX_PARTICLES * 36;
+    uint32_t scene_verts = 201 * 201 * 36 + 36 + CLIENT_MAX_ENTITIES * 36 + MAX_PARTICLES * 36;
     /*2D HUD Vertices:
      * - Minimap: MINIMAP_BUF_SIZE^2 * 6 ≈ 81*81*6 = 39366
      * - Text (5x7 font): ~200 chars * 35 pixels/char * 6 vertices = 42000
@@ -661,9 +678,11 @@ void vk_cleanup(VkState *s) {
     vkDeviceWaitIdle(s->device);
     vkDestroyBuffer(s->device, s->vertex_buffer, NULL);
     vkFreeMemory(s->device, s->vertex_memory, NULL);
-    vkDestroyFence(s->device, s->fence_flight, NULL);
-    vkDestroySemaphore(s->device, s->sem_render, NULL);
-    vkDestroySemaphore(s->device, s->sem_image, NULL);
+    for (i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        vkDestroyFence(s->device, s->fences[i], NULL);
+        vkDestroySemaphore(s->device, s->sem_render[i], NULL);
+        vkDestroySemaphore(s->device, s->sem_image[i], NULL);
+    }
     vkDestroyCommandPool(s->device, s->command_pool, NULL);
     if (s->framebuffers) {
         for (i = 0; i < s->image_count; i++) {

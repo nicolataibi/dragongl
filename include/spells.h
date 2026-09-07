@@ -24,10 +24,15 @@
 #include "rules.h"
 
 /*Maximum number of spells in the database (used for the known_spells bitfield).
- * Must be >= spell_database_size at runtime. 512 abundantly covers the
- * SRD dataset (395 spells) with room for future expansion.
- * The bitfield occupies 512/64 = 8 uint64_t = 64 bytes per character.*/
-#define MAX_SPELL_DB_SIZE 512
+ * Must be >= spell_database_size at runtime: the shipped dataset already
+ * contains 551 spells (12 of which are innate class cantrips at indexes
+ * 539-550), so 512 was NOT enough and caused out-of-bounds writes on
+ * known_spells for every login/study/cast touching a spell >= 512.
+ * 1024 covers the current dataset with ample room for expansion.
+ * The bitfield occupies 1024/64 = 16 uint64_t = 128 bytes per character.
+ * Every access to known_spells[] MUST still guard `idx < MAX_SPELL_DB_SIZE`
+ * as a defensive measure (see spell_spell_slot_get/set in server_internal).*/
+#define MAX_SPELL_DB_SIZE 1024
 
 // -------------------------------------------------------
 //AoE projection types

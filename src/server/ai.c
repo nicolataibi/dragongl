@@ -18,7 +18,10 @@
  */
 
 #include "ai.h"
+#include "combat_log.h"
 #include "pathfinding.h"
+#include "server_internal.h"
+#include "server_world.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -188,31 +191,49 @@ static Client* find_closest_target(NPC* npc, Client* clients, int num_clients) {
     return best_target;
 }
 
+/*Keeps entity_grid consistent with an NPC move (same convention as player
+ * movement in main_server.c: clear the old cell if we own it, set the new
+ * one). The grid is fully rebuilt every round tick by sync_entity_grid();
+ * these incremental writes keep it correct for collision checks made
+ * WITHIN the same tick, by other NPCs.*/
+static void npc_set_cell(NPC* npc, int x, int y) {
+    if (!master_world)
+        return;
+    if (npc->floor_id < 0 || npc->floor_id >= MAX_FLOORS)
+        return;
+    if (npc->x >= 0 && npc->x < MAP_WIDTH && npc->y >= 0 && npc->y < MAP_HEIGHT) {
+        Floor *fl = &master_world->floors[npc->floor_id];
+        if (fl->entity_grid[npc->y][npc->x] == npc->entity_id)
+            fl->entity_grid[npc->y][npc->x] = 0;
+    }
+    npc->x = x;
+    npc->y = y;
+    if (x >= 0 && x < MAP_WIDTH && y >= 0 && y < MAP_HEIGHT) {
+        master_world->floors[npc->floor_id].entity_grid[y][x] = npc->entity_id;
+    }
+}
+
 /*Returns true if the cell (x,y) on the NPC's floor is out of bounds or
  * already occupied by a player or by another active NPC.
  * Used to make sure the AI never moves a monster onto an occupied cell:
  * stacking entities would corrupt the entity_grid (collision) and
- * break melee combat.*/
+ * break melee combat.
+ * O(1) via the entity_grid: the old version linear-scanned all 50,000
+ * NPC slots for every step attempt of every monster (O(50k) per step),
+ * which was the dominant CPU cost of the server tick.*/
 static bool cell_occupied(int x, int y, NPC* npc, Client* clients,
                           int num_clients, NPC* all_npcs) {
+    (void)clients;
+    (void)num_clients;
+    (void)all_npcs;
     if (x < 0 || x >= MAP_WIDTH || y < 0 || y >= MAP_HEIGHT) {
         return true;
     }
-    for (int i = 0; i < num_clients; i++) {
-        if (clients[i].active && clients[i].authenticated &&
-            clients[i].floor_id == npc->floor_id &&
-            clients[i].x == x && clients[i].y == y) {
-            return true;
-        }
+    if (!master_world || npc->floor_id < 0 || npc->floor_id >= MAX_FLOORS) {
+        return true;
     }
-    for (int i = 0; i < MAX_NPCS; i++) {
-        if (&all_npcs[i] != npc && all_npcs[i].active &&
-            all_npcs[i].floor_id == npc->floor_id &&
-            all_npcs[i].x == x && all_npcs[i].y == y) {
-            return true;
-        }
-    }
-    return false;
+    int id = master_world->floors[npc->floor_id].entity_grid[y][x];
+    return id != 0 && id != npc->entity_id;
 }
 
 static void default_ai_update(NPC* npc, Client* clients, int num_clients, bool new_round, NPC* all_npcs) {
@@ -250,8 +271,7 @@ static void default_ai_update(NPC* npc, Client* clients, int num_clients, bool n
          * A* only sees the map: if the first step is occupied by a
          * player or another NPC, wait for the next tick. */
         if (!cell_occupied(path[1].x, path[1].y, npc, clients, num_clients, all_npcs)) {
-            npc->x = path[1].x;
-            npc->y = path[1].y;
+            npc_set_cell(npc, path[1].x, path[1].y);
         }
     } else if (steps == 0) {
         /* A* found no path: direct fallback (e.g. target is adjacent).
@@ -262,8 +282,7 @@ static void default_ai_update(NPC* npc, Client* clients, int num_clients, bool n
         else if (npc->y < target->y) ny++;
         else if (npc->y > target->y) ny--;
         if (!cell_occupied(nx, ny, npc, clients, num_clients, all_npcs)) {
-            npc->x = nx;
-            npc->y = ny;
+            npc_set_cell(npc, nx, ny);
         }
     }
 }
@@ -273,9 +292,14 @@ extern void broadcast_spell_vfx(int sx, int sy, int tx, int ty, int vfx_type, fl
 
 AINodeStatus ai_swarm_behavior(NPC* npc, Client* clients, int num_clients, bool new_round, NPC* all_npcs) {
     if (new_round && npc->hp > 1) {
-        // Count adjacent swarms
+        // Count adjacent swarms (per-floor index instead of a 50k scan;
+        // the stale-entry filters below also cover an index up to one
+        // tick old).
         int counter = 0;
-        for (int i = 0; i < MAX_NPCS; i++) {
+        int sw_n = 0;
+        const int *sw_idx = floor_index_for(npc->floor_id, &sw_n);
+        for (int k = 0; k < ((sw_idx != NULL) ? sw_n : MAX_NPCS); k++) {
+            int i = (sw_idx != NULL) ? sw_idx[k] : k;
             if (all_npcs[i].active && all_npcs[i].floor_id == npc->floor_id && all_npcs[i].archetype == ARCH_SWARM) {
                 int dx = abs(all_npcs[i].x - npc->x);
                 int dy = abs(all_npcs[i].y - npc->y);
@@ -317,9 +341,16 @@ AINodeStatus ai_swarm_behavior(NPC* npc, Client* clients, int num_clients, bool 
                              * (NPC or player) and corrupt the
                              * entity_grid collision lookups.*/
                             clone->entity_id = next_id++;
-                            clone->x = nx;
-                            clone->y = ny;
+                            /*Register the clone in the grid (the parent's
+                             * cell keeps the parent's ID).*/
+                            npc_set_cell(clone, nx, ny);
                             clone->hp = npc->hp;
+                            /*The clone respawns where it split, not at the
+                             * parent's original spawn: with the inherited
+                             * spawn_x/y both halves reappeared at the same
+                             * spot after dying in different places.*/
+                            clone->spawn_x = nx;
+                            clone->spawn_y = ny;
                             
                             broadcast_spell_vfx(npc->x, npc->y, nx, ny, 1, 0.0f, 1.0f, 0.0f, npc->floor_id); // Green explosion
                             return AI_SUCCESS;
@@ -356,7 +387,27 @@ AINodeStatus ai_mage_behavior(NPC* npc, Client* clients, int num_clients, bool n
         // Try to cast a spell if spell slots are available
         if (npc->spell_slots[1] > 0) {
             send_text_to_client(target->sock, "[DANGER] The Mage casts 'Magic Missile' at you!");
-            // Spell damage application logic would go here
+            /*Magic Missile: 3 homing missiles, 1d4+1 force damage each,
+             * always hits (no attack roll, no AC). The old code consumed
+             * the slot but never applied ANY damage.*/
+            int dmg = 0;
+            for (int m = 0; m < 3; m++)
+                dmg += rules_roll_dice(1, 4) + 1;
+            target->hp -= dmg;
+            send_text_to_client(target->sock,
+                "[COMBAT] The missiles strike you for %d force damage! (HP: %d/%d)",
+                dmg, target->hp > 0 ? target->hp : 0, target->max_hp);
+            if (target->hp <= 0) {
+                target->hp = 0;
+                clog_death(target->username, npc->template->name, npc->floor_id);
+                save_bones(target);
+                target->hp = target->max_hp;
+                target->floor_id = 0;
+                target->x = MAP_CENTER_X + 1;
+                target->y = MAP_CENTER_Y + 1;
+                send_text_to_client(target->sock,
+                    "[SYSTEM] You died! The Arcane has returned you to town without your equipment!");
+            }
             npc->spell_slots[1]--;
             return AI_SUCCESS;
         }
@@ -377,8 +428,7 @@ AINodeStatus ai_mage_behavior(NPC* npc, Client* clients, int num_clients, bool n
         else if (npc->y < target->y) ny++;
         else if (npc->y > target->y) ny--;
         if (!cell_occupied(nx, ny, npc, clients, num_clients, all_npcs)) {
-            npc->x = nx;
-            npc->y = ny;
+            npc_set_cell(npc, nx, ny);
         }
     }
 
@@ -415,6 +465,9 @@ AINodeStatus ai_void_crawler_behavior(NPC* npc, Client* clients, int num_clients
             if (rand() % 3 == 0) {
                 perform_attack_npc(npc, target, all_npcs);
             } else {
+                /*Mucus ONLY: the old code also called perform_attack_npc
+                 * at the end of this branch, so the boss double-attacked
+                 * every time it chose the mucus option.*/
                 int save_mod = rules_get_modifier(target->con);
                 bool saved = rules_roll_save(save_mod, 14, false, false, NULL);
                 if (!saved) {
@@ -426,7 +479,6 @@ AINodeStatus ai_void_crawler_behavior(NPC* npc, Client* clients, int num_clients
                 } else {
                     send_text_to_client(target->sock, "[DANGER] You dodge the Mucous Cloud!");
                 }
-                perform_attack_npc(npc, target, all_npcs);
             }
             return AI_SUCCESS;
         }
@@ -441,8 +493,7 @@ AINodeStatus ai_void_crawler_behavior(NPC* npc, Client* clients, int num_clients
         else if (npc->y < target->y) ny++;
         else if (npc->y > target->y) ny--;
         if (!cell_occupied(nx, ny, npc, clients, num_clients, all_npcs)) {
-            npc->x = nx;
-            npc->y = ny;
+            npc_set_cell(npc, nx, ny);
         }
     }
 

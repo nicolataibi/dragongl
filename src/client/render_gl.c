@@ -30,9 +30,11 @@
 #include "classes.h"
 
 #include <stdlib.h>
+#include <string.h>
 #include "client_fct.h"
 #include "client_minimap.h"
 #include "client_particles.h"
+#include "client_tome.h"
 
 /* ─────────────────────── Client-Side Interpolation ─────────────────────── *
  * Every visible entity maintains a float "rendered" position (cur)        *
@@ -51,7 +53,7 @@ typedef struct {
 static LerpPos g_player_lerp = {0};
 
 /* Interpolated positions of all entities */
-static LerpPos g_entity_lerp[MAX_NPCS] = {0};
+static LerpPos g_entity_lerp[CLIENT_MAX_ENTITIES] = {0};
 
 static inline float lerp_f(float a, float b, float t) {
     return a + (b - a) * t;
@@ -73,7 +75,7 @@ static void lerp_update(LerpPos *lp, float tgt_x, float tgt_z, float dt) {
 
 
 
-static void draw_particles() {
+static void draw_particles(void) {
     glDisable(GL_LIGHTING);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE); // Additive blending for magic
@@ -241,6 +243,26 @@ static void draw_pyramid(float x, float y, float z, float sx, float sy, float sz
 static void draw_cube(float x, float y, float z, float sx, float sy, float sz) {
     glPushMatrix();
     glTranslatef(x, y, z);
+    glScalef(sx, sy, sz);
+    glBegin(GL_QUADS);
+        glNormal3f(0, 1, 0); glVertex3f(0.5, 0.5, -0.5); glVertex3f(-0.5, 0.5, -0.5); glVertex3f(-0.5, 0.5, 0.5); glVertex3f(0.5, 0.5, 0.5);
+        glNormal3f(0, -1, 0); glVertex3f(0.5, -0.5, 0.5); glVertex3f(-0.5, -0.5, 0.5); glVertex3f(-0.5, -0.5, -0.5); glVertex3f(0.5, -0.5, -0.5);
+        glNormal3f(0, 0, 1); glVertex3f(0.5, 0.5, 0.5); glVertex3f(-0.5, 0.5, 0.5); glVertex3f(-0.5, -0.5, 0.5); glVertex3f(0.5, -0.5, 0.5);
+        glNormal3f(0, 0, -1); glVertex3f(0.5, -0.5, -0.5); glVertex3f(-0.5, -0.5, -0.5); glVertex3f(-0.5, 0.5, -0.5); glVertex3f(0.5, 0.5, -0.5);
+        glNormal3f(1, 0, 0); glVertex3f(0.5, 0.5, -0.5); glVertex3f(0.5, 0.5, 0.5); glVertex3f(0.5, -0.5, 0.5); glVertex3f(0.5, -0.5, -0.5);
+        glNormal3f(-1, 0, 0); glVertex3f(-0.5, 0.5, 0.5); glVertex3f(-0.5, 0.5, -0.5); glVertex3f(-0.5, -0.5, -0.5); glVertex3f(-0.5, -0.5, 0.5);
+    glEnd();
+    glPopMatrix();
+}
+
+/* Cube with an explicit orientation matrix (the animated floating tome).
+ * Same unit geometry as draw_cube, but a 4x4 column-major rotation is
+ * applied between the translation and the scale, so the book can tumble
+ * on itself while it flies (see client_tome.c). */
+static void draw_cube_oriented(float x, float y, float z, float sx, float sy, float sz, const float orient[16]) {
+    glPushMatrix();
+    glTranslatef(x, y, z);
+    glMultMatrixf(orient);
     glScalef(sx, sy, sz);
     glBegin(GL_QUADS);
         glNormal3f(0, 1, 0); glVertex3f(0.5, 0.5, -0.5); glVertex3f(-0.5, 0.5, -0.5); glVertex3f(-0.5, 0.5, 0.5); glVertex3f(0.5, 0.5, 0.5);
@@ -793,7 +815,7 @@ static void draw_minimap_gl(int width, int height) {
     glEnd();
 
     /* Visible entities on the minimap (red/gold/purple dots) */
-    for (int i = 0; i < MAX_NPCS; i++) {
+    for (int i = 0; i < CLIENT_MAX_ENTITIES; i++) {
         if (!g_entities[i].active || g_entities[i].id == g_my_entity_id) {
             continue;
         }
@@ -876,7 +898,7 @@ static void draw_player_names_gl(int width, int height, double mv[16], double pj
     pthread_mutex_lock(&g_state_mutex);
     int px = g_my_x;
     int py = g_my_y;
-    for (int i = 0; i < MAX_NPCS; i++) {
+    for (int i = 0; i < CLIENT_MAX_ENTITIES; i++) {
         if (g_entities[i].active && g_entities[i].is_player && g_entities[i].id != g_my_entity_id && g_entities[i].floor_id == g_my_floor) {
             if (g_entities[i].username[0] != '\0') {
                 float ex = (float)(g_entities[i].x - px);
@@ -968,8 +990,18 @@ void render_gl_start(void) {
         float light_pos[] = { 0.0f, 2.0f, 0.0f, 1.0f };
         glLightfv(GL_LIGHT0, GL_POSITION, light_pos);
 
-        pthread_mutex_lock(&g_state_mutex);
-        int px = g_my_x, py = g_my_y;
+        /*Per-frame snapshot (FrameSnapshot, see client_state.h): copied
+         * under a SHORT lock (~120 KB of memcpy, microseconds), then the
+         * whole 3D scene renders from the snapshot WITHOUT the lock.
+         * Before the fix g_state_mutex was held for the entire scene
+         * (map + entities + particles, tens of ms on a full city
+         * floor): the net thread was blocked for the whole frame, so
+         * incoming map chunks, entity moves and input-driven state all
+         * stalled behind the renderer.*/
+        FrameSnapshot snap;
+        frame_snapshot_acquire(&snap);
+
+        int px = snap.my_x, py = snap.my_y;
 
         /*Update interpolated player position*/
         lerp_update(&g_player_lerp, 0.0f, 0.0f, dt);
@@ -977,12 +1009,12 @@ void render_gl_start(void) {
         particles_update(dt);
         
         /*(The player is always in the center — the world moves around him)*/
-        int vr = g_vision_radius;
+        int vr = snap.vision_radius;
 
         for (int y = py-vr; y <= py+vr; y++) {
             for (int x = px-vr; x <= px+vr; x++) {
                 if (x < 0 || x >= MAP_WIDTH || y < 0 || y >= MAP_HEIGHT) continue;
-                TileType t = g_local_map[y][x];
+                TileType t = snap.map[y][x];
                 if (t == VOXEL_ROCK) continue;
                 float d = sqrtf((float)((x-px)*(x-px) + (y-py)*(y-py)));
                 if (d > (float)vr) continue;
@@ -1090,11 +1122,11 @@ void render_gl_start(void) {
         glLineWidth(1.0f);
 
         //Rendering other NPCs/Monsters (with position interpolation)
-        for(int i=0; i<MAX_NPCS; i++) {
-            if (g_entities[i].active && g_entities[i].id != g_my_entity_id) {
+        for(int i=0; i<CLIENT_MAX_ENTITIES; i++) {
+            if (snap.entities[i].active && snap.entities[i].id != snap.my_entity_id) {
                 /*Calculate targets in world coordinates relative to the player*/
-                float tgt_ex = (float)(g_entities[i].x - px);
-                float tgt_ez = (float)(g_entities[i].y - py);
+                float tgt_ex = (float)(snap.entities[i].x - px);
+                float tgt_ez = (float)(snap.entities[i].y - py);
 
                 /* Update interpolated position for this entity */
                 lerp_update(&g_entity_lerp[i], tgt_ex, tgt_ez, dt);
@@ -1116,7 +1148,7 @@ void render_gl_start(void) {
 
                         /*Color based on type*/
                         float r = 0.4f, g = 0.4f, b = 1.0f;
-                        if (g_entities[i].is_tombstone) {
+                        if (snap.entities[i].is_tombstone) {
 
                             /* Tombstone: dark gray slab, no bob */
                             float tp = 0.5f + 0.2f * sinf((float)glfwGetTime() * 1.5f);
@@ -1130,14 +1162,14 @@ void render_gl_start(void) {
                             draw_cube(ex, 0.35f, ez, 0.06f, 0.55f, 0.06f);
                             /*Horizontal arm of the cross*/
                             draw_cube(ex, 0.55f, ez, 0.30f, 0.06f, 0.06f);
-                        } else if (g_entities[i].is_player) {
+                        } else if (snap.entities[i].is_player) {
                             r = 0.2f;
                             g = 0.8f;
                             b = 0.2f;
                             glColor3f(r * total_fade, g * total_fade, b * total_fade);
                             draw_pyramid(ex, 0.5f, ez, 0.7f, 1.0f, 0.7f);
-                        } else if (g_entities[i].is_merchant &&
-                                   g_entities[i].shop_spec == SHOP_SPEC_BOOKS_MARTIAL) {
+                        } else if (snap.entities[i].is_merchant &&
+                                   snap.entities[i].shop_spec == SHOP_SPEC_BOOKS_MARTIAL) {
                             /* The Archive of a Thousand Battles:
                              * crimson cube + floating golden tome */
                             r = 0.75f;
@@ -1145,16 +1177,26 @@ void render_gl_start(void) {
                             b = 0.2f;
                             glColor3f(r * total_fade, g * total_fade, b * total_fade);
                             draw_cube(ex, 0.5f, ez, 0.7f, 1.0f, 0.7f);
-                            float bob = 0.15f * sinf((float)glfwGetTime() * 2.0f + ex);
+                            /* The Archive of a Thousand Battles: the tome
+                             * flies a random trajectory INSIDE the shop
+                             * (bounds measured from the map around the
+                             * merchant) while performing a random
+                             * rotation on itself — shared with the VK
+                             * backend via client_tome.c */
+                            float tp[3], to[16];
+                            tome_anim_update(i, snap.entities[i].id, snap.entities[i].floor_id,
+                                             snap.entities[i].x, snap.entities[i].y,
+                                             snap.map[0], dt, tp, to);
                             glColor3f(0.9f * total_fade, 0.75f * total_fade, 0.3f * total_fade);
-                            draw_cube(ex, 1.25f + bob, ez, 0.45f, 0.1f, 0.35f);
-                        } else if (g_entities[i].is_merchant) {
+                            draw_cube_oriented(tp[0] - (float)px, tp[1], tp[2] - (float)py,
+                                               0.45f, 0.1f, 0.35f, to);
+                        } else if (snap.entities[i].is_merchant) {
                             r = 1.0f;
                             g = 0.8f;
                             b = 0.0f;
                             glColor3f(r * total_fade, g * total_fade, b * total_fade);
                             draw_cube(ex, 0.5f, ez, 0.7f, 1.0f, 0.7f);
-                        } else if (g_entities[i].id < 10) {
+                        } else if (snap.entities[i].id < 10) {
                             r = 1.0f;
                             g = 0.3f;
                             b = 0.3f;
@@ -1169,9 +1211,10 @@ void render_gl_start(void) {
                         }
                     }
                 }
-            } else if (!g_entities[i].active) {
+            } else if (!snap.entities[i].active) {
                 /* Reset lerp for entities no longer active */
                 g_entity_lerp[i].initialized = false;
+                tome_anim_reset_slot(i);
             }
         }
         double modelview[16], projection[16];
@@ -1180,8 +1223,9 @@ void render_gl_start(void) {
         glGetDoublev(GL_PROJECTION_MATRIX, projection);
         glGetIntegerv(GL_VIEWPORT, viewport);
         
+        /*The particle system is render-thread-only (the net thread never
+         * touches it), so it renders outside the snapshot lock.*/
         draw_particles();
-        pthread_mutex_unlock(&g_state_mutex);
 
         // 2. RENDER HUD
         glViewport(0, 0, width, height);

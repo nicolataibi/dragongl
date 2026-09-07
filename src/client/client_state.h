@@ -24,7 +24,11 @@
 #include <stdbool.h>
 #include "map.h"
 
-#define MAX_NPCS 512
+/*Client-side entity cache size.
+ * NOTE: the server has its OWN MAX_NPCS (50000) in server_entities.h —
+ * same name, different meaning, in a different binary. Renamed here to
+ * avoid confusion when reading both codebases.*/
+#define CLIENT_MAX_ENTITIES 512
 
 extern int g_server_sock;
 extern int g_my_entity_id;
@@ -42,7 +46,7 @@ typedef struct {
     char username[32];
 } Entity;
 
-extern Entity g_entities[MAX_NPCS];
+extern Entity g_entities[CLIENT_MAX_ENTITIES];
 extern int g_my_hp, g_my_max_hp;
 extern int g_game_h, g_game_m, g_total_turns;
 extern int g_str, g_dex, g_con, g_intel, g_wis, g_cha;
@@ -78,6 +82,21 @@ extern char g_eq_feet[32];
 extern char g_eq_ring[10][32];
 extern char g_eq_belt[4][32];
 extern TileType g_local_map[MAP_HEIGHT][MAP_WIDTH];
+
+/*Per-frame snapshot of the game state (map + entities + player) used by
+ * BOTH renderers: copy it under a SHORT g_state_mutex lock, then render
+ * from the snapshot WITHOUT the lock. Before this, each renderer held
+ * g_state_mutex for the entire 3D scene, so the net thread (map chunks,
+ * entity moves) was blocked for the whole duration of the frame.*/
+typedef struct {
+    int my_x, my_y;
+    int my_entity_id;
+    int my_floor;
+    int vision_radius;
+    TileType map[MAP_HEIGHT][MAP_WIDTH];
+    Entity entities[CLIENT_MAX_ENTITIES];
+} FrameSnapshot;
+void frame_snapshot_acquire(FrameSnapshot *snap); /*lock, copy, unlock*/
 
 #define MAX_LOG_LINES 8
 extern char g_log_lines[MAX_LOG_LINES][256];

@@ -1,3 +1,251 @@
+* Mon Sep 07 2026 nicolataibi <nicola.taibi.1967@gmail.com> - 2026.09.07.01
+- The Archive of a Thousand Battles (BOOKS_MARTIAL, the NE bookshop) now
+  has a living floating tome in BOTH 3D backends. The book flies a random,
+  meandering trajectory around its merchant while staying INSIDE the shop
+  room, and tumbles on itself with a random, smoothly-changing rotation.
+  Shared animation module src/client/client_tome.c(.h): a per-entity-slot
+  state that (a) measures the room by scanning the local map from the
+  merchant tile out to the nearest rock/wall/door/water/lava in the four
+  cardinal directions (shrunk by a wall margin, so the book never leaves
+  the shop; a conservative fallback box is used until the map chunk
+  arrives), (b) re-rolls a random orbit waypoint (angle+radius around the
+  merchant, clamped to that box) every 1.2-3.5 s and steers toward it with
+  a first-order velocity lag, and (c) re-rolls a random spin (random unit
+  axis x random speed) on each waypoint and integrates the orientation as a
+  4x4 rotation matrix. render_gl.c draws it with a new draw_cube_oriented()
+  (translate -> rotation matrix -> scale) and render_vk.c with a new
+  push_box_oriented() (36-vertex box, corners AND face normals rotated in
+  CPU space, so the diffuse lighting follows the tumble). Both renderers
+  call the same tome_anim_update(), so GL and VK show the identical path.
+  New ctest unit: tests/test_tome.c (bounds, wander, orthonormal rotation,
+  fallback + reset paths).
+- Full technical review of the codebase (src/shared, src/server,
+  src/client, include, tools, shaders, CMakeLists, RPM spec, launch
+  scripts, JSON data) and the resulting fix rounds, tagged FIRST
+  ROUND / SECOND ROUND below. The audit found a guaranteed buffer
+  overflow with the shipped data (known_spells[] sized for 512 spells
+  while data/spells.json contains 551), an unauthenticated DM role
+  with shell access, raw write() on non-blocking sockets, O(50k)
+  scans in the AI hot path and a 73 MB voxel world; every finding is
+  addressed in the two rounds below.
+- FIRST ROUND SECURITY known_spells: MAX_SPELL_DB_SIZE raised 512 ->
+  1024 and a defensive `idx < MAX_SPELL_DB_SIZE` guard added at every
+  bit set/get site (load_player_data innate-class loop, study/spells/
+  cast gatekeepers, entity helpers). With the current dataset the
+  innate class cantrips sit at indices 539-550, so the old code wrote
+  past the bitfield on every login of the affected classes, corrupting
+  the fields right after it (bosses_defeated, needs_study,
+  unspent_stat_points).
+- FIRST ROUND SECURITY DM role: knowing the server access password no
+  longer grants DM powers. The "dm" account now also has to present a
+  dedicated DM password (-d/--dm-password), hashed with its own salt;
+  on mismatch the connection is closed with MSG_AUTH_FAIL. Knowing the
+  server password alone no longer unlocks dm_gold, dm_level, dm_spawn,
+  dm_goto or the dm_pdf/dm_mapfloor shell path.
+- FIRST ROUND SECURITY login: usernames are validated against
+  [A-Za-z0-9_]{1,16} and rejected otherwise (a hostile name could
+  otherwise escape saves/ via "../" in the .save and tombstone file
+  names), and the six attributes are clamped to 3-18 server-side, so a
+  modified client can no longer send str=9999.
+- FIRST ROUND SECURITY passwords: all hashes are now salted (character
+  salt derived from the username, so identical passwords hash
+  differently per character; the DM account has its own salt) instead
+  of the old unsalted 8-hex FNV-1a. A boot-time WARNING is logged when
+  the default access password or the default DM password are in use,
+  and the lack of encrypted transport is documented as LAN-only.
+- FIRST ROUND SECURITY traps: TRAP_FALLING_FLOOR now scatters within
+  bounds and guarantees a walkable landing via find_walkable_near()
+  (the old `x += rand()%5-2` had no bounds check and could push the
+  player to x<0 near the map edge, OOB map access on the very next
+  tick); TRAP_TELEPORT/TRAP_FAKE_DOOR only land on walkable tiles —
+  never in rock, on a staircase (involuntary descent) or on an
+  occupied cell.
+- FIRST ROUND SECURITY doors: open/close now bounds-check the adjacent
+  tile; 'open' only works on a real VOXEL_DOOR and registers the tile
+  in a per-floor "recently opened doors" list; 'close' can only
+  restore a registered door. This kills the exploit that turned any
+  adjacent floor tile into a door and persisted it in world.dat,
+  sealing corridors permanently.
+- FIRST ROUND NETWORKING broadcast_spell_vfx() now uses net_send()
+  instead of raw write() on the non-blocking sockets: a single partial
+  write() desynchronized the whole protocol stream of the affected
+  client (every later message became garbage). The client sanity-checks
+  MsgMapChunk before malloc'ing the chunk buffer (width/height in
+  1..256 and hdr.length must match the declared payload size).
+- FIRST ROUND COMBAT new_round bug (server_world.c): the round flag
+  was a single local shared by the NPC loop, and the FIRST NPC acting
+  in a tick cleared it — so only one NPC per whole tick (~1 attack/s
+  for the whole server, and poison/burning/paralysis decaying many
+  times slower than intended) could act "fresh". The tick now captures
+  was_new_round up front and passes it to every NPC; round_active is
+  used only for the entity-grid/AoE sync it was meant for. This
+  changes the balance of every fight.
+- FIRST ROUND COMBAT AI: the Mage's Magic Missile now deals damage (3
+  homing missiles, 1d4+1 force each) instead of consuming the slot
+  and doing nothing; the Void Crawler's non-attack branch applies
+  Mucus only (it also called perform_attack_npc, a double attack per
+  tick); swarm clones now respawn where they split, not at the
+  parent's original spawn point, and are registered in the
+  entity_grid on creation.
+- FIRST ROUND GAMEPLAY the cumulative +20 spell-slot bonus on every
+  login (a one-shot legacy migration left in the load path) is
+  removed: slots no longer grow by 20 per level on each reconnect.
+- FIRST ROUND GAMEPLAY city doors re-aligned with the shop ring:
+  update_city_doors() now derives the door positions from the same
+  formula as map.c (11 shops on the radius-26 circle, door on the
+  dominant axis 4 tiles out, facing the center); the 10 hard-coded
+  (±20/±12) coordinates were a leftover of the obsolete 1000x1000
+  layout and flipped tiles that were not doors, while the real shop
+  doors never changed.
+- FIRST ROUND GAMEPLAY commands: "t n/s/e/w/d" was intercepted by the
+  takeoff alias (first-match-wins) before the tunnel handler could see
+  it — the short alias now belongs to tunnel; the second, dead
+  'disarm' handler is removed, the disarm logic lives in one place
+  only.
+- FIRST ROUND GAMEPLAY get_full_item_name() no longer appends "End"
+  for QUALITY_FINE (a visible "Fine " typo at every item); walking on
+  water no longer causes a guaranteed Prone on every step — only ice
+  is slippery.
+- FIRST ROUND CLIENT the client no longer calls world_init() at
+  startup: it used to generate the full 101-floor dungeon plus traps
+  (~73 MB, seconds of CPU) only to copy floor 0 into the local map.
+  The local map now starts as rock and is filled by the first
+  MSG_MAP_CHUNK from the server.
+- FIRST ROUND MEMORY VoxelType is now a uint8_t (33 types need no
+  4-byte enum): the world is 4x smaller in RAM (73 MB -> ~19 MB), map
+  chunks on the wire are 4x smaller and every world.dat write is 4x
+  smaller.
+- FIRST ROUND PERFORMANCE broadcast_nearby_entities() filters by
+  distance (vision radius + margin, clamped 48-64): it used to ship
+  the state of EVERY active NPC on the floor (~300+ MsgState, ~450 KB
+  per single step on a full floor) even though the client discards
+  anything beyond its own view; entities re-appear automatically as
+  the player gets closer, since the broadcast runs on every step.
+- FIRST ROUND PERFORMANCE cell_occupied() is an O(1) entity_grid
+  lookup instead of an O(50k) scan of every NPC on every AI step — the
+  dominant CPU cost of the tick with ~20k active NPCs.
+- FIRST ROUND PERFORMANCE saves/ is created with stat()+mkdir()
+  instead of system("mkdir -p") (one fork+exec per save_player_data,
+  i.e. per client per minute); the RNG is seeded once at process start
+  with getrandom() — previously srand(time(NULL)) lived in
+  world_init(), which is skipped when world.dat exists, so after every
+  reboot the server replayed the same dice sequence until the first
+  reseed; npcs.dat now uses a compact [magic 0xDEAD7ECC][count]
+  format.
+- FIRST ROUND BUILD/PACKAGING the JSON game data is installed to
+  share/dragongl/data and the server resolves the data directory
+  (explicit --data-dir/-D, then local ./data, then
+  /usr/share/dragongl/data), so the RPM no longer fails to find
+  bestiary.json when the server runs from /usr/bin; CMake links GLU
+  through the GLVND OpenGL package (OpenGL::GLU); the circular
+  Requires between the main package and the -data subpackage is
+  removed (the main package already requires the subpackage).
+- SECOND ROUND SECURITY saved effects: ActiveEffect holds a NAME POINTER, and the
+  raw-struct saves (npcs.dat, *.save) serialized it — after a restart
+  every saved effect dangled into the previous process's memory and the
+  first rules_has_condition() of the tick segfaulted (the current world
+  has 3281 NPCs saved with active effects, so the crash was
+  deterministic). Effects are now dropped at load time (they are
+  transient, a few rounds of poison/fire): no format change, the saved
+  fields stay in the file and are ignored.
+- SECOND ROUND PROTOCOL versioned wire format: MsgHeader carries PROTOCOL_VERSION
+  (+reserved) and every send site builds the header through msg_hdr();
+  server and client reject a version mismatch before parsing anything,
+  so an old client and a new server fail fast with a clear protocol
+  error instead of silently desynchronizing. The server validates
+  version+type+length of every incoming header.
+- SECOND ROUND PROTOCOL/bandwidth MSG_ENTITY_UPDATE: the per-step entity broadcast
+  used to resend a full ~1.5 KB MsgState for EVERY NPC in view on every
+  step (~300 messages, ~450 KB on a full floor). The server now keeps a
+  per-client "seen" bitmap (reset on floor change): the full state goes
+  out only the first time an entity enters the client's view, and every
+  following update is a 12-byte record (id/x/y/hp) batched into a single
+  message ([int32 count][records], count and length validated on the
+  client before the malloc, like the map chunks).
+- SECOND ROUND PERFORMANCE fixed-step game clock: update_world() now runs at exactly
+  5 rounds/s through a fixed-step accumulator in the main loop (5 ticks
+  of catch-up, the excess is dropped, never fast-forwarded). Before the
+  fix the simulation ran once per poll-loop iteration (~200/s when
+  idle, slower under load) and NPC energy accumulated with it — game
+  speed followed the CPU load instead of the clock. 1 round is now
+  always 200 ms (1 game day = 1440 rounds = 4.8 real minutes).
+- SECOND ROUND PERFORMANCE per-floor active-NPC index: one array per floor, rebuilt
+  once per tick; the broadcast on player step, the aggro scans on every
+  attack (player and NPC), the swarm split adjacency count and the
+  boss-seals-stairs check now walk O(entities on the floor) instead of
+  scanning all 50,000 slots (full-scan fallback if a floor overflows
+  the cap).
+- SECOND ROUND PERFORMANCE A* (pathfinding.c): a real binary min-heap with
+  decrease-key (the previous "implicit heap" was a sorted array —
+  O(n) per push/pop, O(n^2) overall) and per-node visited stamps
+  instead of a 2.9 MB memset on every query (A* runs on every AI step
+  of every monster).
+- SECOND ROUND PERFORMANCE net_send worst case capped at 100 retries x 10 ms (1 s)
+  instead of 200: a single slow/stuck client can no longer hold the
+  whole server loop for several seconds.
+- SECOND ROUND PERFORMANCE/CLIENT the GL and Vulkan renderers no longer hold
+  g_state_mutex for the entire 3D scene: both take a FrameSnapshot
+  under a short lock (~120 KB copy) and render from it, so the net
+  thread (map chunks, entity moves, input) is not blocked for the whole
+  frame.
+- SECOND ROUND PERFORMANCE/CLIENT Vulkan: 3 frames in flight (semaphore pair + fence
+  per slot, the only wait is on slot reuse) instead of the old
+  vkWaitForFences(UINT64_MAX) at the end of every frame that kept CPU
+  and GPU from ever overlapping; the vertex-buffer overflow guard now
+  stops the whole tile scan (the old break exited only the inner row
+  loop); the shared command buffer is explicitly reset before
+  re-recording.
+- SECOND ROUND COMBAT rules_get_modifier() now implements the DnD floor division:
+  plain C truncation returned -3/-2/-1 for scores 3/5/7 instead of the
+  DnD-correct -4/-3/-2 (affects every odd sub-10 score). Caught by the
+  new unit tests.
+- SECOND ROUND CONDITIONS compared by value end-to-end: rules.c owns the canonical
+  ConditionType <-> name table (condition_to_name/
+  condition_from_name) and the new enum-based rules_has_condition_t();
+  all ~44 string comparisons across main_server, server_combat,
+  server_world and server_commands now go through the table, so
+  renaming an effect string can no longer break the logic silently in
+  one place only.
+- SECOND ROUND DM TOOLS dm_pdf/dm_mapfloor: the shell command built by snprintf was
+  replaced with posix_spawn and a clean argv (python3
+  tools/generate_pdf_map.py ...), no string concatenation and no shell
+  in between; the wait status is decoded exactly as before. Follow-up
+  (same command, caught in play): glibc's posix_spawn() performs no
+  PATH search for a slash-less program name (POSIX leaves it
+  implementation-defined), so the bare "python3" failed with ENOENT on
+  every host — the interpreter is now resolved to an absolute path
+  (manual PATH walk, then /usr/bin, /usr/local/bin, /bin) and the
+  script is located via the CWD, the server-binary directory (and its
+  parent, for the build/ layout) or /usr/share/dragongl/tools, with an
+  error naming the searched locations when nothing is found.
+- SECOND ROUND GAMEPLAY handle_boss_death design documented in code: the gold reward
+  and the bosses_defeated flag are SHARED by every active client on the
+  boss' floor on purpose (the stairs are a floor-level gate, so the
+  whole floor benefits); the killer argument is intentionally unused.
+- SECOND ROUND GAMEPLAY the hunger/time scale is now documented at the constants:
+  1 round = 0.2 s real (TICK_MS), HUNGER_MAX 2000 = ~6.7 real minutes
+  to starvation, game day = 4.8 real minutes.
+- SECOND ROUND BUILD C standard lowered 23 -> 11: no C23 feature is actually used,
+  and C11 is the portable floor for the RPM toolchain; the whole tree
+  still compiles clean with -Wall -Wextra -Wpedantic.
+- SECOND ROUND TESTS new ctest suite: test_rules (dice ranges, advantage vs
+  disadvantage, modifier table, damage modifiers, condition-table
+  round-trip, effect decay and persistence), test_pathfinding
+  (straight path, forced detour through a wall gap, unreachable
+  target, input validation, determinism, 1000 repeated queries to
+  exercise the stamp reset), test_protocol (pins the wire layout,
+  msg_hdr, the MSG_ENTITY_UPDATE payload formula). CI workflow
+  (.github/workflows/ci.yml): Release build + tests, then Debug build
+  with ASan/UBSan + tests.
+- SECOND ROUND DOCS README aligned with the current code: the DM login section now
+  describes the dedicated DM password (-d/--dm-password, default
+  dragongl_dm_secret) instead of the old "any personal password on the
+  dm profile"; the launch section documents -p/-d/-P/--port/-D/--data-dir
+  and the client usage [gl|vk] [server_ip] [port]; the PDF maps are
+  described as color (v2 dump), not "ASCII"; the door-command, tunnel
+  alias and ice-only Prone sections now match the FIRST ROUND fixes
+  above. .gitignore: map_dump*.txt/map_floor*.pdf (DM artifacts) and
+  artifacts.dat added to the release repository.
 * Fri Sep 04 2026 nicolataibi <nicola.taibi.1967@gmail.com> - 2026.09.04.02
 - Updated the README to replace the Italian term “razza” with the English term “races”.
 * Fri Sep 04 2026 nicolataibi <nicola.taibi.1967@gmail.com> - 2026.09.04.01

@@ -1,9 +1,11 @@
-.TH DRAGONGL_CLIENT 1 "2026-08-24" "DragonGL 2026.05.26.01" "User Commands"
+.TH DRAGONGL_CLIENT 1 "2026-09-06" "DragonGL 2026.09.04.02" "User Commands"
 .SH NAME
 dragongl_client \- Dragon GL 3D game client
 .SH SYNOPSIS
 .B dragongl_client
 .I backend
+.RI "[ server_ip ]"
+.RI "[ port ]"
 .SH DESCRIPTION
 .B dragongl_client
 is the 3D client of the Dragon GL dungeon crawler. It connects to a
@@ -11,9 +13,16 @@ is the 3D client of the Dragon GL dungeon crawler. It connects to a
 the dungeon in real time with a graphical in-engine HUD (stats, minimap,
 equipment, boss trophies, AR compass).
 
-After selecting the backend, the client interactively prompts for the server
-IP address (default: 127.0.0.1), the server password, and the player
-credentials; new players are then asked to choose race and class.
+Unless
+.I server_ip
+is given on the command line, after selecting the backend the client
+interactively prompts for the server IP address (default: 127.0.0.1), the
+server password, and the player credentials; new players are then asked to
+choose race and class.
+
+The client does not generate a local world at startup: the map is received
+from the server in chunks (MSG_MAP_CHUNK), so starting up is fast even
+before the first tile is known.
 .SH ARGUMENTS
 .TP
 .B gl
@@ -22,6 +31,15 @@ Start with the OpenGL backend (legacy).
 .B vk
 Start with the Vulkan backend (modern), featuring dynamic lighting computed
 via SPIR-V shaders.
+.TP
+.I server_ip
+(optional)
+IP address or hostname of the game server. When present, the interactive
+"Server IP" prompt is skipped (convenient for remote/SSH sessions).
+.TP
+.I port
+(optional)
+TCP port of the game server (default 8080).
 .SH SEE ALSO
 .BR dragongl_server (1),
 .BR dragongl-client (1)

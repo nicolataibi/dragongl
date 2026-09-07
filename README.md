@@ -119,6 +119,19 @@ Dragon GL is a high-performance, 3D multi-user client-server dungeon exploration
 ---
 
 # 📜 The Lore: The Deep Descent
+
+<table align="center">
+  <tr>
+    <td align="center">
+      <img
+        src="readme_assets/shops/The Dragon's Maw Village.png"
+        alt="Map dump"
+        width="800"
+      />
+    </td>
+  </tr>
+</table>
+
 In a legendary world, beneath the ruins of an ancient arcane civilization, lies a subterranean labyrinth of **100 floors** known as the *Dragon's Maw*. At **Floor 0**, a magical sanctuary serves as the last bastion for adventurers: a safe-zone city with merchants, taverns, and portals. Floors **1 through 100** plunge adventurers ever deeper into darkness, each level more treacherous than the last.
 
 - **Tiers of Peril (Floors 1–100):** The upper floors are swarming with Goblins and Giant Spiders. Deeper down, Orcish warbands and undead Ghouls roam the crypts. In the deepest tiers, Vampire Lords and Trolls guard the darkness.
@@ -242,7 +255,7 @@ Dragon GL doesn't just apply states; it allows entities to fight back. At the en
 | Condition | Effect on Gameplay |
 | :--- | :--- |
 | **Silenced** | Prevents spellcasting with verbal components. |
-| **Prone** | Character is on the ground. Acquired by walking on mud or ice. |
+| **Prone** | Character is on the ground. Acquired by walking on ice (the only slippery ground). |
 
 ### 6. Exhaustion System
 If the character remains hungry for prolonged periods, they accumulate levels of Exhaustion. Each level applies cumulative penalties to saving throws and skill checks, eventually becoming lethal.
@@ -443,7 +456,7 @@ Dragon GL is built with a classic text-console interface (in NetHack/Angband sty
 ### ⚔️ General Actions & Equipment
 - **`inventory`** (or **`i`**): View all items in your backpack, belt, and equipment slots.
 - **`wield <index|name>`** (or **`w`** / **`wear`** / **`equip`**): Equip an weapon, armor, amulet, or ring from your backpack or belt.
-- **`takeoff <index|name>`** (or **`t`** / **`rem`** / **`unequip`**): Remove an equipped item or belt item and place it back into your backpack.
+- **`takeoff <slot|item>`** (or **`remove`** / **`unequip`**): Remove an equipped item or belt item and place it back into your backpack. (The old `t` short alias was removed: it silently intercepted the tunnel directions — `t n` now means *tunnel north*.)
 - **`belt <index|name>`**: Move an item from your backpack to an available quick belt slot.
 - **`unbelt <index|name>`**: Move an item from a quick belt slot back into your backpack.
 - **`fill <lantern>`**: Refill a lantern's light durability (up to 8,000 turns) using oil from your backpack.
@@ -465,7 +478,7 @@ Dragon GL is built with a classic text-console interface (in NetHack/Angband sty
 - **`statue`** (or **`crystal`**): Meditate at your class crystal monument (Floor 0) to clear exhaustion, hunger, and restore all spell slots.
 - **`open <n|s|e|w>`** (or **`o`**): Opens a closed door in the specified direction.
 - **`close <n|s|e|w>`** (or **`c`**): Closes an open door in the specified direction.
-- **`tunnel <n|s|e|w|d>`** (or **`T`**): Digs through a solid wall or rock tile. New: use `tunnel d` (or down) to dig the ground under your feet. If you have a Pick or Shovel, you can extract gold, minerals, and crystals from precious veins revealed by the `examine` command.
+- **`tunnel <n|s|e|w|d>`** (or **`T <dir>`** / **`t <dir>`**): Digs through a solid wall or rock tile. New: use `tunnel d` (or down) to dig the ground under your feet. If you have a Pick or Shovel, you can extract gold, minerals, and crystals from precious veins revealed by the `examine` command.
 - **`disarm <mode>`** (or **`D`**): Attempts to disarm an adjacent detected trap.
   - `disarm` (standard): Uses Dexterity (Thieves' Tools).
   - `disarm salvage` (Tactical Recovery): +3 difficulty, but allows you to extract and steal valuable components from the trap.
@@ -512,10 +525,13 @@ DragonGL implements a dual-key system to guarantee both server access control an
 
 ### How to login as Dungeon Master (DM)
 
-To prevent abuse, administrative privileges are protected. To authenticate as DM:
-- **Server Password**: `dragongl_secret` (you must know the server password to connect).
-- **Player Name**: `dm` (the system recognizes this name to grant privileges).
-- **Personal Password**: A password of your choice. The first time you log in with the name `dm`, this password will be securely saved. From that moment on, only you will have access to that profile.
+To prevent abuse, administrative privileges are protected by a **dedicated credential**: knowing the server password alone no longer grants DM powers (it used to — that was a security hole).
+
+- **Server Password**: the server's gate password (default `dragongl_secret`) — required to connect, as for every player.
+- **Player Name**: `dm` (the system recognizes this name).
+- **DM Password**: the dedicated DM password configured by the administrator at server start with `-d/--dm-password` (default `dragongl_dm_secret`). It is verified as a salted hash (`SERVER_DM_PASSWORD`); on mismatch the connection is closed with an authentication-failure message.
+
+Both passwords are compared against salted hashes, never stored in clear. If the server is started with the default access password or the default DM password, a `WARNING` is printed to the server log at boot.
 
 ### Administrative Commands
 The DM can issue commands directly through the game console to manipulate the world state in real-time:
@@ -531,8 +547,8 @@ The DM can issue commands directly through the game console to manipulate the wo
 - **`dm_goto <floor> <x> <y>`**: Instantly teleports the DM to any coordinate across the 100-floor labyrinth.
 - **`dm_find_monster <name>`**: Searches the bestiary and returns matching IDs.
 - **`dm_find_item <name>`**: Searches the item database and returns matching IDs.
-- **`dm_mapfloor`**: Generates a PDF map (ASCII format) of the entire floor where the DM is currently located.
-- **`dm_pdf <floor>`**: Generates a PDF map (ASCII format) for the specified floor (0-99) without needing to teleport there.
+- **`dm_mapfloor`**: Generates a color PDF map of the entire floor where the DM is currently located (v2 dump: one 2-digit hex voxel code per tile, rendered with the exact in-game palette).
+- **`dm_pdf <floor>`**: Generates a color PDF map for the specified floor (0-100) without needing to teleport there.
 
 ### 7. Advanced Server Architecture: D3ES (Data-Driven Decoupled Entity System)
 To ensure professional performance and scalability, the server has been refactored to a **D3ES** architecture:
@@ -742,7 +758,7 @@ Brown floor tile (0.4, 0.3, 0.2); minimap (100, 75, 50). Traversable by players;
 #### 4.3 `VOXEL_WATER` (8) — "Clear Water"
 Animated, undulating liquid surface (0.1, 0.4, 0.8); minimap (20, 80, 200).
 - **Traversal.** Traversable by players and by the AI (submerged travel is not modelled as a distinct swimming state).
-- **Environmental event.** Stepping onto a water cell triggers a slip event: the entity immediately acquires the *Prone* condition for one round (*"The ground is slippery! You fell to the ground!"*). Note: the slip check is currently implemented against water cells in `check_tile_events()`; the source comment records that ice and mud were also intended candidates.
+- **Environmental event.** Stepping onto an ice cell triggers a slip event: the entity immediately acquires the *Prone* condition for one round (*"The ground is slippery! You fell to the ground!"*). Note: the slip check lives in `check_tile_events()` against `VOXEL_ICE` only — it used to trigger on water, which made every lake crossing a guaranteed Prone.
 - **Fire.** A *Burning* entity standing in water is extinguished immediately.
 - **Lightning.** The Lightning trap deals double damage to a victim standing on a water cell (see also the *Flood* entry in the Trap Gallery).
 - **Chemistry.** Fire reduces water to `VOXEL_MUD`; Cold freezes it to `VOXEL_ICE`.
@@ -865,7 +881,7 @@ Tool detection scans both hands and the backpack for item names containing *Pick
 
 #### 8.5 Door operation
 
-`open` (door → floor) and `close` (floor → door) mutate the world permanently; both states persist in `data/world.dat` and are visible to all clients on the floor.
+`open` (door → floor) mutates the world and persists in `data/world.dat`, visible to all clients on the floor. `close` can only re-close a door that was `open`ed during this session: the server keeps a per-floor registry of recently opened door tiles, so a plain floor tile can never be turned into a door (the old behavior let a player seal a corridor permanently on a tile that was never a door). Both commands bounds-check the target tile.
 
 ### 9. Rendering & Presentation
 
@@ -1140,13 +1156,18 @@ cd ..
 ### 2. Launch
 **Run the Server:**
 ```bash
-./dragongl-server --password <pwd>
+./dragongl-server --password <pwd>             # gate password (default: dragongl_secret)
+./dragongl-server --password <pwd> --dm-password <dmpwd>   # dedicated DM password (default: dragongl_dm_secret)
+./dragongl-server --port 9000                  # TCP port (default: 8080)
+./dragongl-server --data-dir /path/to/data     # JSON + world.dat (default: ./data, else /usr/share/dragongl/data)
 ```
 **Run the Client:**
 ```bash
-./dragongl-client gl  # OpenGL backend
-./dragongl-client vk  # Vulkan backend
+./dragongl-client gl              # OpenGL backend, server 127.0.0.1:8080
+./dragongl-client vk              # Vulkan backend
+./dragongl-client gl 192.168.1.10 9000   # [backend] [server_ip] [port]
 ```
+The server resolves its data directory in this order: an explicit `--data-dir`, then `./data` (development layout), then `/usr/share/dragongl/data` (RPM install).
 
 ### 3. Vulkan Backend & In-Engine HUD
 

@@ -35,11 +35,42 @@ typedef uint32_t MsgType;
 #define MSG_SPELL_VFX  9
 #define MSG_TOMBSTONE_REMOVE 10
 #define MSG_TIME_SYNC 11
+#define MSG_ENTITY_UPDATE 12
+
+/*Bumped whenever the wire format changes. Both ends REJECT any other
+ * value, so an old client and a new server fail fast with a clear
+ * protocol error instead of silently desynchronizing the stream.*/
+#define PROTOCOL_VERSION 1
 
 typedef struct {
     MsgType type;
     int length;
+    uint16_t version;  /*PROTOCOL_VERSION on every header*/
+    uint16_t reserved; /*must be 0*/
 } MsgHeader;
+
+/*Builds a correctly-versioned header. Every send site MUST use this
+ * (a hand-written {type, len} initializer would leave version = 0 and
+ * the peer would reject the message).*/
+static inline MsgHeader msg_hdr(MsgType type, int length) {
+    MsgHeader h;
+    h.type     = type;
+    h.length   = length;
+    h.version  = PROTOCOL_VERSION;
+    h.reserved = 0;
+    return h;
+}
+
+/*One compact entity record inside a MsgEntityUpdate payload.
+ * Sent only for entities the client has ALREADY received a full
+ * MsgState for (the server tracks that per client), so the client
+ * can update position/HP without the ~1.5 KB full state message.*/
+typedef struct {
+    int   entity_id;
+    int16_t x;
+    int16_t y;
+    int16_t hp;
+} EntityUpdateRec; /*12 bytes: the payload is [int32 count][EntityUpdateRec count]*/
 
 /*Sent by the client at login.
    If is_new_char == 1: The client wants to create a new character.

@@ -20,6 +20,12 @@
 #ifndef RENDER_VK_H
 #define RENDER_VK_H
 
+/*Number of frames that may be in flight (recorded but not yet presented).
+ * The shared vertex buffer and the single command buffer are recycled
+ * every MAX_FRAMES_IN_FLIGHT frames; each slot's fence guarantees the GPU
+ * is done with them before the CPU writes again (see draw_frame).*/
+#define MAX_FRAMES_IN_FLIGHT 3
+
 #include <vulkan/vulkan.h>
 #include <GLFW/glfw3.h>
 #include <stdbool.h>
@@ -55,9 +61,15 @@ typedef struct {
     VkFramebuffer *framebuffers;
     VkCommandPool command_pool;
     VkCommandBuffer command_buffer;
-    VkSemaphore sem_image;
-    VkSemaphore sem_render;
-    VkFence fence_flight;
+    /*Three frames in flight (standard Vulkan triple-buffering): the CPU
+     * records frame N+2 while the GPU runs N and presents N+1. Before
+     * the fix a single fence plus vkWaitForFences(UINT64_MAX) at the end
+     * of every frame blocked the CPU on the frame it had just submitted
+     * — CPU and GPU never overlapped.*/
+    VkSemaphore sem_image[MAX_FRAMES_IN_FLIGHT];
+    VkSemaphore sem_render[MAX_FRAMES_IN_FLIGHT];
+    VkFence fences[MAX_FRAMES_IN_FLIGHT];
+    uint32_t current_frame;
     VkBuffer vertex_buffer;
     VkDeviceMemory vertex_memory;
     uint32_t vertex_count;

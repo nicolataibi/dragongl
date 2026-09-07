@@ -64,7 +64,7 @@ void perform_attack(Client *c, NPC *t, NPC *npcs) {
   rules_apply_modifiers(&ctx, c->effects, c->effect_count);
 
   //--- ATTACKER CONDITIONS ---
-  if (rules_has_condition(c->effects, c->effect_count, "Blinded")) {
+  if (rules_has_condition_t(c->effects, c->effect_count, COND_BLINDED)) {
     ctx.has_disadvantage = true;
   }
 
@@ -76,9 +76,9 @@ void perform_attack(Client *c, NPC *t, NPC *npcs) {
 
   //--- TARGET CONDITIONS ---
   if (hit &&
-      (rules_has_condition(t->effects, t->effect_count, "Paralyzed") ||
-       rules_has_condition(t->effects, t->effect_count, "Stunned") ||
-       rules_has_condition(t->effects, t->effect_count, "Unconscious"))) {
+      (rules_has_condition_t(t->effects, t->effect_count, COND_PARALYZED) ||
+       rules_has_condition_t(t->effects, t->effect_count, COND_STUNNED) ||
+       rules_has_condition_t(t->effects, t->effect_count, COND_UNCONSCIOUS))) {
     is_crit = true; //Automatic critical hit against incapacitated targets
   }
   if (w && w->category == ITEM_WEAPON && w->damage_dice_sides <= 6) {
@@ -98,9 +98,13 @@ void perform_attack(Client *c, NPC *t, NPC *npcs) {
                       "> Attack Roll: 1d20 [%d] %+d = %d (VS AC %d)%s",
                       roll_v, ctx.final_value, roll_v + ctx.final_value, t->ac,
                       is_crit ? " [CRITICAL!]" : "");
-  //Aggro Group: Alert NPCs near the target
-
-  for (int i = 0; i < MAX_NPCS; i++) {
+  //Aggro Group: Alert NPCs near the target.
+  //Walks the per-floor index (O(entities on the floor)); the stale-entry
+  //filters below also cover an index that is up to one tick old.
+  int aggro_n = 0;
+  const int *aggro_idx = floor_index_for(t->floor_id, &aggro_n);
+  for (int k = 0; k < ((aggro_idx != NULL) ? aggro_n : MAX_NPCS); k++) {
+    int i = (aggro_idx != NULL) ? aggro_idx[k] : k;
     if (&npcs[i] != t && npcs[i].active && npcs[i].archetype != ARCH_MERCHANT &&
         npcs[i].floor_id == t->floor_id) {
       int d = abs(npcs[i].x - t->x) + abs(npcs[i].y - t->y);
@@ -130,9 +134,9 @@ void perform_attack(Client *c, NPC *t, NPC *npcs) {
 
     DamageModifier mod = DMG_MOD_NORMAL;
     //--- TARGET STATUS EFFECTS ON DAMAGE ---
-    if (rules_has_condition(t->effects, t->effect_count, "Frozen")) {
+    if (rules_has_condition_t(t->effects, t->effect_count, COND_FROZEN)) {
       mod = DMG_MOD_VULNERABILITY;
-    } else if (rules_has_condition(t->effects, t->effect_count, "Petrified")) {
+    } else if (rules_has_condition_t(t->effects, t->effect_count, COND_PETRIFIED)) {
       mod = DMG_MOD_RESISTANCE;
     }
 
@@ -245,13 +249,13 @@ void perform_attack_npc(NPC *n, Client *c, NPC *npcs) {
 
   //--- ATTACKER NPC CONDITIONS ---
   bool adv = false, dis = false;
-  if (rules_has_condition(n->effects, n->effect_count, "Frightened")) {
+  if (rules_has_condition_t(n->effects, n->effect_count, COND_FRIGHTENED)) {
     dis = true; //Disadvantage if scared
   }
-  if (rules_has_condition(c->effects, c->effect_count, "Invisible")) {
+  if (rules_has_condition_t(c->effects, c->effect_count, COND_INVISIBLE)) {
     dis = true; // Disadvantage if the target is invisible
   }
-  if (rules_has_condition(n->effects, n->effect_count, "Charmed")) {
+  if (rules_has_condition_t(n->effects, n->effect_count, COND_CHARMED)) {
     // If the NPC is charmed by the player, it does not attack
     return;
   }
@@ -284,8 +288,12 @@ void perform_attack_npc(NPC *n, Client *c, NPC *npcs) {
         n->template->name, roll_v, n_bonus, roll_v + n_bonus, p_ac,
         is_crit ? " [CRITICAL!]" : "");
   }
-  //Aggro Group: Alert NPCs close to the attacker
-  for (int i = 0; i < MAX_NPCS; i++) {
+  //Aggro Group: Alert NPCs close to the attacker (per-floor index, see
+  //perform_attack above for the rationale).
+  int aggro_n = 0;
+  const int *aggro_idx = floor_index_for(n->floor_id, &aggro_n);
+  for (int k = 0; k < ((aggro_idx != NULL) ? aggro_n : MAX_NPCS); k++) {
+    int i = (aggro_idx != NULL) ? aggro_idx[k] : k;
     if (&npcs[i] != n && npcs[i].active && npcs[i].archetype != ARCH_MERCHANT &&
         npcs[i].floor_id == n->floor_id) {
       int d = abs(npcs[i].x - n->x) + abs(npcs[i].y - n->y);
@@ -302,9 +310,9 @@ void perform_attack_npc(NPC *n, Client *c, NPC *npcs) {
     int d = rules_roll_dice(dc, n->damage_sides);
 
     DamageModifier d_mod = DMG_MOD_NORMAL;
-    if (rules_has_condition(c->effects, c->effect_count, "Frozen")) {
+    if (rules_has_condition_t(c->effects, c->effect_count, COND_FROZEN)) {
       d_mod = DMG_MOD_VULNERABILITY;
-    } else if (rules_has_condition(c->effects, c->effect_count, "Petrified")) {
+    } else if (rules_has_condition_t(c->effects, c->effect_count, COND_PETRIFIED)) {
       d_mod = DMG_MOD_RESISTANCE;
     }
 
@@ -334,6 +342,20 @@ void perform_attack_npc(NPC *n, Client *c, NPC *npcs) {
   }
 }
 
+/*Design note (§2.6): boss rewards (gold + bosses_defeated flag + stairs
+ * unlock) are SHARED by every player present on the floor, not scaled to
+ * individual contribution. This is an intentional "shared progression"
+ * decision for the co-op LAN setting (a boss floor is a party gate), but
+ * it is documented here on purpose: change it if per-player rewards are
+ * ever wanted.*/
+/*DESIGN NOTE: the reward is SHARED floor-wide, on purpose. Every active
+ * client on the boss' floor gets the gold and the bosses_defeated flag
+ * (the stairs stay sealed for the whole floor until the boss is down,
+ * so "defeating the boss" is a floor-level gate, not a personal one —
+ * rewarding the whole floor keeps party play consistent: anyone who
+ * fought next to the killer also benefits). The killer argument is
+ * therefore intentionally unused; if this ever becomes a solo-quest
+ * game mode, scale the reward to the contributor here.*/
 void handle_boss_death(Client *c, NPC *boss) {
   (void)c;
   if (!boss || boss->archetype != ARCH_BOSS)

@@ -44,6 +44,12 @@
 #define MAX_SHOP_ITEMS 50
 #define MAX_BLOCKED_PLAYERS 16
 
+/*Hunger constants, expressed in ROUNDS (1 round = TICK_MS = 0.2 s real,
+ * see server_internal.h). HUNGER_MAX 2000 = 400 s: a character that
+ * never eats starves after ~6.7 real minutes, and a full game day
+ * (1440 rounds) takes 4.8 real minutes. When re-balancing food, keep
+ * the round scale in mind (HUNGER_ALERT/WEAK/FAINT below are on the
+ * same scale).*/
 #define HUNGER_MAX 2000
 #define HUNGER_ALERT 1200
 #define HUNGER_WEAK 1600
@@ -234,5 +240,21 @@ typedef struct {
 
 void perform_attack_npc(NPC *n, Client *c, NPC *all_npcs);
 void send_text_to_client(int sock, const char* fmt, ...);
+
+/*--- known_spells bitfield helpers (defensive) ---
+ * Every access MUST go through these: they clamp the index to
+ * MAX_SPELL_DB_SIZE, so a spell database larger than the bitfield
+ * can never read/write out of bounds (the old `si / 64` open coding
+ * wrote past known_spells[8] when the dataset passed 512 spells).*/
+static inline bool spell_known_get(const Client *c, int idx) {
+    if (idx < 0 || idx >= MAX_SPELL_DB_SIZE)
+        return false;
+    return ((c->known_spells[idx / 64] >> (idx % 64)) & 1ULL) != 0;
+}
+static inline void spell_known_set(Client *c, int idx) {
+    if (idx < 0 || idx >= MAX_SPELL_DB_SIZE)
+        return;
+    c->known_spells[idx / 64] |= 1ULL << (idx % 64);
+}
 
 #endif

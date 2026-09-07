@@ -1,25 +1,71 @@
-.TH DRAGONGL_SERVER 1 "2026-08-24" "DragonGL 2026.05.26.01" "User Commands"
+.TH DRAGONGL_SERVER 1 "2026-09-06" "DragonGL 2026.09.04.02" "User Commands"
 .SH NAME
 dragongl_server \- Dragon GL master game server
 .SH SYNOPSIS
 .B dragongl_server
-.RI "[\-\-password\ |\ -p\ " pwd ]
+.RI "[\-\-password\ |\ -p\ " pwd ]"
+.RI "[\-\-dm\-password\ |\ -d\ " pwd ]"
+.RI "[\-\-port\ |\ -P\ " port ]"
+.RI "[\-\-data\-dir\ |\ -D\ " dir ]"
 .RI "[\-\-help\ |\ -h ]"
 .SH DESCRIPTION
 .B dragongl_server
 is the authoritative server of the Dragon GL client/server dungeon crawler.
-It generates and maintains the master world (a 1000x1000 dungeon spanning
-100 floors), runs monster AI, resolves combat, and synchronizes the game
+It generates and maintains the master world (a 300x300 dungeon spanning
+101 floors), runs monster AI, resolves combat, and synchronizes the game
 state with all connected clients over TCP.
 
 The server listens on port
-.BR 8080 .
+.BR 8080
+(unless changed with
+.BR \-\-port ).
+
+Security notes:
+.IP \- 2
+Usernames are restricted to
+.BR 1-16
+alphanumeric/underscore characters (they are used to build file names).
+.IP \- 2
+The privileged
+.B dm
+account requires a
+.I dedicated
+password (
+.BR \-\-dm-password ): knowing the plain server access password
+no longer grants DM powers (dm_spawn, dm_goto, dm_pdf, ...).
+.IP \- 2
+Passwords are stored salted (FNV-1a, salt derived from the username).
+The protocol is NOT encrypted: passwords travel in clear over TCP, which
+is acceptable on a trusted LAN but should not be exposed to the Internet.
 .SH OPTIONS
 .TP
 .BI \-p ", " \-\-password " pwd"
 Set the password required by clients to join the server.
 Default:
 .I dragongl_secret
+(a warning is printed at boot while the default is in use).
+.TP
+.BI \-d ", " \-\-dm-password " pwd"
+Set the password of the dedicated
+.B dm
+account.
+Default:
+.IR dragongl_dm_secret .
+.TP
+.BI \-P ", " \-\-port " port"
+TCP port to listen on (default 8080). Useful to run several servers on
+the same machine or to test in parallel.
+.TP
+.BI \-D ", " \-\-data-dir " dir"
+Directory holding the JSON datasets and the world state files
+(world.dat, npcs.dat, artifacts.dat).
+When not given, the server uses
+.IR ./data
+if it contains
+.IR bestiary.json ,
+otherwise
+.IR /usr/share/dragongl/data
+(RPM install).
 .TP
 .B \-h , \-\-help
 Show a short help message and exit.
@@ -29,10 +75,13 @@ Show a short help message and exit.
 Tactical combat log, written in the working directory.
 .TP
 .IR saves/ "directory"
-Player save files (*.save).
+Player save files (*.save) and tombstones (tombstone_*.dat).
 .TP
 .IR data/ "directory"
-World persistence files (world.dat, artifacts.dat, npcs.dat, bones_*.dat).
+World persistence files (world.dat, artifacts.dat, npcs.dat).
+world.dat carries a magic/version/CRC32 header (1 byte per tile, the
+volatile entity grid is not persisted); a missing or invalid file is
+never half-loaded — the server generates a fresh world instead.
 .SH SEE ALSO
 .BR dragongl_client (1),
 .BR dragongl-server (1),

@@ -19,14 +19,17 @@ cat << "EOF"
 EOF
 
 show_help() {
-    echo -e "\nUsage: $0 [opzioni] <backend>"
+    echo -e "\nUsage: $0 [opzioni] <backend> [server_ip] [port]"
     echo "Options:"
     echo "  -h, --help    Shows this help message"
     echo -e "\nBackend:"
     echo "  gl            Start with OpenGL backend (Legacy)"
     echo "  vk            Start with Vulkan backend (Modern)"
+    echo -e "\nConnection (optional, skips the interactive prompt):"
+    echo "  server_ip     IP/hostname of the game server (default 127.0.0.1)"
+    echo "  port          TCP port of the game server (default 8080)"
     echo -e "\nExample:"
-    echo "  $0 gl"
+    echo "  $0 gl 192.168.1.10 9000"
 }
 
 # Check if executable exists
@@ -40,6 +43,8 @@ fi
 
 # Parsing parametri
 BACKEND=""
+SERVER_IP=""
+PORT=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
         -h|--help)
@@ -51,9 +56,17 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         *)
-            echo "Unknown option: $1"
-            show_help
-            exit 1
+            # First non-backend positional = server IP, second = port
+            if [ -z "$SERVER_IP" ]; then
+                SERVER_IP="$1"
+            elif [ -z "$PORT" ]; then
+                PORT="$1"
+            else
+                echo "Unknown option: $1"
+                show_help
+                exit 1
+            fi
+            shift
             ;;
     esac
 done
@@ -65,4 +78,7 @@ fi
 
 # Start the client from root (data/ e saves/ sono relativi a questa directory)
 cd "$(dirname "$0")"
-$BIN "$BACKEND"
+
+# Quoted expansion: no word-splitting even if the IP contained spaces (it
+# shouldn't, but the launcher must not misbehave).
+exec "$BIN" "$BACKEND" "$SERVER_IP" "$PORT"

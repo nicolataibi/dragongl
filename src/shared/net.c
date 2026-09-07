@@ -91,7 +91,13 @@ void net_set_nonblocking(int sock) {
 bool net_send(int sock, const void *data, int len) {
     int total = 0;
     int retries = 0;
-    int max_retries = 500;
+    /*100 retries * 10ms = at most ~1s of blocking before the caller
+     * drops the send (and may disconnect the client). This used to be
+     * 500 (5s): a single slow/stuck client could stall the whole server
+     * loop for several seconds. (Full per-client send buffers with
+     * backpressure would remove the blocking entirely; this cap keeps
+     * the worst case sane until then.*/
+    int max_retries = 100;
     const char *buf = (const char *)data;
     
     while (total < len && retries < max_retries) {
@@ -116,6 +122,47 @@ int net_receive(int sock, void *buffer, int max_len) {
     bytes = recv(sock, buffer, max_len, 0);
     
     return bytes;
+}
+
+/*Read exactly 'len' bytes, retrying on EAGAIN with short pauses.
+   Returns len on success, -1 on peer close or retry exhaustion.*/
+int net_receive_exact(int sock, void *buffer, int len) {
+    int total = 0;
+    int retries = 0;
+    int max_retries = 500;
+    char *buf = (char *)buffer;
+
+    while (total < len && retries < max_retries) {
+        int bytes = recv(sock, buf + total, len - total, 0);
+        if (bytes > 0) {
+            total += bytes;
+            retries = 0;
+        } else if (bytes == 0) {
+            return -1; /* peer closed */
+        } else {
+            retries++;
+            usleep(10000);
+        }
+    }
+
+    return (total == len) ? total : -1;
+}
+
+/*Always-NUL-terminated string copy (see net.h).
+ * The NUL goes right after the copied bytes (position n), so a string
+ * that SHRINKS between two calls cannot leave the old tail behind —
+ * setting only dst[cap-1] would do exactly that.*/
+void copy_str(char *dst, const char *src, size_t cap) {
+    if (cap == 0)
+        return;
+    size_t n = 0;
+    if (src) {
+        n = strlen(src);
+        if (n >= cap)
+            n = cap - 1;
+        memcpy(dst, src, n);
+    }
+    dst[n] = '\0';
 }
 
 void net_close(int sock) {

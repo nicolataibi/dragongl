@@ -1,9 +1,11 @@
-.TH DRAGONGL-SERVER 1 "2026-08-24" "DragonGL 2026.05.26.01" "User Commands"
+.TH DRAGONGL-SERVER 1 "2026-09-06" "DragonGL 2026.09.04.02" "User Commands"
 .SH NAME
 dragongl-server \- Dragon GL server launcher script
 .SH SYNOPSIS
 .B dragongl-server
 .RI "[\-\-password\ |\ -p\ " pwd ]
+.RI "[\-\-dm\-password\ |\ -d\ " pwd ]"
+.RI "[\-\-port\ |\ -P\ " port ]"
 .RI "[\-\-help\ |\ -h ]"
 .SH DESCRIPTION
 .B dragongl-server
@@ -12,14 +14,28 @@ the server it prints diagnostic information about the host (operating
 system, uptime and load, memory usage, disk space, network interfaces) and
 then executes
 .B build/dragongl_server
-from the project root directory, passing the selected password.
+from the project root directory, passing the selected options.
 
-The password is mandatory: if no option is given, the script prints an error
-and exits.
+NOTE: the diagnostics block prints the machine's IP addresses to the log;
+set
+.B DIAGNOSTICS=0
+in the environment to skip it.
+
+The access password is mandatory: if no option is given, the script prints
+an error and exits.
 .SH OPTIONS
 .TP
 .BI \-p ", " \-\-password " pwd"
 Set the server access password (required).
+.TP
+.BI \-d ", " \-\-dm\-password " pwd"
+Set the dedicated password of the privileged
+.B dm
+account (see
+.BR dragongl_server (1)).
+.TP
+.BI \-P ", " \-\-port " port"
+TCP port to listen on (default 8080).
 .TP
 .B \-h , \-\-help
 Show a short help message and exit.
@@ -28,6 +44,12 @@ Start the server with a custom password:
 .PP
 .RS
 .B dragongl-server --password segreto123
+.RE
+.PP
+Start a second server on another port with a dedicated DM password:
+.PP
+.RS
+.B dragongl-server --password segreto123 --dm-password dm123 --port 9000
 .RE
 .SH SEE ALSO
 .BR dragongl_server (1),

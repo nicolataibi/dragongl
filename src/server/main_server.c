@@ -17,6 +17,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include "alignment.h"
 #include "bestiary.h"
 #include "classes.h"
 #include "data_loader.h"
@@ -30,6 +31,7 @@
 #include "spells.h"
 #include <arpa/inet.h>
 #include <ctype.h>
+#include <errno.h>
 #include <ifaddrs.h>
 #include <math.h>
 #include <netinet/in.h>
@@ -41,7 +43,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <sys/random.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -67,6 +71,8 @@ _Static_assert((int)BOOKS_MARTIAL == SHOP_SPEC_BOOKS_MARTIAL,
 #define RESPAWN_TRAPS_TICKS 300 // ~30 min
 
 World *master_world = NULL;
+/*See server_internal.h: resolved in main() before any data access.*/
+char g_data_dir[DATA_DIR_MAX] = "data";
 int global_total_turns = 0;
 int active_event_type = 0;
 int event_floor_id = 1;
@@ -93,21 +99,95 @@ long long get_time_ms(void) {
     return (long long)tv.tv_sec * 1000 + tv.tv_usec / 1000;
 }
 static char SERVER_ACCESS_PASSWORD[64] = "dragongl_secret";
+/*Dedicated password for the privileged "dm" account. Anyone who knows it
+ * becomes DM (dm_spawn, dm_goto, dm_pdf, ...). It is a SEPARATE credential
+ * from the server access password: knowing the access password no longer
+ * grants DM powers. Override at start with --dm-password.*/
+static char SERVER_DM_PASSWORD[64] = "dragongl_dm_secret";
 
-/*--- FNV-1a 32-bit hash — used to not save passwords in clear text ---*/
-static uint32_t fnv1a_hash(const char *str) {
-    uint32_t hash = 2166136261u;
-    while (*str) {
-        hash ^= (uint8_t)(*str++);
-        hash *= 16777619u;
+/*--- Password hashing (salted FNV-1a) ---
+ * NOTE: not a KDF — acceptable for a LAN game, but it only avoids
+ * storing plaintext / rainbow-table shortcuts. Salted FNV-1a: the salt is mixed in first, so two identical passwords
+ * with different users produce different hashes. (Not a KDF — fine for a
+ * LAN game, but at least the rainbow-table shortcut is gone. Passwords
+ * still travel in the clear over TCP: document this for users.)*/
+static void hash_password_salted(const char *pwd, const char *salt,
+                                 char *out, size_t out_len) {
+    uint32_t h = 2166136261u;
+    for (const char *p = salt; p && *p; p++) {
+        h ^= (uint8_t)*p;
+        h *= 16777619u;
     }
-    return hash;
+    h ^= (uint8_t)';'; /*domain separator*/
+    h *= 16777619u;
+    while (pwd && *pwd) {
+        h ^= (uint8_t)(*pwd++);
+        h *= 16777619u;
+    }
+    snprintf(out, out_len, "%08x", h);
 }
 
-/*Produces an 8-digit hex string of the FNV-1a hash of the password*/
-static void hash_password(const char *pwd, char *out, size_t out_len) {
-    uint32_t h = fnv1a_hash(pwd);
-    snprintf(out, out_len, "%08x", h);
+/*The salt for a character's password: derived from the username so the
+ * same password for two characters hashes differently.*/
+static void password_salt_for(const char *username, char *out, size_t out_len) {
+    snprintf(out, out_len, "dragongl.v2:%s", username ? username : "?");
+}
+
+/*--- Username policy: [A-Za-z0-9_]{1,16}.
+ * The username ends up in file names (saves/<name>.save,
+ * saves/tombstone_<name>_*.dat): anything else (path separators, "..",
+ * empty) is a traversal vector, so reject it at login.*/
+static bool valid_username(const char *u) {
+    if (!u)
+        return false;
+    size_t n = strlen(u);
+    if (n < 1 || n > 16)
+        return false;
+    for (size_t i = 0; i < n; i++) {
+        char ch = u[i];
+        if (!isalpha((unsigned char)ch) && !isdigit((unsigned char)ch) &&
+            ch != '_')
+            return false;
+    }
+    return true;
+}
+
+/*Clamp a client-provided stat to the playable range 3..18 (previously
+ * an edited client could send str=9999 and keep it).*/
+static int clamp_stat(int v) {
+    if (v < 3)
+        return 3;
+    if (v > 18)
+        return 18;
+    return v;
+}
+
+/*Create saves/ without forking (system("mkdir -p") was one fork+exec per
+ * save; stat()+mkdir() is the same thing tombstone.c already does).*/
+static void ensure_saves_dir(void) {
+    struct stat st;
+    if (stat("saves", &st) == -1) {
+        if (mkdir("saves", 0755) == -1 && errno != EEXIST) {
+            server_log("SAVE", "ERROR: cannot create saves/ (%s)", strerror(errno));
+        }
+    }
+}
+
+/*Seed the RNG ONCE at process start, with kernel entropy when available.
+ * The old code seeded only inside world_init() — which is SKIPPED when
+ * data/world.dat exists — so after every reboot the server ran on the
+ * default seed (1) and every die/loot/aggro sequence was identical
+ * until some first event reseeded it.*/
+static void seed_game_rng(void) {
+    uint32_t seed = 0;
+    if (getrandom(&seed, sizeof(seed), 0) != sizeof(seed)) {
+        /*Fallback: mix time, pid and a stack address.*/
+        seed = (uint32_t)time(NULL) * 2654435761u;
+        seed ^= (uint32_t)getpid() * 40503u;
+        seed ^= (uint32_t)(uintptr_t)&seed;
+    }
+    srand(seed);
+    server_log("SYS", "RNG seeded with %u", seed);
 }
 
 // ===== SISTEMA ARTEFATTI UNICI =====
@@ -190,7 +270,9 @@ static ArtifactDef artifact_registry[MAX_ARTIFACTS] = {
 static int artifact_count = 58;
 
 static void artifacts_load(void) {
-    FILE *f = fopen("data/artifacts.dat", "rb");
+    char path[DATA_DIR_MAX + 32];
+    snprintf(path, sizeof(path), "%s/artifacts.dat", g_data_dir);
+    FILE *f = fopen(path, "rb");
     if (!f)
         return;
     for (int i = 0; i < artifact_count; i++) {
@@ -203,7 +285,9 @@ static void artifacts_load(void) {
 }
 
 static void artifacts_save(void) {
-    FILE *f = fopen("data/artifacts.dat", "wb");
+    char path[DATA_DIR_MAX + 32];
+    snprintf(path, sizeof(path), "%s/artifacts.dat", g_data_dir);
+    FILE *f = fopen(path, "wb");
     if (!f)
         return;
     for (int i = 0; i < artifact_count; i++) {
@@ -263,11 +347,9 @@ void server_log(const char *cat, const char *fmt, ...) {
 }
 
 void send_text_to_client(int sock, const char *fmt, ...) {
-  MsgHeader h;
+  MsgHeader h = msg_hdr(MSG_TEXT, (int)sizeof(MsgText));
   MsgText m;
   va_list a;
-  h.type = MSG_TEXT;
-  h.length = sizeof(m);
   va_start(a, fmt);
   vsnprintf(m.text, sizeof(m.text), fmt, a);
   va_end(a);
@@ -295,8 +377,8 @@ void send_map_chunk(int sock, Map *map, int cx, int cy, int size) {
   mc.start_y = sy;
   mc.width = size;
   mc.height = size;
-  h.type = MSG_MAP_CHUNK;
-  h.length = sizeof(mc) + (size * size * sizeof(VoxelType));
+  h = msg_hdr(MSG_MAP_CHUNK,
+              (int)(sizeof(mc) + (size_t)size * size * sizeof(VoxelType)));
   VoxelType *buf = malloc(size * size * sizeof(VoxelType));
   if (!buf)
     return;
@@ -314,6 +396,60 @@ static void get_game_time(int *h, int *m) {
   int total_mins = (global_total_turns % 1440);
   *h = (total_mins / 60 + 8) % 24;
   *m = total_mins % 60;
+}
+
+/*Is (x,y) a tile a character can safely stand on after a teleport?*/
+static bool tile_walkable(const Floor *fl, int x, int y) {
+    if (x < 1 || y < 1 || x >= MAP_WIDTH - 1 || y >= MAP_HEIGHT - 1)
+        return false;
+    switch (fl->map.data[0][y][x]) {
+    case VOXEL_FLOOR:
+    case VOXEL_COBBLE:
+    case VOXEL_MARBLE:
+    case VOXEL_WOOD:
+    case VOXEL_GRASS:
+    case VOXEL_SAND:
+    case VOXEL_STAIRS_UP:
+    case VOXEL_STAIRS_DOWN:
+    case VOXEL_DOOR:
+        return true;
+    default:
+        return false; /*rock, wall, water, lava, traps... */
+    }
+}
+
+/*Find a walkable tile near (ax,ay) — expanding rings up to radius 4.
+ * ALWAYS returns in-bounds coordinates (worst case the clamped anchor),
+ * so callers can never push a player out of the map.*/
+static void find_walkable_near(const Floor *fl, int ax, int ay,
+                               int *ox, int *oy) {
+    if (ax < 1) ax = 1;
+    if (ax > MAP_WIDTH - 2) ax = MAP_WIDTH - 2;
+    if (ay < 1) ay = 1;
+    if (ay > MAP_HEIGHT - 2) ay = MAP_HEIGHT - 2;
+    if (tile_walkable(fl, ax, ay)) {
+        *ox = ax;
+        *oy = ay;
+        return;
+    }
+    for (int r = 1; r <= 4; r++) {
+        for (int dy = -r; dy <= r; dy++) {
+            for (int dx = -r; dx <= r; dx++) {
+                if (abs(dx) + abs(dy) != r)
+                    continue;
+                int x = ax + dx, y = ay + dy;
+                if (tile_walkable(fl, x, y)) {
+                    *ox = x;
+                    *oy = y;
+                    return;
+                }
+            }
+        }
+    }
+    /*No walkable ring found (fully walled pocket): clamped anchor is still
+     * in-bounds — safe even if it means standing in rock.*/
+    *ox = ax;
+    *oy = ay;
 }
 
 void check_traps(Client *c, NPC *npcs) {
@@ -581,8 +717,15 @@ void check_traps(Client *c, NPC *npcs) {
             }
             c->floor_id++;
             notify_player_left_floor(c, old_floor);
-            c->x += (rand() % 5) - 2;
-            c->y += (rand() % 5) - 2;
+            /*Bounded scatter + guaranteed in-bounds walkable landing.
+             * The old `c->x += rand()%5 - 2` had NO bounds check: near the
+             * map edge the player could end up at x<0 and the very next
+             * tick read/wrote the map out of bounds.*/
+            Floor *nf = &master_world->floors[c->floor_id];
+            int lx = c->x + (rand() % 5) - 2;
+            int ly = c->y + (rand() % 5) - 2;
+            find_walkable_near(nf, lx, ly, &c->x, &c->y);
+            nf->entity_grid[c->y][c->x] = c->entity_id;
             client_track_explored_floor(c);
             /*Arrival broadcast AFTER the position is set*/
             broadcast_player_state(c);
@@ -650,10 +793,20 @@ void check_traps(Client *c, NPC *npcs) {
                   target_npc->template->name);
               int tx = c->x;
               int ty = c->y;
+              /*Keep entity_grid consistent with the swap (old code left
+               * the player ID on the NPC's old cell and vice versa, so
+               * collisions were corrupted until the next grid sync).*/
+              Floor *sfl = &master_world->floors[c->floor_id];
+              if (sfl->entity_grid[ty][tx] == c->entity_id)
+                sfl->entity_grid[ty][tx] = 0;
+              if (sfl->entity_grid[target_npc->y][target_npc->x] == target_npc->entity_id)
+                sfl->entity_grid[target_npc->y][target_npc->x] = 0;
               c->x = target_npc->x;
               c->y = target_npc->y;
               target_npc->x = tx;
               target_npc->y = ty;
+              sfl->entity_grid[c->y][c->x] = c->entity_id;
+              sfl->entity_grid[target_npc->y][target_npc->x] = target_npc->entity_id;
             } else {
               send_text_to_client(c->sock,
                                   "[MAGIC] A dark force envelops you! Exchanges"
@@ -682,9 +835,19 @@ void check_traps(Client *c, NPC *npcs) {
         }
       }
       if (t->type == TRAP_TELEPORT || t->type == TRAP_FAKE_DOOR) {
-        // Random teleport
-        c->x = rand() % MAP_WIDTH;
-        c->y = rand() % MAP_HEIGHT;
+        /*Random teleport — but ONLY onto a walkable tile: the old
+         * `rand() % MAP_WIDTH` could drop the player inside a rock, on a
+         * staircase (involuntary descent) or onto an occupied cell.*/
+        Floor *tfl = &master_world->floors[c->floor_id];
+        int anchor_x = 1 + rand() % (MAP_WIDTH - 2);
+        int anchor_y = 1 + rand() % (MAP_HEIGHT - 2);
+        int dest_x = c->x, dest_y = c->y;
+        find_walkable_near(tfl, anchor_x, anchor_y, &dest_x, &dest_y);
+        if (tfl->entity_grid[c->y][c->x] == c->entity_id)
+          tfl->entity_grid[c->y][c->x] = 0;
+        c->x = dest_x;
+        c->y = dest_y;
+        tfl->entity_grid[c->y][c->x] = c->entity_id;
         send_text_to_client(
             c->sock,
             "[MAGIC] Space distorts, you have been teleported!");
@@ -701,6 +864,15 @@ void check_traps(Client *c, NPC *npcs) {
   }
 }
 
+/*Opens/closes the city shop doors by day/night.
+ *
+ * IMPORTANT: the door positions MUST be computed with the same formula as
+ * the shop ring built in map.c (generate_procedural_dungeon, floor 0):
+ * 11 shops, radius 26, slot i at angle i*(360/11) degrees, door on the
+ * dominant axis 4 tiles out from the building center, facing the city
+ * center. The old version used 10 hard-coded (±20/±12) coordinates from
+ * the obsolete 1000x1000 layout, so the day/night doors were flipping
+ * tiles that were NOT doors — while the real shop doors never changed.*/
 void update_city_doors(void) {
   int h, m;
   get_game_time(&h, &m);
@@ -708,20 +880,30 @@ void update_city_doors(void) {
   Map *city = &master_world->floors[0].map;
   int cx = MAP_CENTER_X;
   int cy = MAP_CENTER_Y;
-  int shop_coords[10][2] = {
-      {cx - 12, cy - 20}, {cx, cy - 20}, {cx + 12, cy - 20},
-      {cx - 20, cy - 6},  {cx - 20, cy + 6},
-      {cx + 20, cy - 6},  {cx + 20, cy + 6},
-      {cx - 12, cy + 20}, {cx, cy + 20}, {cx + 12, cy + 20}
-  };
 
-  for (int i = 0; i < 10; i++) {
-      int sx = shop_coords[i][0];
-      int sy = shop_coords[i][1];
-      if (sy < cy - 10) city->data[0][sy + 4][sx] = state;
-      else if (sy > cy + 10) city->data[0][sy - 4][sx] = state;
-      else if (sx < cx - 10) city->data[0][sy][sx + 4] = state;
-      else if (sx > cx + 10) city->data[0][sy][sx - 4] = state;
+  for (int i = 0; i < 11; i++) {
+    float angle = (i * (360.0f / 11.0f)) * (M_PI / 180.0f);
+    int sx = cx + (int)(cosf(angle) * 26.0f);
+    int sy = cy + (int)(sinf(angle) * 26.0f);
+    /*Door faces the center: dominant axis, 4 tiles from the shop center
+     * (same rule as map.c).*/
+    int dx = cx - sx, dy = cy - sy;
+    int tx = sx, ty = sy;
+    if (abs(dx) > abs(dy)) {
+      if (dx > 0) tx = sx + 4;
+      else        tx = sx - 4;
+    } else {
+      if (dy > 0) ty = sy + 4;
+      else        ty = sy - 4;
+    }
+    if (tx < 0 || tx >= MAP_WIDTH || ty < 0 || ty >= MAP_HEIGHT)
+      continue;
+    /*Only flip tiles that are actually a door or a closed wall: never
+     * turn floor/rock into a door (that would seal corridors).*/
+    if (city->data[0][ty][tx] == VOXEL_DOOR ||
+        city->data[0][ty][tx] == VOXEL_WALL) {
+      city->data[0][ty][tx] = state;
+    }
   }
 }
 
@@ -787,7 +969,7 @@ void get_full_item_name(const ItemInstance *inst, char *buf, size_t max_len) {
     if (inst->quality == QUALITY_RUSTY) {
         strcat(prefix, "Rusty ");
     } else if (inst->quality == QUALITY_FINE) {
-        strcat(prefix, "End");
+        strcat(prefix, "Fine ");
     } else if (inst->quality == QUALITY_MASTERWORK) {
         strcat(prefix, "Masterwork ");
     }
@@ -1027,8 +1209,8 @@ void drop_loot_from_monster(Client *c, NPC *killer) {
         art.stack_count = 1;
         art.is_identified = true; //the artefacts are immediately recognisable
         art.is_artifact = true;
-        strncpy(art.artifact_name, artifact_registry[ai].name,
-                sizeof(art.artifact_name) - 1);
+        copy_str(art.artifact_name, artifact_registry[ai].name,
+                sizeof(art.artifact_name));
         art.to_hit_bonus = artifact_registry[ai].to_hit;
         art.to_dam_bonus = artifact_registry[ai].to_dam;
         art.ac_bonus = artifact_registry[ai].ac_bonus;
@@ -1136,7 +1318,7 @@ int get_vision_radius(Client *c) {
     return 50; //In the open city you can see very far
 
   // --- BLINDNESS CONDITION ---
-  if (rules_has_condition(c->effects, c->effect_count, "Blinded")) {
+  if (rules_has_condition_t(c->effects, c->effect_count, COND_BLINDED)) {
     return 0; //If blinded, you see nothing (radius 0)
   }
 
@@ -1178,20 +1360,20 @@ int get_player_ac(Client *c) {
   if (c->slot_arm_l.template_idx != -1)
     bonus += item_database[c->slot_arm_l.template_idx].ac_bonus;
   int final_ac = (ac_b > 0 ? ac_b : 10 + rules_get_modifier(td)) + bonus;
-  if (rules_has_condition(c->effects, c->effect_count, "Petrified")) {
+  if (rules_has_condition_t(c->effects, c->effect_count, COND_PETRIFIED)) {
     final_ac += 10;
   }
   return final_ac;
 }
 
 void send_detailed_state(Client *c) {
-  MsgHeader h = {MSG_STATE, sizeof(MsgState)};
+  MsgHeader h = msg_hdr(MSG_STATE, (int)sizeof(MsgState));
   MsgState s;
   memset(&s, 0, sizeof(s));
   s.entity_id = c->entity_id;
   s.x = c->x;
   s.y = c->y;
-  strncpy(s.username, c->username, 31);
+  copy_str(s.username, c->username, sizeof(s.username));
   s.hp = c->hp;
   s.max_hp = c->max_hp;
   s.floor_id = c->floor_id;
@@ -1212,17 +1394,17 @@ void send_detailed_state(Client *c) {
   s.ac = get_player_ac(c);
   // Weapon name
   if (c->slot_hand_r.template_idx != -1) {
-    strncpy(s.weapon_name, item_database[c->slot_hand_r.template_idx].name, 31);
+    copy_str(s.weapon_name, item_database[c->slot_hand_r.template_idx].name, sizeof(s.weapon_name));
   } else if (c->slot_hand_l.template_idx != -1) {
-    strncpy(s.weapon_name, item_database[c->slot_hand_l.template_idx].name, 31);
+    copy_str(s.weapon_name, item_database[c->slot_hand_l.template_idx].name, sizeof(s.weapon_name));
   } else {
-    strncpy(s.weapon_name, "Bare Hands", 31);
+    copy_str(s.weapon_name, "Bare Hands", sizeof(s.weapon_name));
   }
   // Armor name
   if (c->slot_body.template_idx != -1) {
-    strncpy(s.armor_name, item_database[c->slot_body.template_idx].name, 31);
+    copy_str(s.armor_name, item_database[c->slot_body.template_idx].name, sizeof(s.armor_name));
   } else {
-    strncpy(s.armor_name, "None", 31);
+    copy_str(s.armor_name, "None", sizeof(s.armor_name));
   }
   // Combat bonuses
   int ts2, td2, tc2, ti2, tw2, th2;
@@ -1241,25 +1423,25 @@ void send_detailed_state(Client *c) {
 
   //--- POPULATION OF STATUS ICONS (BITMASK) ---
   s.status_icons = 0;
-  if (rules_has_condition(c->effects, c->effect_count, "Poisoned"))
+  if (rules_has_condition_t(c->effects, c->effect_count, COND_POISONED))
     s.status_icons |= (1 << 0);
-  if (rules_has_condition(c->effects, c->effect_count, "Blinded"))
+  if (rules_has_condition_t(c->effects, c->effect_count, COND_BLINDED))
     s.status_icons |= (1 << 1);
-  if (rules_has_condition(c->effects, c->effect_count, "Paralyzed"))
+  if (rules_has_condition_t(c->effects, c->effect_count, COND_PARALYZED))
     s.status_icons |= (1 << 2);
-  if (rules_has_condition(c->effects, c->effect_count, "Stunned"))
+  if (rules_has_condition_t(c->effects, c->effect_count, COND_STUNNED))
     s.status_icons |= (1 << 3);
-  if (rules_has_condition(c->effects, c->effect_count, "Unconscious"))
+  if (rules_has_condition_t(c->effects, c->effect_count, COND_UNCONSCIOUS))
     s.status_icons |= (1 << 4);
-  if (rules_has_condition(c->effects, c->effect_count, "Burning"))
+  if (rules_has_condition_t(c->effects, c->effect_count, COND_BURNING))
     s.status_icons |= (1 << 5);
-  if (rules_has_condition(c->effects, c->effect_count, "Bleeding"))
+  if (rules_has_condition_t(c->effects, c->effect_count, COND_BLEEDING))
     s.status_icons |= (1 << 6);
-  if (rules_has_condition(c->effects, c->effect_count, "Petrified"))
+  if (rules_has_condition_t(c->effects, c->effect_count, COND_PETRIFIED))
     s.status_icons |= (1 << 7);
-  if (rules_has_condition(c->effects, c->effect_count, "Cursed"))
+  if (rules_has_condition_t(c->effects, c->effect_count, COND_CURSED))
     s.status_icons |= (1 << 8);
-  if (rules_has_condition(c->effects, c->effect_count, "Frozen"))
+  if (rules_has_condition_t(c->effects, c->effect_count, COND_FROZEN))
     s.status_icons |= (1 << 9);
   if (c->exhaustion_level > 0)
     s.status_icons |= (1 << 10);
@@ -1278,9 +1460,9 @@ void send_detailed_state(Client *c) {
     do { \
       if ((slot_field).template_idx >= 0 && (slot_field).template_idx < item_database_size) { \
           if ((slot_field).is_artifact) \
-              strncpy(dest, (slot_field).artifact_name, 31); \
+              copy_str(dest, (slot_field).artifact_name, 32); \
           else \
-              strncpy(dest, item_database[(slot_field).template_idx].name, 31); \
+              copy_str(dest, item_database[(slot_field).template_idx].name, 32); \
           dest[31] = '\0'; \
       } else { \
           dest[0] = '\0'; \
@@ -1312,8 +1494,8 @@ void send_detailed_state(Client *c) {
 void save_player_data(Client *c) {
   if (!c || !c->authenticated)
     return;
-  //Create the saves/ directory if it does not exist
-  if (system("mkdir -p saves") == -1) {}
+  //Create the saves/ directory if it does not exist (no fork+exec)
+  ensure_saves_dir();
   char p[64];
   snprintf(p, 64, "saves/%s.save", c->username);
   FILE *f = fopen(p, "wb");
@@ -1321,8 +1503,11 @@ void save_player_data(Client *c) {
     return;
   SaveData sd;
   memset(&sd, 0, sizeof(sd));
-  /*Save the password hash instead of plain text*/
-  hash_password(c->password, sd.password, sizeof(sd.password));
+  /*Save the SALTED password hash instead of plain text (salt = username,
+   * so identical passwords hash differently per character).*/
+  char salt[96];
+  password_salt_for(c->username, salt, sizeof(salt));
+  hash_password_salted(c->password, salt, sd.password, sizeof(sd.password));
   sd.x = c->x;
   sd.y = c->y;
   sd.floor_id = c->floor_id;
@@ -1391,25 +1576,23 @@ int load_player_data(Client *c) {
     return 0; //New character
   SaveData sd;
   memset(&sd, 0, sizeof(SaveData));
-  if (fread(&sd, 1, sizeof(sd), f) == 0) {
+  if (fread(&sd, 1, sizeof(sd), f) != sizeof(sd)) {
+    /*Wrong-size file (written by an old intermediate build): do NOT
+     * half-load it, and do NOT treat it as a new character either —
+     * that would let the next save silently overwrite the old file.
+     * Reject the login; the save stays intact on disk.*/
     fclose(f);
-    return 0;
+    server_log("SAVE", "%s.save has an unsupported size — login refused (file kept).",
+               c->username);
+    return -1;
   }
   fclose(f);
-  /*Verify Password: Compare saved hash with hash of entered password.
-   * Fallback for old saves: if hash comparison fails, try direct comparison
-   * (clear password) and if so, update the save with the hash.*/
+  /*Verify the salted password hash (salt = username).*/
+  char salt[96];
+  password_salt_for(c->username, salt, sizeof(salt));
   char expected_hash[12];
-  hash_password(c->password, expected_hash, sizeof(expected_hash));
-  bool pwd_ok = (strncmp(sd.password, expected_hash, 8) == 0);
-  if (!pwd_ok) {
-    /*Legacy attempt: File may contain plaintext password*/
-    pwd_ok = (strncmp(sd.password, c->password, 31) == 0);
-    if (pwd_ok) {
-      server_log("AUTH", "Password hash migration for: %s", c->username);
-    }
-  }
-  if (!pwd_ok) {
+  hash_password_salted(c->password, salt, expected_hash, sizeof(expected_hash));
+  if (strncmp(sd.password, expected_hash, 8) != 0) {
     server_log("AUTH", "Incorrect password for: %s", c->username);
     return -1; //Incorrect password
   }
@@ -1452,20 +1635,15 @@ int load_player_data(Client *c) {
   memcpy(c->slot_rings, sd.s_rings, sizeof(sd.s_rings));
   memcpy(c->spell_slots, sd.spell_slots, sizeof(sd.spell_slots));
   memcpy(c->spell_slots_max, sd.spell_slots_max, sizeof(sd.spell_slots_max));
-  /*+20 Slot Bonus: Applied to all non-zero slots of the loaded character*/
-  for (int _s = 1; _s <= MAX_SPELL_LEVEL; _s++) {
-    if (c->spell_slots_max[_s] > 0) {
-      c->spell_slots_max[_s] += 20;
-      c->spell_slots[_s]     += 20;
-    }
-  }
   /*--- Step 3: Restore active effects, resources and statistics ---*/
-  if (sd.effect_count > 0 && sd.effect_count <= MAX_EFFECTS_PER_ENTITY) {
-    memcpy(c->effects, sd.effects, sizeof(ActiveEffect) * sd.effect_count);
-    c->effect_count = sd.effect_count;
-  } else {
-    c->effect_count = 0;
-  }
+  /*Effects are NOT restored from disk: ActiveEffect.name is a POINTER
+   * (into the saving process's memory), so a raw fread leaves dangling
+   * pointers and the first rules_has_condition() after login would
+   * dereference freed memory. Status effects are transient by design
+   * (a few rounds of poison/fire); dropping them on reconnect is the
+   * safe semantics and needs no format change. The saved fields stay
+   * in the file and are simply ignored.*/
+  c->effect_count = 0;
   c->light_turns_left = sd.light_turns_left;
   c->hunger_level     = sd.hunger_level;
   c->exhaustion_level = sd.exhaustion_level;
@@ -1488,9 +1666,8 @@ int load_player_data(Client *c) {
         continue;
       if (!(spell_database[si].class_mask & cls_bit))
         continue;
-      int w = si / 64;
-      int b = si % 64;
-      c->known_spells[w] |= (1ULL << b);
+      /*Guarded: si may exceed MAX_SPELL_DB_SIZE on huge datasets*/
+      spell_known_set(c, si);
     }
   }
   /*--- Step 6: Reset boss flags ---*/
@@ -1576,6 +1753,10 @@ void save_bones(Client* c) {
         g->gold_drop = 0; /*The gold is in the tombstone, not in the ghost*/
         /*Register in the entity_grid*/
         master_world->floors[c->floor_id].entity_grid[c->y][c->x] = g->entity_id;
+        /*The corpse must be visible in the very next broadcast (the
+         * per-floor index is rebuilt on the next tick at the latest,
+         * but the player is standing right here: do it now).*/
+        floor_index_rebuild(g_npcs);
         extern void ai_init_npc(NPC *n, const char *name, int floor_id);
         ai_init_npc(g, g->custom_name, g->floor_id);
         server_log("BONES", "Ghost of %s spawned on floor %d (%d,%d)",
@@ -1623,7 +1804,10 @@ void client_track_explored_floor(Client *c) {
 void check_tile_events(Client *c, NPC *npcs) {
   VoxelType vt = master_world->floors[c->floor_id].map.data[0][c->y][c->x];
   // --- EVENTI AMBIENTALI ---
-  if (vt == VOXEL_WATER) { // Ad esempio ghiaccio o fango
+  if (vt == VOXEL_ICE) {
+    /*Slippery ground: Prone for 1 round.
+     * NOTE: this used to trigger on VOXEL_WATER, so EVERY step in a lake
+     * forced a guaranteed Prone. Only ice is slippery.*/
     if (c->effect_count < MAX_EFFECTS_PER_ENTITY) {
       c->effects[c->effect_count] = (ActiveEffect){
           "Prone", EVENT_ON_TURN_START, MOD_ADDITIVE, 0, 1, false};
@@ -1637,10 +1821,24 @@ void check_tile_events(Client *c, NPC *npcs) {
       if (!(c->bosses_defeated & (1u << boss_index))) {
         bool boss_alive = false;
         if (g_npcs) {
-          for (int i = 0; i < MAX_NPCS; i++) {
-            if (g_npcs[i].active && g_npcs[i].floor_id == c->floor_id && g_npcs[i].archetype == ARCH_BOSS) {
-              boss_alive = true;
-              break;
+          /*Per-floor index (falls back to a full scan if the floor
+           * overflowed the index cap).*/
+          int bn = 0;
+          const int *bidx = floor_index_for(c->floor_id, &bn);
+          if (bidx) {
+            for (int k = 0; k < bn; k++) {
+              const NPC *n = &g_npcs[bidx[k]];
+              if (n->active && n->floor_id == c->floor_id && n->archetype == ARCH_BOSS) {
+                boss_alive = true;
+                break;
+              }
+            }
+          } else {
+            for (int i = 0; i < MAX_NPCS; i++) {
+              if (g_npcs[i].active && g_npcs[i].floor_id == c->floor_id && g_npcs[i].archetype == ARCH_BOSS) {
+                boss_alive = true;
+                break;
+              }
             }
           }
         }
@@ -2028,9 +2226,8 @@ void give_starting_gear(Client *c) {
           continue;
         if (!(spell_database[si].class_mask & cls_bit))
           continue;
-        int w = si / 64;
-        int b = si % 64;
-        c->known_spells[w] |= (1ULL << b);
+        /*Guarded: si may exceed MAX_SPELL_DB_SIZE on huge datasets*/
+        spell_known_set(c, si);
       }
     }
   }
@@ -2038,9 +2235,7 @@ void give_starting_gear(Client *c) {
 
 
 void broadcast_spell_vfx(int sx, int sy, int tx, int ty, int vfx_type, float r, float g, float b, int floor_id) {
-    MsgHeader hdr;
-    hdr.type = MSG_SPELL_VFX;
-    hdr.length = sizeof(MsgSpellVFX);
+    MsgHeader hdr = msg_hdr(MSG_SPELL_VFX, (int)sizeof(MsgSpellVFX));
     
     MsgSpellVFX msg;
     msg.start_x = sx; msg.start_y = sy;
@@ -2050,43 +2245,144 @@ void broadcast_spell_vfx(int sx, int sy, int tx, int ty, int vfx_type, float r, 
     
     for (int i = 0; i < MAX_CLIENTS; i++) {
         if (g_clients[i].active && g_clients[i].authenticated && g_clients[i].floor_id == floor_id) {
-            if (write(g_clients[i].sock, &hdr, sizeof(MsgHeader)) < 0) {}
-            if (write(g_clients[i].sock, &msg, sizeof(MsgSpellVFX)) < 0) {}
+            /*net_send() (NOT raw write()): on a non-blocking socket a
+             * partial write() desynced that client's whole protocol
+             * stream — every later message became garbage until the
+             * connection died. net_send loops until the full payload
+             * is queued or the client is dropped.*/
+            net_send(g_clients[i].sock, &hdr, sizeof(MsgHeader));
+            net_send(g_clients[i].sock, &msg, sizeof(MsgSpellVFX));
         }
     }
 }
 
+/*--- Per-client "full state already sent" bitmap ------------------------
+ * The full MsgState (~1.5 KB) is sent ONCE per entity per client (the
+ * first time it enters view); every following broadcast reuses a 12-byte
+ * EntityUpdateRec carrying only id/x/y/hp. 64 clients * 50k bits = 400 KB.
+ * g_client_seen_floor encodes the floor the bitmap is valid for (floor+1,
+ * 0 = empty): it is reset lazily whenever the client is seen on another
+ * floor, which is self-healing no matter which code path (stairs, trap,
+ * death respawn, dm_goto) changed the floor.*/
+#define BATCH_ENTITY_CAP 512
+static uint8_t g_client_seen_entities[MAX_CLIENTS][MAX_NPCS / 8];
+static int     g_client_seen_floor[MAX_CLIENTS]; /*floor+1, 0 = empty*/
+
+static inline void client_seen_reset(int ci, int floor) {
+  memset(g_client_seen_entities[ci], 0, sizeof(g_client_seen_entities[ci]));
+  g_client_seen_floor[ci] = floor + 1;
+}
+static inline void client_seen_maybe_reset(int ci, int floor) {
+  if (g_client_seen_floor[ci] != floor + 1)
+    client_seen_reset(ci, floor);
+}
+static inline void client_seen_set(int ci, int npc_i) {
+  g_client_seen_entities[ci][npc_i >> 3] |= (uint8_t)(1u << (npc_i & 7));
+}
+static inline int client_seen_test(int ci, int npc_i) {
+  return (g_client_seen_entities[ci][npc_i >> 3] & (1u << (npc_i & 7))) != 0;
+}
+
+/*Full MsgState for an NPC (used the first time the client sees it, when
+ * it still needs the merchant/tombstone/identity fields).*/
+static void send_full_npc_state(int sock, const NPC *n) {
+  MsgHeader h = msg_hdr(MSG_STATE, (int)sizeof(MsgState));
+  MsgState s;
+  memset(&s, 0, sizeof(s));
+  s.entity_id   = n->entity_id;
+  s.x           = n->x;
+  s.y           = n->y;
+  s.hp          = n->hp;
+  s.max_hp      = n->max_hp;
+  s.floor_id    = n->floor_id;
+  s.is_merchant = (n->archetype == ARCH_MERCHANT) ? 1 : 0;
+  s.shop_spec = (n->archetype == ARCH_MERCHANT)
+                    ? (int)n->merchant.spec
+                    : SHOP_SPEC_NONE;
+  s.is_tombstone = 0;
+  s.is_player = 0;
+  net_send(sock, &h, sizeof(h));
+  net_send(sock, &s, sizeof(s));
+}
+
+/*One header + [int32 count][records] instead of N header+MsgState pairs.
+ * 100 known entities: ~150 KB (old way) -> ~1.2 KB.*/
+static void flush_entity_batch(int sock, const EntityUpdateRec *recs, int count) {
+  if (count <= 0) return;
+  MsgHeader h = msg_hdr(MSG_ENTITY_UPDATE,
+                        (int)(sizeof(int32_t) + (size_t)count * sizeof(EntityUpdateRec)));
+  int32_t cnt = count;
+  net_send(sock, &h, sizeof(h));
+  net_send(sock, &cnt, sizeof(cnt));
+  net_send(sock, recs, (size_t)count * sizeof(EntityUpdateRec));
+}
+
 void broadcast_nearby_entities(Client *c, NPC *npcs) {
+  /*Send only entities the player can plausibly perceive:
+  * Euclidean distance <= vision radius + margin.
+  * Before the distance filter the function shipped EVERY active NPC on
+  * the floor (~300+ MsgState at ~1.5 KB each, ~450 KB per single step on
+  * a full floor) even though the client discards anything beyond its own
+  * view. On top of the filter, entities are sent INCREMENTALLY: a full
+  * MsgState only the first time the client sees them, then 12-byte
+  * compact records batched in a single MSG_ENTITY_UPDATE. The scan walks
+  * the per-floor index (O(entities on the floor)) with a full-scan
+  * fallback for an overflowed floor.*/
+  int vr = get_vision_radius(c);
+  int radius = vr + 32;
+  if (radius < 48) radius = 48;
+  if (radius > 64) radius = 64;
+  int r2 = radius * radius;
+
+  int c_idx = (int)(c - g_clients); /*c is always a g_clients member*/
+  if (c_idx < 0 || c_idx >= MAX_CLIENTS) return;
+  client_seen_maybe_reset(c_idx, c->floor_id);
+
+  EntityUpdateRec recs[BATCH_ENTITY_CAP];
+  int nrec = 0;
+
+  int idx_n = 0;
+  const int *fidx = floor_index_for(c->floor_id, &idx_n);
+  int n_slots = (fidx != NULL) ? idx_n : MAX_NPCS;
+
   /*--- Active NPCs ---*/
-  for (int i = 0; i < MAX_NPCS; i++) {
-    if (npcs[i].active && npcs[i].floor_id == c->floor_id) {
-      MsgHeader h = {MSG_STATE, sizeof(MsgState)};
-      MsgState s;
-      memset(&s, 0, sizeof(s));
-      s.entity_id   = npcs[i].entity_id;
-      s.x           = npcs[i].x;
-      s.y           = npcs[i].y;
-      s.hp          = npcs[i].hp;
-      s.max_hp      = npcs[i].max_hp;
-      s.floor_id    = npcs[i].floor_id;
-      s.is_merchant = (npcs[i].archetype == ARCH_MERCHANT) ? 1 : 0;
-      s.shop_spec = (npcs[i].archetype == ARCH_MERCHANT)
-                        ? (int)npcs[i].merchant.spec
-                        : SHOP_SPEC_NONE;
-      s.is_tombstone = 0;
-      s.is_player = 0;
-      net_send(c->sock, &h, sizeof(h));
-      net_send(c->sock, &s, sizeof(s));
+  for (int k = 0; k < n_slots; k++) {
+    int i = (fidx != NULL) ? fidx[k] : k;
+    const NPC *n = &npcs[i];
+    if (!n->active || n->floor_id != c->floor_id) continue; /*stale index entry*/
+    int ddx = n->x - c->x;
+    int ddy = n->y - c->y;
+    if (ddx * ddx + ddy * ddy > r2) continue;
+    if (!client_seen_test(c_idx, i)) {
+      send_full_npc_state(c->sock, n);
+      client_seen_set(c_idx, i);
+    } else {
+      if (nrec >= BATCH_ENTITY_CAP) {
+        flush_entity_batch(c->sock, recs, nrec);
+        nrec = 0;
+      }
+      recs[nrec].entity_id = n->entity_id;
+      recs[nrec].x = (int16_t)n->x;
+      recs[nrec].y = (int16_t)n->y;
+      recs[nrec].hp = (int16_t)n->hp;
+      nrec++;
     }
+  }
+  if (nrec > 0) {
+    flush_entity_batch(c->sock, recs, nrec);
   }
   
   /*--- Active Tombstones on the same plane ---*/
   for (int i = 0; i < MAX_TOMBSTONES; i++) {
     if (!g_tombstones[i].active) continue;
     if (g_tombstones[i].floor_id != c->floor_id) continue;
-    
+    {
+      int ddx = g_tombstones[i].x - c->x;
+      int ddy = g_tombstones[i].y - c->y;
+      if (ddx * ddx + ddy * ddy > r2) continue;
+    }
     int tomb_id = -(i + 1);
-    MsgHeader h = {MSG_STATE, sizeof(MsgState)};
+    MsgHeader h = msg_hdr(MSG_STATE, (int)sizeof(MsgState));
     MsgState s;
     memset(&s, 0, sizeof(s));
     s.entity_id    = tomb_id;
@@ -2107,8 +2403,12 @@ void broadcast_nearby_entities(Client *c, NPC *npcs) {
   for (int i = 0; i < MAX_CLIENTS; i++) {
     if (g_clients[i].active && g_clients[i].authenticated && g_clients[i].floor_id == c->floor_id) {
       if (g_clients[i].entity_id == c->entity_id) continue;
-      
-      MsgHeader h = {MSG_STATE, sizeof(MsgState)};
+      {
+        int ddx = g_clients[i].x - c->x;
+        int ddy = g_clients[i].y - c->y;
+        if (ddx * ddx + ddy * ddy > r2) continue;
+      }
+      MsgHeader h = msg_hdr(MSG_STATE, (int)sizeof(MsgState));
       MsgState s;
       memset(&s, 0, sizeof(s));
       s.entity_id   = g_clients[i].entity_id;
@@ -2121,7 +2421,7 @@ void broadcast_nearby_entities(Client *c, NPC *npcs) {
       s.shop_spec   = SHOP_SPEC_NONE;
       s.is_tombstone= 0;
       s.is_player   = 1;
-      strncpy(s.username, g_clients[i].username, 31);
+      copy_str(s.username, g_clients[i].username, sizeof(s.username));
       net_send(c->sock, &h, sizeof(h));
       net_send(c->sock, &s, sizeof(s));
     }
@@ -2132,7 +2432,7 @@ void broadcast_nearby_entities(Client *c, NPC *npcs) {
 
 
 void notify_player_left_floor(Client *c, int old_floor) {
-  MsgHeader h = {MSG_STATE, sizeof(MsgState)};
+  MsgHeader h = msg_hdr(MSG_STATE, (int)sizeof(MsgState));
   MsgState s;
   memset(&s, 0, sizeof(s));
   s.entity_id   = c->entity_id;
@@ -2145,7 +2445,7 @@ void notify_player_left_floor(Client *c, int old_floor) {
   s.shop_spec   = SHOP_SPEC_NONE;
   s.is_tombstone= 0;
   s.is_player   = 1;
-  strncpy(s.username, c->username, 31);
+  copy_str(s.username, c->username, sizeof(s.username));
   
   for (int i = 0; i < MAX_CLIENTS; i++) {
     if (g_clients[i].active && g_clients[i].authenticated && g_clients[i].floor_id == old_floor) {
@@ -2157,7 +2457,7 @@ void notify_player_left_floor(Client *c, int old_floor) {
 }
 
 void broadcast_player_state(Client *c) {
-  MsgHeader h = {MSG_STATE, sizeof(MsgState)};
+  MsgHeader h = msg_hdr(MSG_STATE, (int)sizeof(MsgState));
   MsgState s;
   memset(&s, 0, sizeof(s));
   s.entity_id   = c->entity_id;
@@ -2170,7 +2470,7 @@ void broadcast_player_state(Client *c) {
   s.shop_spec   = SHOP_SPEC_NONE;
   s.is_tombstone= 0;
   s.is_player   = 1;
-  strncpy(s.username, c->username, 31);
+  copy_str(s.username, c->username, sizeof(s.username));
   
   for (int i = 0; i < MAX_CLIENTS; i++) {
     if (g_clients[i].active && g_clients[i].authenticated && g_clients[i].floor_id == c->floor_id) {
@@ -2184,20 +2484,83 @@ void broadcast_player_state(Client *c) {
 int main(int argc, char **argv) {
   setvbuf(stdout, NULL, _IONBF,
           0); // Disable stdout buffering for live log files
+  int server_port = 8080;
   for (int i = 1; i < argc; i++) {
     if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
       printf("Usage: %s [options]\n", argv[0]);
       printf("Options:\n");
       printf("  -p, --password <pwd>    Sets the server password "
              "(default: dragongl_secret)\n");
+      printf("  -d, --dm-password <pwd> Sets the dedicated DM account "
+             "password (default: dragongl_dm_secret)\n");
+      printf("  -P, --port <port>       TCP port to listen on (default: 8080)\n");
+      printf("  -D, --data-dir <dir>    Data directory (JSON + world.dat).\n"
+             "                          Default: ./data if present, else\n"
+             "                          /usr/share/dragongl/data (RPM).\n");
       printf("  -h, --help              Shows this help\n");
       return 0;
     }
     if ((strcmp(argv[i], "-p") == 0 || strcmp(argv[i], "--password") == 0) &&
         i + 1 < argc) {
-      strncpy(SERVER_ACCESS_PASSWORD, argv[i + 1], 63);
+      copy_str(SERVER_ACCESS_PASSWORD, argv[i + 1], sizeof(SERVER_ACCESS_PASSWORD));
       i++;
     }
+    if ((strcmp(argv[i], "-d") == 0 || strcmp(argv[i], "--dm-password") == 0) &&
+        i + 1 < argc) {
+      copy_str(SERVER_DM_PASSWORD, argv[i + 1], sizeof(SERVER_DM_PASSWORD));
+      i++;
+    }
+    if ((strcmp(argv[i], "-P") == 0 || strcmp(argv[i], "--port") == 0) &&
+        i + 1 < argc) {
+      int port = atoi(argv[i + 1]);
+      if (port > 0 && port < 65536) {
+        server_port = port;
+      } else {
+        fprintf(stderr, "[SYS] Invalid port '%s', using %d\n",
+                argv[i + 1], server_port);
+      }
+      i++;
+    }
+    if ((strcmp(argv[i], "-D") == 0 || strcmp(argv[i], "--data-dir") == 0) &&
+        i + 1 < argc) {
+      copy_str(g_data_dir, argv[i + 1], sizeof(g_data_dir));
+      i++;
+    }
+  }
+  /*Resolve the data directory (see server_internal.h).
+   * 1. explicit --data-dir (trusted as-is)
+   * 2. local ./data (development layout)
+   * 3. /usr/share/dragongl/data (RPM: the server is installed in
+   *    /usr/bin but the JSON data live in the data subpackage)*/
+  {
+    bool explicit_dir = (strlen(g_data_dir) > 0 &&
+                         strcmp(g_data_dir, "data") != 0);
+    if (!explicit_dir) {
+      char probe[DATA_DIR_MAX + 32];
+      struct stat st;
+      snprintf(probe, sizeof(probe), "%s/bestiary.json", g_data_dir);
+      if (stat(probe, &st) != 0) {
+        const char *sys_dir = "/usr/share/dragongl/data";
+        snprintf(probe, sizeof(probe), "%s/bestiary.json", sys_dir);
+        if (stat(probe, &st) == 0) {
+          copy_str(g_data_dir, sys_dir, sizeof(g_data_dir));
+        }
+      }
+    }
+  }
+  /*Seed the RNG BEFORE anything else: even when a world is loaded from
+   * disk (world_init skipped), dice must not run on the default seed.*/
+  seed_game_rng();
+  if (strcmp(SERVER_ACCESS_PASSWORD, "dragongl_secret") == 0) {
+    server_log("SYS",
+               "WARNING: using the DEFAULT server access password. "
+               "Set a real one with -p/--password (and the DM password "
+               "with -d/--dm-password)!");
+  }
+  if (strcmp(SERVER_DM_PASSWORD, "dragongl_dm_secret") == 0) {
+    server_log("SYS",
+               "WARNING: using the DEFAULT DM account password. "
+               "Set a real one with -d/--dm-password!");
   }
   server_log("SYS", "Starting Dragon GL Server...");
   clog_init("combat_log.json");
@@ -2210,11 +2573,13 @@ int main(int argc, char **argv) {
   sigemptyset(&sa.sa_mask);
   sigaction(SIGINT, &sa, NULL);
   sigaction(SIGTERM, &sa, NULL);
-  int s_sock = net_create_server(8080);
+  int s_sock = net_create_server(server_port);
   if (s_sock < 0) {
+    server_log("SYS", "Cannot bind to port %d", server_port);
     clog_close();
     return 1;
   }
+  server_log("SYS", "Listening on port %d", server_port);
   net_set_nonblocking(s_sock);
   struct pollfd fds[MAX_CLIENTS + 1];
   Client *clients = malloc(sizeof(Client) * MAX_CLIENTS);
@@ -2232,8 +2597,18 @@ int main(int argc, char **argv) {
 
   game_init();
 
-  if (!init_data_loaders("data")) {
-    server_log("SYS", "JSON Error");
+  {
+    char probe[DATA_DIR_MAX + 32];
+    snprintf(probe, sizeof(probe), "%s/bestiary.json", g_data_dir);
+    if (access(probe, R_OK) != 0) {
+      server_log("SYS", "ERROR: data directory not found or missing bestiary.json (%s).\n"
+                 "Use --data-dir <dir>.", probe);
+      clog_close();
+      return 1;
+    }
+  }
+  if (!init_data_loaders(g_data_dir)) {
+    server_log("SYS", "JSON Error (in %s)", g_data_dir);
     clog_close();
     return 1;
   }
@@ -2252,67 +2627,77 @@ int main(int argc, char **argv) {
     npcs[i].respawn_timer = -1;
   }
 
-  if (world_load(master_world, "data/world.dat")) {
-    server_log("SYS", "World loaded from data/world.dat");
-    FILE *fn = fopen("data/npcs.dat", "rb");
+  char world_path[DATA_DIR_MAX + 32], npcs_path[DATA_DIR_MAX + 32];
+  snprintf(world_path, sizeof(world_path), "%s/world.dat", g_data_dir);
+  snprintf(npcs_path, sizeof(npcs_path), "%s/npcs.dat", g_data_dir);
+
+  /*npcs.dat format (single, versioned):
+   *   [magic:uint32 0xDEAD7ECC][count:int][NPC x count][next_id:int][turns:int]
+   * A missing/invalid file is NOT loaded "best effort": world and NPC
+   * state are a pair, so any inconsistency means a fresh world is
+   * generated (the old "read the whole 50k-slot array" fallback was
+   * undefined behavior as soon as the NPC struct changed size).*/
+  bool world_ok = world_load(master_world, world_path);
+  bool npcs_ok = false;
+  if (world_ok) {
+    server_log("SYS", "World loaded from %s", world_path);
+    FILE *fn = fopen(npcs_path, "rb");
     if (fn) {
-      /*Try the new compact format (magic + count + used slots).
-       * If the magic doesn't match, use the old legacy format.*/
-      const uint32_t MAGIC = 0xDEAD7ECC;
       uint32_t file_magic = 0;
-      if (fread(&file_magic, sizeof(uint32_t), 1, fn) != 1) {}
-      if (file_magic == MAGIC) {
-        /*New format: read only used slots*/
+      if (fread(&file_magic, sizeof(uint32_t), 1, fn) == 1 &&
+          file_magic == 0xDEAD7ECC) {
         int used = 0;
-        if (fread(&used, sizeof(int), 1, fn) != 1) {}
-        if (used < 0 || used > MAX_NPCS) {
-          used = 0;
-        }
-        for (int ni = 0; ni < used; ni++) {
-          NPC tmp;
-          if (fread(&tmp, sizeof(NPC), 1, fn) == 1) {
-            /*Find a free slot and insert*/
-            for (int si = 0; si < MAX_NPCS; si++) {
-              if (!npcs[si].active && npcs[si].template == NULL) {
-                npcs[si] = tmp;
-                break;
+        if (fread(&used, sizeof(int), 1, fn) == 1 &&
+            used >= 0 && used <= MAX_NPCS) {
+          for (int ni = 0; ni < used; ni++) {
+            NPC tmp;
+            if (fread(&tmp, sizeof(NPC), 1, fn) == 1) {
+              /*Find a free slot and insert*/
+              for (int si = 0; si < MAX_NPCS; si++) {
+                if (!npcs[si].active && npcs[si].template == NULL) {
+                  npcs[si] = tmp;
+                  break;
+                }
               }
             }
           }
-        }
-      } else {
-        /*Legacy format: entire array, reread from beginning*/
-        rewind(fn);
-        size_t _r1 = fread(npcs, sizeof(NPC), MAX_NPCS, fn); (void)_r1;
-      }
-      if (fread(&next_id, sizeof(int), 1, fn) != 1) {}
-      if (fread(&global_total_turns, sizeof(int), 1, fn) != 1) {}
-      fclose(fn);
-      server_log("SYS", "NPCs loaded from data/npcs.dat");
-      for (int i = 0; i < MAX_NPCS; i++) {
-        // Reset the only dangling pointer that cannot be serialized
-        npcs[i].ai_ctx.behavior_tree_root = NULL;
-        /*One-time repair: merchants created by older builds were spawned
-         * without hp (calloc => hp=0). The client treats any entity with
-         * hp<=0 as dead and never renders it, so shop keepers on floor 0
-         * existed on the server but were invisible to players.*/
-        if (npcs[i].active && npcs[i].archetype == ARCH_MERCHANT && npcs[i].hp <= 0) {
-          npcs[i].hp = 1;
-          if (npcs[i].max_hp <= 0) npcs[i].max_hp = 1;
-          server_log("SYS", "Repaired merchant hp (entity_id %d, slot %d)",
-                     npcs[i].entity_id, i);
-        }
-        if (npcs[i].active || npcs[i].respawn_timer >= 0) {
-          if (npcs[i].archetype == ARCH_TREASURE || npcs[i].archetype == ARCH_GOLD) {
-            npcs[i].template = NULL;
-          } else {
-            int tidx = npcs[i].template_idx;
-            if (tidx < 0 || tidx >= bestiary_size)
-              tidx = 0;
-            npcs[i].template = &bestiary_data[tidx];
-            // Reattach behavior tree WITHOUT resetting HP/stats
-            ai_attach_behavior(&npcs[i]);
+          if (fread(&next_id, sizeof(int), 1, fn) == 1 &&
+              fread(&global_total_turns, sizeof(int), 1, fn) == 1) {
+            npcs_ok = true;
           }
+        }
+      }
+      fclose(fn);
+    }
+    if (npcs_ok) {
+      server_log("SYS", "NPCs loaded from %s", npcs_path);
+    } else {
+      server_log("SYS", "WARNING: %s missing or invalid — a fresh world will be generated.", npcs_path);
+    }
+  }
+
+  if (world_ok && npcs_ok) {
+    for (int i = 0; i < MAX_NPCS; i++) {
+      /*Reset the dangling state that cannot be serialized: the AI
+       * behavior pointer AND the active effects. ActiveEffect.name is
+       * a pointer into the SAVING process's memory — after a raw fread
+       * it dangles, and the first rules_has_condition() on the next
+       * tick would strcasecmp freed memory (guaranteed segfault with
+       * thousands of poisoned NPCs on disk). Effects are transient
+       * (rounds, not days): dropping them on load is safe and needs no
+       * format change.*/
+      npcs[i].ai_ctx.behavior_tree_root = NULL;
+      npcs[i].effect_count = 0;
+      if (npcs[i].active || npcs[i].respawn_timer >= 0) {
+        if (npcs[i].archetype == ARCH_TREASURE || npcs[i].archetype == ARCH_GOLD) {
+          npcs[i].template = NULL;
+        } else {
+          int tidx = npcs[i].template_idx;
+          if (tidx < 0 || tidx >= bestiary_size)
+            tidx = 0;
+          npcs[i].template = &bestiary_data[tidx];
+          // Reattach behavior tree WITHOUT resetting HP/stats
+          ai_attach_behavior(&npcs[i]);
         }
       }
     }
@@ -2323,22 +2708,45 @@ int main(int argc, char **argv) {
     spawn_magic_shops(npcs, &next_id);
     spawn_martial_archive(npcs, &next_id);
     populate_dungeons(npcs, &next_id);
-    world_save(master_world, "data/world.dat");
-    FILE *fn = fopen("data/npcs.dat", "wb");
+    world_save(master_world, world_path);
+    FILE *fn = fopen(npcs_path, "wb");
     if (fn) {
-      fwrite(npcs, sizeof(NPC), MAX_NPCS, fn);
+      /*Compact format (same as the autosave in server_world.c):
+       * [magic][count][NPC x count][next_id][turns] — only the used
+       * slots are written, not the whole 50,000-slot array.*/
+      const uint32_t magic = 0xDEAD7ECC;
+      int used = 0;
+      for (int ni = 0; ni < MAX_NPCS; ni++)
+        if (npcs[ni].template != NULL || npcs[ni].active)
+          used++;
+      fwrite(&magic, sizeof(uint32_t), 1, fn);
+      fwrite(&used, sizeof(int), 1, fn);
+      for (int ni = 0; ni < MAX_NPCS; ni++)
+        if (npcs[ni].template != NULL || npcs[ni].active)
+          fwrite(&npcs[ni], sizeof(NPC), 1, fn);
       fwrite(&next_id, sizeof(int), 1, fn);
       fwrite(&global_total_turns, sizeof(int), 1, fn);
       fclose(fn);
     }
-    server_log("SYS", "World generated and saved in data/.");
+    server_log("SYS", "World generated and saved in %s/.", g_data_dir);
   }
 
   sync_entity_grid(npcs);
   floor_stats_rebuild(npcs);
+  floor_index_rebuild(npcs);
   aoe_init_clouds();
   spell_router_init();
   server_log("SYS", "Server ready!");
+  /*Fixed-step game clock.
+   * update_world() must run at exactly 1/TICK_MS Hz (5 rounds/s) of REAL
+   * time, whatever the poll loop does: before the fix the simulation ran
+   * once per loop iteration (~200/s when idle, slower under load), so
+   * NPC energy — and therefore the whole game speed — followed the CPU
+   * load instead of the clock. The accumulator runs at most
+   * MAX_TICK_CATCHUP_MS of simulation per loop pass; a stalled system
+   * drops the excess game time instead of fast-forwarding.*/
+  long long last_iter_ms = 0;
+  long long tick_acc_ms = 0;
   while (!g_shutdown_requested) {
     fds[0].fd = s_sock;
     fds[0].events = POLLIN;
@@ -2356,6 +2764,11 @@ int main(int argc, char **argv) {
               clients[i].sock = cs;
               clients[i].active = true;
               clients[i].authenticated = false;
+              /*Stale "seen" state from a previous tenant of this slot:
+               * start with an empty bitmap (full states re-sent).*/
+              memset(g_client_seen_entities[i], 0,
+                     sizeof(g_client_seen_entities[i]));
+              g_client_seen_floor[i] = 0;
               server_log("NET", "Client %d", i);
               break;
             }
@@ -2364,23 +2777,65 @@ int main(int argc, char **argv) {
       for (int i = 0; i < MAX_CLIENTS; i++)
         if (clients[i].active && (fds[i + 1].revents & POLLIN)) {
           MsgHeader hdr;
-          if (net_receive(clients[i].sock, &hdr, sizeof(MsgHeader)) <= 0) {
+          /*net_receive_exact: a single recv() can return a PARTIAL header
+           * (non-blocking socket); the old code would then test hdr.type
+           * on half-received bytes and desync the stream.*/
+          if (net_receive_exact(clients[i].sock, &hdr, sizeof(MsgHeader)) <= 0) {
             save_player_data(&clients[i]);
             notify_player_left_floor(&clients[i], clients[i].floor_id);
             net_close(clients[i].sock);
             clients[i].active = false;
-          } else if (hdr.type == MSG_LOGIN) {
+            continue;
+          }
+          /*Validate version+type+length BEFORE reading the payload: an
+           * unknown type used to fall through without consuming
+           * hdr.length bytes, silently desyncing that client's whole
+           * stream. Unknown or mismatched => drop the connection. The
+           * version check fails fast between mismatched builds (old
+           * client + new server) instead of parsing garbage.*/
+          bool hdr_ok = (hdr.version == PROTOCOL_VERSION) &&
+                        ((hdr.type == MSG_LOGIN && hdr.length == (int)sizeof(MsgLogin)) ||
+                         (hdr.type == MSG_MOVE && hdr.length == (int)sizeof(MsgMove)) ||
+                         (hdr.type == MSG_TEXT_CMD && hdr.length == (int)sizeof(MsgTextCmd)));
+          if (!hdr_ok) {
+            server_log("NET", "Bad message from client (version %u, type %u, len %d) — disconnect",
+                       hdr.version, hdr.type, hdr.length);
+            net_close(clients[i].sock);
+            clients[i].active = false;
+            continue;
+          }
+          if (hdr.type == MSG_LOGIN) {
             MsgLogin ml;
-            net_receive_all(clients[i].sock, &ml, sizeof(MsgLogin));
-            
+            if (net_receive_all(clients[i].sock, &ml, sizeof(MsgLogin)) <= 0) {
+              net_close(clients[i].sock);
+              clients[i].active = false;
+              continue;
+            }
+
             //Check Server Password to allow connection
             if (strlen(SERVER_ACCESS_PASSWORD) > 0 && strcmp(ml.server_pass, SERVER_ACCESS_PASSWORD) != 0) {
                 server_log("AUTH", "Server access denied (Wrong Server Password) for IP/Socket %d", clients[i].sock);
-                MsgHeader fail_hdr;
-                fail_hdr.type = MSG_AUTH_FAIL;
-                fail_hdr.length = sizeof(MsgAuthFail);
+                MsgHeader fail_hdr = msg_hdr(MSG_AUTH_FAIL, (int)sizeof(MsgAuthFail));
                 MsgAuthFail fail_msg;
-                strcpy(fail_msg.reason, "Server Password errata.");
+                copy_str(fail_msg.reason, "Server Password errata.",
+                         sizeof(fail_msg.reason));
+                net_send(clients[i].sock, &fail_hdr, sizeof(MsgHeader));
+                net_send(clients[i].sock, &fail_msg, sizeof(MsgAuthFail));
+                net_close(clients[i].sock);
+                clients[i].active = false;
+                continue;
+            }
+
+            //--- Username policy (§1.3): [A-Za-z0-9_]{1,16} ---
+            //The username goes into file names (saves/<u>.save,
+            //saves/tombstone_<u>_*.dat): slashes, ".." etc. were path-
+            //traversal vectors, so reject anything that doesn't match.
+            if (!valid_username(ml.username)) {
+                MsgHeader fail_hdr = msg_hdr(MSG_AUTH_FAIL, (int)sizeof(MsgAuthFail));
+                MsgAuthFail fail_msg;
+                copy_str(fail_msg.reason,
+                         "Invalid username: use 1-16 chars (a-z, A-Z, 0-9, _).",
+                         sizeof(fail_msg.reason));
                 net_send(clients[i].sock, &fail_hdr, sizeof(MsgHeader));
                 net_send(clients[i].sock, &fail_msg, sizeof(MsgAuthFail));
                 net_close(clients[i].sock);
@@ -2391,20 +2846,46 @@ int main(int argc, char **argv) {
             //Initialize base fields
             clients[i].authenticated = true;
             clients[i].entity_id = next_id++;
-            strncpy(clients[i].username, ml.username, 31);
-            strncpy(clients[i].password, ml.password, 31);
-            clients[i].is_dm = (strcmp(ml.username, "dm") == 0);
+            copy_str(clients[i].username, ml.username,
+                     sizeof(clients[i].username));
+            copy_str(clients[i].password, ml.password,
+                     sizeof(clients[i].password));
+
+            //--- DM role = separate credential (§1.2) ---
+            //Knowing the server access password no longer grants DM powers.
+            //The user "dm" must ALSO present the dedicated DM password.
+            clients[i].is_dm = false;
+            if (strcmp(ml.username, "dm") == 0) {
+                char dm_salt[16], dm_expected[12], dm_given[12];
+                copy_str(dm_salt, "dm", sizeof(dm_salt));
+                hash_password_salted(SERVER_DM_PASSWORD, dm_salt,
+                                     dm_expected, sizeof(dm_expected));
+                hash_password_salted(ml.password, dm_salt,
+                                     dm_given, sizeof(dm_given));
+                if (strncmp(dm_expected, dm_given, 8) != 0) {
+                    MsgHeader fail_hdr = msg_hdr(MSG_AUTH_FAIL, (int)sizeof(MsgAuthFail));
+                    MsgAuthFail fail_msg;
+                    copy_str(fail_msg.reason, "Invalid DM password.",
+                             sizeof(fail_msg.reason));
+                    net_send(clients[i].sock, &fail_hdr, sizeof(MsgHeader));
+                    net_send(clients[i].sock, &fail_msg, sizeof(MsgAuthFail));
+                    net_close(clients[i].sock);
+                    clients[i].active = false;
+                    continue;
+                }
+                clients[i].is_dm = true;
+                server_log("AUTH", "DM account authenticated.");
+            }
             clients[i].effect_count = 0;
             
             //Try loading an existing save
             int load_status = load_player_data(&clients[i]);
             if (load_status == -1) {
                 //Personal Password incorrect for this character
-                MsgHeader fail_hdr;
-                fail_hdr.type = MSG_AUTH_FAIL;
-                fail_hdr.length = sizeof(MsgAuthFail);
+                MsgHeader fail_hdr = msg_hdr(MSG_AUTH_FAIL, (int)sizeof(MsgAuthFail));
                 MsgAuthFail fail_msg;
-                strcpy(fail_msg.reason, "Incorrect character password.");
+                copy_str(fail_msg.reason, "Incorrect character password.",
+                         sizeof(fail_msg.reason));
                 net_send(clients[i].sock, &fail_hdr, sizeof(MsgHeader));
                 net_send(clients[i].sock, &fail_msg, sizeof(MsgAuthFail));
                 net_close(clients[i].sock);
@@ -2414,12 +2895,16 @@ int main(int argc, char **argv) {
             if (load_status == 0) {
               //New character: uses the values ​​sent by the client (or default
               //if disabled)
-              clients[i].str = ml.str > 0 ? ml.str : 10;
-              clients[i].dex = ml.dex > 0 ? ml.dex : 10;
-              clients[i].con = ml.con > 0 ? ml.con : 10;
-              clients[i].intel = ml.intel > 0 ? ml.intel : 10;
-              clients[i].wis = ml.wis > 0 ? ml.wis : 10;
-              clients[i].cha = ml.cha > 0 ? ml.cha : 10;
+              /*Clamp client-provided stats to 3..18: an edited client could
+               * previously send str=9999 and keep it for damage/carry/
+               * save DCs. (Rolling the dice server-side is the stronger
+               * fix; clamping is the minimal server-authoritative one.)*/
+              clients[i].str = clamp_stat(ml.str);
+              clients[i].dex = clamp_stat(ml.dex);
+              clients[i].con = clamp_stat(ml.con);
+              clients[i].intel = clamp_stat(ml.intel);
+              clients[i].wis = clamp_stat(ml.wis);
+              clients[i].cha = clamp_stat(ml.cha);
               clients[i].hp = 20 + rules_get_modifier(clients[i].con);
               clients[i].max_hp = clients[i].hp;
               clients[i].floor_id = 0;
@@ -2445,10 +2930,18 @@ int main(int argc, char **argv) {
               for (int b = 0; b < MAX_BELT; b++)
                 clients[i].belt[b].template_idx = -1;
               clients[i].pending_trade_merchant_id = -1;
-              clients[i].race_id = ml.race_id;
-              clients[i].subrace_id = ml.subrace_id;
-              clients[i].class_id = ml.class_id;
-              clients[i].alignment = ml.alignment;
+              /*Client-provided enums: out-of-range values would index the
+               * RACES/SUBRACES/CLASSES/ALIGNMENTS tables out of bounds.*/
+              clients[i].race_id = (ml.race_id >= 0 && ml.race_id < RACE_COUNT)
+                                       ? ml.race_id : 0;
+              clients[i].subrace_id =
+                  (ml.subrace_id >= -1 && ml.subrace_id < SUBRACE_COUNT)
+                      ? ml.subrace_id : -1;
+              clients[i].class_id = (ml.class_id >= 0 && ml.class_id < CLASS_COUNT)
+                                        ? ml.class_id : CLASS_BARBARIAN;
+              clients[i].alignment =
+                  (ml.alignment >= 0 && ml.alignment < ALIGN_COUNT)
+                      ? ml.alignment : 0;
 
               memset(clients[i].spell_slots_max, 0,
                      sizeof(clients[i].spell_slots_max));
@@ -2485,7 +2978,7 @@ int main(int argc, char **argv) {
             }
 
             //Send welcome with current location (saved or default)
-            MsgHeader wh = {MSG_WELCOME, sizeof(MsgWelcome)};
+            MsgHeader wh = msg_hdr(MSG_WELCOME, (int)sizeof(MsgWelcome));
             MsgWelcome mw = {clients[i].entity_id,
                              clients[i].x,
                              clients[i].y,
@@ -2525,7 +3018,11 @@ int main(int argc, char **argv) {
                        (load_status == 1) ? "rientrato" : "new");
           } else if (hdr.type == MSG_MOVE && clients[i].authenticated) {
             MsgMove m;
-            net_receive_all(clients[i].sock, &m, sizeof(MsgMove));
+            if (net_receive_all(clients[i].sock, &m, sizeof(MsgMove)) <= 0) {
+              net_close(clients[i].sock);
+              clients[i].active = false;
+              continue;
+            }
 
             long long now_ms = get_time_ms();
             if (now_ms - clients[i].last_action_ms < 200) {
@@ -2534,16 +3031,11 @@ int main(int argc, char **argv) {
             clients[i].last_action_ms = now_ms;
 
             //--- ACTION BLOCK DUE TO CONDITIONS ---
-            if (rules_has_condition(clients[i].effects, clients[i].effect_count,
-                                    "Paralyzed") ||
-                rules_has_condition(clients[i].effects, clients[i].effect_count,
-                                    "Stunned") ||
-                rules_has_condition(clients[i].effects, clients[i].effect_count,
-                                    "Petrified") ||
-                rules_has_condition(clients[i].effects, clients[i].effect_count,
-                                    "Frozen") ||
-                rules_has_condition(clients[i].effects, clients[i].effect_count,
-                                    "Unconscious")) {
+            if (rules_has_condition_t(clients[i].effects, clients[i].effect_count, COND_PARALYZED) ||
+                rules_has_condition_t(clients[i].effects, clients[i].effect_count, COND_STUNNED) ||
+                rules_has_condition_t(clients[i].effects, clients[i].effect_count, COND_PETRIFIED) ||
+                rules_has_condition_t(clients[i].effects, clients[i].effect_count, COND_FROZEN) ||
+                rules_has_condition_t(clients[i].effects, clients[i].effect_count, COND_UNCONSCIOUS)) {
               send_text_to_client(
                   clients[i].sock,
                   "[SYSTEM] You can't move in this state!");
@@ -2707,9 +3199,7 @@ int main(int argc, char **argv) {
                   fl->entity_grid[ny][nx] = clients[i].entity_id;
 
                   //--- BLOODY MOVEMENT EFFECT ---
-                  if (rules_has_condition(clients[i].effects,
-                                          clients[i].effect_count,
-                                          "Bleeding")) {
+                  if (rules_has_condition_t(clients[i].effects, clients[i].effect_count, COND_BLEEDING)) {
                     clients[i].hp -= 2;
                     send_text_to_client(clients[i].sock,
                                         "[DANGER] Moving reopens yours"
@@ -2738,23 +3228,42 @@ int main(int argc, char **argv) {
             broadcast_nearby_entities(&clients[i], npcs);
             send_detailed_state(&clients[i]);
             broadcast_player_state(&clients[i]);
-            //Send the map chunk around the new location
-            server_log("NET", "Sending map chunk for player at %d, %d",
-                       clients[i].x, clients[i].y);
+            //Send the map chunk around the new location.
+            // (The old two server_log("NET", ...) lines per step spammed the
+            // log: up to 64 players * 5 steps/s = ~500 lines/second.)
             send_map_chunk(clients[i].sock,
                            &master_world->floors[clients[i].floor_id].map,
                            clients[i].x, clients[i].y, INITIAL_VIEW_RADIUS);
-            server_log("NET", "Map chunk sent");
           } else if (hdr.type == MSG_TEXT_CMD && clients[i].authenticated) {
             MsgTextCmd tc;
-            net_receive_all(clients[i].sock, &tc, sizeof(MsgTextCmd));
+            if (net_receive_all(clients[i].sock, &tc, sizeof(MsgTextCmd)) <= 0) {
+              net_close(clients[i].sock);
+              clients[i].active = false;
+              continue;
+            }
             long long now_ms = get_time_ms();
             clients[i].last_action_ms = now_ms;
+            /*cmd is a fixed-size array, but make sure it is terminated
+             * (a malicious client could omit the NUL).*/
+            tc.cmd[sizeof(tc.cmd) - 1] = '\0';
             handle_text_cmd(&clients[i], tc.cmd, npcs);
           }
         }
     }
-    update_world(clients, npcs);
+    /*--- Fixed-step game clock (see the accumulator declaration) ---*/
+    long long now_ms = get_time_ms();
+    if (last_iter_ms == 0) {
+      last_iter_ms = now_ms;
+    }
+    tick_acc_ms += now_ms - last_iter_ms;
+    last_iter_ms = now_ms;
+    if (tick_acc_ms > MAX_TICK_CATCHUP_MS) {
+      tick_acc_ms = MAX_TICK_CATCHUP_MS; /*drop the excess, never fast-forward*/
+    }
+    while (tick_acc_ms >= TICK_MS) {
+      update_world(clients, npcs);
+      tick_acc_ms -= TICK_MS;
+    }
   }
   clog_close();
   server_log("SYS", "Server shut down. Log saved.");

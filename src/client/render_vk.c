@@ -33,8 +33,8 @@
 #include "species.h"
 #include "classes.h"
 #include "client_minimap.h"
+#include "client_tome.h"
 
-extern World g_world;
 static VkState vk_state;
 
 #include "client_particles.h"
@@ -46,7 +46,7 @@ typedef struct {
     bool  initialized;
 } LerpPos;
 
-static LerpPos g_entity_lerp[MAX_NPCS] = {0};
+static LerpPos g_entity_lerp[CLIENT_MAX_ENTITIES] = {0};
 
 static inline float lerp_f(float a, float b, float t) {
     return a + (b - a) * t;
@@ -549,7 +549,7 @@ static void render_vk_hud(VkVertex *v, uint32_t *c, uint32_t max_v, float sw, fl
     draw_text_vk(v, c, max_v, cx_c + 12.0f, cy_c - 8.0f, "]",  scale, 0.2f, 1.0f, 0.2f);
 
     /* Player Names */
-    for (int i = 0; i < MAX_NPCS; i++) {
+    for (int i = 0; i < CLIENT_MAX_ENTITIES; i++) {
         if (g_entities[i].active && g_entities[i].is_player && g_entities[i].id != g_my_entity_id && g_entities[i].floor_id == g_my_floor) {
             if (g_entities[i].username[0] != '\0') {
                 float ex = (float)(g_entities[i].x - g_my_x);
@@ -627,18 +627,75 @@ static void push_pyramid(VkVertex *v, uint32_t *c, float cx, float cy, float cz,
     push_vertex(v, c, x1, y1, z2, r, g, b, 0.0f, -1.0f, 0.0f);
 }
 
+/* Box with an explicit orientation matrix (the animated floating tome).
+ * Same 36-vertex box as push_box, but every corner and face normal is
+ * rotated by the 3x3 part of `orient` (column-major 4x4 rotation, no
+ * translation/scale), around the center (cx,cy,cz). */
+static void push_box_oriented(VkVertex *v, uint32_t *c,
+                              float cx, float cy, float cz,
+                              float hx, float hy, float hz,
+                              const float orient[16],
+                              float r, float g, float b) {
+    /* Transform the 8 corners: bit2 = +x, bit1 = +y, bit0 = +z */
+    float X[8], Y[8], Z[8];
+    for (int i = 0; i < 8; i++) {
+        float lx = (i & 4) ?  hx : -hx;
+        float ly = (i & 2) ?  hy : -hy;
+        float lz = (i & 1) ?  hz : -hz;
+        X[i] = cx + orient[0]*lx + orient[4]*ly + orient[8]*lz;
+        Y[i] = cy + orient[1]*lx + orient[5]*ly + orient[9]*lz;
+        Z[i] = cz + orient[2]*lx + orient[6]*ly + orient[10]*lz;
+    }
+    /* Transform the 6 face normals: 0=-x 1=+x 2=-y 3=+y 4=-z 5=+z */
+    const float fn[6][3] = {
+        {-1,0,0}, {1,0,0}, {0,-1,0}, {0,1,0}, {0,0,-1}, {0,0,1}
+    };
+    float NX[6], NY[6], NZ[6];
+    for (int f = 0; f < 6; f++) {
+        NX[f] = orient[0]*fn[f][0] + orient[4]*fn[f][1] + orient[8]*fn[f][2];
+        NY[f] = orient[1]*fn[f][0] + orient[5]*fn[f][1] + orient[9]*fn[f][2];
+        NZ[f] = orient[2]*fn[f][0] + orient[6]*fn[f][1] + orient[10]*fn[f][2];
+    }
+    /* Faces: same corner order as push_box (top, bottom, front, back,
+     * left, right), each as two triangles; index into the corner and
+     * normal arrays. */
+    const int faces[6][7] = {
+        {2,6,3, 6,7,3, 3},
+        {0,1,4, 4,1,5, 2},
+        {1,5,3, 5,7,3, 5},
+        {0,2,4, 4,2,6, 4},
+        {0,1,2, 1,3,2, 0},
+        {4,6,5, 5,6,7, 1},
+    };
+    for (int f = 0; f < 6; f++) {
+        for (int t = 0; t < 6; t += 3) {
+            push_vertex(v, c, X[faces[f][t+0]], Y[faces[f][t+0]], Z[faces[f][t+0]], r, g, b, NX[faces[f][6]], NY[faces[f][6]], NZ[faces[f][6]]);
+            push_vertex(v, c, X[faces[f][t+1]], Y[faces[f][t+1]], Z[faces[f][t+1]], r, g, b, NX[faces[f][6]], NY[faces[f][6]], NZ[faces[f][6]]);
+            push_vertex(v, c, X[faces[f][t+2]], Y[faces[f][t+2]], Z[faces[f][t+2]], r, g, b, NX[faces[f][6]], NY[faces[f][6]], NZ[faces[f][6]]);
+        }
+    }
+}
+
 static void update_vertex_buffer(VkState *s, VkVertex *v, float dt) {
     uint32_t count = 0;
     int y, x;
     int px, py;
 
-    pthread_mutex_lock(&g_state_mutex);
+    /*FrameSnapshot (see client_state.h): the net thread must not be
+     * blocked for the whole scene build — copy the shared state under a
+     * short lock, then build from the private copy.
+     * 'full' stops the tile scan as soon as the vertex buffer is
+     * saturated: the old `break` exited only the INNER loop, so every
+     * following row re-ran the guard before giving up.*/
+    FrameSnapshot snap;
+    frame_snapshot_acquire(&snap);
 
-    px = (g_my_x != -1) ? g_my_x : 500;
-    py = (g_my_y != -1) ? g_my_y : 500;
-    int vr = g_vision_radius;
+    px = (snap.my_x != -1) ? snap.my_x : 500;
+    py = (snap.my_y != -1) ? snap.my_y : 500;
+    int vr = snap.vision_radius;
+    bool full = false;
 
-    for (y = py - vr; y <= py + vr; y++) {
+    for (y = py - vr; y <= py + vr && !full; y++) {
         for (x = px - vr; x <= px + vr; x++) {
             if (x < 0 || x >= MAP_WIDTH || y < 0 || y >= MAP_HEIGHT) continue;
             
@@ -647,15 +704,15 @@ static void update_vertex_buffer(VkState *s, VkVertex *v, float dt) {
             float d = sqrtf(fx*fx + fz*fz);
             if (d > (float)vr) continue;
             
-            VoxelType tile = g_local_map[y][x];
+            VoxelType tile = snap.map[y][x];
             
             if (tile == VOXEL_WALL || tile == VOXEL_OBSIDIAN || tile == VOXEL_GOLD_VEIN) {
-                if (count + 36 > s->max_vertices) break;
+                if (count + 36 > s->max_vertices) { full = true; break; }
                 if (tile == VOXEL_OBSIDIAN) push_box(v, &count, fx, 0.5f, fz, 0.5f, 1.5f, 0.5f, 0.1f, 0.05f, 0.2f);
                 else if (tile == VOXEL_GOLD_VEIN) push_box(v, &count, fx, 0.5f, fz, 0.5f, 1.5f, 0.5f, 0.8f, 0.7f, 0.1f);
                 else push_box(v, &count, fx, 0.5f, fz, 0.5f, 1.5f, 0.5f, 0.6f, 0.6f, 0.6f);
             } else if (tile == VOXEL_FLOOR || tile == VOXEL_COBBLE || tile == VOXEL_WOOD || tile == VOXEL_ICE || tile == VOXEL_SAND || tile == VOXEL_ASH || tile == VOXEL_MUD || tile == VOXEL_MARBLE || tile == VOXEL_GRASS || tile == VOXEL_TRAP) {
-                if (count + 36 > s->max_vertices) break;
+                if (count + 36 > s->max_vertices) { full = true; break; }
                 float r=0.2f, g=0.2f, b=0.2f;
                 if (tile == VOXEL_WOOD) { r=0.4f; g=0.3f; b=0.2f; }
                 if (tile == VOXEL_COBBLE) { r=0.3f; g=0.3f; b=0.3f; }
@@ -668,7 +725,7 @@ static void update_vertex_buffer(VkState *s, VkVertex *v, float dt) {
                 if (tile == VOXEL_TRAP) { r=0.8f; g=0.2f; b=0.1f; }
                 push_box(v, &count, fx, 0.0f, fz, 0.5f, 0.1f, 0.5f, r, g, b);
             } else if (tile >= VOXEL_CRYSTAL_BLUE && tile <= VOXEL_CRYSTAL_WHITE) {
-                if (count + 36 > s->max_vertices) break;
+                if (count + 36 > s->max_vertices) { full = true; break; }
                 float r = 1.0f, g = 1.0f, b = 1.0f;
                 if (tile == VOXEL_CRYSTAL_BLUE)   { r = 0.3f; g = 0.7f; b = 1.0f; }
                 if (tile == VOXEL_CRYSTAL_PURPLE)  { r = 0.8f; g = 0.2f; b = 1.0f; }
@@ -679,52 +736,52 @@ static void update_vertex_buffer(VkState *s, VkVertex *v, float dt) {
                 if (tile == VOXEL_CRYSTAL_CYAN)    { r = 0.0f; g = 0.9f; b = 1.0f; }
                 push_box(v, &count, fx, 0.8f, fz, 0.4f, 0.8f, 0.4f, r, g, b);
             } else if (tile == VOXEL_WALL) {
-                if (count + 36 > s->max_vertices) break;
+                if (count + 36 > s->max_vertices) { full = true; break; }
                 push_box(v, &count, fx, 0.5f, fz, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f);
             } else if (tile == VOXEL_FLOOR) {
-                if (count + 36 > s->max_vertices) break;
+                if (count + 36 > s->max_vertices) { full = true; break; }
                 push_box(v, &count, fx, -0.05f, fz, 0.5f, 0.05f, 0.5f, 0.2f, 0.2f, 0.25f);
             } else if (tile == VOXEL_OBSIDIAN) {
-                if (count + 36 > s->max_vertices) break;
+                if (count + 36 > s->max_vertices) { full = true; break; }
                 push_box(v, &count, fx, 0.5f, fz, 0.5f, 0.5f, 0.5f, 0.1f, 0.05f, 0.2f);
             } else if (tile == VOXEL_GOLD_VEIN) {
-                if (count + 36 > s->max_vertices) break;
+                if (count + 36 > s->max_vertices) { full = true; break; }
                 push_box(v, &count, fx, 0.5f, fz, 0.5f, 0.5f, 0.5f, 0.8f, 0.7f, 0.1f);
             } else if (tile == VOXEL_WATER || tile == VOXEL_LAVA) {
-                if (count + 36 > s->max_vertices) break;
+                if (count + 36 > s->max_vertices) { full = true; break; }
                 float liquid_y = (float)sin(glfwGetTime() * 2.0 + fx + fz) * 0.1f;
                 if (tile == VOXEL_WATER) push_box(v, &count, fx, liquid_y - 0.05f, fz, 0.5f, 0.05f, 0.5f, 0.1f, 0.4f, 0.8f);
                 else push_box(v, &count, fx, liquid_y - 0.05f, fz, 0.5f, 0.05f, 0.5f, 1.0f, 0.3f, 0.0f);
             } else if (tile == VOXEL_DOOR) {
                 /*Two boxes = 72 vertices: the guard must cover both*/
-                if (count + 72 <= s->max_vertices) {
+                if (count + 72 <= s->max_vertices && !full) {
                     push_box(v, &count, fx, 0.4f, fz, 0.45f, 0.4f, 0.45f, 0.6f, 0.3f, 0.1f);
                     push_box(v, &count, fx, -0.05f, fz, 0.5f, 0.05f, 0.5f, 0.2f, 0.2f, 0.25f);
                 }
             } else if (tile == VOXEL_GRASS) {
-                if (count + 36 > s->max_vertices) break;
+                if (count + 36 > s->max_vertices) { full = true; break; }
                 push_box(v, &count, fx, -0.05f, fz, 0.5f, 0.05f, 0.5f, 0.1f, 0.5f, 0.1f);
             } else if (tile == VOXEL_STAIRS_DOWN || tile == VOXEL_STAIRS_UP) {
-                if (count + 36 > s->max_vertices) break;
+                if (count + 36 > s->max_vertices) { full = true; break; }
                 push_box(v, &count, fx, 0.05f, fz, 0.5f, 0.1f, 0.5f, 0.9f, 0.9f, 0.0f);
             } else if (tile == VOXEL_TRAP) {
-                if (count + 36 > s->max_vertices) break;
+                if (count + 36 > s->max_vertices) { full = true; break; }
                 push_box(v, &count, fx, -0.05f, fz, 0.5f, 0.05f, 0.5f, 0.8f, 0.2f, 0.1f);
             } else if (tile == VOXEL_MUSHROOM_GLOW) {
-                if (count + 36 > s->max_vertices) break;
+                if (count + 36 > s->max_vertices) { full = true; break; }
                 push_box(v, &count, fx, 0.2f, fz, 0.3f, 0.2f, 0.3f, 0.2f, 1.0f, 0.5f);
             } else if (tile >= VOXEL_CRYSTAL_BLUE && tile <= VOXEL_CRYSTAL_WHITE) {
-                if (count + 36 > s->max_vertices) break;
+                if (count + 36 > s->max_vertices) { full = true; break; }
                 push_box(v, &count, fx, 0.8f, fz, 0.4f, 0.8f, 0.4f, 0.5f, 0.8f, 1.0f); // Simplification for crystals
             }
         }
     }
 
     // Rendering entities with lerp
-    for (int i = 0; i < MAX_NPCS; i++) {
-        if (g_entities[i].active && g_entities[i].id != g_my_entity_id) {
-            float tgt_ex = (float)(g_entities[i].x - px);
-            float tgt_ez = (float)(g_entities[i].y - py);
+    for (int i = 0; i < CLIENT_MAX_ENTITIES; i++) {
+        if (snap.entities[i].active && snap.entities[i].id != snap.my_entity_id) {
+            float tgt_ex = (float)(snap.entities[i].x - px);
+            float tgt_ez = (float)(snap.entities[i].y - py);
             lerp_update(&g_entity_lerp[i], tgt_ex, tgt_ez, dt);
             float ex = g_entity_lerp[i].cur_x;
             float ez = g_entity_lerp[i].cur_z;
@@ -732,29 +789,41 @@ static void update_vertex_buffer(VkState *s, VkVertex *v, float dt) {
             if (fabs(ex) < (float)vr + 1.0f && fabs(ez) < (float)vr + 1.0f) {
                 if (count + 36 <= s->max_vertices) {
                     float er = 0.4f, eg = 0.4f, eb = 1.0f;
-                    if (g_entities[i].is_merchant &&
-                        g_entities[i].shop_spec == SHOP_SPEC_BOOKS_MARTIAL) {
+                    if (snap.entities[i].is_merchant &&
+                        snap.entities[i].shop_spec == SHOP_SPEC_BOOKS_MARTIAL) {
                         er = 0.75f; eg = 0.15f; eb = 0.2f;
                     }
-                    else if (g_entities[i].is_merchant) { er = 1.0f; eg = 0.8f; eb = 0.0f; }
-                    else if (g_entities[i].is_player) { er = 0.2f; eg = 0.8f; eb = 0.2f; }
-                    else if (g_entities[i].id < 10) { er = 1.0f; eg = 0.3f; eb = 0.3f; }
-                                        if (g_entities[i].is_player) {
+                    else if (snap.entities[i].is_merchant) { er = 1.0f; eg = 0.8f; eb = 0.0f; }
+                    else if (snap.entities[i].is_player) { er = 0.2f; eg = 0.8f; eb = 0.2f; }
+                    else if (snap.entities[i].id < 10) { er = 1.0f; eg = 0.3f; eb = 0.3f; }
+                                        if (snap.entities[i].is_player) {
                         push_pyramid(v, &count, ex, 0.4f, ez, 0.35f, 0.5f, 0.35f, er, eg, eb);
                     } else {
                         push_box(v, &count, ex, 0.4f, ez, 0.3f, 0.4f, 0.3f, er, eg, eb);
-                        /* The Archive of a Thousand Battles: floating tome */
-                        if (g_entities[i].is_merchant &&
-                            g_entities[i].shop_spec == SHOP_SPEC_BOOKS_MARTIAL &&
+                        /* The Archive of a Thousand Battles: the tome
+                         * flies a random trajectory INSIDE the shop
+                         * (bounds measured from the map around the
+                         * merchant) while performing a random rotation
+                         * on itself — shared with the GL backend via
+                         * client_tome.c */
+                        if (snap.entities[i].is_merchant &&
+                            snap.entities[i].shop_spec == SHOP_SPEC_BOOKS_MARTIAL &&
                             count + 36 <= s->max_vertices) {
-                            push_box(v, &count, ex, 1.2f, ez,
-                                     0.45f, 0.1f, 0.35f, 0.9f, 0.75f, 0.3f);
+                            float tp[3], to[16];
+                            tome_anim_update(i, snap.entities[i].id, snap.entities[i].floor_id,
+                                             snap.entities[i].x, snap.entities[i].y,
+                                             snap.map[0], dt, tp, to);
+                            push_box_oriented(v, &count,
+                                             tp[0] - (float)px, tp[1], tp[2] - (float)py,
+                                             0.45f, 0.1f, 0.35f, to,
+                                             0.9f, 0.75f, 0.3f);
                         }
                     }
                 }
             }
-        } else if (!g_entities[i].active) {
+        } else if (!snap.entities[i].active) {
             g_entity_lerp[i].initialized = false;
+            tome_anim_reset_slot(i);
         }
     }
 
@@ -842,15 +911,38 @@ static void record_commands(VkState *s, float mvp[16], float vision_radius,
 }
 
 static void draw_frame(VkState *s) {
+    /*Three frames in flight: this frame uses slot `slot`. The only
+     * blocking wait of the frame is below (the fence of the slot's LAST
+     * use, 3 frames ago) — the old code instead waited for the fence of
+     * the frame it had just submitted (vkWaitForFences(UINT64_MAX) at the
+     * end of draw_frame), so the CPU and the GPU never overlapped.*/
+    uint32_t slot = s->current_frame;
+    uint32_t next_slot = (slot + 1) % MAX_FRAMES_IN_FLIGHT;
+
     uint32_t imageIndex = 0;
     VkResult acquire_res = vkAcquireNextImageKHR(s->device, s->swapchain, UINT64_MAX,
-                          s->sem_image, VK_NULL_HANDLE, &imageIndex);
+                          s->sem_image[slot], VK_NULL_HANDLE, &imageIndex);
     if (acquire_res == VK_ERROR_OUT_OF_DATE_KHR || acquire_res == VK_SUBOPTIMAL_KHR) {
+        /*Acquire happens BEFORE the fence wait/reset, so nothing of this
+         * slot's resources has been touched: the fence is still in the
+         * state left by the previous use (signalled) — safe to skip.*/
+        s->current_frame = next_slot;
         return; /*deprecated swapchain: main loop recreates it*/
     }
     if (acquire_res != VK_SUCCESS && acquire_res != VK_TIMEOUT) {
+        s->current_frame = next_slot;
         return; /*acquisition error: skip frame*/
     }
+
+    /*The GPU must be done with the shared vertex buffer + command
+     * buffer that this slot submitted 3 frames ago. From here on the
+     * fence is UNSIGNALED, so every path that bails out must re-signal
+     * it (see the empty submit below) or the next use of this slot
+     * would wait forever.*/
+    vkWaitForFences(s->device, 1, &s->fences[slot], VK_TRUE, UINT64_MAX);
+    vkResetFences(s->device, 1, &s->fences[slot]);
+    vkResetCommandBuffer(s->command_buffer, 0);
+
     s->current_image = imageIndex;
 
     float rad_pitch = camera_pitch * (float)M_PI / 180.0f;
@@ -885,6 +977,12 @@ static void draw_frame(VkState *s) {
     VkVertex *v = NULL;
     if (vkMapMemory(s->device, s->vertex_memory, 0,
                     sizeof(VkVertex) * s->max_vertices, 0, (void **)&v) != VK_SUCCESS || !v) {
+        /*Mapping failed AFTER the fence was reset: submit an empty batch
+         * that still signals the fence, so this slot stays usable.*/
+        VkSubmitInfo empty = {0};
+        empty.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        vkQueueSubmit(s->graphics_queue, 1, &empty, s->fences[slot]);
+        s->current_frame = next_slot;
         return; /*mapping failed: skip frame*/
     }
 
@@ -904,18 +1002,17 @@ static void draw_frame(VkState *s) {
 
     VkSubmitInfo submitInfo = {0};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    VkSemaphore waitSems[] = { s->sem_image };
+    VkSemaphore waitSems[] = { s->sem_image[slot] };
     VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
     submitInfo.waitSemaphoreCount = 1;
     submitInfo.pWaitSemaphores = waitSems;
     submitInfo.pWaitDstStageMask = waitStages;
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &s->command_buffer;
-    VkSemaphore signalSems[] = { s->sem_render };
+    VkSemaphore signalSems[] = { s->sem_render[slot] };
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = signalSems;
-    vkResetFences(s->device, 1, &s->fence_flight);
-    vkQueueSubmit(s->graphics_queue, 1, &submitInfo, s->fence_flight);
+    vkQueueSubmit(s->graphics_queue, 1, &submitInfo, s->fences[slot]);
     VkPresentInfoKHR presentInfo = {0};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
     presentInfo.waitSemaphoreCount = 1;
@@ -924,7 +1021,11 @@ static void draw_frame(VkState *s) {
     presentInfo.pSwapchains = &s->swapchain;
     presentInfo.pImageIndices = &imageIndex;
     vkQueuePresentKHR(s->present_queue, &presentInfo);
-    vkWaitForFences(s->device, 1, &s->fence_flight, VK_TRUE, UINT64_MAX);
+    /*No vkWaitForFences here: the next time this slot comes around
+     * (3 frames later) the GPU will have signalled its fence long ago,
+     * and the wait happens at the TOP of draw_frame. That is what lets
+     * CPU and GPU pipeline.*/
+    s->current_frame = next_slot;
 }
 
 void render_vk_start(void) {

@@ -498,7 +498,7 @@ bool tombstone_pickup(Client *c) {
         /*Broadcast MSG_TOMBSTONE_REMOVE to all clients on the same plane*/
 
         int tomb_entity_id = -(i + 1);
-        MsgHeader rm_hdr = {MSG_TOMBSTONE_REMOVE, sizeof(MsgTombstoneRemove)};
+        MsgHeader rm_hdr = msg_hdr(MSG_TOMBSTONE_REMOVE, (int)sizeof(MsgTombstoneRemove));
         MsgTombstoneRemove rm_msg;
         rm_msg.entity_id = tomb_entity_id;
         for (int ci = 0; ci < MAX_CLIENTS; ci++) {

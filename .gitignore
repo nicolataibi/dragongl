@@ -4,6 +4,8 @@ _build/
 
 # Directory SAVES
 saves/
+tests/
+__pycache__/
 
 # others
 *.o
@@ -23,4 +25,9 @@ _srpm_test/
 # ignore
 npcs.dat
 world.dat
+artifacts.dat
 combat_log.json
+
+# dev artifacts produced by the DM commands (dm_pdf / dm_mapfloor)
+map_dump*.txt
+map_floor*.pdf

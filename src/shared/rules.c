@@ -76,7 +76,15 @@ bool rules_update_effects(ActiveEffect* effects, int* effect_count) {
 }
 
 int rules_get_modifier(int score) {
-    return (score - 10) / 2;
+    /*DnD: floor((score-10)/2). Plain C division truncates TOWARD ZERO,
+     * which is wrong for odd sub-10 scores (score 3: (3-10)/2 = -3
+     * instead of -4; score 5: -2 instead of -3).*/
+    int diff = score - 10;
+    int q = diff / 2;
+    if (diff < 0 && (diff & 1)) {
+        q--;
+    }
+    return q;
 }
 
 int rules_roll_d20(bool advantage, bool disadvantage) {
@@ -124,15 +132,72 @@ bool rules_roll_save(int modifier, int dc, bool advantage, bool disadvantage, in
     return (roll + modifier) >= dc;
 }
 
-bool rules_has_condition(ActiveEffect* effects, int effect_count, const char* condition_name) {
+/*Canonical display names of ConditionType — the SINGLE source of truth
+ * for the strings that circulate as ActiveEffect.name. Renaming an
+ * effect is a one-line change here, and every consumer keeps working
+ * because all comparisons go through the table (condition_from_name /
+ * rules_has_condition_t), never through ad-hoc literals.*/
+static const char *const g_condition_names[MAX_CONDITIONS] = {
+    [COND_BLINDED]       = "Blinded",
+    [COND_CHARMED]       = "Charmed",
+    [COND_DEAFENED]      = "Deafened",
+    [COND_FRIGHTENED]    = "Frightened",
+    [COND_GRAPPLED]      = "Grappled",
+    [COND_INCAPACITATED] = "Incapacitated",
+    [COND_INVISIBLE]     = "Invisible",
+    [COND_PARALYZED]     = "Paralyzed",
+    [COND_PETRIFIED]     = "Petrified",
+    [COND_POISONED]      = "Poisoned",
+    [COND_PRONE]         = "Prone",
+    [COND_RESTRAINED]    = "Restrained",
+    [COND_STUNNED]       = "Stunned",
+    [COND_UNCONSCIOUS]   = "Unconscious",
+    [COND_BURNING]       = "Burning",
+    [COND_BLEEDING]      = "Bleeding",
+    [COND_CURSED]        = "Cursed",
+    [COND_FROZEN]        = "Frozen",
+    [COND_SILENCED]      = "Silenced",
+};
+
+const char* condition_to_name(ConditionType cond) {
+    if ((int)cond < 0 || cond >= MAX_CONDITIONS) {
+        return "Unknown";
+    }
+    return g_condition_names[cond];
+}
+
+ConditionType condition_from_name(const char* condition_name) {
+    if (!condition_name) {
+        return MAX_CONDITIONS;
+    }
+    for (int c = 0; c < MAX_CONDITIONS; c++) {
+        if (strcasecmp(condition_name, g_condition_names[c]) == 0) {
+            return (ConditionType)c;
+        }
+    }
+    return MAX_CONDITIONS; /*not a condition (or unknown name)*/
+}
+
+bool rules_has_condition_t(ActiveEffect* effects, int effect_count, ConditionType cond) {
+    if ((int)cond < 0 || cond >= MAX_CONDITIONS) {
+        return false;
+    }
+    const char *name = g_condition_names[cond];
     for (int i = 0; i < effect_count; i++) {
-        if (strcasecmp(effects[i].name, condition_name) == 0) {
+        if (strcasecmp(effects[i].name, name) == 0) {
             if (effects[i].duration_rounds > 0 || effects[i].is_persistent) {
                 return true;
             }
         }
     }
     return false;
+}
+
+bool rules_has_condition(ActiveEffect* effects, int effect_count, const char* condition_name) {
+    /*String form routed through the canonical table, so it can never
+     * disagree with the enum form (kept for display/log sites).*/
+    return rules_has_condition_t(effects, effect_count,
+                                 condition_from_name(condition_name));
 }
 
 int rules_calculate_damage(int raw_damage, DamageModifier dmg_mod) {

@@ -3,7 +3,10 @@ set(CMAKE_C_COMPILER "clang")
 project(DragonGL VERSION 2026.05.26.01 LANGUAGES C)
 
 # --- Standard C e Opzioni di Compilazione ---
-set(CMAKE_C_STANDARD 23)
+# C11 (not C23): the codebase uses no C23-specific feature, and C11 is
+# the portable floor for the RPM toolchain (typedef redefinition, stdatomic
+# and other C23 corners are not guaranteed on older distro compilers).
+set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
 
@@ -120,6 +123,7 @@ set(CLIENT_SRCS
     src/client/client_fct.c
     src/client/client_minimap.c
     src/client/client_particles.c
+    src/client/client_tome.c
     src/client/render_gl.c
     src/client/render_vk.c
     src/client/vk_init.c
@@ -132,7 +136,7 @@ add_executable(dragongl_client
 target_link_libraries(dragongl_client
     ${COMMON_LIBS}
     OpenGL::GL
-    GLU
+    OpenGL::GLU
     Vulkan::Vulkan
     ${GLFW_LIBRARIES}
 )
@@ -150,6 +154,14 @@ install(PROGRAMS dragongl-server dragongl-client dragongl_reset_world
 
 install(FILES ${SHADER_SPV_FILES}
         DESTINATION ${CMAKE_INSTALL_DATADIR}/dragongl/shaders)
+
+# --- Game data (read-only JSON datasets) ---
+# The server resolves its data dir at start: ./data (development) or
+# /usr/share/dragongl/data (RPM). Install ONLY the JSON files — the
+# mutable world state (world.dat, npcs.dat, artifacts.dat) belongs to
+# the user's data dir, never to the package.
+install(FILES data/bestiary.json data/items.json data/spells.json
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/dragongl/data)
 
 # --- Man Pages ---
 set(MAN_PAGES

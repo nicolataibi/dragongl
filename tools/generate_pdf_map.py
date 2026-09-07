@@ -184,6 +184,7 @@ TITLE_H = 52.0
 LEGEND_ROW_H = 16.0
 SW = 10.0            # legend swatch size
 GRID_GAP = 14.0      # space between map and legend
+COL_GAP = 28.0       # horizontal gap between legend columns
 TICK_STEP = 25       # coordinate tick every N tiles
 
 
@@ -498,8 +499,13 @@ def build_pdf(floor, out_path, floor_label, cell=CELL, px=3, cols=4,
     def legend_text(key):
         if key == "__player__":
             return "Player position %s" % (floor.player,)
-        text = "%s  (%s)" % (floor.meta[key][0],
-                             format(floor.counts.get(key, 0), ","))
+        # "Name  N tiles": plain count (thousands separator included),
+        # NOT a parenthesized pair — "(3,423)" read like an (x, y)
+        # coordinate with y > map size. Staircase entries keep their
+        # "@ x,y" coordinate list after the count.
+        n = floor.counts.get(key, 0)
+        text = "%s  %s %s" % (floor.meta[key][0], format(n, ","),
+                              "tile" if n == 1 else "tiles")
         # Stairs Up/Down entries list the coordinates of every staircase
         attr = STAIRS_LEGEND_KEYS.get(key)
         if attr:
@@ -512,10 +518,13 @@ def build_pdf(floor, out_path, floor_label, cell=CELL, px=3, cols=4,
     # page widens instead.
     max_text_w = max([stringWidth(legend_text(k), "Helvetica", 8)
                       for k in legend_keys] or [0.0])
-    col_w_needed = SW + 5.0 + max_text_w
-    n_cols = max(1, min(cols, int(grid_w // col_w_needed),
+    # Column pitch = swatch + swatch/text gap + text + COL_GAP, so the
+    # legend is spread horizontally with a comfortable space between
+    # columns instead of the entries sitting flush against each other.
+    col_pitch = SW + 5.0 + max_text_w + COL_GAP
+    n_cols = max(1, min(cols, int((grid_w + COL_GAP) // col_pitch),
                         len(legend_keys) or 1))
-    legend_w = n_cols * col_w_needed
+    legend_w = n_cols * col_pitch - COL_GAP
     legend_rows = (len(legend_keys) + n_cols - 1) // n_cols
     legend_h = legend_rows * LEGEND_ROW_H
 
@@ -580,7 +589,7 @@ def build_pdf(floor, out_path, floor_label, cell=CELL, px=3, cols=4,
     legend_x0 = (page_w - legend_w) / 2
     for i, key in enumerate(legend_keys):
         r, col = divmod(i, n_cols)
-        lx = legend_x0 + col * col_w_needed
+        lx = legend_x0 + col * col_pitch
         ly = grid_y - GRID_GAP - (r + 1) * LEGEND_ROW_H + (LEGEND_ROW_H - SW) / 2
         if key == "__player__":
             rgb = PLAYER_COLOR

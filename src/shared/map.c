@@ -311,7 +311,10 @@ static void spawn_traps_on_floor(Floor *f) {
 }
 
 void world_init(World* world) {
-    srand(time(NULL));
+    /*NOTE: no srand() here. The RNG is seeded once at process start in
+     * main() (server) so dice stay non-deterministic across reboots even
+     * when a world is loaded from disk (old code seeded only on fresh
+     * generation, leaving the default seed 1 after every reboot).*/
     for (int i = 0; i < MAX_FLOORS; i++) {
         world->floors[i].id = i;
         VoxelType base = (i == 0) ? VOXEL_GRASS : VOXEL_ROCK;
@@ -322,20 +325,151 @@ void world_init(World* world) {
     }
 }
 
+/*============================================================================
+ * World persistence: magic + version + CRC32
+ *
+ * Every save carries a small header; on load we validate magic, version
+ * and checksum. A missing or invalid world.dat is NOT a partial load:
+ * world_load() returns false and the server generates a fresh world.
+ *
+ * The serialized payload is PersistWorld: like World, but WITHOUT the
+ * volatile entity_grid (36 MB of runtime collision state that is rebuilt
+ * by sync_entity_grid() anyway — persisting it wasted most of the file).
+ * Payload: ~10 MB (1 byte/tile) instead of 73 MB in the pre-versioning
+ * era.
+ * ==========================================================================*/
+#define WORLD_MAGIC   0x44524757u /* 'D''R''G''W' */
+#define WORLD_VERSION 3           /* v3: PersistWorld (1B/tile, no grid) */
+
+typedef struct {
+    uint32_t magic;     /* WORLD_MAGIC                        */
+    uint32_t version;   /* WORLD_VERSION                      */
+    uint32_t crc32;     /* CRC-32 (IEEE) of the world payload */
+    uint32_t reserved;  /* 0, for future expansion            */
+} WorldSaveHeader;
+
+/*Persistable subset of Floor (everything except entity_grid).*/
+typedef struct {
+    int id;
+    Map map;
+    Trap traps[MAX_TRAPS_PER_FLOOR];
+    int trap_count;
+    CrystalRespawn crystal_respawns[100];
+    int crystal_respawn_count;
+} PersistFloor;
+typedef struct {
+    PersistFloor floors[MAX_FLOORS];
+} PersistWorld;
+
+/*CRC-32 (IEEE 802.3, polynomial 0xEDB88320), table-driven.*/
+static uint32_t g_crc32_table[256];
+static void crc32_init(void) {
+    for (uint32_t i = 0; i < 256; i++) {
+        uint32_t c = i;
+        for (int k = 0; k < 8; k++)
+            c = (c & 1) ? (0xEDB88320u ^ (c >> 1)) : (c >> 1);
+        g_crc32_table[i] = c;
+    }
+}
+static uint32_t crc32_data(const void *data, size_t len) {
+    static bool ready = false;
+    if (!ready) {
+        crc32_init();
+        ready = true;
+    }
+    const unsigned char *p = (const unsigned char *)data;
+    uint32_t c = 0xFFFFFFFFu;
+    for (size_t i = 0; i < len; i++)
+        c = g_crc32_table[(c ^ p[i]) & 0xFFu] ^ (c >> 8);
+    return c ^ 0xFFFFFFFFu;
+}
+
+/*Copy the persistent parts of a floor to/from the on-disk layout.
+ * entity_grid is volatile and never serialized.*/
+static void floor_to_persist(const Floor *f, PersistFloor *p) {
+    p->id = f->id;
+    memcpy(&p->map, &f->map, sizeof(Map));
+    memcpy(p->traps, f->traps, sizeof(f->traps));
+    p->trap_count = f->trap_count;
+    memcpy(p->crystal_respawns, f->crystal_respawns,
+           sizeof(f->crystal_respawns));
+    p->crystal_respawn_count = f->crystal_respawn_count;
+}
+static void persist_to_floor(const PersistFloor *p, Floor *f) {
+    f->id = p->id;
+    memcpy(&f->map, &p->map, sizeof(Map));
+    memcpy(f->traps, p->traps, sizeof(p->traps));
+    f->trap_count = p->trap_count;
+    memcpy(f->crystal_respawns, p->crystal_respawns, sizeof(p->crystal_respawns));
+    f->crystal_respawn_count = p->crystal_respawn_count;
+    /*Volatile grid: caller zeroes it (world_load does).*/
+}
+
 void world_save(World* world, const char* filename) {
-    FILE *f = fopen(filename, "wb");
-    if (f) {
-        fwrite(world, sizeof(World), 1, f);
+    /*Write to a temp file and rename: a crash mid-save must never leave a
+     * truncated world.dat behind.*/
+    char tmp[512];
+    snprintf(tmp, sizeof(tmp), "%s.tmp", filename);
+    FILE *f = fopen(tmp, "wb");
+    if (!f) return;
+
+    static PersistWorld pw; /* ~10 MB, one allocation for the process life */
+    for (int i = 0; i < MAX_FLOORS; i++)
+        floor_to_persist(&world->floors[i], &pw.floors[i]);
+
+    WorldSaveHeader hdr;
+    hdr.magic    = WORLD_MAGIC;
+    hdr.version  = WORLD_VERSION;
+    hdr.reserved = 0;
+    hdr.crc32    = crc32_data(&pw, sizeof(pw));
+    if (fwrite(&hdr, sizeof(hdr), 1, f) != 1 ||
+        fwrite(&pw, sizeof(pw), 1, f) != 1) {
         fclose(f);
+        remove(tmp);
+        return;
+    }
+    fclose(f);
+    if (rename(tmp, filename) != 0) {
+        remove(tmp);
     }
 }
 
 bool world_load(World* world, const char* filename) {
     FILE *f = fopen(filename, "rb");
     if (!f) return false;
-    if (fread(world, sizeof(World), 1, f) != 1) {}
+
+    WorldSaveHeader hdr;
+    if (fread(&hdr, sizeof(hdr), 1, f) != 1 ||
+        hdr.magic != WORLD_MAGIC) {
+        fprintf(stderr, "[WORLD] %s: missing or invalid header — a fresh world will be generated.\n",
+                filename);
+        fclose(f);
+        return false;
+    }
+    if (hdr.version != WORLD_VERSION) {
+        fprintf(stderr, "[WORLD] %s: unsupported version %u (expected %d) — a fresh world will be generated.\n",
+                filename, hdr.version, WORLD_VERSION);
+        fclose(f);
+        return false;
+    }
+    static PersistWorld pw; /* shared with world_save */
+    if (fread(&pw, 1, sizeof(pw), f) != sizeof(pw)) {
+        fprintf(stderr, "[WORLD] %s: truncated payload — a fresh world will be generated.\n", filename);
+        fclose(f);
+        return false;
+    }
+    uint32_t crc = crc32_data(&pw, sizeof(pw));
+    if (crc != hdr.crc32) {
+        fprintf(stderr, "[WORLD] %s: checksum mismatch (stored %08X, computed %08X) — a fresh world will be generated.\n",
+                filename, hdr.crc32, crc);
+        fclose(f);
+        return false;
+    }
+    for (int i = 0; i < MAX_FLOORS; i++)
+        persist_to_floor(&pw.floors[i], &world->floors[i]);
     fclose(f);
-    // Re-initialize entity grid after load (volatile state)
+
+    /*entity_grid is volatile: rebuild from scratch.*/
     for (int i = 0; i < MAX_FLOORS; i++) {
         memset(world->floors[i].entity_grid, 0, sizeof(world->floors[i].entity_grid));
     }

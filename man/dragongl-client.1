@@ -1,10 +1,12 @@
-.TH DRAGONGL-CLIENT 1 "2026-08-24" "DragonGL 2026.05.26.01" "User Commands"
+.TH DRAGONGL-CLIENT 1 "2026-09-06" "DragonGL 2026.09.04.02" "User Commands"
 .SH NAME
 dragongl-client \- Dragon GL client launcher script
 .SH SYNOPSIS
 .B dragongl-client
 .RI "[\-\-help\ |\ -h ]"
 .I backend
+.RI "[ server_ip ]"
+.RI "[ port ]"
 .SH DESCRIPTION
 .B dragongl-client
 is a convenience launcher for the Dragon GL 3D client. It executes
@@ -25,6 +27,12 @@ Start the client with the OpenGL backend (legacy).
 .TP
 .B vk
 Start the client with the Vulkan backend (modern).
+.TP
+.I server_ip
+(optional) Server IP/hostname; skips the interactive prompt (handy over SSH).
+.TP
+.I port
+(optional) Server TCP port (default 8080).
 .SH OPTIONS
 .TP
 .B \-h , \-\-help
@@ -34,6 +42,12 @@ Start the client with the Vulkan backend:
 .PP
 .RS
 .B dragongl-client vk
+.RE
+.PP
+Connect directly to a remote server (skips the IP prompt):
+.PP
+.RS
+.B dragongl-client vk 192.168.1.10 9000
 .RE
 .SH SEE ALSO
 .BR dragongl_client (1),

@@ -38,7 +38,7 @@ int g_my_entity_id = -1;
 int g_my_x = 0;
 int g_my_y = 0;
 int g_my_hp = 20, g_my_max_hp = 20;
-Entity g_entities[MAX_NPCS];
+Entity g_entities[CLIENT_MAX_ENTITIES];
 int g_game_h = 8, g_game_m = 0, g_total_turns = 0;
 int g_str=10, g_dex=10, g_con=10, g_intel=10, g_wis=10, g_cha=10;
 int g_equipped_mask = 0;
@@ -74,25 +74,38 @@ char g_eq_ring[10][32] = {{0}};
 char g_eq_belt[4][32] = {{0}};
 char g_log_lines[MAX_LOG_LINES][256];
 int g_log_count = 0;
-World g_world;
+/*NOTE: the old `World g_world` client-side copy (~50 MB) was removed:
+ * the client renders g_local_map, which the server fills via
+ * MSG_MAP_CHUNK — a full local World was never needed.*/
 TileType g_local_map[MAP_HEIGHT][MAP_WIDTH];
 pthread_mutex_t g_state_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t g_net_mutex = PTHREAD_MUTEX_INITIALIZER;
 bool g_running = true;
 int g_backend = 0; // 0 = GL, 1 = VK
 
+/*See FrameSnapshot in client_state.h: short lock, then the renderers
+ * work on the private copy for the whole frame.*/
+void frame_snapshot_acquire(FrameSnapshot *snap) {
+    pthread_mutex_lock(&g_state_mutex);
+    snap->my_x = g_my_x;
+    snap->my_y = g_my_y;
+    snap->my_entity_id = g_my_entity_id;
+    snap->my_floor = g_my_floor;
+    snap->vision_radius = g_vision_radius;
+    memcpy(snap->map, g_local_map, sizeof(snap->map));
+    memcpy(snap->entities, g_entities, sizeof(snap->entities));
+    pthread_mutex_unlock(&g_state_mutex);
+}
+
 extern void* net_thread_loop(void* arg);
 extern void* cli_thread_loop(void* arg);
 extern void render_gl_start(void);
 
 void client_send_move(int dx, int dy) {
-    MsgHeader hdr;
+    MsgHeader hdr = msg_hdr(MSG_MOVE, (int)sizeof(MsgMove));
     MsgMove msg_move;
     
     if (g_my_entity_id == -1) return;
-    
-    hdr.type = MSG_MOVE;
-    hdr.length = sizeof(MsgMove);
     
     msg_move.entity_id = g_my_entity_id;
     msg_move.dx = dx;
@@ -105,11 +118,8 @@ void client_send_move(int dx, int dy) {
 }
 
 void client_send_text_cmd(const char *cmd) {
-    MsgHeader hdr;
+    MsgHeader hdr = msg_hdr(MSG_TEXT_CMD, (int)sizeof(MsgTextCmd));
     MsgTextCmd msg_cmd;
-    
-    hdr.type = MSG_TEXT_CMD;
-    hdr.length = sizeof(MsgTextCmd);
     
     memset(&msg_cmd, 0, sizeof(msg_cmd));
     strncpy(msg_cmd.cmd, cmd, sizeof(msg_cmd.cmd) - 1);
@@ -123,14 +133,14 @@ void client_send_text_cmd(const char *cmd) {
 void client_log_add(const char *text) {
     pthread_mutex_lock(&g_state_mutex);
     if (g_log_count < MAX_LOG_LINES) {
-        strncpy(g_log_lines[g_log_count], text, 255);
+        copy_str(g_log_lines[g_log_count], text, sizeof(g_log_lines[0]));
         g_log_count++;
     } else {
-        // Shift lines up
+        // Shift lines up (copy_str guarantees NUL termination)
         for (int i = 0; i < MAX_LOG_LINES - 1; i++) {
-            strncpy(g_log_lines[i], g_log_lines[i+1], 255);
+            copy_str(g_log_lines[i], g_log_lines[i+1], sizeof(g_log_lines[0]));
         }
-        strncpy(g_log_lines[MAX_LOG_LINES - 1], text, 255);
+        copy_str(g_log_lines[MAX_LOG_LINES - 1], text, sizeof(g_log_lines[0]));
     }
     pthread_mutex_unlock(&g_state_mutex);
 }
@@ -138,25 +148,32 @@ void client_log_add(const char *text) {
 int main(int argc, char **argv) {
     pthread_t net_thread;
     pthread_t cli_thread;
-    /* Initialize Dungeon 1000x1000 */
-    world_init(&g_world);
-     
-     
-     
-    
+    /*The client does NOT generate a world at startup: the old
+     * world_init() built all 101 floors + traps (~73 MB, seconds of CPU)
+     * only to copy floor 0 into g_local_map. The map arrives from the
+     * server as MSG_MAP_CHUNK packets, so start with solid rock.*/
+    for (int y = 0; y < MAP_HEIGHT; y++)
+        for (int x = 0; x < MAP_WIDTH; x++)
+            g_local_map[y][x] = VOXEL_ROCK;
+
     if (argc < 2) {
-        printf("Usage: %s [gl|vk]\n", argv[0]);
+        printf("Usage: %s [gl|vk] [server_ip] [port]\n", argv[0]);
         return 1;
     }
-    
-    int x, y;
-    for (y = 0; y < MAP_HEIGHT; y++) {
-        for (x = 0; x < MAP_WIDTH; x++) {
-            g_local_map[y][x] = g_world.floors[0].map.data[0][y][x];
-        }
-    }
-    
+
     char server_ip[64] = "127.0.0.1";
+    int server_port = 8080;
+    bool ip_from_arg = false;
+    if (argc >= 3 && argv[2][0] != '\0') {
+        copy_str(server_ip, argv[2], sizeof(server_ip));
+        ip_from_arg = true;
+    }
+    if (argc >= 4) {
+        int p = atoi(argv[3]);
+        if (p > 0 && p < 65536)
+            server_port = p;
+    }
+
     char server_pass[64] = "";
     char username[32] = "";
     char password[32] = "";
@@ -166,9 +183,13 @@ int main(int argc, char **argv) {
     char buf[128];
 
     printf("\n--- DND GL Client ---\n");
-    printf("Server IP [%s]: ", server_ip);
-    if (fgets(buf, sizeof(buf), stdin) && buf[0] != '\n') {
-        sscanf(buf, "%63s", server_ip);
+    if (ip_from_arg) {
+        printf("Server IP: %s (from command line)\n", server_ip);
+    } else {
+        printf("Server IP [%s]: ", server_ip);
+        if (fgets(buf, sizeof(buf), stdin) && buf[0] != '\n') {
+            sscanf(buf, "%63s", server_ip);
+        }
     }
     printf("Server Password: ");
     if (fgets(buf, sizeof(buf), stdin)) {
@@ -369,8 +390,8 @@ int main(int argc, char **argv) {
         printf("===========================================================================\n\n");
     }
 
-    printf("Connecting to server %s...\n", server_ip);
-    g_server_sock = net_connect_to_server(server_ip, 8080);
+    printf("Connecting to server %s:%d...\n", server_ip, server_port);
+    g_server_sock = net_connect_to_server(server_ip, server_port);
     
     if (g_server_sock < 0) {
         printf("Connection error.\n");
@@ -378,7 +399,7 @@ int main(int argc, char **argv) {
     }
     
     {
-        MsgHeader login_hdr;
+        MsgHeader login_hdr = msg_hdr(MSG_LOGIN, (int)sizeof(MsgLogin));
         MsgLogin msg_log;
         memset(&msg_log, 0, sizeof(msg_log));
         strncpy(msg_log.username, username, 31);
@@ -395,8 +416,6 @@ int main(int argc, char **argv) {
         g_race_id = race_id;
         g_class_id = class_id;
         
-        login_hdr.type = MSG_LOGIN;
-        login_hdr.length = sizeof(MsgLogin);
         net_send(g_server_sock, &login_hdr, sizeof(MsgHeader));
         net_send(g_server_sock, &msg_log, sizeof(MsgLogin));
     }

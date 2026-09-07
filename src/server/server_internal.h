@@ -34,6 +34,16 @@
 
 long long get_time_ms(void);
 
+/*Game clock: one round = 200 ms of real time (5 rounds/s). A full game
+ * day is 1440 rounds = 4.8 minutes of real time. The server's main loop
+ * drives update_world() through a fixed-step accumulator (TICK_MS, with
+ * MAX_TICK_CATCHUP_MS of catch-up) so the simulation speed is the same
+ * at 1 client or 64. NOTE: every in-game timer expressed in rounds
+ * (hunger, light, trap respawns, ...) inherits this scale — when tuning
+ * a constant, convert it: 1 round = 0.2 s real.*/
+#define TICK_MS 200LL
+#define MAX_TICK_CATCHUP_MS (5LL * TICK_MS)
+
 typedef struct {
     char name[64];
     int x, y;
@@ -65,6 +75,11 @@ extern Client *g_clients;
 extern NPC *g_npcs;
 extern int global_total_turns;
 extern int next_id;
+/*Directory containing the JSON data files and the world state files
+ * (world.dat, npcs.dat, artifacts.dat). Resolved at start: --data-dir
+ * argument > local ./data > /usr/share/dragongl/data (RPM install).*/
+#define DATA_DIR_MAX 256
+extern char g_data_dir[DATA_DIR_MAX];
 
 // World Events
 extern int active_event_type;

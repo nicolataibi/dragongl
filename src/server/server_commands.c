@@ -50,6 +50,11 @@
 #include <time.h>
 #include <ctype.h>
 #include <sys/wait.h>
+#include <spawn.h>
+#include <errno.h>
+#include <unistd.h>
+/*POSIX: the process environment passed to posix_spawn*/
+extern char **environ;
 
 /*Compact structure for temple table*/
 typedef struct { int cls; int x0,x1,y0,y1; const char *name; const char *ritual; } TempleInfo;
@@ -256,18 +261,130 @@ static int dump_floor_v2(const char *path, int floor_id, const Client *c) {
   return 0;
 }
 
+/* Resolves "python3" to an ABSOLUTE path for posix_spawn.
+ *
+ * glibc's posix_spawn() does NOT search PATH when the file contains no
+ * slash (POSIX leaves the search behavior implementation-defined): a bare
+ * posix_spawn("python3", ...) fails with ENOENT even when python3 is
+ * perfectly reachable, so every dm_mapfloor/dm_pdf died with "No such
+ * file or directory". Search PATH ourselves (execvp semantics) and, when
+ * the server runs without one (service managers, env -i), fall back to
+ * the standard absolute locations. */
+static int resolve_python3(char *out, size_t out_len) {
+  const char *path = getenv("PATH");
+  if (path && *path) {
+    char buf[4096];
+    snprintf(buf, sizeof(buf), "%s", path);
+    char *save = NULL;
+    for (char *dir = strtok_r(buf, ":", &save); dir != NULL;
+         dir = strtok_r(NULL, ":", &save)) {
+      if (dir[0] == '\0')
+        continue;
+      char cand[4096];
+      size_t dl = strlen(dir);
+      snprintf(cand, sizeof(cand), "%s%spython3", dir,
+               (dl > 0 && dir[dl - 1] == '/') ? "" : "/");
+      if (access(cand, X_OK) == 0) {
+        snprintf(out, out_len, "%s", cand);
+        return 0;
+      }
+    }
+  }
+  static const char *const fallbacks[] = { "/usr/bin/python3",
+                                           "/usr/local/bin/python3",
+                                           "/bin/python3" };
+  for (size_t i = 0; i < sizeof(fallbacks) / sizeof(fallbacks[0]); i++) {
+    if (access(fallbacks[i], X_OK) == 0) {
+      snprintf(out, out_len, "%s", fallbacks[i]);
+      return 0;
+    }
+  }
+  return 1;
+}
+
+/* Locates tools/generate_pdf_map.py.
+ *
+ * The old bare relative path only worked when the server's CWD was the
+ * repository root: an installed server (RPM: binary in /usr/bin) would
+ * spawn python fine but die with "can't open file" (exit 2), because the
+ * script is installed in /usr/share/dragongl/tools. Try, in order: the
+ * CWD (development layout), the directory of the server binary and its
+ * parent (build/ layout), and the RPM install location. */
+static int resolve_pdf_script(char *out, size_t out_len) {
+  const char *rel = "tools/generate_pdf_map.py";
+  if (access(rel, R_OK) == 0) {
+    snprintf(out, out_len, "%s", rel);
+    return 0;
+  }
+  char exe[4096];
+  ssize_t n = readlink("/proc/self/exe", exe, sizeof(exe) - 1);
+  if (n > 0) {
+    exe[n] = '\0';
+    char *slash = strrchr(exe, '/');
+    if (slash != NULL) {
+      *slash = '\0'; /* directory of the binary */
+      char cand[4096];
+      snprintf(cand, sizeof(cand), "%s/tools/generate_pdf_map.py", exe);
+      if (access(cand, R_OK) == 0) {
+        snprintf(out, out_len, "%s", cand);
+        return 0;
+      }
+      /* build/ layout: the binary sits in <root>/build, tools/ in <root> */
+      snprintf(cand, sizeof(cand), "%s/../tools/generate_pdf_map.py", exe);
+      if (access(cand, R_OK) == 0) {
+        snprintf(out, out_len, "%s", cand);
+        return 0;
+      }
+    }
+  }
+  const char *installed = "/usr/share/dragongl/tools/generate_pdf_map.py";
+  if (access(installed, R_OK) == 0) {
+    snprintf(out, out_len, "%s", installed);
+    return 0;
+  }
+  return 1;
+}
+
 /* Runs tools/generate_pdf_map.py to turn a floor dump into a color PDF and
- * reports the outcome to the client. The wait status returned by system() is
- * decoded (exit code / signal), so failures are reported as the real exit
- * code (e.g. "code 2") instead of the raw 8-bit-shifted status (e.g. 512). */
+ * reports the outcome to the client.
+ *
+ * posix_spawn + waitpid instead of system(): the argument vector is clean
+ * (no string concatenation, nothing to escape, no shell in between), and
+ * the wait status is decoded the same way as before, so failures are
+ * reported as the real exit code (e.g. "code 2") instead of the raw
+ * 8-bit-shifted status (e.g. 512). Both the interpreter and the script
+ * are resolved to real paths before the spawn (see resolve_python3 /
+ * resolve_pdf_script): glibc's posix_spawn performs no PATH search, and
+ * the script location depends on where the server is installed. */
 static void run_pdf_map_generator(int sock, const char *dump, const char *pdf, int floor_id) {
-  char syscmd[512];
-  snprintf(syscmd, sizeof(syscmd),
-           "python3 tools/generate_pdf_map.py %s %s %d", dump, pdf, floor_id);
-  int status = system(syscmd);
-  if (status == -1) {
-    send_text_to_client(sock, "[DM] Error: failed to launch PDF generator.");
+  char floor_arg[16];
+  snprintf(floor_arg, sizeof(floor_arg), "%d", floor_id);
+  char python[4096], script[4096];
+  if (resolve_python3(python, sizeof(python)) != 0) {
+    send_text_to_client(sock,
+      "[DM] Error: python3 not found (PATH searched, then /usr/bin, "
+      "/usr/local/bin and /bin): install Python 3 or fix the server PATH.");
     return;
+  }
+  if (resolve_pdf_script(script, sizeof(script)) != 0) {
+    send_text_to_client(sock,
+      "[DM] Error: tools/generate_pdf_map.py not found (searched the CWD, "
+      "the server binary directory and /usr/share/dragongl/tools).");
+    return;
+  }
+  char *argv[] = { python, script, (char *)dump, (char *)pdf, floor_arg, NULL };
+  pid_t pid;
+  int spawn_err = posix_spawn(&pid, python, NULL, NULL, argv, environ);
+  if (spawn_err != 0) {
+    send_text_to_client(sock,
+      "[DM] Error: failed to launch PDF generator (%s).", strerror(spawn_err));
+    return;
+  }
+  int status = 0;
+  while (waitpid(pid, &status, 0) == -1) {
+    if (errno != EINTR) {
+      break;
+    }
   }
   if (WIFEXITED(status)) {
     if (WEXITSTATUS(status) == 0) {
@@ -300,7 +417,7 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
     send_text_to_client(c->sock, "stats : Shows the character's statistics");
     send_text_to_client(c->sock, "s, search : Search for secret passages or traps");
     send_text_to_client(c->sock, "train <stat> : Use level up stat points (e.g. train str / random)");
-    send_text_to_client(c->sock, "T, tunnel: Dig the wall in front of you");
+    send_text_to_client(c->sock, "t/T, tunnel <dir> : Dig a wall (t n = tunnel north, d = down)");
     send_text_to_client(c->sock, "or, open : Open a closed door");
     send_text_to_client(c->sock, "c, close : Close an open door");
     send_text_to_client(c->sock, "D, disarm : Disarm at trap");
@@ -312,7 +429,7 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
     send_text_to_client(c->sock, "[HELP] --- ITEMS AND INVENTORY ---");
     send_text_to_client(c->sock, "i, inventory : Show inventory");
     send_text_to_client(c->sock, "  w, wield/wear   : Wield/wear an item (e.g. 'w 2')");
-    send_text_to_client(c->sock, "t, takeoff/rem : Remove equipped or belted item (e.g. 't 3')");
+    send_text_to_client(c->sock, "remove/unequip/takeoff <slot|item> : Remove equipped or belted item");
     send_text_to_client(c->sock, "belt <n> : Move an item from the backpack to the speed belt");
     send_text_to_client(c->sock, "unbelt <n> : Move an item from the belt to the backpack");
     send_text_to_client(c->sock, "d, drop <n> : Drops object <n> to the ground");
@@ -1408,7 +1525,10 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
     if (strncmp(cmd, "dm_spawn ", 9) == 0) {
       int tid = 0, tx = 0, ty = 0;
       if (sscanf(cmd + 9, "%d %d %d", &tid, &tx, &ty) == 3) {
-        if (tid >= 0 && tid < bestiary_size) {
+        /*Bounds on x/y: an out-of-map coordinate would write a bogus
+         * position into the NPC and corrupt entity_grid lookups.*/
+        if (tid >= 0 && tid < bestiary_size &&
+            tx >= 0 && tx < MAP_WIDTH && ty >= 0 && ty < MAP_HEIGHT) {
           for (int i = 0; i < MAX_NPCS; i++) {
             if (!npcs[i].active) {
               npcs[i].active = true;
@@ -1416,15 +1536,23 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
               npcs[i].floor_id = c->floor_id;
               npcs[i].x = tx;
               npcs[i].y = ty;
+              npcs[i].spawn_x = tx;
+              npcs[i].spawn_y = ty;
               npcs[i].template_idx = tid;
               npcs[i].template = &bestiary_data[tid];
               npcs[i].hp = npcs[i].max_hp = npcs[i].template->hp_avg;
               ai_attach_behavior(&npcs[i]);
+              master_world->floors[c->floor_id].entity_grid[ty][tx] = npcs[i].entity_id;
               send_text_to_client(c->sock, "[DM] Spawned %s at %d,%d",
                                   npcs[i].template->name, tx, ty);
               return;
             }
           }
+          send_text_to_client(c->sock, "[DM] ERROR: No free NPC slots.");
+        } else {
+          send_text_to_client(c->sock,
+              "[DM] Use: dm_spawn <bestiary_id> <x 0-%d> <y 0-%d>",
+              MAP_WIDTH - 1, MAP_HEIGHT - 1);
         }
       }
       return;
@@ -1432,17 +1560,32 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
     if (strncmp(cmd, "dm_goto ", 8) == 0) {
       int f = 0, tx = 0, ty = 0;
       if (sscanf(cmd + 8, "%d %d %d", &f, &tx, &ty) == 3) {
-        if (f >= 0 && f < 100) {
+        /*Bounds: out-of-map coordinates would be used to index the map
+         * and entity_grid on the very next tick (OOB read/write).*/
+        if (f >= 0 && f < MAX_FLOORS &&
+            tx >= 0 && tx < MAP_WIDTH && ty >= 0 && ty < MAP_HEIGHT) {
+          /*Keep entity_grid and the other players' views consistent with
+           * the teleport.*/
+          int old_floor = c->floor_id;
+          Floor *ofl = &master_world->floors[old_floor];
+          if (ofl->entity_grid[c->y][c->x] == c->entity_id)
+            ofl->entity_grid[c->y][c->x] = 0;
           c->floor_id = f;
           client_track_explored_floor(c);
           c->x = tx;
           c->y = ty;
+          master_world->floors[f].entity_grid[ty][tx] = c->entity_id;
+          if (old_floor != f)
+            notify_player_left_floor(c, old_floor);
           send_text_to_client(c->sock, "[DM] Teleported to Floor %d (%d,%d)", f,
                               tx, ty);
           // Force map refresh
           send_map_chunk(c->sock, &master_world->floors[f].map, tx, ty, 15);
           return;
         }
+        send_text_to_client(c->sock,
+            "[DM] Out of bounds. Use: dm_goto <floor 0-%d> <x 0-%d> <y 0-%d>",
+            MAX_FLOORS - 1, MAP_WIDTH - 1, MAP_HEIGHT - 1);
       }
     }
     if (strncmp(cmd, "dm_pdf ", 7) == 0) {
@@ -2164,7 +2307,11 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
   }
 
   //===== MECHANICAL 1: REMOVE (remove equipped item) =====
-  if (strncmp(cmd, "remove ", 7) == 0 || strncmp(cmd, "unequip ", 8) == 0 || strncmp(cmd, "takeoff ", 8) == 0 || strncmp(cmd, "t ", 2) == 0) {
+  /*NOTE: the "t " prefix used to live here and silently intercepted
+   * "t n/s/e/w/d" (tunnel north/south/...) BEFORE the tunnel handler
+   * further down could see it. It now belongs to tunnel; use the full
+   * words remove/unequip/takeoff for this command.*/
+  if (strncmp(cmd, "remove ", 7) == 0 || strncmp(cmd, "unequip ", 8) == 0 || strncmp(cmd, "takeoff ", 8) == 0) {
     const char *input = strchr(cmd, ' '); if (input) input++; else return;
     //Slots map by name
     ItemInstance *sls[] = {
@@ -3329,10 +3476,9 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
             continue;
           }
 
-          /*Check if already known*/
-          int w = si / 64;
-          int b = si % 64;
-          bool already_known = (c->known_spells[w] >> b) & 1ULL;
+          /*Check if already known (guarded: si >= MAX_SPELL_DB_SIZE
+           * must never index past the known_spells bitfield)*/
+          bool already_known = spell_known_get(c, si);
 
           if (already_known) {
             send_text_to_client(c->sock,
@@ -3341,7 +3487,7 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
             already++;
           } else {
             /*Learn magic*/
-            c->known_spells[w] |= (1ULL << b);
+            spell_known_set(c, si);
             send_text_to_client(c->sock,
                 "  [Lv%d] %-30s  *** LEARNED ***",
                 sp->level, sp->name);
@@ -3373,10 +3519,8 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
             continue;
           }
 
-          /*Check if already known*/
-          int w = si / 64;
-          int b = si % 64;
-          bool already_known = (c->known_spells[w] >> b) & 1ULL;
+          /*Check if already known (guarded, see above)*/
+          bool already_known = spell_known_get(c, si);
 
           if (already_known) {
             send_text_to_client(c->sock,
@@ -3385,7 +3529,7 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
             already++;
           } else {
             /*Learn magic*/
-            c->known_spells[w] |= (1ULL << b);
+            spell_known_set(c, si);
             send_text_to_client(c->sock,
                 "  [Lv%d] %-30s  *** LEARNED ***",
                 sp->level, sp->name);
@@ -3530,9 +3674,7 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
       for (int i = 0; i < spell_database_size; i++) {
         if (spell_database[i].level != lv)
           continue;
-        int w = i / 64;
-        int b = i % 64;
-        if (!((c->known_spells[w] >> b) & 1ULL))
+        if (!spell_known_get(c, i))
           continue;
         lv_count++;
       }
@@ -3550,9 +3692,7 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
       for (int i = 0; i < spell_database_size; i++) {
         if (spell_database[i].level != lv)
           continue;
-        int w = i / 64;
-        int b = i % 64;
-        if (!((c->known_spells[w] >> b) & 1ULL))
+        if (!spell_known_get(c, i))
           continue;
         send_text_to_client(c->sock, "  cast %-30s  [Range: %d]",
                             spell_database[i].name,
@@ -3570,7 +3710,7 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
   //cast <name> or cast <book_idx> <spell_idx>
   if (strncmp(cmd, "cast ", 5) == 0 || strncmp(cmd, "c ", 2) == 0) {
     //--- ACTION BLOCK FOR SILENCE ---
-    if (rules_has_condition(c->effects, c->effect_count, "Silenced")) {
+    if (rules_has_condition_t(c->effects, c->effect_count, COND_SILENCED)) {
       send_text_to_client(
           c->sock, "[SYSTEM] You are silenced and cannot cast spells!");
       return;
@@ -3610,11 +3750,11 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
     /*-------------------------------------------------------
      * GATEKEEPER: Check that the spell is in the library
      * of the character (known_spells bitfield).
+     * spell_known_get() guards the index: the old open-coded
+     * `sp_idx / 64` wrote/read out of bounds for spells >= 512.
      * -------------------------------------------------------*/
     {
-      int w = sp_idx / 64;
-      int b = sp_idx % 64;
-      if (!((c->known_spells[w] >> b) & 1ULL)) {
+      if (!spell_known_get(c, sp_idx)) {
         send_text_to_client(c->sock,
             "[MAGIC] You don't know '%s'. Find the corresponding book"
             "and study it at the temple with 'study <n>'.",
@@ -4493,7 +4633,9 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
     
     return;
   }
-  if (strncmp(cmd, "tunnel ", 7) == 0 || strncmp(cmd, "T ", 2) == 0 || strcmp(cmd, "tunnel") == 0 || strcmp(cmd, "T") == 0) {
+  /*"t " (lowercase) is the short alias for tunnel directions: 't n' =
+   * tunnel north. It used to be stolen by the takeoff handler above.*/
+  if (strncmp(cmd, "tunnel ", 7) == 0 || strncmp(cmd, "T ", 2) == 0 || strncmp(cmd, "t ", 2) == 0 || strcmp(cmd, "tunnel") == 0 || strcmp(cmd, "T") == 0) {
     const char *dir_str = strchr(cmd, ' ');
     if (!dir_str) {
       send_text_to_client(c->sock, "[SYSTEM] Use: tunnel <n|s|e|w> or 'tunnel d' (down/under your feet)");
@@ -4640,6 +4782,17 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
     }
     return;
   }
+  /*--- Door memory ---
+   * 'close' may ONLY turn back a tile that was a door which THIS server
+   * just turned into floor with 'open'. The old version closed ANY
+   * VOXEL_FLOOR tile: a permanent world exploit (seal any corridor,
+   * persisted into world.dat, no door ever existed there). The registry
+   * is per floor, bounded, and volatile (lost on restart: an old opened
+   * door simply stays open).*/
+  static struct { int x, y; }
+      g_recently_opened_doors[MAX_FLOORS][32];
+  static int g_recently_opened_door_n[MAX_FLOORS] = {0};
+
   if (strcmp(cmd, "open") == 0 || strcmp(cmd, "o") == 0) {
     const char *dir_str = strchr(cmd, ' ');
     if (!dir_str) {
@@ -4657,9 +4810,35 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
       tx++;
     } else if (*dir_str == 'w') {
       tx--;
+    } else {
+      send_text_to_client(c->sock, "[SYSTEM] Use: open <n|s|e|w>");
+      return;
     }
-    if (master_world->floors[c->floor_id].map.data[0][ty][tx] == 3 /* VOXEL_DOOR */) {
-      master_world->floors[c->floor_id].map.data[0][ty][tx] = 1; //Temporarily it becomes the floor
+    /*Bounds: at the map edge tx/ty can step outside the array (the old
+     * code indexed the map with no check at all).*/
+    if (tx < 0 || tx >= MAP_WIDTH || ty < 0 || ty >= MAP_HEIGHT) {
+      send_text_to_client(c->sock, "[SYSTEM] Beyond borders.");
+      return;
+    }
+    Floor *f = &master_world->floors[c->floor_id];
+    if (f->map.data[0][ty][tx] == VOXEL_DOOR) {
+      f->map.data[0][ty][tx] = VOXEL_FLOOR;
+      /*Remember it so 'close' can put the door back.*/
+      bool known = false;
+      for (int i = 0; i < g_recently_opened_door_n[c->floor_id]; i++) {
+        if (g_recently_opened_doors[c->floor_id][i].x == tx &&
+            g_recently_opened_doors[c->floor_id][i].y == ty) {
+          known = true;
+          break;
+        }
+      }
+      if (!known && g_recently_opened_door_n[c->floor_id] < 32) {
+        g_recently_opened_doors[c->floor_id]
+                                 [g_recently_opened_door_n[c->floor_id]].x = tx;
+        g_recently_opened_doors[c->floor_id]
+                                 [g_recently_opened_door_n[c->floor_id]].y = ty;
+        g_recently_opened_door_n[c->floor_id]++;
+      }
       send_text_to_client(c->sock, "[SYSTEM] You opened the door.");
     } else {
       send_text_to_client(c->sock, "[SYSTEM] There is no door there.");
@@ -4683,53 +4862,42 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
       tx++;
     } else if (*dir_str == 'w') {
       tx--;
+    } else {
+      send_text_to_client(c->sock, "[SYSTEM] Use: close <n|s|e|w>");
+      return;
     }
-    // We only check if it is a floor tile to allow closing (assumes it was previously a door).
-    if (master_world->floors[c->floor_id].map.data[0][ty][tx] == 1 /* VOXEL_FLOOR */) {
-      master_world->floors[c->floor_id].map.data[0][ty][tx] = 3; /* VOXEL_DOOR */
+    if (tx < 0 || tx >= MAP_WIDTH || ty < 0 || ty >= MAP_HEIGHT) {
+      send_text_to_client(c->sock, "[SYSTEM] Beyond borders.");
+      return;
+    }
+    Floor *f = &master_world->floors[c->floor_id];
+    /*Only a floor tile present in the "recently opened doors" registry
+     * can become a door again.*/
+    bool was_door = false;
+    for (int i = 0; i < g_recently_opened_door_n[c->floor_id]; i++) {
+      if (g_recently_opened_doors[c->floor_id][i].x == tx &&
+          g_recently_opened_doors[c->floor_id][i].y == ty) {
+        /*Remove it from the registry.*/
+        g_recently_opened_doors[c->floor_id][i] =
+            g_recently_opened_doors[c->floor_id]
+                                   [g_recently_opened_door_n[c->floor_id] - 1];
+        g_recently_opened_door_n[c->floor_id]--;
+        was_door = true;
+        break;
+      }
+    }
+    if (f->map.data[0][ty][tx] == VOXEL_FLOOR && was_door) {
+      f->map.data[0][ty][tx] = VOXEL_DOOR;
       send_text_to_client(c->sock, "[SYSTEM] You closed the door.");
     } else {
-      send_text_to_client(c->sock, "[SYSTEM] There is no open passage to close there.");
+      send_text_to_client(c->sock,
+          "[SYSTEM] There is no open door to close there.");
     }
     return;
   }
-  if (strcmp(cmd, "disarm") == 0 || strcmp(cmd, "D") == 0) {
-    int roll = (rand() % 20) + 1;
-    int dex_mod = rules_get_modifier(c->dex);
-    int check = roll + dex_mod;
-    bool found = false;
-    Floor *f = &master_world->floors[c->floor_id];
-    for (int i = 0; i < f->trap_count; i++) {
-      Trap *t = &f->traps[i];
-      if (!t->active || !t->detected) continue;
-      
-      int tx = t->x, ty = t->y;
-      if (t->type == 1) { // DART_WALL
-          tx += (t->wall_dir == 1 ? 1 : (t->wall_dir == 3 ? -1 : 0));
-          ty += (t->wall_dir == 2 ? 1 : (t->wall_dir == 0 ? -1 : 0));
-      }
-      
-      if (abs(c->x - tx) <= 1 && abs(c->y - ty) <= 1) {
-        found = true;
-        int disarm_dc = t->detection_dc + 2;
-        if (check >= disarm_dc) {
-          t->active = false;
-          send_text_to_client(c->sock, "[SYSTEM] Disarmed! The trap has been neutralized.");
-        } else if (check <= disarm_dc - 5) {
-          // Critical failure
-          t->detected = false; // "Reset" but triggers if walked on
-          send_text_to_client(c->sock, "[SYSTEM] Critical failure! (Roll: %d). You have accidentally triggered or worsened the trap!", check);
-        } else {
-          send_text_to_client(c->sock, "[SYSTEM] You failed to disarm the trap (Roll: %d vs DC: %d). You can try again.", check, disarm_dc);
-        }
-        break; //Attempt to disarm only one trap at a time
-      }
-    }
-    if (!found) {
-      send_text_to_client(c->sock, "[SYSTEM] No traps (detected) nearby to disarm.");
-    }
-    return;
-  }
+  /*NOTE: a SECOND 'disarm' handler used to live here (dead code: the full
+   * handler above it matches "disarm"/"D" first, so this one was never
+   * reached). It has been removed — disarm logic lives in one place only.*/
 
   //Select everything else as an unrecognized command, instead of silently discarding it
   send_text_to_client(c->sock, "[SYSTEM] Unrecognized command '%s' or incorrect syntax. Type 'help' or '?' for the list.", cmd);

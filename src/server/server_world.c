@@ -113,6 +113,67 @@ void floor_stats_npc_spawned(int floor_id) {
 }
 
 /*============================================================================
+ * Per-floor active NPC index
+ *
+ * Local queries used to scan all MAX_NPCS (50,000) slots on every player
+ * step (entity broadcast) and on every attack (aggro) — tens of thousands
+ * of wasted comparisons each. Instead we keep one index array per floor
+ * with the slots of the active NPCs and rebuild it once per world tick
+ * (5/s: 50k simple checks = negligible).
+ *
+ * The index is deliberately dumb (no incremental insert/remove): NPC
+ * spawn/death/move happen in many places, and a full rebuild every tick
+ * is simpler and strictly cheaper than keeping bookkeeping at every
+ * mutation site. Between ticks a consumer validates each entry
+ * (active && same floor), so the worst case is a few stale checks.*/
+#define FLOOR_INDEX_CAP 4096
+static int  g_floor_idx[MAX_FLOORS][FLOOR_INDEX_CAP];
+static int  g_floor_idx_n[MAX_FLOORS];
+static bool g_floor_idx_overflow[MAX_FLOORS];
+
+void floor_index_rebuild(const NPC *npcs) {
+    for (int f = 0; f < MAX_FLOORS; f++) {
+        g_floor_idx_n[f] = 0;
+        g_floor_idx_overflow[f] = false;
+    }
+    for (int i = 0; i < MAX_NPCS; i++) {
+        const NPC *n = &npcs[i];
+        if (!n->active) {
+            continue;
+        }
+        int f = n->floor_id;
+        if (f < 0 || f >= MAX_FLOORS) {
+            continue;
+        }
+        if (g_floor_idx_overflow[f]) {
+            continue;
+        }
+        if (g_floor_idx_n[f] >= FLOOR_INDEX_CAP) {
+            /* Pathologically crowded floor: mark it and let consumers
+             * fall back to the legacy full scan (correctness first). */
+            g_floor_idx_overflow[f] = true;
+            continue;
+        }
+        g_floor_idx[f][g_floor_idx_n[f]++] = i;
+    }
+}
+
+/*Returns the index of the floor's active NPCs, or NULL when the floor
+ * overflowed the cap (the caller must then do the full scan).*/
+const int *floor_index_for(int floor_id, int *count_out) {
+    if (floor_id < 0 || floor_id >= MAX_FLOORS) {
+        if (count_out) *count_out = 0;
+        return NULL;
+    }
+    if (g_floor_idx_overflow[floor_id]) {
+        if (count_out) *count_out = -1;
+        return NULL;
+    }
+    if (count_out) *count_out = g_floor_idx_n[floor_id];
+    return g_floor_idx[floor_id];
+}
+
+/*============================================================================
  * update_world — Major world state update
  *
  * Each iteration of the server's main loop must be called.
@@ -125,7 +186,7 @@ static void broadcast_game_time(Client *clients) {
   int h = (total_mins / 60 + 8) % 24;
   int m = total_mins % 60;
 
-  MsgHeader hdr = {MSG_TIME_SYNC, sizeof(MsgTimeSync)};
+  MsgHeader hdr = msg_hdr(MSG_TIME_SYNC, (int)sizeof(MsgTimeSync));
   MsgTimeSync ts;
   ts.game_hour = h;
   ts.game_min = m;
@@ -164,8 +225,11 @@ void update_world(Client *clients, NPC *npcs) {
     
     /* --- Phase 3: Save Full State (Persistent Voxels and NPCs) --- */
     if (master_world) {
-      world_save(master_world, "data/world.dat");
-      FILE *fn = fopen("data/npcs.dat", "wb");
+      char world_path[DATA_DIR_MAX + 32], npcs_path[DATA_DIR_MAX + 32];
+      snprintf(world_path, sizeof(world_path), "%s/world.dat", g_data_dir);
+      snprintf(npcs_path, sizeof(npcs_path), "%s/npcs.dat", g_data_dir);
+      world_save(master_world, world_path);
+      FILE *fn = fopen(npcs_path, "wb");
       if (fn) {
         /*Compact format: [magic:uint32][count:int][NPC * count][next_id:int][turns:int]
          * Replaces the old format that always wrote 50,000 slots.*/
@@ -191,9 +255,12 @@ void update_world(Client *clients, NPC *npcs) {
     }
   }
 
-  /*--- Phase 4: Advanced Speed/Tick (200ms per tick) ---*/
+  /*--- Phase 4: Advanced Speed/Tick (TICK_MS per tick) ---
+   * The main loop already calls update_world() on the fixed-step clock,
+   * so this gate opens on (almost) every call; it stays as the
+   * authoritative definition of "one round passed".*/
   if (last_tick_ms == 0) last_tick_ms = now_ms;
-  bool new_round = (now_ms - last_tick_ms >= 200);
+  bool new_round = (now_ms - last_tick_ms >= TICK_MS);
   if (new_round) {
     last_tick_ms = now_ms;
     global_total_turns++;
@@ -338,8 +405,7 @@ void update_world(Client *clients, NPC *npcs) {
         }
 
         /*Disadvantage on saving throws if cursed*/
-        bool dis = rules_has_condition(clients[i].effects,
-                                       clients[i].effect_count, "Cursed");
+        bool dis = rules_has_condition_t(clients[i].effects, clients[i].effect_count, COND_CURSED);
 
         int roll_v = 0;
         bool success = rules_roll_save(mod, 12, false, dis, &roll_v);
@@ -365,8 +431,7 @@ void update_world(Client *clients, NPC *npcs) {
       }
 
       /* --- Invisibility notification (every 10 rounds) --- */
-      if (rules_has_condition(clients[i].effects,
-                              clients[i].effect_count, "Invisible")) {
+      if (rules_has_condition_t(clients[i].effects, clients[i].effect_count, COND_INVISIBLE)) {
         if (global_total_turns % 10 == 0) {
           send_text_to_client(clients[i].sock,
                               "[SYSTEM] You are currently invisible.");
@@ -374,8 +439,7 @@ void update_world(Client *clients, NPC *npcs) {
       }
 
       /*--- Player condition periodic effects ---*/
-      if (rules_has_condition(clients[i].effects,
-                              clients[i].effect_count, "Poisoned")) {
+      if (rules_has_condition_t(clients[i].effects, clients[i].effect_count, COND_POISONED)) {
         clients[i].hp -= 1;
         send_text_to_client(
             clients[i].sock,
@@ -392,8 +456,7 @@ void update_world(Client *clients, NPC *npcs) {
         send_detailed_state(&clients[i]);
       }
 
-      if (rules_has_condition(clients[i].effects,
-                              clients[i].effect_count, "Burning")) {
+      if (rules_has_condition_t(clients[i].effects, clients[i].effect_count, COND_BURNING)) {
         /*If in water, turn off immediately*/
         Floor *fl = &master_world->floors[clients[i].floor_id];
         if (fl->map.data[0][clients[i].y][clients[i].x] == VOXEL_WATER) {
@@ -424,8 +487,7 @@ void update_world(Client *clients, NPC *npcs) {
         }
       }
 
-      if (rules_has_condition(clients[i].effects,
-                              clients[i].effect_count, "Bleeding")) {
+      if (rules_has_condition_t(clients[i].effects, clients[i].effect_count, COND_BLEEDING)) {
         clients[i].hp -= 1;
         send_text_to_client(clients[i].sock,
                             "[SYSTEM] You are bleeding...");
@@ -493,12 +555,22 @@ void update_world(Client *clients, NPC *npcs) {
   /* -------------------------------------------------------
    * 1. NPC loop: AI, effects, and respawn timer
    * ------------------------------------------------------- */
-  /*Capture the round state before the AI loop: 'new_round' is cleared by
-   *the first AI cycle inside the loop (to limit per-tick actions), so the
-   *post-loop logic (entity grid sync, density monitor) must use this flag.
-   *Otherwise the grid would NOT be re-aligned on exactly the ticks where
-   *monsters moved, and the player would pass through them.*/
-  bool round_active = new_round;
+  /*Round state captured for the WHOLE loop.
+   * The old code let the first NPC clear 'new_round' mid-loop, which broke
+   * three things at once:
+   *  - only the FIRST NPC of the tick decayed its effects (poison that
+   *    should last 5 rounds lasted dozens more);
+   *  - only ONE NPC per whole tick (5 ticks/s) could attack: a pack of 10
+   *    monsters hit once per second instead of 10 times;
+   *  - dead NPCs after the first acting one in the array did not count
+   *    down their respawn timer on that tick.
+   * Per-NPC "one action per round" is now enforced locally with
+   * first_cycle below, so this flag must never be cleared mid-loop.*/
+  bool was_new_round = new_round;
+  /*Kept for the post-loop logic (entity grid sync, density monitor,
+   * AoE clouds): true on exactly the ticks in which monsters may have
+   * moved, so the grid gets re-aligned on the right ticks.*/
+  bool round_active = was_new_round;
 
   for (int i = 0; i < MAX_NPCS; i++) {
     NPC *n = &npcs[i];
@@ -510,11 +582,11 @@ void update_world(Client *clients, NPC *npcs) {
 
     if (n->active) {
       /* Living NPC: update effects and AI */
-      if (new_round) {
+      if (was_new_round) {
         rules_update_effects(n->effects, &n->effect_count);
 
         /* --- Periodic effects: NPC poison --- */
-        if (rules_has_condition(n->effects, n->effect_count, "Poisoned")) {
+        if (rules_has_condition_t(n->effects, n->effect_count, COND_POISONED)) {
           n->hp -= 1;
           if (n->hp <= 0) {
             n->hp = 0;
@@ -529,7 +601,7 @@ void update_world(Client *clients, NPC *npcs) {
 
         /* --- NPC Morale: below 20% HP rolls a saving throw vs Frightened --- */
         if (n->hp < (n->max_hp / 5) &&
-            !rules_has_condition(n->effects, n->effect_count, "Frightened")) {
+            !rules_has_condition_t(n->effects, n->effect_count, COND_FRIGHTENED)) {
           int roll_v = 0;
           bool success = rules_roll_save(0, 12, false, false, &roll_v);
           if (!success) {
@@ -543,24 +615,27 @@ void update_world(Client *clients, NPC *npcs) {
         }
 
         /*--- NPC saving throws for condition recovery ---*/
-        const char *npc_conditions[] = {
-            "Paralyzed", "Stunned", "Unconscious", "Petrified", "Frozen"
+        /*Compared BY VALUE (ConditionType): the display name comes from
+         *the canonical table, so a renamed string can't break the logic.*/
+        const ConditionType npc_conditions[] = {
+            COND_PARALYZED, COND_STUNNED, COND_UNCONSCIOUS,
+            COND_PETRIFIED, COND_FROZEN
         };
         for (int c_idx = 0; c_idx < 5; c_idx++) {
-          if (!rules_has_condition(n->effects, n->effect_count,
-                                   npc_conditions[c_idx])) {
+          if (!rules_has_condition_t(n->effects, n->effect_count,
+                                     npc_conditions[c_idx])) {
             continue;
           }
-          bool dis = rules_has_condition(n->effects, n->effect_count, "Cursed");
+          bool dis = rules_has_condition_t(n->effects, n->effect_count, COND_CURSED);
           int roll_v = 0;
           /*Base modifier +2 for NPCs*/
           bool success = rules_roll_save(2, 12, false, dis, &roll_v);
-          clog_save(n->template->name, npc_conditions[c_idx],
+          clog_save(n->template->name, condition_to_name(npc_conditions[c_idx]),
                     roll_v, 2, 12, success);
           if (success) {
+            const char *cond_name = condition_to_name(npc_conditions[c_idx]);
             for (int e_idx = 0; e_idx < n->effect_count; e_idx++) {
-              if (strcasecmp(n->effects[e_idx].name,
-                             npc_conditions[c_idx]) == 0) {
+              if (strcasecmp(n->effects[e_idx].name, cond_name) == 0) {
                 n->effects[e_idx] = n->effects[n->effect_count - 1];
                 n->effect_count--;
                 break;
@@ -583,11 +658,11 @@ void update_world(Client *clients, NPC *npcs) {
       } /*end new_round for NPC*/
 
       /*--- Block actions for debilitating conditions ---*/
-      if (rules_has_condition(n->effects, n->effect_count, "Paralyzed") ||
-          rules_has_condition(n->effects, n->effect_count, "Stunned")    ||
-          rules_has_condition(n->effects, n->effect_count, "Petrified")  ||
-          rules_has_condition(n->effects, n->effect_count, "Frozen")     ||
-          rules_has_condition(n->effects, n->effect_count, "Unconscious")) {
+      if (rules_has_condition_t(n->effects, n->effect_count, COND_PARALYZED) ||
+          rules_has_condition_t(n->effects, n->effect_count, COND_STUNNED)    ||
+          rules_has_condition_t(n->effects, n->effect_count, COND_PETRIFIED)  ||
+          rules_has_condition_t(n->effects, n->effect_count, COND_FROZEN)     ||
+          rules_has_condition_t(n->effects, n->effect_count, COND_UNCONSCIOUS)) {
         continue;
       }
 
@@ -600,16 +675,21 @@ void update_world(Client *clients, NPC *npcs) {
                           : 2;
       n->energy += npc_speed;
 
+      /*Each NPC gets at most ONE action (attack/cast) per round: the
+       * first energy cycle of THIS round runs with was_new_round, extra
+       * cycles (fast NPCs with surplus energy) only move.*/
+      bool first_cycle = true;
       while (n->energy >= ENERGY_THRESHOLD) {
         n->energy -= ENERGY_THRESHOLD;
-        ai_update_npc(n, clients, MAX_CLIENTS, new_round, npcs);
-        new_round = false; /* Only the first cycle is "new_round" */
+        ai_update_npc(n, clients, MAX_CLIENTS,
+                      was_new_round && first_cycle, npcs);
+        first_cycle = false;
       }
 
     } else if (n->template != NULL && !n->is_ghost &&
                n->archetype != ARCH_TREASURE && n->archetype != ARCH_GOLD) {
       /* Dead NPC: respawn countdown */
-      if (new_round && n->respawn_timer > 0) {
+      if (was_new_round && n->respawn_timer > 0) {
         n->respawn_timer--;
       }
       if (n->respawn_timer == 0) {
@@ -634,12 +714,15 @@ void update_world(Client *clients, NPC *npcs) {
     }
   } /*end of NPC loop*/
 
+  /*Rebuild the per-floor active-NPC index (spawn/death/split changed
+   * during the loop). 5/s * 50k cheap checks — the price that turns
+   * every local query (broadcast, aggro, swarm split) from O(50k) into
+   * O(entities on the floor).*/
+  floor_index_rebuild(npcs);
+
   /*After each tick AI, realigns the entity_grid with the updated positions
    * of the NPCs. Without this, the player passes through the monsters because
-   * the grid still holds the positions prior to the AI movement.
-   * NOTE: 'round_active' must be used here — 'new_round' is cleared by the
-   * first AI cycle in the loop above, which would skip the sync on exactly
-   * the tick in which the monsters moved.*/
+   * the grid still holds the positions prior to the AI movement.*/
   if (round_active) {
     sync_entity_grid(npcs);
   }

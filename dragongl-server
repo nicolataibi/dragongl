@@ -21,19 +21,33 @@ EOF
 show_help() {
     echo -e "\nUsage: $0 [opzioni]"
     echo "Options:"
-    echo "  -p, --password <pwd>    Sets the server access password"
-    echo "  -h, --help              Shows this help message"
+    echo "  -p, --password <pwd>       Sets the server access password"
+    echo "  -d, --dm-password <pwd>    Sets the dedicated DM account password"
+    echo "  -P, --port <port>          TCP port (default: 8080)"
+    echo "  -h, --help                 Shows this help message"
     echo -e "\nExample:"
-    echo "  $0 --password segreto123"
+    echo "  $0 --password segreto123 --dm-password dm123 --port 9000"
 }
 
 # Parsing parameters
 PASSWORD=""
+DMPASSWORD=""
+PORT=""
 while [[ $# -gt 0 ]]; do
     key="$1"
     case $key in
         -p|--password)
             PASSWORD="$2"
+            shift # past argument
+            shift # past value
+            ;;
+        -d|--dm-password)
+            DMPASSWORD="$2"
+            shift # past argument
+            shift # past value
+            ;;
+        -P|--port)
+            PORT="$2"
             shift # past argument
             shift # past value
             ;;
@@ -70,17 +84,31 @@ cd "$(dirname "$0")"
 echo -e "\n========================================"
 echo -e "[SYSTEM] Diagnostic Data for the Master"
 echo -e "========================================"
-echo -e "\n[OS]"
-uname -a
-echo -e "\n[UPTIME & LOAD]"
-uptime
-echo -e "\n[MEMORY]"
-free -m
-echo -e "\n[DISK SPACE]"
-df -h /
-echo -e "\n[NETWORK (IP Addresses)]"
-ip -brief address show || ifconfig || hostname -I
+# NOTE (privacy): the block below prints host IPs, uptime, memory and disk
+# usage to the log. If the server log is shared, use DIAGNOSTICS=0 to skip it.
+if [ "${DIAGNOSTICS:-1}" != "0" ]; then
+    echo -e "\n[OS]"
+    uname -a
+    echo -e "\n[UPTIME & LOAD]"
+    uptime
+    echo -e "\n[MEMORY]"
+    free -m
+    echo -e "\n[DISK SPACE]"
+    df -h /
+    echo -e "\n[NETWORK (IP Addresses)]"
+    ip -brief address show || ifconfig || hostname -I
+fi
 echo -e "\n========================================\n"
 
-CMD="$BIN --password $PASSWORD"
-$CMD
+# Build the argv safely (the old `CMD="$BIN --password $PASSWORD"; $CMD`
+# relied on word splitting: a password containing spaces — or even glob
+# characters like * or ? — would break the command or expand to files).
+ARGS=(--password "$PASSWORD")
+if [ -n "$DMPASSWORD" ]; then
+    ARGS+=(--dm-password "$DMPASSWORD")
+fi
+if [ -n "$PORT" ]; then
+    ARGS+=(--port "$PORT")
+fi
+
+exec "$BIN" "${ARGS[@]}"
