@@ -31,7 +31,7 @@ then
     echo "    -> Done."
 
     echo "[*] Cleaning log and dump files..."
-    rm -f combat_log.json
+    rm -f combat_log.json*
     rm -f map_dump*.txt
     rm -f map_floor*.pdf
     rm -f server_log.txt

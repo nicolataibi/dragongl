@@ -106,26 +106,181 @@ static char SERVER_ACCESS_PASSWORD[64] = "dragongl_secret";
  * grants DM powers. Override at start with --dm-password.*/
 static char SERVER_DM_PASSWORD[64] = "dragongl_dm_secret";
 
-/*--- Password hashing (salted FNV-1a) ---
- * NOTE: not a KDF — acceptable for a LAN game, but it only avoids
- * storing plaintext / rainbow-table shortcuts. Salted FNV-1a: the salt is mixed in first, so two identical passwords
- * with different users produce different hashes. (Not a KDF — fine for a
- * LAN game, but at least the rainbow-table shortcut is gone. Passwords
- * still travel in the clear over TCP: document this for users.)*/
-static void hash_password_salted(const char *pwd, const char *salt,
-                                 char *out, size_t out_len) {
-    uint32_t h = 2166136261u;
-    for (const char *p = salt; p && *p; p++) {
-        h ^= (uint8_t)*p;
-        h *= 16777619u;
+/*--- Password hashing: PBKDF2-SHA256 (RFC 2898), 4 iterations ----------
+ * Replaces salted FNV-1a: the 32-bit output meant anyone with read
+ * access to saves/ could brute-force a hash in seconds on a GPU (2^32
+ * is a small space). PBKDF2-SHA256 gives a 256-bit output (64 hex
+ * chars). The iteration count is deliberately low: this is a LAN game
+ * and login happens on a user's keyboard, not against a bot — we want
+ * to out-race offline brute force, not to slow down the login path.
+ * Passwords still travel in the clear over TCP: document this for
+ * users. (SHA-256 below is self-contained: the server links no
+ * crypto library.)*/
+#define PBKDF2_ITERS 4u
+
+static uint32_t rotr32(uint32_t x, int n) {
+    return (x >> n) | (x << (32 - n));
+}
+
+static const uint32_t g_sha256_k[64] = {
+    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1,
+    0x923f82a4, 0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3,
+    0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786,
+    0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147,
+    0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13,
+    0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b,
+    0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a,
+    0x5b9cca4f, 0x682e6ff3, 0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208,
+    0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
+};
+
+/*One 64-byte compression step (FIPS 180-4).*/
+static void sha256_block(uint32_t state[8], const uint8_t block[64]) {
+    uint32_t w[64];
+    for (int i = 0; i < 16; i++) {
+        w[i] = ((uint32_t)block[i * 4] << 24) | ((uint32_t)block[i * 4 + 1] << 16) |
+               ((uint32_t)block[i * 4 + 2] << 8) | (uint32_t)block[i * 4 + 3];
     }
-    h ^= (uint8_t)';'; /*domain separator*/
-    h *= 16777619u;
-    while (pwd && *pwd) {
-        h ^= (uint8_t)(*pwd++);
-        h *= 16777619u;
+    for (int i = 16; i < 64; i++) {
+        uint32_t s0 = rotr32(w[i - 15], 7) ^ rotr32(w[i - 15], 18) ^ (w[i - 15] >> 3);
+        uint32_t s1 = rotr32(w[i - 2], 17) ^ rotr32(w[i - 2], 19) ^ (w[i - 2] >> 10);
+        w[i] = w[i - 16] + s0 + w[i - 7] + s1;
     }
-    snprintf(out, out_len, "%08x", h);
+    uint32_t a = state[0], b = state[1], c = state[2], d = state[3];
+    uint32_t e = state[4], f = state[5], g = state[6], h = state[7];
+    for (int i = 0; i < 64; i++) {
+        uint32_t S1 = rotr32(e, 6) ^ rotr32(e, 11) ^ rotr32(e, 25);
+        uint32_t ch = (e & f) ^ (~e & g);
+        uint32_t t1 = h + S1 + ch + g_sha256_k[i] + w[i];
+        uint32_t S0 = rotr32(a, 2) ^ rotr32(a, 13) ^ rotr32(a, 22);
+        uint32_t maj = (a & b) ^ (a & c) ^ (b & c);
+        uint32_t t2 = S0 + maj;
+        h = g; g = f; f = e; e = d + t1;
+        d = c; c = b; b = a; a = t1 + t2;
+    }
+    state[0] += a; state[1] += b; state[2] += c; state[3] += d;
+    state[4] += e; state[5] += f; state[6] += g; state[7] += h;
+}
+
+static void sha256(const uint8_t *data, size_t len, uint8_t out[32]) {
+    static const uint32_t init[8] = {
+        0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
+        0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19
+    };
+    uint32_t state[8];
+    for (int i = 0; i < 8; i++) state[i] = init[i];
+    size_t i = 0;
+    for (; i + 64 <= len; i += 64)
+        sha256_block(state, data + i);
+    /*Padding: 0x80, zeros, then the 64-bit big-endian bit count. If the
+     * final block has no room for the 8-byte length (rem >= 56), the
+     * length goes in an extra all-zero block.*/
+    size_t rem = len - i;
+    uint8_t tail[64];
+    memset(tail, 0, sizeof(tail));
+    memcpy(tail, data + i, rem);
+    tail[rem] = 0x80;
+    if (rem + 9 > 64) {
+        sha256_block(state, tail);
+        memset(tail, 0, sizeof(tail));
+    }
+    uint64_t bits = (uint64_t)len * 8;
+    for (int j = 7; j >= 0; j--) {
+        tail[56 + j] = (uint8_t)(bits & 0xFF);
+        bits >>= 8;
+    }
+    sha256_block(state, tail);
+    for (int j = 0; j < 8; j++) {
+        out[j * 4]     = (uint8_t)(state[j] >> 24);
+        out[j * 4 + 1] = (uint8_t)(state[j] >> 16);
+        out[j * 4 + 2] = (uint8_t)(state[j] >> 8);
+        out[j * 4 + 3] = (uint8_t)(state[j]);
+    }
+}
+
+static void hmac_sha256(const uint8_t *key, size_t key_len,
+                        const uint8_t *msg, size_t msg_len, uint8_t out[32]) {
+    /*SHA-256 block size is 64 bytes (RFC 2104 ipad/opad).*/
+    uint8_t kbuf[64], ikey[64], okey[64];
+    memset(kbuf, 0, sizeof(kbuf));
+    if (key_len > 64) {
+        uint8_t kh[32];
+        sha256(key, key_len, kh);
+        memcpy(kbuf, kh, 32);
+    } else {
+        memcpy(kbuf, key, key_len);
+    }
+    for (int i = 0; i < 64; i++) {
+        ikey[i] = kbuf[i] ^ 0x36;
+        okey[i] = kbuf[i] ^ 0x5c;
+    }
+    uint8_t inner[32];
+    uint8_t *im = malloc(64 + msg_len);
+    if (!im)
+        return; /*caller's buffer is left untouched (zeroed by the caller)*/
+    memcpy(im, ikey, 64);
+    memcpy(im + 64, msg, msg_len);
+    sha256(im, 64 + msg_len, inner);
+    free(im);
+    uint8_t om[64 + 32];
+    memcpy(om, okey, 64);
+    memcpy(om + 64, inner, 32);
+    sha256(om, 64 + 32, out);
+}
+
+/*PBKDF2-SHA256 (RFC 2898) with a 32-byte output = one block (i = 1):
+ * U_1 = PRF(pwd, salt || INT(1)), U_j = PRF(pwd, U_(j-1)),
+ * DK  = U_1 ^ U_2 ^ ... ^ U_c.
+ * NOTE: the counter appears ONLY in U_1; every following U is the HMAC
+ * of the PREVIOUS U (the chain folds the password in each step) — do
+ * not "simplify" this to PRF(pwd, salt||INT(j)): that is a different,
+ * non-standard function. The salt here is always shorter than a
+ * SHA-256 block, so a single counter block suffices.*/
+static void pbkdf2_sha256(const uint8_t *pwd, size_t pwd_len,
+                          const uint8_t *salt, size_t salt_len,
+                          uint32_t iters, uint8_t out[32]) {
+    memset(out, 0, 32);
+    uint8_t *msg = malloc(salt_len + 4);
+    if (!msg)
+        return;
+    memcpy(msg, salt, salt_len);
+    msg[salt_len + 0] = 0;
+    msg[salt_len + 1] = 0;
+    msg[salt_len + 2] = 0;
+    msg[salt_len + 3] = 1;
+    uint8_t prev[32], cur[32];
+    hmac_sha256(pwd, pwd_len, msg, salt_len + 4, prev);
+    memcpy(out, prev, 32);
+    for (uint32_t i = 2; i <= iters; i++) {
+        hmac_sha256(pwd, pwd_len, prev, 32, cur);
+        for (int j = 0; j < 32; j++)
+            out[j] ^= cur[j];
+        memcpy(prev, cur, 32);
+    }
+    free(msg);
+}
+
+/*KDF for the stored password (also used for the DM credential check):
+ * PBKDF2-SHA256, PBKDF2_ITERS iterations, 64 hex chars + NUL (the
+ * caller must pass at least 65 bytes). The salt is mixed in by the
+ * KDF itself (per-username, see password_salt_for), so identical
+ * passwords hash differently per character.*/
+static void hash_password_kdf(const char *pwd, const char *salt,
+                              char *out, size_t out_len) {
+    if (out_len < 65) {
+        if (out) out[0] = '\0';
+        return;
+    }
+    uint8_t dk[32];
+    pbkdf2_sha256((const uint8_t *)(pwd ? pwd : ""),
+                  pwd ? strlen(pwd) : 0,
+                  (const uint8_t *)(salt ? salt : ""),
+                  salt ? strlen(salt) : 0,
+                  PBKDF2_ITERS, dk);
+    for (int i = 0; i < 32; i++)
+        snprintf(out + 2 * i, 3, "%02x", dk[i]);
 }
 
 /*The salt for a character's password: derived from the username so the
@@ -1574,11 +1729,12 @@ void save_player_data(Client *c) {
     return;
   SaveData sd;
   memset(&sd, 0, sizeof(sd));
-  /*Save the SALTED password hash instead of plain text (salt = username,
-   * so identical passwords hash differently per character).*/
+  /*PBKDF2-SHA256 hash of the password (salt = username, so identical
+   * passwords hash differently per character) — never the plaintext, and
+   * never the old 32-bit FNV-1a digest (GPU-brute-forceable in seconds).*/
   char salt[96];
   password_salt_for(c->username, salt, sizeof(salt));
-  hash_password_salted(c->password, salt, sd.password, sizeof(sd.password));
+  hash_password_kdf(c->password, salt, sd.password, sizeof(sd.password));
   sd.x = c->x;
   sd.y = c->y;
   sd.floor_id = c->floor_id;
@@ -1613,9 +1769,25 @@ void save_player_data(Client *c) {
   memcpy(sd.s_rings, c->slot_rings, sizeof(c->slot_rings));
   memcpy(sd.spell_slots, c->spell_slots, sizeof(c->spell_slots));
   memcpy(sd.spell_slots_max, c->spell_slots_max, sizeof(c->spell_slots_max));
-  /*--- Phase 3: Active Effects, Resources and Statistics ---*/
-  memcpy(sd.effects, c->effects, sizeof(ActiveEffect) * c->effect_count);
-  sd.effect_count     = c->effect_count;
+  /*--- Phase 3: Active Effects, Resources and Statistics ---
+   * Effects are flattened to SavedEffect: ActiveEffect.name is a
+   * pointer, so a raw memcpy would serialize a heap address into the
+   * file (it "worked" only because the loader ignored it). The name
+   * becomes its canonical ConditionType; a name that is not a known
+   * condition round-trips as MAX_CONDITIONS (see SavedEffect).*/
+  int n_saved_effects = 0;
+  for (int i = 0; i < c->effect_count && i < MAX_EFFECTS_PER_ENTITY; i++) {
+    const ActiveEffect *e = &c->effects[i];
+    SavedEffect *se = &sd.effects[i];
+    se->cond            = (int)condition_from_name(e->name);
+    se->trigger         = (int)e->trigger;
+    se->mod_type        = (int)e->mod_type;
+    se->value           = e->value;
+    se->duration_rounds = e->duration_rounds;
+    se->is_persistent   = e->is_persistent ? 1 : 0;
+    n_saved_effects++;
+  }
+  sd.effect_count = n_saved_effects;
   sd.light_turns_left = c->light_turns_left;
   sd.hunger_level     = c->hunger_level;
   sd.exhaustion_level = c->exhaustion_level;
@@ -1631,7 +1803,17 @@ void save_player_data(Client *c) {
   memcpy(sd.blocked_players, c->blocked_players,
          sizeof(c->blocked_players));
   sd.blocked_count = c->blocked_count;
-  if (!atomic_write_end(f, p, tp, fwrite(&sd, sizeof(sd), 1, f) == 1)) {
+  /*Versioned header: magic + version + CRC-32 over the payload, so a
+   * same-size layout change (version) or bit rot/tampering (CRC) is
+   * caught at load instead of being silently misinterpreted.*/
+  SaveHeader sh;
+  sh.magic    = SAVE_MAGIC;
+  sh.version  = SAVE_VERSION;
+  sh.crc32    = crc32_data(&sd, sizeof(sd));
+  sh.reserved = 0;
+  if (!atomic_write_end(f, p, tp,
+          fwrite(&sh, sizeof(sh), 1, f) == 1 &&
+          fwrite(&sd, sizeof(sd), 1, f) == 1)) {
     server_log("SAVE", "Failed to save %s — previous save kept.",
                c->username);
     return;
@@ -1651,7 +1833,9 @@ static void sanitize_item_instance(ItemInstance *it) {
   }
 }
 
-//Returns 1 if loaded, 0 if not exists, -1 if password incorrect
+//Returns 1 if loaded, 0 if not exists, -1 if password incorrect,
+//-2 if the file exists but is unreadable (old format, wrong version,
+//or CRC mismatch): the login is refused and the file is kept intact.
 int load_player_data(Client *c) {
   if (!c)
     return 0;
@@ -1660,25 +1844,40 @@ int load_player_data(Client *c) {
   FILE *f = fopen(p, "rb");
   if (!f)
     return 0; //New character
+  /*Versioned header (M1): magic + version + CRC over the payload.
+   * Files without it (pre-v1 saves) or with a different version are
+   * NOT half-loaded and NOT treated as new characters — that would
+   * let the next save silently overwrite them. Refuse; file kept.*/
+  SaveHeader sh;
+  if (fread(&sh, 1, sizeof(sh), f) != sizeof(sh) || sh.magic != SAVE_MAGIC) {
+    fclose(f);
+    server_log("SAVE", "%s.save has no valid v1 header (old format or corrupt) — login refused (file kept).",
+               c->username);
+    return -2;
+  }
+  if (sh.version != SAVE_VERSION) {
+    fclose(f);
+    server_log("SAVE", "%s.save has unsupported format version %u (expected %d) — login refused (file kept).",
+               c->username, sh.version, SAVE_VERSION);
+    return -2;
+  }
   SaveData sd;
   memset(&sd, 0, sizeof(SaveData));
-  if (fread(&sd, 1, sizeof(sd), f) != sizeof(sd)) {
-    /*Wrong-size file (written by an old intermediate build): do NOT
-     * half-load it, and do NOT treat it as a new character either —
-     * that would let the next save silently overwrite the old file.
-     * Reject the login; the save stays intact on disk.*/
+  if (fread(&sd, 1, sizeof(sd), f) != sizeof(sd) ||
+      crc32_data(&sd, sizeof(sd)) != sh.crc32) {
     fclose(f);
-    server_log("SAVE", "%s.save has an unsupported size — login refused (file kept).",
+    server_log("SAVE", "%s.save has an unsupported size or a CRC mismatch — login refused (file kept).",
                c->username);
-    return -1;
+    return -2;
   }
   fclose(f);
-  /*Verify the salted password hash (salt = username).*/
+  /*Verify the PBKDF2-SHA256 password hash (salt = username): the full
+   * 64-hex-char digest, not the old 8-char prefix compare.*/
   char salt[96];
   password_salt_for(c->username, salt, sizeof(salt));
-  char expected_hash[12];
-  hash_password_salted(c->password, salt, expected_hash, sizeof(expected_hash));
-  if (strncmp(sd.password, expected_hash, 8) != 0) {
+  char expected_hash[80];
+  hash_password_kdf(c->password, salt, expected_hash, sizeof(expected_hash));
+  if (strcmp(sd.password, expected_hash) != 0) {
     server_log("AUTH", "Incorrect password for: %s", c->username);
     return -1; //Incorrect password
   }
@@ -1822,14 +2021,32 @@ int load_player_data(Client *c) {
       c->spell_slots[i] = c->spell_slots_max[i];
   }
   /*--- Step 3: Restore active effects, resources and statistics ---*/
-  /*Effects are NOT restored from disk: ActiveEffect.name is a POINTER
-   * (into the saving process's memory), so a raw fread leaves dangling
-   * pointers and the first rules_has_condition() after login would
-   * dereference freed memory. Status effects are transient by design
-   * (a few rounds of poison/fire); dropping them on reconnect is the
-   * safe semantics and needs no format change. The saved fields stay
-   * in the file and are simply ignored.*/
+  /*v1 saves effects as SavedEffect (POD): the name round-trips as its
+   * canonical ConditionType and is re-bound to the table string, so
+   * there is no dangling pointer. Non-condition effects (name saved as
+   * MAX_CONDITIONS) are transient spell/trap bookkeeping and are
+   * dropped by design.*/
   c->effect_count = 0;
+  if (sd.effect_count < 0 || sd.effect_count > MAX_EFFECTS_PER_ENTITY) {
+    c->effect_count = 0;
+    save_corrupted = 1;
+  } else {
+    for (int i = 0; i < sd.effect_count; i++) {
+      const SavedEffect *se = &sd.effects[i];
+      if (se->cond < 0 || se->cond >= MAX_CONDITIONS)
+        continue; /*not a canonical condition: dropped by design*/
+      ActiveEffect *e = &c->effects[c->effect_count];
+      e->name = condition_to_name((ConditionType)se->cond);
+      e->trigger = (RuleEventType)se->trigger;
+      e->mod_type = (ModifierType)se->mod_type;
+      e->value = se->value;
+      e->duration_rounds = se->duration_rounds;
+      if (e->duration_rounds < 0)
+        e->duration_rounds = 0;
+      e->is_persistent = (se->is_persistent != 0);
+      c->effect_count++;
+    }
+  }
   c->light_turns_left = sd.light_turns_left;
   if (c->light_turns_left < 0)
     c->light_turns_left = 0;
@@ -2572,7 +2789,7 @@ void broadcast_nearby_entities(Client *c, NPC *npcs) {
       recs[nrec].entity_id = n->entity_id;
       recs[nrec].x = (int16_t)n->x;
       recs[nrec].y = (int16_t)n->y;
-      recs[nrec].hp = (int16_t)n->hp;
+      recs[nrec].hp = n->hp; /*int32_t: boss HP can exceed int16 (M6)*/
       nrec++;
     }
   }
@@ -3030,6 +3247,15 @@ int main(int argc, char **argv) {
               clients[i].active = false;
               continue;
             }
+            /*Force NUL terminators (M5): username/password/server_pass
+             * are fixed-size arrays and a malicious client can send all
+             * 32 bytes of each without a terminator. The first uses are
+             * strlen (valid_username) and strcmp (server_pass/DM check) —
+             * un-terminated, those read past the struct (UB). Same
+             * treatment MSG_TEXT_CMD already gets for tc.cmd.*/
+            ml.username[sizeof(ml.username) - 1] = '\0';
+            ml.password[sizeof(ml.password) - 1] = '\0';
+            ml.server_pass[sizeof(ml.server_pass) - 1] = '\0';
 
             //Check Server Password to allow connection
             if (strlen(SERVER_ACCESS_PASSWORD) > 0 && strcmp(ml.server_pass, SERVER_ACCESS_PASSWORD) != 0) {
@@ -3075,13 +3301,14 @@ int main(int argc, char **argv) {
             //The user "dm" must ALSO present the dedicated DM password.
             clients[i].is_dm = false;
             if (strcmp(ml.username, "dm") == 0) {
-                char dm_salt[16], dm_expected[12], dm_given[12];
+                char dm_salt[16], dm_expected[80], dm_given[80];
                 copy_str(dm_salt, "dm", sizeof(dm_salt));
-                hash_password_salted(SERVER_DM_PASSWORD, dm_salt,
-                                     dm_expected, sizeof(dm_expected));
-                hash_password_salted(ml.password, dm_salt,
-                                     dm_given, sizeof(dm_given));
-                if (strncmp(dm_expected, dm_given, 8) != 0) {
+                /*PBKDF2-SHA256, compared in full (64 hex chars).*/
+                hash_password_kdf(SERVER_DM_PASSWORD, dm_salt,
+                                  dm_expected, sizeof(dm_expected));
+                hash_password_kdf(ml.password, dm_salt,
+                                  dm_given, sizeof(dm_given));
+                if (strcmp(dm_expected, dm_given) != 0) {
                     MsgHeader fail_hdr = msg_hdr(MSG_AUTH_FAIL, (int)sizeof(MsgAuthFail));
                     MsgAuthFail fail_msg;
                     copy_str(fail_msg.reason, "Invalid DM password.",
@@ -3099,11 +3326,18 @@ int main(int argc, char **argv) {
             
             //Try loading an existing save
             int load_status = load_player_data(&clients[i]);
-            if (load_status == -1) {
-                //Personal Password incorrect for this character
+            if (load_status == -1 || load_status == -2) {
+                //Personal Password incorrect (-1) or save file unreadable:
+                //old format / wrong version / CRC mismatch (-2). In both
+                //cases the file stays intact on disk; a -2 character must
+                //be recreated (pre-v1 saves hold an 8-hex FNV-1a digest
+                //that cannot be upgraded to PBKDF2 without the password).
                 MsgHeader fail_hdr = msg_hdr(MSG_AUTH_FAIL, (int)sizeof(MsgAuthFail));
                 MsgAuthFail fail_msg;
-                copy_str(fail_msg.reason, "Incorrect character password.",
+                copy_str(fail_msg.reason,
+                         (load_status == -1)
+                             ? "Incorrect character password."
+                             : "Save file unreadable (old format, wrong version or corrupt).",
                          sizeof(fail_msg.reason));
                 net_send(clients[i].sock, &fail_hdr, sizeof(MsgHeader));
                 net_send(clients[i].sock, &fail_msg, sizeof(MsgAuthFail));
@@ -3112,20 +3346,11 @@ int main(int argc, char **argv) {
                 continue;
             }
             if (load_status == 0) {
-              //New character: uses the values ​​sent by the client (or default
-              //if disabled)
-              /*Clamp client-provided stats to 3..18: an edited client could
-               * previously send str=9999 and keep it for damage/carry/
-               * save DCs. (Rolling the dice server-side is the stronger
-               * fix; clamping is the minimal server-authoritative one.)*/
-              clients[i].str = clamp_stat(ml.str);
-              clients[i].dex = clamp_stat(ml.dex);
-              clients[i].con = clamp_stat(ml.con);
-              clients[i].intel = clamp_stat(ml.intel);
-              clients[i].wis = clamp_stat(ml.wis);
-              clients[i].cha = clamp_stat(ml.cha);
-              clients[i].hp = 20 + rules_get_modifier(clients[i].con);
-              clients[i].max_hp = clients[i].hp;
+              //New character. Stats are rolled on the SERVER below,
+              //once race/subrace are sanitized: the client-provided
+              //str..cha were the client's own 3d6 roll, i.e. untrusted
+              //(a modified client used to send 18/18/18/18/18/18 and
+              //the server only clamped them). M9.
               clients[i].floor_id = 0;
               clients[i].max_floor_explored = 0;
               clients[i].x = MAP_CENTER_X;
@@ -3161,6 +3386,40 @@ int main(int argc, char **argv) {
               clients[i].alignment =
                   (ml.alignment >= 0 && ml.alignment < ALIGN_COUNT)
                       ? ml.alignment : 0;
+
+              /*--- Ability scores: rolled HERE, on the server (M9) ---
+               * The client used to roll 3d6 locally (with a reroll
+               * loop) and send the totals; an edited client simply
+               * sent 18 six times. Same formula the client used to
+               * compute: 3d6 per stat + race bonus + subrace bonus,
+               * with the result clamped to the playable range 3..18.
+               * The rolled values are sent back as a [CHARACTER] line
+               * (below) so the player sees them in-game.*/
+              {
+                const RaceType rt = (RaceType)clients[i].race_id;
+                int bonus[6] = {
+                    RACES[rt].str_bonus, RACES[rt].dex_bonus,
+                    RACES[rt].con_bonus, RACES[rt].int_bonus,
+                    RACES[rt].wis_bonus, RACES[rt].cha_bonus
+                };
+                if (clients[i].subrace_id >= 0) {
+                  const SubraceType st = (SubraceType)clients[i].subrace_id;
+                  bonus[0] += SUBRACES[st].str_bonus;
+                  bonus[1] += SUBRACES[st].dex_bonus;
+                  bonus[2] += SUBRACES[st].con_bonus;
+                  bonus[3] += SUBRACES[st].int_bonus;
+                  bonus[4] += SUBRACES[st].wis_bonus;
+                  bonus[5] += SUBRACES[st].cha_bonus;
+                }
+                clients[i].str   = clamp_stat(rules_roll_dice(3, 6) + bonus[0]);
+                clients[i].dex   = clamp_stat(rules_roll_dice(3, 6) + bonus[1]);
+                clients[i].con   = clamp_stat(rules_roll_dice(3, 6) + bonus[2]);
+                clients[i].intel = clamp_stat(rules_roll_dice(3, 6) + bonus[3]);
+                clients[i].wis   = clamp_stat(rules_roll_dice(3, 6) + bonus[4]);
+                clients[i].cha   = clamp_stat(rules_roll_dice(3, 6) + bonus[5]);
+              }
+              clients[i].hp = 20 + rules_get_modifier(clients[i].con);
+              clients[i].max_hp = clients[i].hp;
 
               memset(clients[i].spell_slots_max, 0,
                      sizeof(clients[i].spell_slots_max));
@@ -3232,6 +3491,15 @@ int main(int argc, char **argv) {
                   clients[i].sock,
                   "[SYSTEM] Welcome, %s! Your adventure begins...",
                   clients[i].username);
+              /*The rolled ability summary (M9): the dice were thrown on
+               * the server, this is the player's view of the result.*/
+              send_text_to_client(
+                  clients[i].sock,
+                  "[CHARACTER] Rolled by the server: STR %d, DEX %d, CON %d, "
+                  "INT %d, WIS %d, CHA %d (Max HP %d)",
+                  clients[i].str, clients[i].dex, clients[i].con,
+                  clients[i].intel, clients[i].wis, clients[i].cha,
+                  clients[i].max_hp);
             }
             server_log("AUTH", "'%s' %s", ml.username,
                        (load_status == 1) ? "rientrato" : "new");
@@ -3242,6 +3510,11 @@ int main(int argc, char **argv) {
               clients[i].active = false;
               continue;
             }
+
+            /*Position/floor BEFORE the move: the 10 KB map chunk is
+             * re-sent only if the view actually moved (M7).*/
+            int old_x = clients[i].x, old_y = clients[i].y;
+            int old_floor = clients[i].floor_id;
 
             long long now_ms = get_time_ms();
             if (now_ms - clients[i].last_action_ms < 200) {
@@ -3447,12 +3720,23 @@ int main(int argc, char **argv) {
             broadcast_nearby_entities(&clients[i], npcs);
             send_detailed_state(&clients[i]);
             broadcast_player_state(&clients[i]);
-            //Send the map chunk around the new location.
-            // (The old two server_log("NET", ...) lines per step spammed the
-            // log: up to 64 players * 5 steps/s = ~500 lines/second.)
-            send_map_chunk(clients[i].sock,
-                           &master_world->floors[clients[i].floor_id].map,
-                           clients[i].x, clients[i].y, INITIAL_VIEW_RADIUS);
+            //Send the map chunk around the new location — but ONLY if
+            //x, y or the floor actually changed (M7). Holding a key
+            //against a wall used to re-ship the same 100x100 chunk 5x/s
+            //(~50 KB/s wasted per player, client redrawing the same
+            //map). check_tile_events/check_traps can change the floor
+            //(stairs, teleports), so floor_id is compared too. The state
+            //broadcasts above stay unconditional: a blocked move can
+            //still end a fight (attack sets coll) or leave NPC positions
+            //one tick stale. (The old two server_log("NET", ...) lines
+            //per step spammed the log: up to 64 players * 5 steps/s =
+            //~500 lines/second.)
+            if (clients[i].x != old_x || clients[i].y != old_y ||
+                clients[i].floor_id != old_floor) {
+              send_map_chunk(clients[i].sock,
+                             &master_world->floors[clients[i].floor_id].map,
+                             clients[i].x, clients[i].y, INITIAL_VIEW_RADIUS);
+            }
           } else if (hdr.type == MSG_TEXT_CMD && clients[i].authenticated) {
             MsgTextCmd tc;
             if (net_receive_all(clients[i].sock, &tc, sizeof(MsgTextCmd)) <= 0) {

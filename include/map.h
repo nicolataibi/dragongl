@@ -22,6 +22,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include "traps.h"
 
 #define MAP_WIDTH 300
@@ -120,6 +121,9 @@ typedef struct {
 void world_init(World* world);
 void world_save(World* world, const char* filename);
 bool world_load(World* world, const char* filename);
+/*CRC-32 (IEEE 802.3, polynomial 0xEDB88320), table-driven. Shared by
+ * world.dat (WorldSaveHeader) and the player saves (SaveHeader).*/
+uint32_t crc32_data(const void *data, size_t len);
 void map_dig_room(Map* map, int x, int y, int w, int h);
 void generate_procedural_dungeon(Map* map, int floor_id);
 

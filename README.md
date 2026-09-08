@@ -31,7 +31,7 @@ Dragon GL is a high-performance, 3D multi-user client-server dungeon exploration
 </table>
 
 ### Website: https://github.com/nicolataibi/dragongl
-### Authors: Nicola Taibi, Supported by Gemini (Google AI), ChatGPT, and local AI QWEN.
+### Authors: Nicola Taibi, Supported by Gemini (Google AI), ChatGPT, and local AI Qwen, Gemma.
 ### Copyright (C) 2026 Nicola Taibi - Licensed under GPL-3.0-or-later
 #### **License: CC BY 4.0 (Attribution)**
 #### All character images and graphical interfaces within this collection are released under the [Creative Commons Attribution 4.0 International](https://creativecommons.org/licenses/by/4.0/) license. 

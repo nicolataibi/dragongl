@@ -372,7 +372,7 @@ static void crc32_init(void) {
         g_crc32_table[i] = c;
     }
 }
-static uint32_t crc32_data(const void *data, size_t len) {
+uint32_t crc32_data(const void *data, size_t len) {
     static bool ready = false;
     if (!ready) {
         crc32_init();

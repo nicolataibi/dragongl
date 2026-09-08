@@ -543,14 +543,18 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
 
       c->unspent_stat_points--;
       char *stat_name = "";
-      int old_mod = (c->con - 10) / 2;
+      /*rules_get_modifier(): floor((score-10)/2). The old inline
+       * (con-10)/2 truncated TOWARD ZERO, so at CON 9->10 and 3->4 the
+       * HP bonus was withheld although the modifier genuinely changed
+       * (rules.c has the canonical floor division for exactly this).*/
+      int old_mod = rules_get_modifier(c->con);
       
       if (chosen == 0) { c->str++; stat_name = "Strength"; }
       else if (chosen == 1) { c->dex++; stat_name = "Dexterity"; }
       else if (chosen == 2) { 
           c->con++; 
           stat_name = "Constitution"; 
-          int new_mod = (c->con - 10) / 2;
+          int new_mod = rules_get_modifier(c->con);
           if (new_mod > old_mod) {
               c->max_hp += c->level;
               c->hp += c->level;
@@ -588,8 +592,18 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
                   snprintf(filepath, sizeof(filepath), "saves/%s", dir->d_name);
                   FILE *f = fopen(filepath, "rb");
                   if (f) {
+                      /*v1 saves start with a SaveHeader (magic + version
+                       * + CRC): skip and validate it before reading the
+                       * payload, and verify the CRC so a corrupt save
+                       * (which login would refuse anyway) is not listed
+                       * with garbage level/xp.*/
+                      SaveHeader sh;
                       SaveData sd;
-                      if (fread(&sd, 1, sizeof(SaveData), f) == sizeof(SaveData)) {
+                      if (fread(&sh, 1, sizeof(sh), f) == sizeof(sh) &&
+                          sh.magic == SAVE_MAGIC &&
+                          sh.version == SAVE_VERSION &&
+                          fread(&sd, 1, sizeof(SaveData), f) == sizeof(SaveData) &&
+                          crc32_data(&sd, sizeof(SaveData)) == sh.crc32) {
                           char username[32];
                           strncpy(username, dir->d_name, sizeof(username) - 1);
                           username[sizeof(username) - 1] = '\0';

@@ -207,7 +207,9 @@ int main(int argc, char **argv) {
     if (fgets(buf, sizeof(buf), stdin)) {
         sscanf(buf, "%d", &is_new);
     }
-    int final_str=10, final_dex=10, final_con=10, final_int=10, final_wis=10, final_cha=10;
+    /*final_age/height/weight/social: cosmetic flavour rolls only (the
+     * server never uses them; the ability scores are rolled server-side,
+     * M9).*/
     int final_age=20, final_height=170, final_weight=70, final_social=50;
     char sex_char = 'M';
 
@@ -273,122 +275,62 @@ int main(int argc, char **argv) {
         g_class_id = class_id;
         g_alignment = alignment;
 
+        /*Ability scores are rolled by the SERVER at login (M9): the old
+        * local 3d6 + reroll loop meant an edited client simply sent
+        * 18/18/18/18/18/18. Only the cosmetic flavour rolls (age, height,
+        * weight, social status) are local - the server never uses them.
+        * The rolled STR/DEX/CON/INT/WIS/CHA arrive in-game as a
+        * [CHARACTER] message right after the welcome.*/
         srand(time(NULL));
-        char conf = 'n';
-        while (conf != 's' && conf != 'S') {
-            int base_str = rules_roll_dice(3, 6);
-            int base_dex = rules_roll_dice(3, 6);
-            int base_con = rules_roll_dice(3, 6);
-            int base_int = rules_roll_dice(3, 6);
-            int base_wis = rules_roll_dice(3, 6);
-            int base_cha = rules_roll_dice(3, 6);
-            
-            final_str = base_str + RACES[race_id].str_bonus;
-            final_dex = base_dex + RACES[race_id].dex_bonus;
-            final_con = base_con + RACES[race_id].con_bonus;
-            final_int = base_int + RACES[race_id].int_bonus;
-            final_wis = base_wis + RACES[race_id].wis_bonus;
-            final_cha = base_cha + RACES[race_id].cha_bonus;
+        final_age    = rules_roll_dice(3, 6) + 15;
+        final_height = rules_roll_dice(4, 10) + 140;
+        final_weight = rules_roll_dice(4, 10) + 50;
+        final_social = rules_roll_dice(1, 100);
 
-            if (g_subrace_id != -1) {
-                final_str += SUBRACES[g_subrace_id].str_bonus;
-                final_dex += SUBRACES[g_subrace_id].dex_bonus;
-                final_con += SUBRACES[g_subrace_id].con_bonus;
-                final_int += SUBRACES[g_subrace_id].int_bonus;
-                final_wis += SUBRACES[g_subrace_id].wis_bonus;
-                final_cha += SUBRACES[g_subrace_id].cha_bonus;
-            }
-            
-            final_age = rules_roll_dice(3, 6) + 15;
-            final_height = rules_roll_dice(4, 10) + 140;
-            final_weight = rules_roll_dice(4, 10) + 50;
-            final_social = rules_roll_dice(1, 100);
-            
-            int to_hit = rules_get_modifier(final_str);
-            int to_dmg = rules_get_modifier(final_str);
-            int to_ac = rules_get_modifier(final_dex);
-            int tot_ac = 10 + to_ac;
-            
-            char full_race[64];
-            if (g_subrace_id != -1) {
-                snprintf(full_race, sizeof(full_race), "%s (%s)", RACES[race_id].name, SUBRACES[g_subrace_id].name);
-            } else {
-                strncpy(full_race, RACES[race_id].name, sizeof(full_race));
-            }
-
-            printf("\n========================================================================\n");
-            printf(" Name        : %-22s Age          : %5d  STR : %4d\n", username, final_age, final_str);
-            printf(" Race        : %-22s Height (cm)  : %5d  INT : %4d\n", full_race, final_height, final_int);
-            printf(" Sex         : %-22s Weight (kg)  : %5d  WIS : %4d\n", sex_char == 'M' ? "Male" : "Female", final_weight, final_wis);
-            printf(" Class       : %-22s Social Status: %5d  DEX : %4d\n", CLASSES[class_id].name, final_social, final_dex);
-            printf("Alignment : %-46s CON : %4d\n", ALIGNMENTS[alignment].name, final_con);
-            printf("                                                             CHR : %4d\n\n", final_cha);
-            printf(" Traits      : %s%s%s\n\n", RACES[race_id].traits, 
-                   (g_subrace_id != -1 ? ", " : ""),
-                   (g_subrace_id != -1 ? SUBRACES[g_subrace_id].traits : ""));
-            printf(" + To Hit    : %6d\n", to_hit);
-            printf(" + To Damage : %6d\n", to_dmg);
-            printf(" + To AC     : %6d\n", to_ac);
-            printf("   Total AC  : %6d\n", tot_ac);
-            printf("========================================================================\n");
-            
-            printf("Confirm these statistics? (y = Yes, n = Reroll): ");
-            if (fgets(buf, sizeof(buf), stdin)) {
-                conf = buf[0];
-                if (conf == 'y' || conf == 'Y') conf = 's'; // internal 's' for Yes
-            }
+        char full_race[64];
+        if (g_subrace_id != -1) {
+            snprintf(full_race, sizeof(full_race), "%s (%s)",
+                     RACES[race_id].name, SUBRACES[g_subrace_id].name);
+        } else {
+            strncpy(full_race, RACES[race_id].name, sizeof(full_race));
         }
+
+        printf("\n========================================================================\n");
+        printf(" Name        : %-22s Age          : %5d\n", username, final_age);
+        printf(" Race        : %-22s Height (cm)  : %5d\n", full_race, final_height);
+        printf(" Sex         : %-22s Weight (kg)  : %5d\n", sex_char == 'M' ? "Male" : "Female", final_weight);
+        printf(" Class       : %-22s Social Status: %5d\n", CLASSES[class_id].name, final_social);
+        printf("Alignment : %-46s\n", ALIGNMENTS[alignment].name);
+        printf(" STR/DEX/CON/INT/WIS/CHA: rolled by the server - see the\n");
+        printf(" [CHARACTER] message after login.\n\n");
+        printf(" Traits      : %s%s%s\n\n", RACES[race_id].traits,
+               (g_subrace_id != -1 ? ", " : ""),
+               (g_subrace_id != -1 ? SUBRACES[g_subrace_id].traits : ""));
+        printf("========================================================================\n");
     }
 
-    // --- Final character summary ---
+    // --- Final character summary (flavour only: the ability scores are
+    // rolled by the server, see the [CHARACTER] line after login) ---
     if (is_new) {
-        int con_mod  = rules_get_modifier(final_con);
-        int str_mod  = rules_get_modifier(final_str);
-        int dex_mod  = rules_get_modifier(final_dex);
-        int int_mod  = rules_get_modifier(final_int);
-        int wis_mod  = rules_get_modifier(final_wis);
-        int max_hp   = 20 + con_mod; // Same as server
-        int total_ac = 10 + dex_mod;
-        int to_hit_f = str_mod;
-        int to_dmg_f = str_mod;
-
         char full_race_f[64];
         if (g_subrace_id != -1) {
-            snprintf(full_race_f, sizeof(full_race_f), "%s (%s)", RACES[race_id].name, SUBRACES[g_subrace_id].name);
+            snprintf(full_race_f, sizeof(full_race_f), "%s (%s)",
+                     RACES[race_id].name, SUBRACES[g_subrace_id].name);
         } else {
             strncpy(full_race_f, RACES[race_id].name, sizeof(full_race_f));
         }
 
-        printf("\n");
-        printf("===========================================================================\n");
-        printf(" Name        : %-23s  Age          : %5d  STR : %4d\n", username, final_age, final_str);
-        printf(" Race        : %-23s  Height       : %5d  INT : %4d\n", full_race_f, final_height, final_int);
-        printf(" Sex         : %-23s  Weight       : %5d  WIS : %4d\n", sex_char == 'M' ? "Male" : "Female", final_weight, final_wis);
-        printf(" Class       : %-23s  Social Status: %5d  DEX : %4d\n", CLASSES[class_id].name, final_social, final_dex);
-        printf("Alignment : %-23s CON : %4d\n", ALIGNMENTS[g_alignment].name, final_con);
-        printf("                                                             CHR : %4d\n", final_cha);
-        printf("\n");
-        printf(" + To Hit    : %6d       Level      : %7d    Max Hit Points : %6d\n", to_hit_f, 1, max_hp);
-        printf(" + To Damage : %6d       Experience : %7d    Cur Hit Points : %6d\n", to_dmg_f, 0, max_hp);
-        printf(" + To AC     : %6d       Max Exp    : %7d    Max Mana       : %6d\n", dex_mod, 0, 0);
-        printf("   Total AC  : %6d       Exp to Adv.: %7d    Cur Mana       : %6d\n", total_ac, 1000, 0);
-        printf("                            Gold       : %7d\n", 1000);
-        printf("\n");
-        printf("                         (Miscellaneous Abilities)\n");
-        printf(" Fighting    : %-12s  Stealth     : %-12s  Perception  : %-12s\n", 
-               str_mod > 2 ? "Very Good" : (str_mod > 0 ? "Good" : "Fair"),
-               dex_mod > 2 ? "Excellent" : (dex_mod > 0 ? "Good" : "Fair"),
-               int_mod > 2 ? "Sharp" : (int_mod > 0 ? "Good" : "Poor"));
-        printf(" Bows/Throw  : %-12s  Disarming   : %-12s  Searching   : %-12s\n",
-               dex_mod > 1 ? "Good" : "Fair",
-               dex_mod > 1 ? "Good" : "Poor",
-               wis_mod > 1 ? "Good" : "Poor");
-        printf(" Saving Throw: %-12s  Magic Device: %-12s  Infra-Vision: %2d feet\n",
-               con_mod > 1 ? "Good" : "Fair",
-               int_mod > 1 ? "Good" : "Fair",
-               (strstr(RACES[race_id].traits, "Darkvision") || (g_subrace_id != -1 && strstr(SUBRACES[g_subrace_id].traits, "Darkvision"))) ? 60 : 0);
+        printf("\n===========================================================================\n");
+        printf(" Name        : %-23s  Age          : %5d\n", username, final_age);
+        printf(" Race        : %-23s  Height       : %5d\n", full_race_f, final_height);
+        printf(" Sex         : %-23s  Weight       : %5d\n", sex_char == 'M' ? "Male" : "Female", final_weight);
+        printf(" Class       : %-23s  Social Status: %5d\n", CLASSES[class_id].name, final_social);
+        printf("Alignment   : %-23s\n", ALIGNMENTS[g_alignment].name);
+        printf(" Ability scores are rolled by the server: watch for the\n");
+        printf(" [CHARACTER] line after you connect.\n");
         printf("===========================================================================\n\n");
     }
+
 
     printf("Connecting to server %s:%d...\n", server_ip, server_port);
     g_server_sock = net_connect_to_server(server_ip, server_port);
@@ -409,8 +351,11 @@ int main(int argc, char **argv) {
         msg_log.race_id = race_id;
         msg_log.subrace_id = g_subrace_id;
         msg_log.class_id = class_id;
-        msg_log.str = final_str; msg_log.dex = final_dex; msg_log.con = final_con;
-        msg_log.intel = final_int; msg_log.wis = final_wis; msg_log.cha = final_cha;
+        /*Stats are rolled server-side (M9): send zeros - the
+        * server ignores them for new characters and never
+        * reads them for existing ones.*/
+        msg_log.str = 0; msg_log.dex = 0; msg_log.con = 0;
+        msg_log.intel = 0; msg_log.wis = 0; msg_log.cha = 0;
         msg_log.age = final_age; msg_log.height = final_height; msg_log.weight = final_weight;
         msg_log.social_class = final_social; msg_log.alignment = g_alignment;
         g_race_id = race_id;

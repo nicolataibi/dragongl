@@ -1,3 +1,27 @@
+* Tue Sep 08 2026 nicolataibi <nicola.taibi.1967@gmail.com> - 2026.09.08.02
+- SECURITY: Replaced legacy FNV-1a password hashing with PBKDF2-SHA256 to 
+  prevent offline brute-force attacks; updated SaveData and DM authentication 
+  to support the new 64-char digest.
+- SECURITY: Enforced NUL-termination for MsgLogin fields (username, password, 
+  server_pass) to eliminate potential out-of-bounds reads during authentication.
+- PERSISTENCE: Implemented a versioned save format (v1) with a magic header 
+  and CRC-32 checksum to detect file corruption and prevent the loading of 
+  incompatible legacy saves.
+- PERSISTENCE: Fixed the serialization of active effects by storing canonical 
+  ConditionType IDs instead of memory pointers, ensuring effects persist 
+  correctly across sessions.
+- NETWORKING: Updated wire protocol to version 2; expanded EntityUpdateRec.hp 
+  to int32_t to prevent overflows for high-HP entities on deep floors.
+- NETWORKING: Optimized map transmission by restricting MSG_MAP_CHUNK 
+  broadcasts to actual coordinate or floor changes, reducing redundant 
+  bandwidth.
+- GAMEPLAY: Moved ability score rolls for new characters to the server to 
+  ensure authoritative statistics and prevent client-side manipulation.
+- GAMEPLAY: Fixed the train command to use rules_get_modifier for 
+  Constitution, correcting HP bonus calculation for odd scores.
+- LOGGING: Refactored combat_log.json to implement proper JSON escaping, 
+  periodic flushing, and size-based rotation to maintain performance and 
+  validity.
 * Tue Sep 08 2026 nicolataibi <nicola.taibi.1967@gmail.com> - 2026.09.08.01
 - Full technical review of the codebase, II pass, HIGH SEVERITY:
 - SECURITY load_player_data: complete sanitization of the state restored

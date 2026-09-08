@@ -39,8 +39,10 @@ typedef uint32_t MsgType;
 
 /*Bumped whenever the wire format changes. Both ends REJECT any other
  * value, so an old client and a new server fail fast with a clear
- * protocol error instead of silently desynchronizing the stream.*/
-#define PROTOCOL_VERSION 1
+ * protocol error instead of silently desynchronizing the stream.
+ * v2: EntityUpdateRec.hp widened to int32_t (boss HP on deep floors
+ * exceeded the old int16_t and showed up as random HP on clients).*/
+#define PROTOCOL_VERSION 2
 
 typedef struct {
     MsgType type;
@@ -64,12 +66,16 @@ static inline MsgHeader msg_hdr(MsgType type, int length) {
 /*One compact entity record inside a MsgEntityUpdate payload.
  * Sent only for entities the client has ALREADY received a full
  * MsgState for (the server tracks that per client), so the client
- * can update position/HP without the ~1.5 KB full state message.*/
+ * can update position/HP without the ~1.5 KB full state message.
+ * hp is int32_t (NOT int16_t): boss HP is hp_base*5 + floor*50, which
+ * passes 32767 on deep floors with big JSON templates — the old
+ * int16_t wrapped and clients drew random HP bars. The layout stays
+ * 12 bytes (no padding: 4 + 2 + 2 + 4, hp 4-aligned at offset 8).*/
 typedef struct {
     int   entity_id;
     int16_t x;
     int16_t y;
-    int16_t hp;
+    int32_t hp;
 } EntityUpdateRec; /*12 bytes: the payload is [int32 count][EntityUpdateRec count]*/
 
 /*Sent by the client at login.

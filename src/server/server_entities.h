@@ -206,8 +206,45 @@ typedef struct {
 } Client;
 
 
+/*One ActiveEffect flattened to plain data for the save file: the
+ * in-memory ActiveEffect.name is a POINTER (into the saving process's
+ * memory) and must never reach the disk. cond is the canonical
+ * ConditionType (see condition_to_name/_from_name in rules.c); a name
+ * that is not a known condition (spell bookkeeping effects like
+ * "Nube Acida" or "Confused") saves as MAX_CONDITIONS and is dropped
+ * on load — only canonical conditions drive real mechanics (HP ticks,
+ * saves, action locks), so losing the cosmetic ones across a logout is
+ * safe (they are 3-5 round transients anyway).*/
 typedef struct {
-    char password[32]; int x, y, floor_id;
+    int cond;            /*ConditionType; MAX_CONDITIONS = not a condition */
+    int trigger;         /*RuleEventType */
+    int mod_type;        /*ModifierType */
+    int value;
+    int duration_rounds;
+    int is_persistent;   /*0/1 (bool) */
+} SavedEffect;
+
+/*Save-file header (M1): the old format was a bare SaveData fwrite —
+ * the ONLY load-side defense was "fread != sizeof -> refuse", so a
+ * same-size layout change was silently misinterpreted. Now every
+ * .save starts with magic + version + a CRC-32 (IEEE) of the SaveData
+ * payload: wrong generation => magic/version mismatch, bit rot or
+ * tampering => CRC mismatch; the file is kept intact and the login is
+ * refused with a clear reason.*/
+#define SAVE_MAGIC   0x44474C53u /* 'D''G''L''S' */
+/*v1: header + PBKDF2-SHA256 password (64 hex) + SavedEffect (POD).*/
+#define SAVE_VERSION 1
+
+typedef struct {
+    uint32_t magic;    /*SAVE_MAGIC */
+    uint32_t version;  /*SAVE_VERSION */
+    uint32_t crc32;    /*CRC-32 (IEEE) of the SaveData payload */
+    uint32_t reserved; /*0, for future expansion */
+} SaveHeader;
+
+typedef struct {
+    char password[80]; /*PBKDF2-SHA256 hex (64 chars) + NUL + margin */
+    int x, y, floor_id;
     RaceType race_id;
     SubraceType subrace_id;
     ClassType class_id;
@@ -219,7 +256,7 @@ typedef struct {
     int spell_slots[MAX_SPELL_LEVEL + 1], spell_slots_max[MAX_SPELL_LEVEL + 1];
     int alignment;
     /*--- Step 3: Fields Added for Save State Complete ---*/
-    ActiveEffect effects[MAX_EFFECTS_PER_ENTITY]; /*Active status effects*/
+    SavedEffect effects[MAX_EFFECTS_PER_ENTITY];  /*Active status effects (POD, no pointers)*/
     int effect_count;                             /*Number of saved effects*/
     int light_turns_left;                         /*Torch/Magic light remaining*/
     int hunger_level;                             /*Current hunger level*/
