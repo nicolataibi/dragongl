@@ -577,6 +577,12 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
           LeaderboardEntry entries[1000];
           int entry_count = 0;
           while ((dir = readdir(d)) != NULL) {
+              /*Stop at the capacity of the stack array: with more than
+               * 1000 .save files in saves/ the old loop wrote entries[]
+               * out of bounds (canary/return-address overwrite) from the
+               * plain 'top' command.*/
+              if (entry_count >= 1000)
+                  break;
               if (strstr(dir->d_name, ".save")) {
                   char filepath[128];
                   snprintf(filepath, sizeof(filepath), "saves/%s", dir->d_name);

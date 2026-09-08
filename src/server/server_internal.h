@@ -94,6 +94,14 @@ int get_player_ac(Client *c);
 int get_vision_radius(Client *c);
 void sync_entity_grid(NPC *npcs);
 
+/*Atomic file write helpers (temp file in the same directory + fsync +
+ * rename): a crash mid-write never truncates the target file; on any
+ * error the temp file is removed and the last good file is kept.*/
+FILE *atomic_write_begin(const char *path, char *tmp, size_t tmp_size);
+bool atomic_write_end(FILE *f, const char *path, const char *tmp, bool ok);
+/*Delete leftover *.tmp files in dir (stale from a crashed run).*/
+void cleanup_stale_tmp_files(const char *dir);
+
 void save_bones(Client* c);
 void drop_loot_from_monster(Client *c, NPC *killer);
 void check_level_up(Client *c);

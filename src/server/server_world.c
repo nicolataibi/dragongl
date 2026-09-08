@@ -229,27 +229,33 @@ void update_world(Client *clients, NPC *npcs) {
       snprintf(world_path, sizeof(world_path), "%s/world.dat", g_data_dir);
       snprintf(npcs_path, sizeof(npcs_path), "%s/npcs.dat", g_data_dir);
       world_save(master_world, world_path);
-      FILE *fn = fopen(npcs_path, "wb");
+      /*Atomic write (see atomic_write_begin): a crash mid-autosave must
+       * not leave a truncated npcs.dat that the next boot would treat
+       * as "world/NPCs inconsistent -> fresh world" (total state loss).*/
+      char tmp[DATA_DIR_MAX + 64];
+      FILE *fn = atomic_write_begin(npcs_path, tmp, sizeof(tmp));
       if (fn) {
         /*Compact format: [magic:uint32][count:int][NPC * count][next_id:int][turns:int]
          * Replaces the old format that always wrote 50,000 slots.*/
         const uint32_t magic = 0xDEAD7ECC;
         int used = 0;
+        bool ok = true;
         for (int ni = 0; ni < MAX_NPCS; ni++) {
           if (npcs[ni].template != NULL || npcs[ni].active) {
             used++;
           }
         }
-        fwrite(&magic, sizeof(uint32_t), 1, fn);
-        fwrite(&used, sizeof(int), 1, fn);
+        ok = ok && (fwrite(&magic, sizeof(uint32_t), 1, fn) == 1);
+        ok = ok && (fwrite(&used, sizeof(int), 1, fn) == 1);
         for (int ni = 0; ni < MAX_NPCS; ni++) {
           if (npcs[ni].template != NULL || npcs[ni].active) {
-            fwrite(&npcs[ni], sizeof(NPC), 1, fn);
+            ok = ok && (fwrite(&npcs[ni], sizeof(NPC), 1, fn) == 1);
           }
         }
-        fwrite(&next_id, sizeof(int), 1, fn);
-        fwrite(&global_total_turns, sizeof(int), 1, fn);
-        fclose(fn);
+        ok = ok && (fwrite(&next_id, sizeof(int), 1, fn) == 1);
+        ok = ok && (fwrite(&global_total_turns, sizeof(int), 1, fn) == 1);
+        if (!atomic_write_end(fn, npcs_path, tmp, ok))
+          server_log("SYS", "WARNING: autosave of npcs.dat failed — previous file kept.");
       }
       server_log("SYS", "Auto-save: %d players, world and %d NPCs.", saved_count, MAX_NPCS);
     }

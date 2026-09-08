@@ -31,6 +31,7 @@
 #include "spells.h"
 #include <arpa/inet.h>
 #include <ctype.h>
+#include <dirent.h>
 #include <errno.h>
 #include <ifaddrs.h>
 #include <math.h>
@@ -173,6 +174,63 @@ static void ensure_saves_dir(void) {
     }
 }
 
+/*--- Atomic file write helpers -------------------------------------
+ * All persistent state (.save, npcs.dat, artifacts.dat, tombstones)
+ * is written to a temp file in the SAME directory as the target,
+ * fsync'ed, then rename()'d over the target name: rename is atomic on
+ * the same filesystem, so a crash mid-write can never leave a
+ * truncated file that a later load would half-read. On any error the
+ * temp file is removed and the last good file is left untouched. */
+
+/*Open <path>.<pid>.tmp for writing. On success returns the stream and
+ * fills tmp with the temp name (pass the same string to
+ * atomic_write_end); on failure returns NULL.*/
+FILE *atomic_write_begin(const char *path, char *tmp, size_t tmp_size) {
+  if (!path || !tmp || tmp_size == 0)
+    return NULL;
+  if (strlen(path) + 16 > tmp_size) /*room for ".<pid>.tmp" + NUL*/
+    return NULL;
+  snprintf(tmp, tmp_size, "%s.%d.tmp", path, (int)getpid());
+  return fopen(tmp, "wb");
+}
+
+/*Finish an atomic write: fflush + fsync + close, then rename over the
+ * target — but only if ok and every step succeeded. On failure the
+ * temp file is removed and false is returned; the existing target is
+ * never touched.*/
+bool atomic_write_end(FILE *f, const char *path, const char *tmp, bool ok) {
+  if (f)
+    ok = ok && fflush(f) == 0 && fsync(fileno(f)) == 0 && fclose(f) == 0;
+  if (ok && tmp && path && rename(tmp, path) == 0)
+    return true;
+  if (tmp && tmp[0])
+    remove(tmp);
+  return false;
+}
+
+/*Remove leftover *.tmp files from a previous crashed run. While the
+ * server is alive no .tmp file can exist (single-threaded main loop),
+ * so anything found at startup is stale; this also keeps old
+ * <user>.save.<pid>.tmp files out of the directory scans (the 'top'
+ * leaderboard matches on ".save", tombstone_load_all on "tombstone_").*/
+void cleanup_stale_tmp_files(const char *dir) {
+  if (!dir)
+    return;
+  DIR *d = opendir(dir);
+  if (!d)
+    return;
+  struct dirent *e;
+  while ((e = readdir(d)) != NULL) {
+    size_t n = strlen(e->d_name);
+    if (n > 4 && strcmp(e->d_name + n - 4, ".tmp") == 0) {
+      char p[512];
+      if (snprintf(p, sizeof(p), "%s/%s", dir, e->d_name) < (int)sizeof(p))
+        remove(p);
+    }
+  }
+  closedir(d);
+}
+
 /*Seed the RNG ONCE at process start, with kernel entropy when available.
  * The old code seeded only inside world_init() — which is SKIPPED when
  * data/world.dat exists — so after every reboot the server ran on the
@@ -287,13 +345,20 @@ static void artifacts_load(void) {
 static void artifacts_save(void) {
     char path[DATA_DIR_MAX + 32];
     snprintf(path, sizeof(path), "%s/artifacts.dat", g_data_dir);
-    FILE *f = fopen(path, "wb");
+    /*Atomic: a crash mid-write must not truncate the artifact state.
+     * The per-field fwrites are byte-identical to a single buffer, so
+     * the format is unchanged.*/
+    char tmp[DATA_DIR_MAX + 64];
+    FILE *f = atomic_write_begin(path, tmp, sizeof(tmp));
     if (!f)
         return;
+    bool ok = true;
     for (int i = 0; i < artifact_count; i++) {
-        fwrite(&artifact_registry[i].already_dropped, sizeof(bool), 1, f);
+        ok = ok &&
+             (fwrite(&artifact_registry[i].already_dropped, sizeof(bool), 1, f) == 1);
     }
-    fclose(f);
+    if (!atomic_write_end(f, path, tmp, ok))
+        server_log("SAVE", "Failed to save artifacts.dat — previous state kept.");
 }
 
 // Forward declarations
@@ -1498,7 +1563,13 @@ void save_player_data(Client *c) {
   ensure_saves_dir();
   char p[64];
   snprintf(p, 64, "saves/%s.save", c->username);
-  FILE *f = fopen(p, "wb");
+  /*Atomic save (see atomic_write_begin): a crash or kill mid-write can
+   * no longer leave a truncated .save on disk that the next login would
+   * half-load; on any write error the temp file is deleted and the last
+   * good save is kept. The temp name reuses the validated username (no
+   * path escaping possible).*/
+  char tp[96];
+  FILE *f = atomic_write_begin(p, tp, sizeof(tp));
   if (!f)
     return;
   SaveData sd;
@@ -1560,9 +1631,24 @@ void save_player_data(Client *c) {
   memcpy(sd.blocked_players, c->blocked_players,
          sizeof(c->blocked_players));
   sd.blocked_count = c->blocked_count;
-  fwrite(&sd, sizeof(sd), 1, f);
-  fclose(f);
+  if (!atomic_write_end(f, p, tp, fwrite(&sd, sizeof(sd), 1, f) == 1)) {
+    server_log("SAVE", "Failed to save %s — previous save kept.",
+               c->username);
+    return;
+  }
   server_log("SAVE", "Saved: %s", c->username);
+}
+
+/*Sanitize an ItemInstance loaded from a save file: template_idx must be
+ * -1 (empty slot) or a valid index into item_database. A hostile or
+ * corrupted value (e.g. 9999) would later be used as an item_database[]
+ * index (OOB read), so invalid slots are dropped (treated as empty).*/
+static void sanitize_item_instance(ItemInstance *it) {
+  if (it->template_idx != -1 &&
+      (it->template_idx < 0 || it->template_idx >= item_database_size)) {
+    memset(it, 0, sizeof(*it));
+    it->template_idx = -1;
+  }
 }
 
 //Returns 1 if loaded, 0 if not exists, -1 if password incorrect
@@ -1597,30 +1683,101 @@ int load_player_data(Client *c) {
     return -1; //Incorrect password
   }
   //Restore state
-  c->x = sd.x;
-  c->y = sd.y;
-  if (c->x >= MAP_WIDTH)
-    c->x = MAP_CENTER_X;
-  if (c->y >= MAP_HEIGHT)
-    c->y = MAP_CENTER_Y;
-  c->floor_id = sd.floor_id;
-  c->race_id = sd.race_id;
-  c->subrace_id = sd.subrace_id;
-  c->class_id = sd.class_id;
+  /*--- SANITIZE THE LOADED STATE --------------------------------
+   * A save file is untrusted input: saves are written atomically
+   * (temp+rename), but anyone with write access to saves/ can still
+   * edit them while the server is down, and a disk failure can
+   * corrupt them. The fields below are used as array indices
+   * (floors[f], entity_grid[y][x],
+   * backpack[n], item_database[i]) or in HP arithmetic: e.g. a
+   * floor_id=9999 would read/write ~90 KB past the world allocation at
+   * login, and a backpack_count>=32 would write out of bounds on the
+   * next pickup. Everything is clamped to its valid range, with a safe
+   * fallback on error. --------------------------------------------*/
+  int save_corrupted = 0;
+
+  /*Floor: must be in [0, MAX_FLOORS), otherwise force to 0 (surface).*/
+  if (sd.floor_id < 0 || sd.floor_id >= MAX_FLOORS) {
+    c->floor_id = 0;
+    save_corrupted = 1;
+  } else {
+    c->floor_id = sd.floor_id;
+  }
+
+  /*Position: must be strictly inside the map (the old check only
+   * rejected x/y >= WIDTH/HEIGHT, so a NEGATIVE x or y survived and
+   * produced an OOB write in entity_grid on the first action).
+   * Fallback: town center.*/
+  c->x = (sd.x >= 0 && sd.x < MAP_WIDTH) ? sd.x : MAP_CENTER_X;
+  c->y = (sd.y >= 0 && sd.y < MAP_HEIGHT) ? sd.y : MAP_CENTER_Y;
+  if (c->x != sd.x || c->y != sd.y)
+    save_corrupted = 1;
+
+  /*Identity: out-of-range enums would index the RACES/SUBRACES/CLASSES/
+   * ALIGNMENTS tables out of bounds. Same fallbacks as the new-character
+   * path.*/
+  c->race_id =
+      (sd.race_id >= 0 && sd.race_id < RACE_COUNT) ? sd.race_id : 0;
+  c->subrace_id =
+      (sd.subrace_id >= -1 && sd.subrace_id < SUBRACE_COUNT)
+          ? sd.subrace_id
+          : -1;
+  c->class_id = (sd.class_id >= 0 && sd.class_id < CLASS_COUNT)
+                    ? sd.class_id
+                    : CLASS_BARBARIAN;
+  c->alignment =
+      (sd.alignment >= 0 && sd.alignment < ALIGN_COUNT) ? sd.alignment : 0;
+
+  /*Progression: level is capped at 20 (check_level_up / XP table);
+   * xp cannot be negative; stats go through the same clamp used on the
+   * new-character path.*/
   c->level = sd.level;
+  if (c->level < 1 || c->level > 20) {
+    c->level = 1;
+    save_corrupted = 1;
+  }
   c->xp = sd.xp;
-  c->str = sd.str;
-  c->dex = sd.dex;
-  c->con = sd.con;
-  c->intel = sd.intel;
-  c->wis = sd.wis;
-  c->cha = sd.cha;
+  if (c->xp < 0) {
+    c->xp = 0;
+    save_corrupted = 1;
+  }
+  c->str = clamp_stat(sd.str);
+  c->dex = clamp_stat(sd.dex);
+  c->con = clamp_stat(sd.con);
+  c->intel = clamp_stat(sd.intel);
+  c->wis = clamp_stat(sd.wis);
+  c->cha = clamp_stat(sd.cha);
   c->gold = sd.gold;
-  c->hp = sd.hp;
+
+  /*HP: max_hp must be positive; hp must be in [0, max_hp]. A negative
+   * hp is a "dead" character that would come back full on the next
+   * damage — a free heal via a modified save.*/
   c->max_hp = sd.max_hp;
-  c->alignment = sd.alignment;
+  if (c->max_hp <= 0) {
+    c->max_hp = 20 + rules_get_modifier(c->con); /*new-character default*/
+    if (c->max_hp < 1)
+      c->max_hp = 1;
+    save_corrupted = 1;
+  }
+  c->hp = sd.hp;
+  if (c->hp < 0) {
+    c->hp = 0;
+    save_corrupted = 1;
+  }
+  if (c->hp > c->max_hp) {
+    c->hp = c->max_hp;
+    save_corrupted = 1;
+  }
+
+  /*Inventory: the item arrays are copied wholesale, but the COUNT must
+   * be in [0, MAX_BACKPACK) — otherwise the next pickup would write past
+   * backpack[32] in an ~8.5 KB struct.*/
   memcpy(c->backpack, sd.backpack, sizeof(sd.backpack));
   c->backpack_count = sd.backpack_count;
+  if (c->backpack_count < 0 || c->backpack_count >= MAX_BACKPACK) {
+    c->backpack_count = 0;
+    save_corrupted = 1;
+  }
   memcpy(c->belt, sd.belt, sizeof(sd.belt));
   c->slot_head = sd.s_head;
   c->slot_neck = sd.s_neck;
@@ -1635,6 +1792,35 @@ int load_player_data(Client *c) {
   memcpy(c->slot_rings, sd.s_rings, sizeof(sd.s_rings));
   memcpy(c->spell_slots, sd.spell_slots, sizeof(sd.spell_slots));
   memcpy(c->spell_slots_max, sd.spell_slots_max, sizeof(sd.spell_slots_max));
+  /*Every ItemInstance loaded from disk may carry a hostile template_idx
+   * (used later as an item_database[] index): any slot that is neither
+   * empty (-1) nor a valid database index is dropped.*/
+  for (int i = 0; i < MAX_BACKPACK; i++)
+    sanitize_item_instance(&c->backpack[i]);
+  for (int i = 0; i < MAX_BELT; i++)
+    sanitize_item_instance(&c->belt[i]);
+  sanitize_item_instance(&c->slot_head);
+  sanitize_item_instance(&c->slot_neck);
+  sanitize_item_instance(&c->slot_body);
+  sanitize_item_instance(&c->slot_back);
+  sanitize_item_instance(&c->slot_hand_r);
+  sanitize_item_instance(&c->slot_hand_l);
+  sanitize_item_instance(&c->slot_hands);
+  sanitize_item_instance(&c->slot_arm_r);
+  sanitize_item_instance(&c->slot_arm_l);
+  sanitize_item_instance(&c->slot_feet);
+  for (int i = 0; i < 10; i++)
+    sanitize_item_instance(&c->slot_rings[i]);
+  /*Spell slots: negative values would defeat the `<= 0' / `> 0' spend
+   * checks; clamp into [0, max].*/
+  for (int i = 0; i < MAX_SPELL_LEVEL + 1; i++) {
+    if (c->spell_slots_max[i] < 0)
+      c->spell_slots_max[i] = 0;
+    if (c->spell_slots[i] < 0)
+      c->spell_slots[i] = 0;
+    if (c->spell_slots[i] > c->spell_slots_max[i])
+      c->spell_slots[i] = c->spell_slots_max[i];
+  }
   /*--- Step 3: Restore active effects, resources and statistics ---*/
   /*Effects are NOT restored from disk: ActiveEffect.name is a POINTER
    * (into the saving process's memory), so a raw fread leaves dangling
@@ -1645,14 +1831,28 @@ int load_player_data(Client *c) {
    * in the file and are simply ignored.*/
   c->effect_count = 0;
   c->light_turns_left = sd.light_turns_left;
+  if (c->light_turns_left < 0)
+    c->light_turns_left = 0;
   c->hunger_level     = sd.hunger_level;
+  if (c->hunger_level < 0)
+    c->hunger_level = 0;
+  else if (c->hunger_level > HUNGER_MAX)
+    c->hunger_level = HUNGER_MAX;
   c->exhaustion_level = sd.exhaustion_level;
+  if (c->exhaustion_level < 0 || c->exhaustion_level > 6)
+    c->exhaustion_level = 0;
   c->total_kills      = sd.total_kills;
+  if (c->total_kills < 0)
+    c->total_kills = 0;
   c->total_steps      = sd.total_steps;
+  if (c->total_steps < 0)
+    c->total_steps = 0;
   /* --- Innate transit magic: restore deepest floor ever reached.
    * Old saves (smaller files) leave the field at zero, which is correct:
    * the character has no recorded descent yet. */
   c->max_floor_explored = sd.max_floor_explored;
+  if (c->max_floor_explored < 0 || c->max_floor_explored >= MAX_FLOORS)
+    c->max_floor_explored = 0;
   if (c->floor_id > c->max_floor_explored)
     c->max_floor_explored = c->floor_id;
   /* --- Fase 5: Ripristina grimorio --- */
@@ -1673,6 +1873,10 @@ int load_player_data(Client *c) {
   /*--- Step 6: Reset boss flags ---*/
   c->bosses_defeated = sd.bosses_defeated;
   c->unspent_stat_points = sd.unspent_stat_points;
+  if (c->unspent_stat_points < 0)
+    c->unspent_stat_points = 0;
+  else if (c->unspent_stat_points > 60) /*max: 19 level-ups * 3 points*/
+    c->unspent_stat_points = 60;
   /*--- Messaging: Reset block list ---
 * Older (smaller) saves leave the field at zero,
 * therefore the list is correctly empty.*/
@@ -1683,6 +1887,10 @@ int load_player_data(Client *c) {
   } else {
     c->blocked_count = 0;
   }
+  if (save_corrupted)
+    server_log("SAVE",
+               "Corrupted/tampered fields in %s.save — state sanitized on load.",
+               c->username);
   server_log("SAVE", "Loaded: %s (floor %d, HP %d/%d, gold %lu, effects %d)",
              c->username, c->floor_id, c->hp, c->max_hp,
              (unsigned long)c->gold, c->effect_count);
@@ -2615,6 +2823,13 @@ int main(int argc, char **argv) {
   artifacts_load();
   server_log("SYS", "Unique Artifact System initialized.");
 
+  /*Remove temp files left by a crashed previous run (see
+   * cleanup_stale_tmp_files): no .tmp can exist while the server is
+   * alive, and a stale <user>.save.<pid>.tmp would otherwise show up
+   * in the 'top' leaderboard scan.*/
+  cleanup_stale_tmp_files("saves");
+  cleanup_stale_tmp_files(g_data_dir);
+
   tombstone_load_all();
   server_log("SYS", "Tombstone System initialized.");
 
@@ -2709,24 +2924,28 @@ int main(int argc, char **argv) {
     spawn_martial_archive(npcs, &next_id);
     populate_dungeons(npcs, &next_id);
     world_save(master_world, world_path);
-    FILE *fn = fopen(npcs_path, "wb");
+    /*Atomic: see the autosave in server_world.c (same format).*/
+    char tmp[DATA_DIR_MAX + 64];
+    FILE *fn = atomic_write_begin(npcs_path, tmp, sizeof(tmp));
     if (fn) {
       /*Compact format (same as the autosave in server_world.c):
        * [magic][count][NPC x count][next_id][turns] — only the used
        * slots are written, not the whole 50,000-slot array.*/
       const uint32_t magic = 0xDEAD7ECC;
       int used = 0;
+      bool ok = true;
       for (int ni = 0; ni < MAX_NPCS; ni++)
         if (npcs[ni].template != NULL || npcs[ni].active)
           used++;
-      fwrite(&magic, sizeof(uint32_t), 1, fn);
-      fwrite(&used, sizeof(int), 1, fn);
+      ok = ok && (fwrite(&magic, sizeof(uint32_t), 1, fn) == 1);
+      ok = ok && (fwrite(&used, sizeof(int), 1, fn) == 1);
       for (int ni = 0; ni < MAX_NPCS; ni++)
         if (npcs[ni].template != NULL || npcs[ni].active)
-          fwrite(&npcs[ni], sizeof(NPC), 1, fn);
-      fwrite(&next_id, sizeof(int), 1, fn);
-      fwrite(&global_total_turns, sizeof(int), 1, fn);
-      fclose(fn);
+          ok = ok && (fwrite(&npcs[ni], sizeof(NPC), 1, fn) == 1);
+      ok = ok && (fwrite(&next_id, sizeof(int), 1, fn) == 1);
+      ok = ok && (fwrite(&global_total_turns, sizeof(int), 1, fn) == 1);
+      if (!atomic_write_end(fn, npcs_path, tmp, ok))
+        server_log("SYS", "WARNING: failed to save npcs.dat (fresh world) — previous file kept.");
     }
     server_log("SYS", "World generated and saved in %s/.", g_data_dir);
   }
@@ -3241,7 +3460,14 @@ int main(int argc, char **argv) {
               clients[i].active = false;
               continue;
             }
+            /*Rate limit text commands exactly like MSG_MOVE: the flag was
+             * written but never tested, so a client spamming 'top', 'cast'
+             * or 'look' at 10 kHz saturated the server CPU (every 'top'
+             * opens, reads and qsorts each save file).*/
             long long now_ms = get_time_ms();
+            if (now_ms - clients[i].last_action_ms < 200) {
+              continue; //Rate limit: max 5 text commands per second
+            }
             clients[i].last_action_ms = now_ms;
             /*cmd is a fixed-size array, but make sure it is terminated
              * (a malicious client could omit the NUL).*/

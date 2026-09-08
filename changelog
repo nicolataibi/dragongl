@@ -1,3 +1,66 @@
+* Tue Sep 08 2026 nicolataibi <nicola.taibi.1967@gmail.com> - 2026.09.08.01
+- Full technical review of the codebase, II pass, HIGH SEVERITY:
+- SECURITY load_player_data: complete sanitization of the state restored
+  from .save files, which are untrusted input (write access to saves/
+  plus a crash-corrupted file). Previously every field was trusted
+  blindly and several are used as array indices:
+  - floor_id clamped to [0, MAX_FLOORS), forced to 0 when invalid.
+    Before, floor_id=9999 read ~90 KB past the 44 MB world allocation
+    in the login map chunk (guaranteed segfault) and floor_id=150
+    silently corrupted the heap; the entity_grid write at login was
+    equally unguarded;
+  - x/y must be strictly inside [0, MAP_WIDTH) x [0, MAP_HEIGHT):
+    the old check only rejected >= WIDTH/HEIGHT, so a NEGATIVE x or y
+    survived and produced an OOB entity_grid write on the first action;
+  - hp clamped to [0, max_hp] and max_hp must be > 0 (fallback:
+    new-character default 20 + CON modifier). A negative hp was a
+    "dead" character that came back full on the next damage — a free
+    heal via a modified save;
+  - backpack_count clamped to [0, MAX_BACKPACK), else 0: an invalid
+    count made the next pickup write past backpack[32] in an ~8.5 KB
+    struct;
+  - every ItemInstance restored from disk (32 backpack, 4 belt, 10
+    equipment slots, 10 rings) sanitized by a new
+    sanitize_item_instance(): template_idx must be -1 or a valid
+    item_database index, otherwise the slot is dropped (hostile values
+    would OOB-read item_database[]);
+  - same class of bug closed for race/subrace/class/alignment (table
+    indices, fallbacks identical to the new-character path), level
+    [1, 20], xp >= 0, the six attributes through clamp_stat, spell
+    slots into [0, max], max_floor_explored [0, MAX_FLOORS), and the
+    hunger/light/exhaustion/kills/steps/unspent_stat_points counters;
+  - a tampered file is logged (SAVE "state sanitized on load").
+- SECURITY top/leaderboard (server_commands.c): the readdir loop now
+  stops at the capacity of the stack array. Anyone placing 1001 .save
+  files in saves/ crashed the server (or overwrote the
+  canary/return address) with the plain `top` command: entries[1000]
+  was a fixed stack array and entry_count was never checked.
+- SECURITY MSG_TEXT_CMD rate limit (main_server.c): text commands now
+  reuse the exact 200 ms last_action_ms guard of MSG_MOVE (max 5/s
+  per client). The flag was written but never tested, so `top`, `cast`
+  and `look` could be spammed at 10 kHz and saturate the server CPU —
+  each `top` alone does fopen+fread+qsort over every save file.
+- save_player_data is now an atomic write: the save goes to
+  saves/<user>.save.<pid>.tmp, is fsync'ed, then rename()'d over the
+  final name (atomic on the same filesystem). On any write/rename
+  error the temp file is deleted and the last good save is kept, so a
+  crash or kill mid-write can no longer leave a truncated .save that
+  the next login would half-read (the load-side sanitization above
+  remains the last line of defense).
+- All the other persistent state is written atomically too, through a
+  shared pair of helpers (atomic_write_begin/atomic_write_end,
+  server_internal.h): npcs.dat (both the fresh-world write and the
+  periodic autosave — a truncated npcs.dat used to be read as
+  "world/NPCs inconsistent" and trigger a total world regeneration),
+  artifacts.dat (format byte-identical, per-field fwrites) and the
+  tombstone files. world_save already used temp+rename; it now also
+  fsyncs before the rename so the data is on the device when the name
+  lands. At boot, cleanup_stale_tmp_files() deletes any *.tmp left by
+  a crashed run from saves/ and the data dir (a stale
+  <user>.save.<pid>.tmp would otherwise appear as a duplicate entry in
+  the 'top' leaderboard scan). Verified with a live smoke test:
+  stale .tmp files in saves/ are gone right after boot, world +
+  artifacts + tombstones load clean.
 * Mon Sep 07 2026 nicolataibi <nicola.taibi.1967@gmail.com> - 2026.09.07.01
 - The Archive of a Thousand Battles (BOOKS_MARTIAL, the NE bookshop) now
   has a living floating tome in BOTH 3D backends. The book flies a random,

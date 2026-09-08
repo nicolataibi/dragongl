@@ -23,6 +23,7 @@
 #include <string.h>
 #include <time.h>
 #include <math.h>
+#include <unistd.h> /*fsync() for the atomic save*/
 
 typedef struct {
     int x, y;
@@ -422,8 +423,11 @@ void world_save(World* world, const char* filename) {
     hdr.version  = WORLD_VERSION;
     hdr.reserved = 0;
     hdr.crc32    = crc32_data(&pw, sizeof(pw));
+    /*fflush+fsync before close: the rename only lands the file on
+     * disk if the data itself is flushed to the device.*/
     if (fwrite(&hdr, sizeof(hdr), 1, f) != 1 ||
-        fwrite(&pw, sizeof(pw), 1, f) != 1) {
+        fwrite(&pw, sizeof(pw), 1, f) != 1 ||
+        fflush(f) != 0 || fsync(fileno(f)) != 0) {
         fclose(f);
         remove(tmp);
         return;

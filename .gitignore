@@ -21,6 +21,7 @@ identity.hash
 rpmbuild/
 _local_build/
 _srpm_test/
+build-tests/
 
 # ignore
 npcs.dat

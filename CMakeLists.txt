@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 set(CMAKE_C_COMPILER "clang")
-project(DragonGL VERSION 2026.05.26.01 LANGUAGES C)
+project(DragonGL VERSION 2026.09.08.01 LANGUAGES C)
 
 # --- Standard C e Opzioni di Compilazione ---
 # C11 (not C23): the codebase uses no C23-specific feature, and C11 is

@@ -78,16 +78,18 @@ void tombstone_save(const Tombstone *t) {
     
     char path[256];
     snprintf(path, sizeof(path), "saves/tombstone_%s_%ld_%d_%d.dat", t->owner, (long)t->death_time, t->x, t->y);
-    FILE *f = fopen(path, "wb");
+    /*Atomic: a crash mid-write must not leave a half-written
+     * tombstone (the loader would skip it, but the loot would also be
+     * unreachable until expiry).*/
+    char tmp[320];
+    FILE *f = atomic_write_begin(path, tmp, sizeof(tmp));
     if (!f) {
         server_log("TOMB", "ERROR: failed to open %s", path);
         return;
     }
     
     size_t written = fwrite(t, sizeof(Tombstone), 1, f);
-    fclose(f);
-    
-    if (written != 1) {
+    if (!atomic_write_end(f, path, tmp, written == 1)) {
         server_log("TOMB", "ERROR: failed to write %s's tombstone entirely", t->owner);
         return;
     }
