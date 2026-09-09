@@ -294,7 +294,7 @@ static void project_point(const float mvp[16], float x, float y, float z, float 
     *visible = (ndc_x >= -1.0f && ndc_x <= 1.0f && ndc_y >= -1.0f && ndc_y <= 1.0f);
 }
 
-static void render_vk_hud(VkVertex *v, uint32_t *c, uint32_t max_v, float sw, float sh, float mvp[16]) {
+static void render_vk_hud(VkVertex *v, uint32_t *c, uint32_t max_v, float sw, float sh, float mvp[16], float px, float pz) {
     float sx = 20.0f;
     float sy = 20.0f;
     char buf[192];
@@ -525,19 +525,19 @@ static void render_vk_hud(VkVertex *v, uint32_t *c, uint32_t max_v, float sw, fl
         float sx, sy;
         bool vis;
         // North (Z = -3)
-        project_point(mvp, 0.0f, 0.5f, -3.0f, sw, sh, &sx, &sy, &vis);
+        project_point(mvp, px, 0.5f, pz - 3.0f, sw, sh, &sx, &sy, &vis);
         if (vis) draw_text_vk(v, c, max_v, sx - 4.0f, sy - 4.0f, "N", 1.0f, 1.0f, 0.2f, 0.2f);
         
         // South (Z = 3)
-        project_point(mvp, 0.0f, 0.5f, 3.0f, sw, sh, &sx, &sy, &vis);
+        project_point(mvp, px, 0.5f, pz + 3.0f, sw, sh, &sx, &sy, &vis);
         if (vis) draw_text_vk(v, c, max_v, sx - 4.0f, sy - 4.0f, "S", 1.0f, 0.8f, 0.8f, 0.8f);
         
         // East (X = 3)
-        project_point(mvp, 3.0f, 0.5f, 0.0f, sw, sh, &sx, &sy, &vis);
+        project_point(mvp, px + 3.0f, 0.5f, pz, sw, sh, &sx, &sy, &vis);
         if (vis) draw_text_vk(v, c, max_v, sx - 4.0f, sy - 4.0f, "E", 1.0f, 0.8f, 0.8f, 0.8f);
         
         // West (X = -3)
-        project_point(mvp, -3.0f, 0.5f, 0.0f, sw, sh, &sx, &sy, &vis);
+        project_point(mvp, px - 3.0f, 0.5f, pz, sw, sh, &sx, &sy, &vis);
         if (vis) draw_text_vk(v, c, max_v, sx - 4.0f, sy - 4.0f, "W", 1.0f, 0.8f, 0.8f, 0.8f);
     }
 
@@ -552,8 +552,8 @@ static void render_vk_hud(VkVertex *v, uint32_t *c, uint32_t max_v, float sw, fl
     for (int i = 0; i < CLIENT_MAX_ENTITIES; i++) {
         if (g_entities[i].active && g_entities[i].is_player && g_entities[i].id != g_my_entity_id && g_entities[i].floor_id == g_my_floor) {
             if (g_entities[i].username[0] != '\0') {
-                float ex = (float)(g_entities[i].x - g_my_x);
-                float ez = (float)(g_entities[i].y - g_my_y);
+                float ex = (float)g_entities[i].x;
+                float ez = (float)g_entities[i].y;
                 float psx, psy;
                 bool pvis;
                 project_point(mvp, ex, 1.2f, ez, sw, sh, &psx, &psy, &pvis);
@@ -998,7 +998,7 @@ static void draw_frame(VkState *s) {
     uint32_t hud_start = s->vertex_count;
     uint32_t hud_count = hud_start;
     pthread_mutex_lock(&g_state_mutex);
-    render_vk_hud(v, &hud_count, s->max_vertices, sw, sh, mvp);
+    render_vk_hud(v, &hud_count, s->max_vertices, sw, sh, mvp, px, pz);
     pthread_mutex_unlock(&g_state_mutex);
     s->hud_vertex_count = hud_count - hud_start;
 

@@ -1,4 +1,3 @@
-#include <math.h>
 /*
  * DRAGON GL - 3D ARCANE ENGINE
  * Copyright (C) 2026 Nicola Taibi
@@ -17,7 +16,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-
+#include <math.h>
 #include "client_particles.h"
 #include <stdlib.h>
 #include <string.h>

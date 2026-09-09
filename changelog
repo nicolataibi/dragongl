@@ -1,3 +1,8 @@
+* Thu Sep 10 2026 nicolataibi <nicola.taibi.1967@gmail.com> - 2026.09.09.03
+- FEATURE: Implemented one-way collision for closed shops at night. Players caught inside a shop when the curfew hits can now freely push through the closed door (`VOXEL_WALL`) to exit, while players outside remain blocked from entering.
+- BUGFIX (Vulkan): Restored the AR Compass convergence. The projection function now uses absolute global coordinates instead of relative coordinates, fixing the compass floating off-screen.
+- BUGFIX (Vulkan): Fixed player names rendering at the NW corner of the map. Names now correctly project using absolute coordinates, anchoring above the characters' heads.
+- OPTIMIZATION (Vulkan): Restored liquid animations (water/lava ripples) by moving the calculation entirely to the GPU's Vertex Shader via Push Constants, removing the need for CPU-side geometry updates.
 * Wed Sep 09 2026 nicolataibi <nicola.taibi.1967@gmail.com> - 2026.09.09.02
 - OPTIMIZATION: Implemented GPU-side Map Culling (Vulkan 3.3) and 
   Persistent Memory Mapping (Vulkan 3.4).

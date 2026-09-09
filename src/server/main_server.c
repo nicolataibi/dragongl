@@ -1048,6 +1048,41 @@ void check_traps(Client *c, NPC *npcs) {
  * center. The old version used 10 hard-coded (±20/±12) coordinates from
  * the obsolete 1000x1000 layout, so the day/night doors were flipping
  * tiles that were NOT doors — while the real shop doors never changed.*/
+static bool is_inside_shop(int x, int y) {
+    int cx = MAP_CENTER_X;
+    int cy = MAP_CENTER_Y;
+    for (int i = 0; i < 11; i++) {
+        float angle = (i * (360.0f / 11.0f)) * (M_PI / 180.0f);
+        int sx = cx + (int)(cosf(angle) * 26.0f);
+        int sy = cy + (int)(sinf(angle) * 26.0f);
+        if (x >= sx - 3 && x <= sx + 3 && y >= sy - 3 && y <= sy + 3) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool is_shop_door(int x, int y) {
+    int cx = MAP_CENTER_X;
+    int cy = MAP_CENTER_Y;
+    for (int i = 0; i < 11; i++) {
+        float angle = (i * (360.0f / 11.0f)) * (M_PI / 180.0f);
+        int sx = cx + (int)(cosf(angle) * 26.0f);
+        int sy = cy + (int)(sinf(angle) * 26.0f);
+        int dx = cx - sx, dy = cy - sy;
+        int tx = sx, ty = sy;
+        if (abs(dx) > abs(dy)) {
+            if (dx > 0) tx = sx + 4;
+            else        tx = sx - 4;
+        } else {
+            if (dy > 0) ty = sy + 4;
+            else        ty = sy - 4;
+        }
+        if (x == tx && y == ty) return true;
+    }
+    return false;
+}
+
 void update_city_doors(void) {
   int h, m;
   get_game_time(&h, &m);
@@ -3282,7 +3317,15 @@ int main(int argc, char **argv) {
               if (nx >= 0 && nx < MAP_WIDTH && ny >= 0 && ny < MAP_HEIGHT) {
                 VoxelType vt = master_world->floors[clients[i].floor_id]
                                    .map.data[0][ny][nx];
-                if (vt != VOXEL_WALL && vt != VOXEL_ROCK) {
+                bool can_pass = (vt != VOXEL_WALL && vt != VOXEL_ROCK);
+                
+                if (!can_pass && vt == VOXEL_WALL && clients[i].floor_id == 0) {
+                    if (is_shop_door(nx, ny) && is_inside_shop(old_x, old_y)) {
+                        can_pass = true;
+                    }
+                }
+                
+                if (can_pass) {
                   //Update grid: leave old tile, enter new
                   Floor *fl = &master_world->floors[clients[i].floor_id];
                   if (fl->entity_grid[clients[i].y][clients[i].x] == clients[i].entity_id) {
