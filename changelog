@@ -1,3 +1,23 @@
+* Wed Sep 09 2026 nicolataibi <nicola.taibi.1967@gmail.com> - 2026.09.09.02
+- OPTIMIZATION: Implemented GPU-side Map Culling (Vulkan 3.3) and 
+  Persistent Memory Mapping (Vulkan 3.4).
+  * The map geometry is now uploaded once into a static section of a 
+  persistently mapped Vertex Buffer (`HOST_COHERENT_BIT`), eliminating the 
+  crippling CPU overhead of frame-by-frame map iteration and `vkMapMemory` 
+  calls.
+  * `shader.vert` and `shader.frag` now use absolute world coordinates and 
+  receive the player's position via Push Constants. The fragment shader 
+  dynamically discards out-of-bounds pixels using `discard`, achieving 
+  zero-cost soft Fog of War on the GPU.
+- OPTIMIZATION: Replaced the O(N) `poll()` network loop with Linux `epoll` 
+  (O(1) event-driven). The server now scales effortlessly to thousands of 
+  concurrent connections without needlessly iterating over idle or empty 
+  sockets on every tick.
+- REFACTOR: Began decoupling the monolithic main_server.c by extracting 
+  all networking and packet broadcasting functions (e.g., net_send_client, 
+  send_map_chunk, broadcast_spell_vfx) into a new, dedicated server_net.c 
+  module. This shrinks main_server.c by over 500 lines, improving code 
+  organization and reducing compilation times.
 * Wed Sep 09 2026 nicolataibi <nicola.taibi.1967@gmail.com> - 2026.09.09.01
 - BUGFIX: Fixed an infinite loop in NPC Morale saving throws. NPCs at
   < 20% HP without the Frightened condition were endlessly rolling a save

@@ -124,3 +124,4 @@ void client_send_text_cmd(const char *cmd);
 void client_log_add(const char *text);
 
 #endif // CLIENT_STATE_H
+extern bool g_map_dirty;

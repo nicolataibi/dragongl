@@ -76,6 +76,7 @@ typedef struct {
     uint32_t hud_vertex_count;
     uint32_t max_vertices;
     uint32_t current_image;
+    void *mapped_vertex_data;
 } VkState;
 
 bool vk_init(VkState *s);

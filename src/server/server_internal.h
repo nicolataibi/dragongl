@@ -145,4 +145,10 @@ void sync_entity_grid(NPC *npcs);
 void give_starting_gear(Client *c);
 
 
+
+void get_game_time(int *h, int *m);
+float get_movement_cooldown(Client *c);
+int get_equipped_mask(Client *c);
+const int *floor_index_for(int floor_id, int *out_count);
+
 #endif // SERVER_INTERNAL_H

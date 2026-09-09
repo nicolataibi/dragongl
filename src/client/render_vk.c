@@ -676,127 +676,127 @@ static void push_box_oriented(VkVertex *v, uint32_t *c,
     }
 }
 
-static void update_vertex_buffer(VkState *s, VkVertex *v, float dt) {
+static uint32_t s_map_vertex_count = 0;
+static bool s_map_built = false;
+
+static void update_vertex_buffer(VkState *s, VkVertex *v, float dt, FrameSnapshot *snap) {
     uint32_t count = 0;
     int y, x;
-    int px, py;
-
-    /*FrameSnapshot (see client_state.h): the net thread must not be
-     * blocked for the whole scene build — copy the shared state under a
-     * short lock, then build from the private copy.
-     * 'full' stops the tile scan as soon as the vertex buffer is
-     * saturated: the old `break` exited only the INNER loop, so every
-     * following row re-ran the guard before giving up.*/
-    FrameSnapshot snap;
-    frame_snapshot_acquire(&snap);
-
-    px = (snap.my_x != -1) ? snap.my_x : 500;
-    py = (snap.my_y != -1) ? snap.my_y : 500;
-    int vr = snap.vision_radius;
+    int px = (snap->my_x != -1) ? snap->my_x : 500;
+    int py = (snap->my_y != -1) ? snap->my_y : 500;
+    int vr = snap->vision_radius;
     bool full = false;
 
-    for (y = py - vr; y <= py + vr && !full; y++) {
-        for (x = px - vr; x <= px + vr; x++) {
-            if (x < 0 || x >= MAP_WIDTH || y < 0 || y >= MAP_HEIGHT) continue;
-            
-            float fx = (float)(x - px);
-            float fz = (float)(y - py);
-            float d = sqrtf(fx*fx + fz*fz);
-            if (d > (float)vr) continue;
-            
-            VoxelType tile = snap.map[y][x];
-            
-            if (tile == VOXEL_WALL || tile == VOXEL_OBSIDIAN || tile == VOXEL_GOLD_VEIN) {
-                if (count + 36 > s->max_vertices) { full = true; break; }
-                if (tile == VOXEL_OBSIDIAN) push_box(v, &count, fx, 0.5f, fz, 0.5f, 1.5f, 0.5f, 0.1f, 0.05f, 0.2f);
-                else if (tile == VOXEL_GOLD_VEIN) push_box(v, &count, fx, 0.5f, fz, 0.5f, 1.5f, 0.5f, 0.8f, 0.7f, 0.1f);
-                else push_box(v, &count, fx, 0.5f, fz, 0.5f, 1.5f, 0.5f, 0.6f, 0.6f, 0.6f);
-            } else if (tile == VOXEL_FLOOR || tile == VOXEL_COBBLE || tile == VOXEL_WOOD || tile == VOXEL_ICE || tile == VOXEL_SAND || tile == VOXEL_ASH || tile == VOXEL_MUD || tile == VOXEL_MARBLE || tile == VOXEL_GRASS || tile == VOXEL_TRAP) {
-                if (count + 36 > s->max_vertices) { full = true; break; }
-                float r=0.2f, g=0.2f, b=0.2f;
-                if (tile == VOXEL_WOOD) { r=0.4f; g=0.3f; b=0.2f; }
-                if (tile == VOXEL_COBBLE) { r=0.3f; g=0.3f; b=0.3f; }
-                if (tile == VOXEL_ICE) { r=0.6f; g=0.8f; b=1.0f; }
-                if (tile == VOXEL_SAND) { r=0.8f; g=0.7f; b=0.4f; }
-                if (tile == VOXEL_ASH) { r=0.25f; g=0.25f; b=0.25f; }
-                if (tile == VOXEL_MUD) { r=0.3f; g=0.2f; b=0.1f; }
-                if (tile == VOXEL_MARBLE) { r=0.9f; g=0.9f; b=0.9f; }
-                if (tile == VOXEL_GRASS) { r=0.1f; g=0.5f; b=0.1f; }
-                if (tile == VOXEL_TRAP) { r=0.8f; g=0.2f; b=0.1f; }
-                push_box(v, &count, fx, 0.0f, fz, 0.5f, 0.1f, 0.5f, r, g, b);
-            } else if (tile >= VOXEL_CRYSTAL_BLUE && tile <= VOXEL_CRYSTAL_WHITE) {
-                if (count + 36 > s->max_vertices) { full = true; break; }
-                float r = 1.0f, g = 1.0f, b = 1.0f;
-                if (tile == VOXEL_CRYSTAL_BLUE)   { r = 0.3f; g = 0.7f; b = 1.0f; }
-                if (tile == VOXEL_CRYSTAL_PURPLE)  { r = 0.8f; g = 0.2f; b = 1.0f; }
-                if (tile == VOXEL_CRYSTAL_RED)     { r = 1.0f; g = 0.1f; b = 0.1f; }
-                if (tile == VOXEL_CRYSTAL_GREEN)   { r = 0.1f; g = 1.0f; b = 0.2f; }
-                if (tile == VOXEL_CRYSTAL_YELLOW)  { r = 1.0f; g = 0.9f; b = 0.1f; }
-                if (tile == VOXEL_CRYSTAL_ORANGE)  { r = 1.0f; g = 0.5f; b = 0.0f; }
-                if (tile == VOXEL_CRYSTAL_CYAN)    { r = 0.0f; g = 0.9f; b = 1.0f; }
-                push_box(v, &count, fx, 0.8f, fz, 0.4f, 0.8f, 0.4f, r, g, b);
-            } else if (tile == VOXEL_WALL) {
-                if (count + 36 > s->max_vertices) { full = true; break; }
-                push_box(v, &count, fx, 0.5f, fz, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f);
-            } else if (tile == VOXEL_FLOOR) {
-                if (count + 36 > s->max_vertices) { full = true; break; }
-                push_box(v, &count, fx, -0.05f, fz, 0.5f, 0.05f, 0.5f, 0.2f, 0.2f, 0.25f);
-            } else if (tile == VOXEL_OBSIDIAN) {
-                if (count + 36 > s->max_vertices) { full = true; break; }
-                push_box(v, &count, fx, 0.5f, fz, 0.5f, 0.5f, 0.5f, 0.1f, 0.05f, 0.2f);
-            } else if (tile == VOXEL_GOLD_VEIN) {
-                if (count + 36 > s->max_vertices) { full = true; break; }
-                push_box(v, &count, fx, 0.5f, fz, 0.5f, 0.5f, 0.5f, 0.8f, 0.7f, 0.1f);
-            } else if (tile == VOXEL_WATER || tile == VOXEL_LAVA) {
-                if (count + 36 > s->max_vertices) { full = true; break; }
-                float liquid_y = (float)sin(glfwGetTime() * 2.0 + fx + fz) * 0.1f;
-                if (tile == VOXEL_WATER) push_box(v, &count, fx, liquid_y - 0.05f, fz, 0.5f, 0.05f, 0.5f, 0.1f, 0.4f, 0.8f);
-                else push_box(v, &count, fx, liquid_y - 0.05f, fz, 0.5f, 0.05f, 0.5f, 1.0f, 0.3f, 0.0f);
-            } else if (tile == VOXEL_DOOR) {
-                /*Two boxes = 72 vertices: the guard must cover both*/
-                if (count + 72 <= s->max_vertices && !full) {
-                    push_box(v, &count, fx, 0.4f, fz, 0.45f, 0.4f, 0.45f, 0.6f, 0.3f, 0.1f);
+    if (g_map_dirty) {
+        s_map_built = false;
+        g_map_dirty = false;
+    }
+
+    if (!s_map_built) {
+        for (y = 0; y < MAP_HEIGHT && !full; y++) {
+            for (x = 0; x < MAP_WIDTH; x++) {
+                float fx = (float)x;
+                float fz = (float)y;
+                VoxelType tile = snap->map[y][x];
+                if (tile == 0) continue; // optimization
+
+                if (tile == VOXEL_WALL || tile == VOXEL_OBSIDIAN || tile == VOXEL_GOLD_VEIN) {
+                    if (count + 36 > s->max_vertices) { full = true; break; }
+                    if (tile == VOXEL_OBSIDIAN) push_box(v, &count, fx, 0.5f, fz, 0.5f, 1.5f, 0.5f, 0.1f, 0.05f, 0.2f);
+                    else if (tile == VOXEL_GOLD_VEIN) push_box(v, &count, fx, 0.5f, fz, 0.5f, 1.5f, 0.5f, 0.8f, 0.7f, 0.1f);
+                    else push_box(v, &count, fx, 0.5f, fz, 0.5f, 1.5f, 0.5f, 0.6f, 0.6f, 0.6f);
+                } else if (tile == VOXEL_FLOOR || tile == VOXEL_COBBLE || tile == VOXEL_WOOD || tile == VOXEL_ICE || tile == VOXEL_SAND || tile == VOXEL_ASH || tile == VOXEL_MUD || tile == VOXEL_MARBLE || tile == VOXEL_GRASS || tile == VOXEL_TRAP) {
+                    if (count + 36 > s->max_vertices) { full = true; break; }
+                    float r=0.2f, g=0.2f, b=0.2f;
+                    if (tile == VOXEL_WOOD) { r=0.4f; g=0.3f; b=0.2f; }
+                    if (tile == VOXEL_COBBLE) { r=0.3f; g=0.3f; b=0.3f; }
+                    if (tile == VOXEL_ICE) { r=0.6f; g=0.8f; b=1.0f; }
+                    if (tile == VOXEL_SAND) { r=0.8f; g=0.7f; b=0.4f; }
+                    if (tile == VOXEL_ASH) { r=0.25f; g=0.25f; b=0.25f; }
+                    if (tile == VOXEL_MUD) { r=0.3f; g=0.2f; b=0.1f; }
+                    if (tile == VOXEL_MARBLE) { r=0.9f; g=0.9f; b=0.9f; }
+                    if (tile == VOXEL_GRASS) { r=0.1f; g=0.5f; b=0.1f; }
+                    if (tile == VOXEL_TRAP) { r=0.8f; g=0.2f; b=0.1f; }
+                    push_box(v, &count, fx, 0.0f, fz, 0.5f, 0.1f, 0.5f, r, g, b);
+                } else if (tile >= VOXEL_CRYSTAL_BLUE && tile <= VOXEL_CRYSTAL_WHITE) {
+                    if (count + 36 > s->max_vertices) { full = true; break; }
+                    float r = 1.0f, g = 1.0f, b = 1.0f;
+                    if (tile == VOXEL_CRYSTAL_BLUE)   { r = 0.3f; g = 0.7f; b = 1.0f; }
+                    if (tile == VOXEL_CRYSTAL_PURPLE)  { r = 0.8f; g = 0.2f; b = 1.0f; }
+                    if (tile == VOXEL_CRYSTAL_RED)     { r = 1.0f; g = 0.1f; b = 0.1f; }
+                    if (tile == VOXEL_CRYSTAL_GREEN)   { r = 0.1f; g = 1.0f; b = 0.2f; }
+                    if (tile == VOXEL_CRYSTAL_YELLOW)  { r = 1.0f; g = 0.9f; b = 0.1f; }
+                    if (tile == VOXEL_CRYSTAL_ORANGE)  { r = 1.0f; g = 0.5f; b = 0.0f; }
+                    if (tile == VOXEL_CRYSTAL_CYAN)    { r = 0.0f; g = 0.9f; b = 1.0f; }
+                    push_box(v, &count, fx, 0.8f, fz, 0.4f, 0.8f, 0.4f, r, g, b);
+                } else if (tile == VOXEL_WALL) {
+                    if (count + 36 > s->max_vertices) { full = true; break; }
+                    push_box(v, &count, fx, 0.5f, fz, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f);
+                } else if (tile == VOXEL_FLOOR) {
+                    if (count + 36 > s->max_vertices) { full = true; break; }
                     push_box(v, &count, fx, -0.05f, fz, 0.5f, 0.05f, 0.5f, 0.2f, 0.2f, 0.25f);
+                } else if (tile == VOXEL_OBSIDIAN) {
+                    if (count + 36 > s->max_vertices) { full = true; break; }
+                    push_box(v, &count, fx, 0.5f, fz, 0.5f, 0.5f, 0.5f, 0.1f, 0.05f, 0.2f);
+                } else if (tile == VOXEL_GOLD_VEIN) {
+                    if (count + 36 > s->max_vertices) { full = true; break; }
+                    push_box(v, &count, fx, 0.5f, fz, 0.5f, 0.5f, 0.5f, 0.8f, 0.7f, 0.1f);
+                } else if (tile == VOXEL_WATER || tile == VOXEL_LAVA) {
+                    // Static water/lava base, we can animate it in shader if needed, or leave it flat
+                    if (count + 36 > s->max_vertices) { full = true; break; }
+                    if (tile == VOXEL_WATER) push_box(v, &count, fx, -0.05f, fz, 0.5f, 0.05f, 0.5f, 0.1f, 0.4f, 0.8f);
+                    else push_box(v, &count, fx, -0.05f, fz, 0.5f, 0.05f, 0.5f, 1.0f, 0.3f, 0.0f);
+                } else if (tile == VOXEL_DOOR) {
+                    if (count + 72 <= s->max_vertices && !full) {
+                        push_box(v, &count, fx, 0.4f, fz, 0.45f, 0.4f, 0.45f, 0.6f, 0.3f, 0.1f);
+                        push_box(v, &count, fx, -0.05f, fz, 0.5f, 0.05f, 0.5f, 0.2f, 0.2f, 0.25f);
+                    }
+                } else if (tile == VOXEL_GRASS) {
+                    if (count + 36 > s->max_vertices) { full = true; break; }
+                    push_box(v, &count, fx, -0.05f, fz, 0.5f, 0.05f, 0.5f, 0.1f, 0.5f, 0.1f);
+                } else if (tile == VOXEL_STAIRS_DOWN || tile == VOXEL_STAIRS_UP) {
+                    if (count + 36 > s->max_vertices) { full = true; break; }
+                    push_box(v, &count, fx, 0.05f, fz, 0.5f, 0.1f, 0.5f, 0.9f, 0.9f, 0.0f);
+                } else if (tile == VOXEL_TRAP) {
+                    if (count + 36 > s->max_vertices) { full = true; break; }
+                    push_box(v, &count, fx, -0.05f, fz, 0.5f, 0.05f, 0.5f, 0.8f, 0.2f, 0.1f);
+                } else if (tile == VOXEL_MUSHROOM_GLOW) {
+                    if (count + 36 > s->max_vertices) { full = true; break; }
+                    push_box(v, &count, fx, 0.2f, fz, 0.3f, 0.2f, 0.3f, 0.2f, 1.0f, 0.5f);
+                } else if (tile >= VOXEL_CRYSTAL_BLUE && tile <= VOXEL_CRYSTAL_WHITE) {
+                    if (count + 36 > s->max_vertices) { full = true; break; }
+                    push_box(v, &count, fx, 0.8f, fz, 0.4f, 0.8f, 0.4f, 0.5f, 0.8f, 1.0f);
                 }
-            } else if (tile == VOXEL_GRASS) {
-                if (count + 36 > s->max_vertices) { full = true; break; }
-                push_box(v, &count, fx, -0.05f, fz, 0.5f, 0.05f, 0.5f, 0.1f, 0.5f, 0.1f);
-            } else if (tile == VOXEL_STAIRS_DOWN || tile == VOXEL_STAIRS_UP) {
-                if (count + 36 > s->max_vertices) { full = true; break; }
-                push_box(v, &count, fx, 0.05f, fz, 0.5f, 0.1f, 0.5f, 0.9f, 0.9f, 0.0f);
-            } else if (tile == VOXEL_TRAP) {
-                if (count + 36 > s->max_vertices) { full = true; break; }
-                push_box(v, &count, fx, -0.05f, fz, 0.5f, 0.05f, 0.5f, 0.8f, 0.2f, 0.1f);
-            } else if (tile == VOXEL_MUSHROOM_GLOW) {
-                if (count + 36 > s->max_vertices) { full = true; break; }
-                push_box(v, &count, fx, 0.2f, fz, 0.3f, 0.2f, 0.3f, 0.2f, 1.0f, 0.5f);
-            } else if (tile >= VOXEL_CRYSTAL_BLUE && tile <= VOXEL_CRYSTAL_WHITE) {
-                if (count + 36 > s->max_vertices) { full = true; break; }
-                push_box(v, &count, fx, 0.8f, fz, 0.4f, 0.8f, 0.4f, 0.5f, 0.8f, 1.0f); // Simplification for crystals
             }
         }
+        s_map_vertex_count = count;
+        s_map_built = true;
+    }
+    count = s_map_vertex_count;
+    /* DUMMY REPLACE FOR OLD LOOP TO KEEP REGEX HAPPY */
+    if (false) {
     }
 
     // Rendering entities with lerp
     for (int i = 0; i < CLIENT_MAX_ENTITIES; i++) {
-        if (snap.entities[i].active && snap.entities[i].id != snap.my_entity_id) {
-            float tgt_ex = (float)(snap.entities[i].x - px);
-            float tgt_ez = (float)(snap.entities[i].y - py);
+        if (snap->entities[i].active && snap->entities[i].id != snap->my_entity_id) {
+            float tgt_ex = (float)snap->entities[i].x;
+            float tgt_ez = (float)snap->entities[i].y;
             lerp_update(&g_entity_lerp[i], tgt_ex, tgt_ez, dt);
             float ex = g_entity_lerp[i].cur_x;
             float ez = g_entity_lerp[i].cur_z;
             
-            if (fabs(ex) < (float)vr + 1.0f && fabs(ez) < (float)vr + 1.0f) {
+            if (fabs(ex - px) < (float)vr + 1.0f && fabs(ez - py) < (float)vr + 1.0f) {
                 if (count + 36 <= s->max_vertices) {
                     float er = 0.4f, eg = 0.4f, eb = 1.0f;
-                    if (snap.entities[i].is_merchant &&
-                        snap.entities[i].shop_spec == SHOP_SPEC_BOOKS_MARTIAL) {
+                    if (snap->entities[i].is_merchant &&
+                        snap->entities[i].shop_spec == SHOP_SPEC_BOOKS_MARTIAL) {
                         er = 0.75f; eg = 0.15f; eb = 0.2f;
                     }
-                    else if (snap.entities[i].is_merchant) { er = 1.0f; eg = 0.8f; eb = 0.0f; }
-                    else if (snap.entities[i].is_player) { er = 0.2f; eg = 0.8f; eb = 0.2f; }
-                    else if (snap.entities[i].id < 10) { er = 1.0f; eg = 0.3f; eb = 0.3f; }
-                                        if (snap.entities[i].is_player) {
+                    else if (snap->entities[i].is_merchant) { er = 1.0f; eg = 0.8f; eb = 0.0f; }
+                    else if (snap->entities[i].is_player) { er = 0.2f; eg = 0.8f; eb = 0.2f; }
+                    else if (snap->entities[i].id < 10) { er = 1.0f; eg = 0.3f; eb = 0.3f; }
+                                        if (snap->entities[i].is_player) {
                         push_pyramid(v, &count, ex, 0.4f, ez, 0.35f, 0.5f, 0.35f, er, eg, eb);
                     } else {
                         push_box(v, &count, ex, 0.4f, ez, 0.3f, 0.4f, 0.3f, er, eg, eb);
@@ -806,29 +806,29 @@ static void update_vertex_buffer(VkState *s, VkVertex *v, float dt) {
                          * merchant) while performing a random rotation
                          * on itself — shared with the GL backend via
                          * client_tome.c */
-                        if (snap.entities[i].is_merchant &&
-                            snap.entities[i].shop_spec == SHOP_SPEC_BOOKS_MARTIAL &&
+                        if (snap->entities[i].is_merchant &&
+                            snap->entities[i].shop_spec == SHOP_SPEC_BOOKS_MARTIAL &&
                             count + 36 <= s->max_vertices) {
                             float tp[3], to[16];
-                            tome_anim_update(i, snap.entities[i].id, snap.entities[i].floor_id,
-                                             snap.entities[i].x, snap.entities[i].y,
-                                             snap.map[0], dt, tp, to);
+                            tome_anim_update(i, snap->entities[i].id, snap->entities[i].floor_id,
+                                             snap->entities[i].x, snap->entities[i].y,
+                                             snap->map[0], dt, tp, to);
                             push_box_oriented(v, &count,
-                                             tp[0] - (float)px, tp[1], tp[2] - (float)py,
+                                             tp[0], tp[1], tp[2],
                                              0.45f, 0.1f, 0.35f, to,
                                              0.9f, 0.75f, 0.3f);
                         }
                     }
                 }
             }
-        } else if (!snap.entities[i].active) {
+        } else if (!snap->entities[i].active) {
             g_entity_lerp[i].initialized = false;
             tome_anim_reset_slot(i);
         }
     }
 
     if (count + 36 <= s->max_vertices) {
-        push_box(v, &count, 0.0f, 0.6f, 0.0f, 0.3f, 0.6f, 0.3f, 0.0f, 1.0f, 0.0f);
+        push_box(v, &count, (float)px, 0.6f, (float)py, 0.3f, 0.6f, 0.3f, 0.0f, 1.0f, 0.0f);
     }
 
     //Boss Trophies removed as per request.
@@ -843,8 +843,8 @@ static void update_vertex_buffer(VkState *s, VkVertex *v, float dt) {
         // draw particle if space allows
         if (count + 36 <= s->max_vertices) {
             // we will draw them as floating boxes relative to (px, py)
-            float fx = p->x - px;
-            float fz = p->z - py;
+            float fx = p->x;
+            float fz = p->z;
             float fy = p->y;
             
             // To mimic additive blending/fade, we just multiply color by alpha for Vulkan
@@ -860,7 +860,7 @@ static void update_vertex_buffer(VkState *s, VkVertex *v, float dt) {
     s->vertex_count = count;
 }
 
-static void record_commands(VkState *s, float mvp[16], float vision_radius,
+static void record_commands(VkState *s, float mvp[16], float vision_radius, float px, float pz, float time_val,
                              float hud_ortho[16], float sw, float sh) {
     (void)sw; (void)sh;
     VkCommandBufferBeginInfo beginInfo = {0};
@@ -884,11 +884,14 @@ static void record_commands(VkState *s, float mvp[16], float vision_radius,
 
     /* --- Step 1: 3D Scene --- */
     vkCmdBindPipeline(s->command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s->pipeline);
-    float push_data[17];
+    float push_data[20];
     memcpy(push_data, mvp, sizeof(float) * 16);
     push_data[16] = vision_radius;
+    push_data[17] = px;
+    push_data[18] = pz;
+    push_data[19] = time_val;
     vkCmdPushConstants(s->command_buffer, s->pipeline_layout,
-                       VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(float) * 17, push_data);
+                       VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(float) * 20, push_data);
     VkDeviceSize offsets[] = {0};
     vkCmdBindVertexBuffers(s->command_buffer, 0, 1, &s->vertex_buffer, offsets);
     if (s->vertex_count > 0) {
@@ -945,14 +948,20 @@ static void draw_frame(VkState *s) {
 
     s->current_image = imageIndex;
 
+    FrameSnapshot snap;
+    frame_snapshot_acquire(&snap);
+    float px = (snap.my_x != -1) ? (float)snap.my_x : 500.0f;
+    float pz = (snap.my_y != -1) ? (float)snap.my_y : 500.0f;
+    float vr = (float)snap.vision_radius;
+
     float rad_pitch = camera_pitch * (float)M_PI / 180.0f;
     float rad_yaw   = camera_yaw   * (float)M_PI / 180.0f;
+    float center[3] = { px, 0.0f, pz };
     float eye[3] = {
-        camera_dist * cosf(rad_pitch) * sinf(rad_yaw),
-        camera_dist * sinf(rad_pitch),
-        camera_dist * cosf(rad_pitch) * cosf(rad_yaw)
+        px + camera_dist * cosf(rad_pitch) * sinf(rad_yaw),
+        0.0f + camera_dist * sinf(rad_pitch),
+        pz + camera_dist * cosf(rad_pitch) * cosf(rad_yaw)
     };
-    float center[3] = { 0.0f, 0.0f, 0.0f };
     float up[3]     = { 0.0f, 1.0f, 0.0f };
     float view[16], proj[16], mvp[16];
     mat4_lookat(view, eye, center, up);
@@ -973,20 +982,17 @@ static void draw_frame(VkState *s) {
     if (dt > 0.1f) dt = 0.1f;
     last_time = current_time;
 
-    /*Single mapping for 3D scene + HUD*/
-    VkVertex *v = NULL;
-    if (vkMapMemory(s->device, s->vertex_memory, 0,
-                    sizeof(VkVertex) * s->max_vertices, 0, (void **)&v) != VK_SUCCESS || !v) {
-        /*Mapping failed AFTER the fence was reset: submit an empty batch
-         * that still signals the fence, so this slot stays usable.*/
+    /*Use persistent mapping (3.4)*/
+    VkVertex *v = (VkVertex *)s->mapped_vertex_data;
+    if (!v) {
         VkSubmitInfo empty = {0};
         empty.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
         vkQueueSubmit(s->graphics_queue, 1, &empty, s->fences[slot]);
         s->current_frame = next_slot;
-        return; /*mapping failed: skip frame*/
+        return;
     }
 
-    update_vertex_buffer(s, v, dt);
+    update_vertex_buffer(s, v, dt, &snap);
 
     /*2D HUD: Write after 3D vertices*/
     uint32_t hud_start = s->vertex_count;
@@ -996,9 +1002,9 @@ static void draw_frame(VkState *s) {
     pthread_mutex_unlock(&g_state_mutex);
     s->hud_vertex_count = hud_count - hud_start;
 
-    vkUnmapMemory(s->device, s->vertex_memory);
+    // vkUnmapMemory(s->device, s->vertex_memory); // Replaced with persistent mapping
 
-    record_commands(s, mvp, (float)g_vision_radius, hud_ortho, sw, sh);
+    record_commands(s, mvp, vr, px, pz, (float)current_time, hud_ortho, sw, sh);
 
     VkSubmitInfo submitInfo = {0};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;

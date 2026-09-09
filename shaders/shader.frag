@@ -8,33 +8,33 @@ layout(location = 0) out vec4 outColor;
 layout(push_constant) uniform PushConstants {
     mat4 mvp;
     float visionRadius;
+    float playerX;
+    float playerZ;
+    float time;
 } pc;
 
 void main() {
-    /* Distanza del frammento dal centro del mondo (giocatore è a 0,0) */
-    float dist = length(fragWorldPos.xz);
+    float dx = fragWorldPos.x - pc.playerX;
+    float dz = fragWorldPos.z - pc.playerZ;
+    float dist = sqrt(dx*dx + dz*dz);
     float vr = pc.visionRadius;
 
-    /* Se siamo oltre il raggio di visione molto grande, non usiamo fog/vignette (utile per HUD) */
     if (vr > 9000.0) {
         outColor = fragColor;
         return;
     }
 
-    /* Fog of War morbida: sfumatura smooth ai bordi della visione */
     float inner = vr * 0.7;
     float fog = 1.0 - smoothstep(inner, vr, dist);
 
-    /* Vignettatura sottile: oscura leggermente i bordi lontani */
     float vignette = 1.0 - (dist / (vr * 1.2)) * 0.15;
     vignette = clamp(vignette, 0.5, 1.0);
 
-    vec3 L = normalize(vec3(0.0, 2.0, 0.0) - fragWorldPos);
+    vec3 L = normalize(vec3(pc.playerX, 2.0, pc.playerZ) - fragWorldPos);
     float diff = max(dot(normalize(fragNormal), L), 0.2);
 
     vec3 finalColor = fragColor.rgb * diff * fog * vignette;
 
-    /* Oltre il raggio visivo: nero totale */
     if (dist > vr) {
         discard;
     }

@@ -117,6 +117,8 @@ set(SHARED_SRCS
 set_source_files_properties(src/shared/cJSON.c PROPERTIES COMPILE_FLAGS "-Wno-keyword-macro")
 add_executable(dragongl_server
     src/server/main_server.c
+    src/server/server_net.c
+
     src/server/ai.c
     src/server/aoe.c
     src/server/combat_log.c

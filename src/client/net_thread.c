@@ -24,6 +24,7 @@
 #include <string.h>
 #include "client_state.h"
 #include "client_fct.h"
+bool g_map_dirty = false;
 #include "client_minimap.h"
 #include "client_particles.h"
 #include "protocol.h"
@@ -311,6 +312,7 @@ void* net_thread_loop(void* arg) {
                                 i++;
                             }
                         }
+                        g_map_dirty = true;
                         pthread_mutex_unlock(&g_state_mutex);
                     }
                     free(chunk_buf);

@@ -650,7 +650,7 @@ bool vk_init(VkState *s) {
     memset(&push_const, 0, sizeof(push_const));
     push_const.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
     push_const.offset = 0;
-    push_const.size = sizeof(float) * 17;
+    push_const.size = sizeof(float) * 20;
 
     memset(&pl_ci, 0, sizeof(pl_ci));
     pl_ci.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -699,7 +699,7 @@ bool vk_init(VkState *s) {
     }
 
     /*3D scene vertices: 201x201 tiles * 36 vertices/cube + 36 for the player + NPC*/
-    uint32_t scene_verts = 201 * 201 * 36 + 36 + CLIENT_MAX_ENTITIES * 36 + MAX_PARTICLES * 36;
+    uint32_t scene_verts = 300 * 300 * 36 + 36 + CLIENT_MAX_ENTITIES * 36 + MAX_PARTICLES * 36;
     /*2D HUD Vertices:
      * - Minimap: MINIMAP_BUF_SIZE^2 * 6 ≈ 81*81*6 = 39366
      * - Text (5x7 font): ~200 chars * 35 pixels/char * 6 vertices = 42000
@@ -721,6 +721,7 @@ bool vk_init(VkState *s) {
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
     vkAllocateMemory(s->device, &mem_ai, NULL, &s->vertex_memory);
     vkBindBufferMemory(s->device, s->vertex_buffer, s->vertex_memory, 0);
+    vkMapMemory(s->device, s->vertex_memory, 0, mem_req.size, 0, &s->mapped_vertex_data);
 
     printf("[VK] Vulkan initialization complete.\n");
     return true;
