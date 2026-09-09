@@ -1,3 +1,59 @@
+* Wed Sep 09 2026 nicolataibi <nicola.taibi.1967@gmail.com> - 2026.09.09.01
+- BUGFIX: Fixed an infinite loop in NPC Morale saving throws. NPCs at
+  < 20% HP without the Frightened condition were endlessly rolling a save
+  5 volte al secondo if they succeeded. Now uses the `morale` field in 
+  EntityInstance as a check flag to ensure the Morale saving throw is 
+  only rolled once per life. This stops massive combat_log.json spam.
+- BUGFIX: g_running was a plain bool shared by three client threads
+  (render, net, CLI) — a data race that TSan flags. It is now an
+  atomic_bool (stdatomic.h); use sites are unchanged.
+- BUGFIX: a failed net_send() (~1 s of retries on a stuck/dead client)
+  was ignored by every server caller: the message vanished and the
+  client sat in a stale state until a full state that may never come.
+  New net_send_client() drops the client on the FIRST failed send
+  (save + left-floor notice + close), and net_send()/net_receive_*()
+  now fail immediately on permanent errors (EPIPE/ENOTCONN/EBADF)
+  instead of spinning the whole retry budget.
+- BUGFIX: RESPAWN_TICKS/DENSITY_CHECK/DENSITY_MIN_PCT/RESPAWN_TRAPS_TICKS
+  were #defined in both main_server.c and server_internal.h (two sources
+  of truth, equal only by luck). server_internal.h is now the single
+  source.
+- BUILD: CMake no longer force-sets the C compiler to clang (unfair to
+  foreign toolchains); the default is now the DRAGONGL_USE_CLANG option
+  (ON), overridable with -DCMAKE_C_COMPILER or $CC. cmake_minimum_required
+  raised to 3.16 (makes the explicit CMP0072 policy redundant), and
+  -D_FORTIFY_SOURCE=2 moved to Release builds only (it is inert — and
+  sometimes warned about — with -O0). Applied to the tests project too.
+- NETWORKING: wire protocol v3 — MsgMapChunk start/width/height
+  narrowed from int32_t to int16_t (a 300x300 grid fits in 16 bits;
+  8-byte chunk header instead of 16).
+- NETWORKING: players now use the same compact path as NPCs after the
+  first full state (per-client seen-bitmap, 12-byte EntityUpdateRec
+  instead of a ~1 KB MsgState per player per step: ~60 KB/step with 60
+  players on one plane drops to a few hundred bytes). The bit is reset
+  on floor change and cleared on every left-floor removal, so a pair
+  of players always re-syncs with a full state when they meet again.
+- PERFORMANCE: the server poll() timeout went from 5 ms (200 wake-ups/s
+  on an EMPTY server) to TICK_MS/2 (100 ms): the fixed-step simulation
+  is driven by a real-time accumulator, so game punctuality is
+  unchanged.
+- CLIENT: documented the 512-slot entity cache limit — on a crowded
+  plane, new entities arriving with the cache full are silently
+  dropped (feature limit, not a bug); CLIENT_MAX_ENTITIES is the knob.
+- REPO: .gitignore now also covers the combat log rotation file
+  (combat_log.json.1, up to 10 MB); the 92 MB combat_log.json, world
+  state .dat files, saves/ and build/ were already excluded — none of
+  them can reach a tarball or the RPM (the data package ships only the
+  JSON datasets).
+- I18N: player-facing messages are now consistently English (server
+  logs, client console and game data were already): fixed the leftover
+  Italian and broken ita/eng mix-ins (auth failure reasons, merchant
+  welcome, pickup/chest/bleed messages, trap direction names).
+- VULKAN: optional validation layers — the client now enables the
+  layers listed in the standard VK_INSTANCE_LAYERS environment
+  variable when the driver provides them (missing layers are skipped
+  with a warning). CI installs vulkan-validationlayers and exports the
+  variable, so dev/CI runs can catch synchronization errors early.
 * Tue Sep 08 2026 nicolataibi <nicola.taibi.1967@gmail.com> - 2026.09.08.02
 - SECURITY: Replaced legacy FNV-1a password hashing with PBKDF2-SHA256 to 
   prevent offline brute-force attacks; updated SaveData and DM authentication 

@@ -27,7 +27,11 @@ build-tests/
 npcs.dat
 world.dat
 artifacts.dat
+# The combat log can grow to tens/hundreds of MB (a single long session
+# produced 92 MB) and its rotation file <name>.1 is just as big:
+# NEITHER must ever reach a git tag / source tarball / RPM (L6).
 combat_log.json
+combat_log.json.1
 
 # dev artifacts produced by the DM commands (dm_pdf / dm_mapfloor)
 map_dump*.txt

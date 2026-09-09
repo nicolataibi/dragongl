@@ -80,7 +80,9 @@ int g_log_count = 0;
 TileType g_local_map[MAP_HEIGHT][MAP_WIDTH];
 pthread_mutex_t g_state_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t g_net_mutex = PTHREAD_MUTEX_INITIALIZER;
-bool g_running = true;
+/*See the declaration in client_state.h: atomic because the render,
+ * net and CLI threads all read/write it (L1).*/
+atomic_bool g_running = true;
 int g_backend = 0; // 0 = GL, 1 = VK
 
 /*See FrameSnapshot in client_state.h: short lock, then the renderers

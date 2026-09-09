@@ -1,5 +1,16 @@
-cmake_minimum_required(VERSION 3.10)
-set(CMAKE_C_COMPILER "clang")
+cmake_minimum_required(VERSION 3.16)
+# --- C compiler selection (L4) ----------------------------------------
+# The compiler is a CHOICE, not a force: the old `set(CMAKE_C_COMPILER
+# "clang")` silently overrode ANY user-supplied compiler, which a
+# top-level project must not do (foreign toolchains / RPM wrappers /
+# explicit -DCMAKE_C_COMPILER=gcc were all clobbered). Now:
+#   -DRAGONGL_USE_CLANG=ON (default): clang is picked only if the user
+#     did not already choose one (-DCMAKE_C_COMPILER=... or $CC wins);
+#   -DRAGONGL_USE_CLANG=OFF: the toolchain decides entirely.
+option(DRAGONGL_USE_CLANG "Default to clang as the C compiler (overridable)" ON)
+if(DRAGONGL_USE_CLANG AND NOT DEFINED CMAKE_C_COMPILER AND NOT DEFINED ENV{CC})
+    set(CMAKE_C_COMPILER clang)
+endif()
 project(DragonGL VERSION 2026.09.08.01 LANGUAGES C)
 
 # --- Standard C e Opzioni di Compilazione ---
@@ -15,8 +26,9 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
 
-# Fix OpenGL Policy CMP0072
-cmake_policy(SET CMP0072 NEW)
+# OpenGL policy: cmake_minimum_required(3.16) already sets CMP0072 to
+# NEW (the policy was introduced in 3.9), so the explicit
+# cmake_policy() is redundant — the 3.16 floor is the fix (L4).
 set(OpenGL_GL_PREFERENCE GLVND)
 
 # Definizioni globali
@@ -31,11 +43,15 @@ else()
     add_compile_options(-fPIE)
     add_link_options(-pie)
 
-    add_compile_options(-Wall -Wextra -Wpedantic -fstack-protector-strong -D_FORTIFY_SOURCE=2 -Wformat -Wformat-security)
+    add_compile_options(-Wall -Wextra -Wpedantic -fstack-protector-strong -Wformat -Wformat-security)
 
     # Add optimization and debug info based on build type
     if(CMAKE_BUILD_TYPE STREQUAL "Release")
         add_compile_options(-O3)
+        # _FORTIFY_SOURCE needs optimization to do anything: with -O0 it
+        # is inert and some compilers/glibc versions even warn about it
+        # (L4), so it belongs to Release only.
+        add_compile_options(-D_FORTIFY_SOURCE=2)
     elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
         add_compile_options(-O0 -g)
     endif()

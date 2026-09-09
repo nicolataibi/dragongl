@@ -65,11 +65,11 @@ _Static_assert((int)BOOKS_MARTIAL == SHOP_SPEC_BOOKS_MARTIAL,
 #include "server_commands.h"
 #include "spell_router.h"
 
-//Configuration constants for population and respawn
-#define RESPAWN_TICKS 120       //~2 min at 6s/tick
-#define DENSITY_CHECK 50        //every N global rounds
-#define DENSITY_MIN_PCT 40      //emergency spawn if < 40% active
-#define RESPAWN_TRAPS_TICKS 300 // ~30 min
+/*Population/respawn constants (RESPAWN_TICKS, DENSITY_CHECK, DENSITY_MIN_PCT,
+ * RESPAWN_TRAPS_TICKS) live in server_internal.h — the SINGLE source of
+ * truth. They used to be #defined here AND in server_internal.h: two
+ * sources that could silently drift and change game behavior in one
+ * translation unit only.*/
 
 World *master_world = NULL;
 /*See server_internal.h: resolved in main() before any data access.*/
@@ -573,8 +573,48 @@ void send_text_to_client(int sock, const char *fmt, ...) {
   va_start(a, fmt);
   vsnprintf(m.text, sizeof(m.text), fmt, a);
   va_end(a);
-  net_send(sock, &h, sizeof(h));
-  net_send(sock, &m, sizeof(m));
+  net_send_client(sock, &h, sizeof(h));
+  net_send_client(sock, &m, sizeof(m));
+}
+
+/*--- Robust client send (L2) -----------------------------------------
+ * net_send() gives up after ~1 s of retries (returns false) when the
+ * peer's TCP buffer stays full or the connection died. Callers used to
+ * ignore that result: the message was simply LOST, and the client sat
+ * in a stale state (missing position/HP/combat update) until the next
+ * full state — which, for the very message that got dropped, may never
+ * come. A client that cannot receive is unusable: drop it on the FIRST
+ * failed send. The server is the source of truth, so a reconnect
+ * re-sends everything (welcome + full state + map + nearby entities)
+ * and nothing is lost.
+ *
+ * Returns true if the whole payload was queued; false if the client
+ * was marked for removal — callers must not rely on further sends to
+ * it in the same tick. That is cheap anyway: net_send() fails fast on
+ * permanent errors (closed fd, dead peer), so post-drop sends do not
+ * stall the loop for the ~1 s retry budget.*/
+bool net_send_client(int sock, const void *data, int len) {
+  if (net_send(sock, data, len))
+    return true;
+  for (int i = 0; i < MAX_CLIENTS; i++) {
+    if (g_clients[i].active && g_clients[i].sock == sock) {
+      if (g_clients[i].authenticated)
+        save_player_data(&g_clients[i]);
+      server_log("NET", "send failed: disconnecting client %d ('%s')",
+                 i, g_clients[i].username);
+      /*Same cleanup as the read-side disconnect path in main(): tell
+       * the other players on the floor that this one left (hp<=0
+       * removal), so its entity does not linger on their screens.*/
+      notify_player_left_floor(&g_clients[i], g_clients[i].floor_id);
+      net_close(sock);
+      g_clients[i].sock = -1;
+      g_clients[i].active = false;
+      return false;
+    }
+  }
+  /*Socket not mapped to a live client (already reaped this tick):
+   * nothing to fix up.*/
+  return false;
 }
 
 void send_map_chunk(int sock, Map *map, int cx, int cy, int size) {
@@ -606,9 +646,9 @@ void send_map_chunk(int sock, Map *map, int cx, int cy, int size) {
   for (int iy = sy; iy < sy + size; iy++)
     for (int ix = sx; ix < sx + size; ix++)
       buf[idx++] = map->data[0][iy][ix];
-  net_send(sock, &h, sizeof(h));
-  net_send(sock, &mc, sizeof(mc));
-  net_send(sock, buf, size * size * sizeof(VoxelType));
+  net_send_client(sock, &h, sizeof(h));
+  net_send_client(sock, &mc, sizeof(mc));
+  net_send_client(sock, buf, size * size * sizeof(VoxelType));
   free(buf);
 }
 
@@ -715,7 +755,7 @@ void check_traps(Client *c, NPC *npcs) {
       int wall_dy[4] = {-1, 0, 1, 0};
       int fire_x = t->x + wall_dx[t->wall_dir];
       int fire_y = t->y + wall_dy[t->wall_dir];
-      static const char *dir_names[4] = {"nord", "est", "sud", "ovest"};
+      static const char *dir_names[4] = {"north", "east", "south", "west"};
       if (c->x == fire_x && c->y == fire_y) {
         send_text_to_client(
             c->sock,
@@ -725,8 +765,8 @@ void check_traps(Client *c, NPC *npcs) {
                                      false, false, NULL);
         if (saved) {
           send_text_to_client(c->sock,
-                              "[SYSTEM] You throw yourself to the side! The dart grazes you"
-                              "l'orecchio e si conficca nel muro.");
+                              "[SYSTEM] You throw yourself to the side! The dart grazes"
+                              " your ear and embeds itself in the wall.");
         } else {
           int dmg_pierce = rules_roll_dice(t->damage_dice, t->damage_sides);
           c->hp -= dmg_pierce;
@@ -774,7 +814,7 @@ void check_traps(Client *c, NPC *npcs) {
     if (t->type == TRAP_SPRING_SPEAR && t->active) {
       int wall_dx[4] = {0, 1, 0, -1};
       int wall_dy[4] = {-1, 0, 1, 0};
-      static const char *dn[4] = {"nord", "est", "sud", "ovest"};
+      static const char *dn[4] = {"north", "east", "south", "west"};
       int fire_x = t->x + wall_dx[t->wall_dir];
       int fire_y = t->y + wall_dy[t->wall_dir];
       if (c->x == fire_x && c->y == fire_y) {
@@ -1707,8 +1747,8 @@ void send_detailed_state(Client *c) {
   }
   #undef SLOT_NAME
 
-  net_send(c->sock, &h, sizeof(h));
-  net_send(c->sock, &s, sizeof(s));
+  net_send_client(c->sock, &h, sizeof(h));
+  net_send_client(c->sock, &s, sizeof(s));
 }
 
 void save_player_data(Client *c) {
@@ -2670,13 +2710,15 @@ void broadcast_spell_vfx(int sx, int sy, int tx, int ty, int vfx_type, float r, 
     
     for (int i = 0; i < MAX_CLIENTS; i++) {
         if (g_clients[i].active && g_clients[i].authenticated && g_clients[i].floor_id == floor_id) {
-            /*net_send() (NOT raw write()): on a non-blocking socket a
+            /*net_send_client() (NOT raw write()): on a non-blocking socket a
              * partial write() desynced that client's whole protocol
              * stream — every later message became garbage until the
              * connection died. net_send loops until the full payload
-             * is queued or the client is dropped.*/
-            net_send(g_clients[i].sock, &hdr, sizeof(MsgHeader));
-            net_send(g_clients[i].sock, &msg, sizeof(MsgSpellVFX));
+             * is queued; net_send_client additionally DROPS the client
+             * if the send fails (a message it never receives would
+             * leave it in a stale state — see net_send_client).*/
+            net_send_client(g_clients[i].sock, &hdr, sizeof(MsgHeader));
+            net_send_client(g_clients[i].sock, &msg, sizeof(MsgSpellVFX));
         }
     }
 }
@@ -2693,9 +2735,37 @@ void broadcast_spell_vfx(int sx, int sy, int tx, int ty, int vfx_type, float r, 
 static uint8_t g_client_seen_entities[MAX_CLIENTS][MAX_NPCS / 8];
 static int     g_client_seen_floor[MAX_CLIENTS]; /*floor+1, 0 = empty*/
 
+/*--- Per-client "seen PLAYERS" bitmap (L9) ---------------------------
+ * broadcast_player_state() used to ship a ~1 KB full MsgState to EVERY
+ * player on the floor on EVERY step: 60 players on one plane meant
+ * ~60 KB per single step, mostly redundant (the client already knows
+ * the player's identity — it only needs x/y/hp). Players now ride the
+ * SAME compact path as NPCs: a full MsgState the first time a given
+ * client sees a given player, then 12-byte EntityUpdateRec records.
+ * Player IDs are positive and unique exactly like NPC IDs (the same
+ * next_id counter), and the client's MSG_ENTITY_UPDATE handler updates
+ * any known id, so no protocol change is needed.
+ * Row = receiver's slot, bit = sender's slot. The bitmap is reset with
+ * the NPC one whenever the receiver changes floor, and the bit is
+ * cleared whenever the receiver is told the player LEFT (hp<=0
+ * removal): otherwise a compact update could target an entity the
+ * client no longer holds in its cache (unknown ids are ignored) and
+ * the player would stay invisible until the next floor change.*/
+static uint8_t g_client_seen_players[MAX_CLIENTS][MAX_CLIENTS / 8];
+
 static inline void client_seen_reset(int ci, int floor) {
   memset(g_client_seen_entities[ci], 0, sizeof(g_client_seen_entities[ci]));
+  memset(g_client_seen_players[ci], 0, sizeof(g_client_seen_players[ci]));
   g_client_seen_floor[ci] = floor + 1;
+}
+static inline void player_seen_set(int ci, int pi) {
+  g_client_seen_players[ci][pi >> 3] |= (uint8_t)(1u << (pi & 7));
+}
+static inline int player_seen_test(int ci, int pi) {
+  return (g_client_seen_players[ci][pi >> 3] & (1u << (pi & 7))) != 0;
+}
+static inline void player_seen_clear(int ci, int pi) {
+  g_client_seen_players[ci][pi >> 3] &= (uint8_t)~(1u << (pi & 7));
 }
 static inline void client_seen_maybe_reset(int ci, int floor) {
   if (g_client_seen_floor[ci] != floor + 1)
@@ -2726,8 +2796,31 @@ static void send_full_npc_state(int sock, const NPC *n) {
                     : SHOP_SPEC_NONE;
   s.is_tombstone = 0;
   s.is_player = 0;
-  net_send(sock, &h, sizeof(h));
-  net_send(sock, &s, sizeof(s));
+  net_send_client(sock, &h, sizeof(h));
+  net_send_client(sock, &s, sizeof(s));
+}
+
+/*Full MsgState for a PLAYER (identity: username, is_player, hp/max_hp).
+ * Sent the first time a client sees that player; afterwards the client
+ * receives 12-byte EntityUpdateRec records (see broadcast_player_state
+ * and the player section of broadcast_nearby_entities).*/
+static void send_full_player_state(int sock, const Client *p) {
+  MsgHeader h = msg_hdr(MSG_STATE, (int)sizeof(MsgState));
+  MsgState s;
+  memset(&s, 0, sizeof(s));
+  s.entity_id   = p->entity_id;
+  s.x           = p->x;
+  s.y           = p->y;
+  s.hp          = p->hp;
+  s.max_hp      = p->max_hp;
+  s.floor_id    = p->floor_id;
+  s.is_merchant = 0;
+  s.shop_spec   = SHOP_SPEC_NONE;
+  s.is_tombstone= 0;
+  s.is_player   = 1;
+  copy_str(s.username, p->username, sizeof(s.username));
+  net_send_client(sock, &h, sizeof(h));
+  net_send_client(sock, &s, sizeof(s));
 }
 
 /*One header + [int32 count][records] instead of N header+MsgState pairs.
@@ -2737,9 +2830,9 @@ static void flush_entity_batch(int sock, const EntityUpdateRec *recs, int count)
   MsgHeader h = msg_hdr(MSG_ENTITY_UPDATE,
                         (int)(sizeof(int32_t) + (size_t)count * sizeof(EntityUpdateRec)));
   int32_t cnt = count;
-  net_send(sock, &h, sizeof(h));
-  net_send(sock, &cnt, sizeof(cnt));
-  net_send(sock, recs, (size_t)count * sizeof(EntityUpdateRec));
+  net_send_client(sock, &h, sizeof(h));
+  net_send_client(sock, &cnt, sizeof(cnt));
+  net_send_client(sock, recs, (size_t)count * sizeof(EntityUpdateRec));
 }
 
 void broadcast_nearby_entities(Client *c, NPC *npcs) {
@@ -2820,11 +2913,13 @@ void broadcast_nearby_entities(Client *c, NPC *npcs) {
     s.shop_spec    = SHOP_SPEC_NONE;
     s.is_tombstone = 1;
     s.is_player    = 0;
-    net_send(c->sock, &h, sizeof(h));
-    net_send(c->sock, &s, sizeof(s));
+    net_send_client(c->sock, &h, sizeof(h));
+    net_send_client(c->sock, &s, sizeof(s));
   }
   
-  /*--- Active Players on the same plane ---*/
+  /*--- Active Players on the same plane (L9: the same compact path as
+   * NPCs — full state only the first time the client sees them, then
+   * 12-byte records — player IDs are positive and unique like NPC IDs) ---*/
   for (int i = 0; i < MAX_CLIENTS; i++) {
     if (g_clients[i].active && g_clients[i].authenticated && g_clients[i].floor_id == c->floor_id) {
       if (g_clients[i].entity_id == c->entity_id) continue;
@@ -2833,22 +2928,17 @@ void broadcast_nearby_entities(Client *c, NPC *npcs) {
         int ddy = g_clients[i].y - c->y;
         if (ddx * ddx + ddy * ddy > r2) continue;
       }
-      MsgHeader h = msg_hdr(MSG_STATE, (int)sizeof(MsgState));
-      MsgState s;
-      memset(&s, 0, sizeof(s));
-      s.entity_id   = g_clients[i].entity_id;
-      s.x           = g_clients[i].x;
-      s.y           = g_clients[i].y;
-      s.hp          = g_clients[i].hp;
-      s.max_hp      = g_clients[i].max_hp;
-      s.floor_id    = g_clients[i].floor_id;
-      s.is_merchant = 0;
-      s.shop_spec   = SHOP_SPEC_NONE;
-      s.is_tombstone= 0;
-      s.is_player   = 1;
-      copy_str(s.username, g_clients[i].username, sizeof(s.username));
-      net_send(c->sock, &h, sizeof(h));
-      net_send(c->sock, &s, sizeof(s));
+      if (!player_seen_test(c_idx, i)) {
+        send_full_player_state(c->sock, &g_clients[i]);
+        player_seen_set(c_idx, i);
+      } else {
+        EntityUpdateRec pr;
+        pr.entity_id = g_clients[i].entity_id;
+        pr.x = (int16_t)g_clients[i].x;
+        pr.y = (int16_t)g_clients[i].y;
+        pr.hp = g_clients[i].hp;
+        flush_entity_batch(c->sock, &pr, 1);
+      }
     }
   }
 }
@@ -2857,6 +2947,7 @@ void broadcast_nearby_entities(Client *c, NPC *npcs) {
 
 
 void notify_player_left_floor(Client *c, int old_floor) {
+  int c_idx = (int)(c - g_clients); /*c is always a g_clients member*/
   MsgHeader h = msg_hdr(MSG_STATE, (int)sizeof(MsgState));
   MsgState s;
   memset(&s, 0, sizeof(s));
@@ -2875,33 +2966,50 @@ void notify_player_left_floor(Client *c, int old_floor) {
   for (int i = 0; i < MAX_CLIENTS; i++) {
     if (g_clients[i].active && g_clients[i].authenticated && g_clients[i].floor_id == old_floor) {
       if (g_clients[i].entity_id == c->entity_id) continue;
-      net_send(g_clients[i].sock, &h, sizeof(h));
-      net_send(g_clients[i].sock, &s, sizeof(s));
+      net_send_client(g_clients[i].sock, &h, sizeof(h));
+      net_send_client(g_clients[i].sock, &s, sizeof(s));
+      /*The receiver just lost this entity (hp<=0 removal): clear the
+       * "seen" bit so the NEXT time the two players share a floor the
+       * state is sent in FULL. A compact update for an id the client
+       * no longer caches is ignored by design, which would leave the
+       * player invisible until the receiver changed floor.*/
+      if (c_idx >= 0 && c_idx < MAX_CLIENTS)
+        player_seen_clear(i, c_idx);
     }
   }
 }
 
 void broadcast_player_state(Client *c) {
-  MsgHeader h = msg_hdr(MSG_STATE, (int)sizeof(MsgState));
-  MsgState s;
-  memset(&s, 0, sizeof(s));
-  s.entity_id   = c->entity_id;
-  s.x           = c->x;
-  s.y           = c->y;
-  s.hp          = c->hp;
-  s.max_hp      = c->max_hp;
-  s.floor_id    = c->floor_id;
-  s.is_merchant = 0;
-  s.shop_spec   = SHOP_SPEC_NONE;
-  s.is_tombstone= 0;
-  s.is_player   = 1;
-  copy_str(s.username, c->username, sizeof(s.username));
-  
+  int c_idx = (int)(c - g_clients); /*c is always a g_clients member*/
+  if (c_idx < 0 || c_idx >= MAX_CLIENTS)
+    return;
+  /*Compact record for receivers that ALREADY know this player (L9).
+   * 24 bytes on the wire (8 header + 4 count + 12 record) instead of
+   * the ~1.5 KB full MsgState the old code sent to every player on
+   * the floor on every step.*/
+  EntityUpdateRec rec;
+  rec.entity_id = c->entity_id;
+  rec.x = (int16_t)c->x;
+  rec.y = (int16_t)c->y;
+  rec.hp = c->hp;
+
   for (int i = 0; i < MAX_CLIENTS; i++) {
-    if (g_clients[i].active && g_clients[i].authenticated && g_clients[i].floor_id == c->floor_id) {
-      if (g_clients[i].entity_id == c->entity_id) continue;
-      net_send(g_clients[i].sock, &h, sizeof(h));
-      net_send(g_clients[i].sock, &s, sizeof(s));
+    if (!g_clients[i].active || !g_clients[i].authenticated)
+      continue;
+    if (g_clients[i].floor_id != c->floor_id)
+      continue;
+    if (g_clients[i].entity_id == c->entity_id)
+      continue;
+    /*Stale bitmap (the receiver moved since its last full scan):
+     * reset it so EVERYTHING — NPCs and players — is re-sent in full.*/
+    client_seen_maybe_reset(i, g_clients[i].floor_id);
+    if (!player_seen_test(i, c_idx)) {
+      /*First time this client sees this player: full state (identity:
+       * username, is_player, hp/max_hp, ...).*/
+      send_full_player_state(g_clients[i].sock, c);
+      player_seen_set(i, c_idx);
+    } else {
+      flush_entity_batch(g_clients[i].sock, &rec, 1);
     }
   }
 }
@@ -3190,7 +3298,14 @@ int main(int argc, char **argv) {
       fds[i + 1].fd = clients[i].active ? clients[i].sock : -1;
       fds[i + 1].events = POLLIN;
     }
-    if (poll(fds, MAX_CLIENTS + 1, 5) > 0) {
+    /*Timeout = TICK_MS/2 (100 ms). The old 5 ms woke the loop 200 times
+     * per second even with ZERO connected clients, for no gain: the
+     * simulation below runs on a fixed-step accumulator (TICK_MS) that
+     * is driven by real time, so halving the wake rate (100 ms = half a
+     * tick) keeps update_world() exactly as punctual while new
+     * connections and player input are still serviced within half a
+     * game tick.*/
+    if (poll(fds, MAX_CLIENTS + 1, (int)(TICK_MS / 2)) > 0) {
       if (fds[0].revents & POLLIN) {
         int cs = accept(s_sock, NULL, NULL);
         if (cs >= 0) {
@@ -3201,9 +3316,11 @@ int main(int argc, char **argv) {
               clients[i].active = true;
               clients[i].authenticated = false;
               /*Stale "seen" state from a previous tenant of this slot:
-               * start with an empty bitmap (full states re-sent).*/
+               * start with empty bitmaps (full states re-sent).*/
               memset(g_client_seen_entities[i], 0,
                      sizeof(g_client_seen_entities[i]));
+              memset(g_client_seen_players[i], 0,
+                     sizeof(g_client_seen_players[i]));
               g_client_seen_floor[i] = 0;
               server_log("NET", "Client %d", i);
               break;
@@ -3262,7 +3379,7 @@ int main(int argc, char **argv) {
                 server_log("AUTH", "Server access denied (Wrong Server Password) for IP/Socket %d", clients[i].sock);
                 MsgHeader fail_hdr = msg_hdr(MSG_AUTH_FAIL, (int)sizeof(MsgAuthFail));
                 MsgAuthFail fail_msg;
-                copy_str(fail_msg.reason, "Server Password errata.",
+                copy_str(fail_msg.reason, "Wrong server password.",
                          sizeof(fail_msg.reason));
                 net_send(clients[i].sock, &fail_hdr, sizeof(MsgHeader));
                 net_send(clients[i].sock, &fail_msg, sizeof(MsgAuthFail));
@@ -3470,8 +3587,12 @@ int main(int argc, char **argv) {
                              (int)clients[i].class_id,
                              clients[i].level,
                              clients[i].alignment};
-            net_send(clients[i].sock, &wh, sizeof(MsgHeader));
-            net_send(clients[i].sock, &mw, sizeof(MsgWelcome));
+            /*A failed welcome means the client is gone (net_send_client
+             * already dropped it): skip the rest of the login sequence.*/
+            if (!net_send_client(clients[i].sock, &wh, sizeof(MsgHeader)) ||
+                !net_send_client(clients[i].sock, &mw, sizeof(MsgWelcome))) {
+                continue;
+            }
             send_detailed_state(&clients[i]);
             send_map_chunk(clients[i].sock,
                            &master_world->floors[clients[i].floor_id].map,
@@ -3553,8 +3674,8 @@ int main(int argc, char **argv) {
                     if (npcs[n].archetype == ARCH_MERCHANT) {
                       send_text_to_client(
                           clients[i].sock,
-                          "[%s] Benvenuto! Uso 'buy <n>', 'sell <n>', 'haggle "
-                          "buy <n>', 'identify' o 'cure'.",
+                          "[%s] Welcome! Use 'buy <n>', 'sell <n>', 'haggle "
+                          "buy <n>', 'identify' or 'cure'.",
                           npcs[n].merchant.shop_name);
                       print_merchant_inventory(&clients[i], &npcs[n]);
                       coll = true;
@@ -3624,7 +3745,7 @@ int main(int argc, char **argv) {
                              clients[i].backpack[clients[i].backpack_count++] =
                                  npcs[n].ghost_loot[0];
                              send_text_to_client(clients[i].sock,
-                                 "[SISTEMA] Hai raccolto: %s",
+                                 "[SYSTEM] You picked up: %s",
                                  item_database[npcs[n].ghost_loot[0].template_idx].name);
                              npcs[n].active = false;
                              npcs[n].respawn_timer = 0;
@@ -3636,8 +3757,8 @@ int main(int argc, char **argv) {
                          } else {
                            /*Chest without ghost_loot: generate random loot*/
                            send_text_to_client(clients[i].sock,
-                               "[SYSTEM] Open the treasure chest and find us"
-                               "dentro qualcosa...");
+                               "[SYSTEM] You open the treasure chest and find"
+                               " something inside...");
                            drop_loot_from_monster(&clients[i], &npcs[n]);
                            npcs[n].active = false;
                            npcs[n].respawn_timer = 100;
@@ -3694,8 +3815,8 @@ int main(int argc, char **argv) {
                   if (rules_has_condition_t(clients[i].effects, clients[i].effect_count, COND_BLEEDING)) {
                     clients[i].hp -= 2;
                     send_text_to_client(clients[i].sock,
-                                        "[DANGER] Moving reopens yours"
-                                        "ferite! Sanguini copiosamente...");
+                                        "[DANGER] Moving reopens your"
+                                        " wounds! You bleed heavily...");
                     if (clients[i].hp <= 0) {
                       server_log(
                           "DEATH",

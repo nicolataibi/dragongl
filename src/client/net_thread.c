@@ -206,6 +206,17 @@ void* net_thread_loop(void* arg) {
                             }
                         }
                         if (!found) {
+                            /*FEATURE LIMIT (L5, see CLIENT_MAX_ENTITIES in
+                             * client_state.h): if all 512 cache slots are
+                             * active, there is NO free slot and this new
+                             * entity is SILENTLY DROPPED — it simply never
+                             * renders on this client. Acceptable for a LAN
+                             * game (planes rarely exceed a few dozen visible
+                             * entities, and the cache is flushed whole on
+                             * floor change), but documented on purpose: a
+                             * "missing NPC/player on a packed plane" report
+                             * means the cache overflowed, not a network
+                             * bug.*/
                             for(int i=0; i<CLIENT_MAX_ENTITIES; i++) {
                                 if (!g_entities[i].active) {
                                     g_entities[i].id          = msg_state.entity_id;

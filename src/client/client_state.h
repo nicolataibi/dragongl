@@ -22,12 +22,19 @@
 
 #include <pthread.h>
 #include <stdbool.h>
+#include <stdatomic.h>
 #include "map.h"
 
 /*Client-side entity cache size.
  * NOTE: the server has its OWN MAX_NPCS (50000) in server_entities.h —
  * same name, different meaning, in a different binary. Renamed here to
- * avoid confusion when reading both codebases.*/
+ * avoid confusion when reading both codebases.
+ * FEATURE LIMIT (documented, L5): the cache holds AT MOST 512 entities.
+ * On a crowded plane, NEW entities that arrive while every slot is in
+ * use are silently dropped (they simply never render on this client —
+ * no error, no log). The whole cache is flushed on floor change, so
+ * the effect is transient; if a full plane ever becomes a feature,
+ * this constant is the knob to raise.*/
 #define CLIENT_MAX_ENTITIES 512
 
 extern int g_server_sock;
@@ -104,7 +111,13 @@ extern int g_log_count;
 
 extern pthread_mutex_t g_state_mutex;
 extern pthread_mutex_t g_net_mutex;
-extern bool g_running;
+/*Shared by THREE threads (render loop, net thread, CLI thread): a plain
+ * bool written/read across threads is a data race (it "works" in
+ * practice, but -fsanitize=thread flags it). It is therefore an atomic
+ * (L1). C11 atomics need no special syntax at the use sites:
+ * `while (g_running)` is an atomic load, `g_running = false` an atomic
+ * store — the only change is the declaration.*/
+extern atomic_bool g_running;
 
 void client_send_move(int dx, int dy);
 void client_send_text_cmd(const char *cmd);

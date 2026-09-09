@@ -194,8 +194,10 @@ static void broadcast_game_time(Client *clients) {
 
   for (int i = 0; i < MAX_CLIENTS; i++) {
     if (clients[i].active && clients[i].authenticated) {
-      net_send(clients[i].sock, &hdr, sizeof(hdr));
-      net_send(clients[i].sock, &ts, sizeof(ts));
+      /*net_send_client: a failed time-sync send means a stuck/dead
+       * client — drop it instead of letting the message vanish (L2).*/
+      net_send_client(clients[i].sock, &hdr, sizeof(hdr));
+      net_send_client(clients[i].sock, &ts, sizeof(ts));
     }
   }
 }
@@ -606,8 +608,8 @@ void update_world(Client *clients, NPC *npcs) {
         }
 
         /* --- NPC Morale: below 20% HP rolls a saving throw vs Frightened --- */
-        if (n->hp < (n->max_hp / 5) &&
-            !rules_has_condition_t(n->effects, n->effect_count, COND_FRIGHTENED)) {
+        if (n->hp < (n->max_hp / 5) && n->morale == 0) {
+          n->morale = 1;
           int roll_v = 0;
           bool success = rules_roll_save(0, 12, false, false, &roll_v);
           if (!success) {
@@ -710,6 +712,7 @@ void update_world(Client *clients, NPC *npcs) {
         n->y = n->spawn_y;
         n->hp = n->max_hp;
         n->effect_count = 0;
+        n->morale = 0;
         n->respawn_timer = 0;
         master_world->floors[n->floor_id].entity_grid[n->y][n->x] = n->entity_id;
         ai_init_npc(n, n->template->name, n->floor_id);
@@ -785,6 +788,7 @@ void update_world(Client *clients, NPC *npcs) {
         n->y            = n->spawn_y;
         n->hp           = n->max_hp;
         n->effect_count = 0;
+        n->morale       = 0;
         n->respawn_timer = 0;
         master_world->floors[f].entity_grid[n->y][n->x] = n->entity_id;
         ai_init_npc(n, n->template->name, n->floor_id);

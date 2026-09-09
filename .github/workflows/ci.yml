@@ -4,6 +4,14 @@ on:
   push:
   pull_request:
 
+# L11: optional Vulkan validation layers. The client enables whatever
+# is listed here (VK_INSTANCE_LAYERS) when the driver provides the
+# layer; it is a no-op in this job (the client is not executed in CI),
+# but any future headless/VM smoke-run job inherits it, and developers
+# get the same behavior locally with the same variable.
+env:
+  VK_INSTANCE_LAYERS: VK_LAYER_KHRONOS_validation
+
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
@@ -16,7 +24,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             clang cmake ninja-build pkg-config \
             libglfw3-dev libgl1-mesa-dev libglu1-mesa-dev \
-            libvulkan-dev glslc python3
+            libvulkan-dev vulkan-validationlayers glslc python3
 
       - name: Configure (Release)
         run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release

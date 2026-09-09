@@ -510,8 +510,11 @@ bool tombstone_pickup(Client *c) {
             if (g_clients[ci].floor_id != t->floor_id) {
                 continue;
             }
-            net_send(g_clients[ci].sock, &rm_hdr, sizeof(rm_hdr));
-            net_send(g_clients[ci].sock, &rm_msg, sizeof(rm_msg));
+            /*net_send_client: drop the client if the removal message
+             * cannot be delivered (a lost removal would leave a
+             * phantom tombstone on its screen — L2).*/
+            net_send_client(g_clients[ci].sock, &rm_hdr, sizeof(rm_hdr));
+            net_send_client(g_clients[ci].sock, &rm_msg, sizeof(rm_msg));
         }
 
         send_text_to_client(c->sock,

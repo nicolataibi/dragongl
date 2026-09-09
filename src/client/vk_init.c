@@ -529,15 +529,68 @@ bool vk_init(VkState *s) {
     glfw_exts = glfwGetRequiredInstanceExtensions(&ext_count);
     for (i = 0; i < ext_count; i++) exts[i] = glfw_exts[i];
 
+    /*--- Optional validation layers (L11) ------------------------------
+     * The layers named in the standard VK_INSTANCE_LAYERS environment
+     * variable (colon-separated, e.g. "VK_LAYER_KHRONOS_validation")
+     * are enabled IF the driver provides them. This lets dev/CI builds
+     * catch synchronization, memory and pipeline errors at init time
+     * instead of as mysterious runtime corruption. With the variable
+     * unset nothing is requested, so release users see no difference.
+     * Unknown names are skipped with a warning: a missing layer must
+     * never prevent the game from starting.*/
+    const char *vk_wanted_layers = getenv("VK_INSTANCE_LAYERS");
+    const char *vk_layers[16];
+    uint32_t vk_layer_count = 0;
+    VkLayerProperties *vk_avail = NULL;
+    if (vk_wanted_layers && vk_wanted_layers[0]) {
+        uint32_t avail_count = 0;
+        vkEnumerateInstanceLayerProperties(&avail_count, NULL);
+        if (avail_count > 0) {
+            vk_avail = malloc(sizeof(VkLayerProperties) * avail_count);
+            uint32_t got = avail_count;
+            if (vk_avail &&
+                vkEnumerateInstanceLayerProperties(&got, vk_avail) == VK_SUCCESS) {
+                char *tok_copy = strdup(vk_wanted_layers);
+                if (tok_copy) {
+                    char *sp = NULL;
+                    for (char *tok = strtok_r(tok_copy, ":", &sp);
+                         tok; tok = strtok_r(NULL, ":", &sp)) {
+                        bool have = false;
+                        for (uint32_t li = 0; li < got; li++) {
+                            if (strcmp(tok, vk_avail[li].layerName) == 0) {
+                                if (vk_layer_count < 16)
+                                    vk_layers[vk_layer_count++] =
+                                        vk_avail[li].layerName;
+                                have = true;
+                                break;
+                            }
+                        }
+                        if (!have)
+                            printf("[VK] Warning: layer '%s' (VK_INSTANCE_LAYERS) "
+                                   "not available - skipping.\n", tok);
+                    }
+                    free(tok_copy);
+                }
+            }
+        }
+    }
+    if (vk_layer_count > 0)
+        printf("[VK] Enabling %u validation layer(s)\n", vk_layer_count);
+
     memset(&inst_ci, 0, sizeof(inst_ci));
     inst_ci.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     inst_ci.pApplicationInfo = &app_info;
     inst_ci.enabledExtensionCount = ext_count;
     inst_ci.ppEnabledExtensionNames = exts;
+    inst_ci.enabledLayerCount = vk_layer_count;
+    inst_ci.ppEnabledLayerNames = vk_layers;
     if (vkCreateInstance(&inst_ci, NULL, &s->instance) != VK_SUCCESS) {
         printf("Error creating VkInstance\n");
+        free(vk_avail);
         return false;
     }
+    free(vk_avail);
+    vk_avail = NULL;
 
     if (glfwCreateWindowSurface(s->instance, s->window, NULL, &s->surface) != VK_SUCCESS) {
         printf("Error creating VkSurface\n");

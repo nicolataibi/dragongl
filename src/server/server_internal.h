@@ -54,10 +54,15 @@ typedef struct {
 } BonesData;
 
 // Global constants
-#define RESPAWN_TICKS 120
-#define DENSITY_CHECK 50
-#define DENSITY_MIN_PCT 40
-#define RESPAWN_TRAPS_TICKS 300
+/*Population/respawn tuning — SINGLE source of truth (L3). These used
+ * to be #defined in BOTH server_internal.h and main_server.c: two
+ * sources of truth that were equal "by luck" and would have silently
+ * drifted (identical redefinitions are legal C, so no warning). Do not
+ * redefine them anywhere else.*/
+#define RESPAWN_TICKS 120       //~2 min at 6s/tick
+#define DENSITY_CHECK 50        //every N global rounds
+#define DENSITY_MIN_PCT 40      //emergency spawn if < 40% active
+#define RESPAWN_TRAPS_TICKS 300 // ~30 min
 /*% chance that a kill will generate a loot item*/
 #define LOOT_DROP_CHANCE 60
 
@@ -110,6 +115,12 @@ void damage_item(ItemInstance *it, int amt);
 void save_player_data(Client *c);
 int load_player_data(Client *c);
 void send_text_to_client(int sock, const char *fmt, ...);
+/*net_send() wrapper that DROPS the client on the first failed send
+ * (save + "left floor" notice + close): a lost message would leave the
+ * client in a stale state until a full state that may never come (L2).
+ * Returns true if the payload was queued, false if the client was
+ * marked for removal.*/
+bool net_send_client(int sock, const void *data, int len);
 void send_detailed_state(Client *c);
 void server_log(const char *cat, const char *fmt, ...);
 void broadcast_spell_vfx(int sx, int sy, int tx, int ty, int vfx_type, float r, float g, float b, int floor_id);

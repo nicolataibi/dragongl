@@ -21,6 +21,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/socket.h>
@@ -88,18 +89,33 @@ void net_set_nonblocking(int sock) {
     fcntl(sock, F_SETFL, flags | O_NONBLOCK);
 }
 
+/*True if the send()/recv() error is TRANSIENT (retry after a short
+ * pause). Everything else (EPIPE, ENOTCONN, ECONNRESET, EBADF, ...) is
+ * permanent: the peer is gone or the fd is invalid, and retrying would
+ * only spin the caller for the whole retry budget (~1 s) for nothing.
+ * Callers that must drop a client on the first failure (server
+ * net_send_client) rely on this distinction.*/
+static bool net_err_is_transient(int err) {
+    return err == EAGAIN || err == EWOULDBLOCK || err == EINTR;
+}
+
 bool net_send(int sock, const void *data, int len) {
     int total = 0;
     int retries = 0;
-    /*100 retries * 10ms = at most ~1s of blocking before the caller
-     * drops the send (and may disconnect the client). This used to be
-     * 500 (5s): a single slow/stuck client could stall the whole server
-     * loop for several seconds. (Full per-client send buffers with
-     * backpressure would remove the blocking entirely; this cap keeps
-     * the worst case sane until then.*/
+    /*100 retries * 10ms = at most ~1s of blocking on a SLOW peer
+     * (buffer full, EAGAIN) before the caller drops the send (and may
+     * disconnect the client). This used to be 500 (5s): a single
+     * slow/stuck client could stall the whole server loop for several
+     * seconds. (Full per-client send buffers with backpressure would
+     * remove the blocking entirely; this cap keeps the worst case sane
+     * until then.) Permanent errors (dead peer, closed fd) fail
+     * IMMEDIATELY: a failed send must be visible to the caller in the
+     * same tick, not a second later.*/
     int max_retries = 100;
     const char *buf = (const char *)data;
-    
+    if (sock < 0)
+        return false;
+
     while (total < len && retries < max_retries) {
         int sent = send(sock, buf + total, len - total, 0);
         if (sent > 0) {
@@ -108,11 +124,13 @@ bool net_send(int sock, const void *data, int len) {
         } else if (sent == 0) {
             return false;
         } else {
+            if (!net_err_is_transient(errno))
+                return false; /*peer closed / bad fd: don't spin ~1s*/
             retries++;
             usleep(10000);
         }
     }
-    
+
     return total == len;
 }
 
@@ -125,7 +143,9 @@ int net_receive(int sock, void *buffer, int max_len) {
 }
 
 /*Read exactly 'len' bytes, retrying on EAGAIN with short pauses.
-   Returns len on success, -1 on peer close or retry exhaustion.*/
+   Returns len on success, -1 on peer close or retry exhaustion.
+   Permanent errors (EPIPE, ENOTCONN, EBADF, ...) return -1 at once
+   instead of spinning the whole retry budget (~5 s).*/
 int net_receive_exact(int sock, void *buffer, int len) {
     int total = 0;
     int retries = 0;
@@ -140,6 +160,8 @@ int net_receive_exact(int sock, void *buffer, int len) {
         } else if (bytes == 0) {
             return -1; /* peer closed */
         } else {
+            if (!net_err_is_transient(errno))
+                return -1;
             retries++;
             usleep(10000);
         }
@@ -170,7 +192,9 @@ void net_close(int sock) {
 }
 
 /*Read exactly 'len' bytes on a non-blocking socket,
-   trying again with short pauses up to a maximum of 500 iterations (~5 sec).*/
+   trying again with short pauses up to a maximum of 500 iterations (~5 sec).
+   Permanent errors (EPIPE, ENOTCONN, EBADF, ...) return -1 at once
+   instead of spinning the whole budget.*/
 int net_receive_all(int sock, void *buffer, int len) {
     int total = 0;
     int retries = 0;
@@ -186,7 +210,9 @@ int net_receive_all(int sock, void *buffer, int len) {
             /* connection closed */
             return -1;
         } else {
-            /* EAGAIN / EWOULDBLOCK */
+            /* EAGAIN / EWOULDBLOCK (retry); anything else is a dead peer */
+            if (!net_err_is_transient(errno))
+                return -1;
             retries = retries + 1;
             usleep(10000);
         }

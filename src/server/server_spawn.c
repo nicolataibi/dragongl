@@ -729,6 +729,7 @@ void populate_dungeons(NPC *npcs, int *next_id) {
         n->template_idx = t_id;
         n->template = &bestiary_data[t_id];
         n->effect_count = 0;
+        n->morale = 0;
         //ai_init_npc calculates hp, max_hp, ac, attack_bonus, damage dice
         //and assign archetype + behavior tree based on the monster name
         ai_init_npc(n, n->template->name, n->floor_id);

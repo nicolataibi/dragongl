@@ -41,8 +41,11 @@ typedef uint32_t MsgType;
  * value, so an old client and a new server fail fast with a clear
  * protocol error instead of silently desynchronizing the stream.
  * v2: EntityUpdateRec.hp widened to int32_t (boss HP on deep floors
- * exceeded the old int16_t and showed up as random HP on clients).*/
-#define PROTOCOL_VERSION 2
+ * exceeded the old int16_t and showed up as random HP on clients).
+ * v3: MsgMapChunk start/width/height narrowed from int32_t to int16_t
+ * (a 300x300 grid fits in 16 bits with room to spare: 8-byte chunk
+ * header instead of 16).*/
+#define PROTOCOL_VERSION 3
 
 typedef struct {
     MsgType type;
@@ -170,11 +173,15 @@ typedef struct {
     int entity_id; /*ID of the tombstone to remove*/
 } MsgTombstoneRemove;
 
+/*Map chunk descriptor. int16_t is enough (L8): coordinates and
+ * dimensions are bounded by MAP_WIDTH/MAP_HEIGHT (300), so 16 bits
+ * carry them with margin and the header shrinks from 16 to 8 bytes
+ * per chunk. (Changed layout => PROTOCOL_VERSION bumped to 3.)*/
 typedef struct {
-    int start_x;
-    int start_y;
-    int width;
-    int height;
+    int16_t start_x;
+    int16_t start_y;
+    int16_t width;
+    int16_t height;
 } MsgMapChunk;
 
 typedef struct {
