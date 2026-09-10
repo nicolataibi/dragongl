@@ -1,3 +1,9 @@
+* Thu Sep 10 2026 nicolataibi <nicola.taibi.1967@gmail.com> - 2026.09.10.01
+- OPTIMIZATION: Removed NPC Morale saving throws from the global `combat_log.json`. 
+  Because of the server's scale, the log was being spammed with thousands of Morale failure records per minute. This wasn't a bug, but rather the result of natural ecosystem mechanics:
+  * `ARCH_SWARM` monsters (like Slimes) halve their HP when cloning themselves. After a few generations, their HP naturally falls below the 20% threshold, triggering the Morale check without player intervention.
+  * Wandering monsters taking continuous damage from persistent player AoE spells (clouds) in other floors.
+  By silencing the `clog_save` for Morale, the combat log remains clean and focused on actual player combat metrics.
 * Thu Sep 10 2026 nicolataibi <nicola.taibi.1967@gmail.com> - 2026.09.09.03
 - FEATURE: Implemented one-way collision for closed shops at night. Players caught inside a shop when the curfew hits can now freely push through the closed door (`VOXEL_WALL`) to exit, while players outside remain blocked from entering.
 - BUGFIX (Vulkan): Restored the AR Compass convergence. The projection function now uses absolute global coordinates instead of relative coordinates, fixing the compass floating off-screen.

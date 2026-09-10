@@ -617,7 +617,7 @@ void update_world(Client *clients, NPC *npcs) {
               n->effects[n->effect_count].name = "Frightened";
               n->effects[n->effect_count].duration_rounds = 5;
               n->effect_count++;
-              clog_save(n->template->name, "Morale", roll_v, 0, 12, false);
+              // clog_save(n->template->name, "Morale", roll_v, 0, 12, false);
             }
           }
         }
