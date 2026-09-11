@@ -11,7 +11,7 @@ option(DRAGONGL_USE_CLANG "Default to clang as the C compiler (overridable)" ON)
 if(DRAGONGL_USE_CLANG AND NOT DEFINED CMAKE_C_COMPILER AND NOT DEFINED ENV{CC})
     set(CMAKE_C_COMPILER clang)
 endif()
-project(DragonGL VERSION 2026.09.08.01 LANGUAGES C)
+project(DragonGL VERSION 2026.09.11.01 LANGUAGES C)
 
 # --- Standard C e Opzioni di Compilazione ---
 # C11 (not C23): the codebase uses no C23-specific feature, and C11 is
@@ -196,3 +196,26 @@ install(FILES ${MAN_PAGES}
 # --- Developer Tools ---
 install(PROGRAMS tools/analyze_balance.py tools/generate_pdf_map.py
         DESTINATION ${CMAKE_INSTALL_DATADIR}/dragongl/tools)
+
+# --- Data Studio (self-contained HTML CRUD workbenches) ---
+# Installed under <datadir>/dragongl/tools/web: the pages load their
+# databases through the relative path ../../data/*.json, which resolves
+# to <datadir>/dragongl/data — the same location where the datasets
+# above are installed. The `_`-prefixed files are source fragments for
+# rebuilding (see tools/web/build.py and tools/web/README.md).
+install(PROGRAMS tools/web/build.py
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/dragongl/tools/web)
+install(FILES
+    tools/web/menu.html
+    tools/web/bestiary.html
+    tools/web/items.html
+    tools/web/spells.html
+    tools/web/README.md
+    tools/web/_core.js
+    tools/web/_design.css
+    tools/web/_editor-shell.html
+    tools/web/_mod-bestiary.js
+    tools/web/_mod-items.js
+    tools/web/_mod-spells.js
+    tools/web/_menu.html
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/dragongl/tools/web)

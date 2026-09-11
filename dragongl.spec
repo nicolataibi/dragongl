@@ -70,7 +70,6 @@ manage and inspect data stored within the JSON files.
 %autosetup -n %{name}-%{version} -p1
 
 
-%conf
 %cmake
 
 
@@ -98,7 +97,6 @@ manage and inspect data stored within the JSON files.
 
 
 %files data
-%doc HOWTO.txt
 %dir %{_datadir}/%{name}
 %{_datadir}/%{name}/shaders/
 %dir %{_datadir}/%{name}/data
@@ -106,13 +104,11 @@ manage and inspect data stored within the JSON files.
 
 
 %files doc
-%license LICENSE.txt
 %doc README.md HOWTO.txt
 %doc readme_assets/
 
 
 %files tools
-%license LICENSE.txt
 %{_datadir}/%{name}/tools/analyze_balance.py
 %{_datadir}/%{name}/tools/generate_pdf_map.py
 %{_datadir}/%{name}/tools/web/_core.js
