@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<!--
+  DRAGONGL · DATA STUDIO — generated standalone editor
+  Assembled by build.py from: _design.css + _core.js + module config.
+  This file is fully self-contained (no external dependencies).
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>@@PAGE_NAME@@ · Dragongl Data Studio</title>
+<style>
+@@CSS@@
+</style>
+<style>
+@@ACCENT@@
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="crumb" href="menu.html">‹ Menu</a>
+  <div class="brand"><span class="brand-mark"></span>Dragongl <em>Data Studio</em></div>
+  <h1 class="page-title">@@TITLE@@</h1>
+  <div class="top-actions">
+    <span id="statusChip" class="status st-bad"><span class="dot"></span>No data</span>
+    <button class="btn" id="btnOpen" title="Open / replace the data file">@@ICON_FOLDER@@ Open…</button>
+    <button class="btn" id="btnReload" title="Discard unsaved changes and restore last saved state">@@ICON_REFRESH@@ Reset</button>
+    <button class="btn" id="btnSave">@@ICON_SAVE@@ Export JSON</button>
+    <button class="btn btn-primary" id="btnNew" disabled>@@ICON_PLUS@@ New</button>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section class="stats" id="statsRow" hidden></section>
+
+  <section class="dist" id="distPanel" hidden></section>
+
+  <section class="toolbar">
+    <div class="search">@@ICON_SEARCH@@
+      <input id="q" type="text" autocomplete="off" placeholder="@@PLACEHOLDER@@  (press / to focus)">
+    </div>
+    <div id="filterBox" style="display:contents"></div>
+    <button class="btn btn-ghost btn-sm" id="btnClear" hidden>✕ Clear filters</button>
+    <span class="count" id="countLbl"></span>
+  </section>
+
+  <section class="table-wrap">
+    <table class="grid" id="tbl">
+      <thead id="thead"></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </section>
+
+  <nav class="pager" id="pager"></nav>
+
+</main>
+
+<footer class="foot">
+  <b>Dragongl</b> Data Studio<span class="sep">·</span>@@FOOTNOTE@@<span class="sep">·</span>Data source: <code>@@FILECODE@@</code>
+</footer>
+
+<!-- modal host -->
+<div id="modalRoot"></div>
+<div id="toasts"></div>
+
+<!-- manual load / drop panel -->
+<div id="loadPanel" class="overlay loadpanel" hidden>
+  <div class="lp-card">
+    <div class="lp-ico">@@ICON_FILE@@</div>
+    <h2>Load data file</h2>
+    <p id="lpMsg"></p>
+    <div class="lp-zone" id="lpZone">Drag &amp; drop the JSON file here</div>
+    <div class="lp-btns">
+      <button class="btn" id="lpBrowse">Browse file…</button>
+      <button class="btn btn-primary" id="lpPicker">Open with write permission…</button>
+    </div>
+    <p class="lp-hint">Tip: serve the project with <code>python3 -m http.server</code> from the repo root and the file will be picked up automatically.</p>
+    <input type="file" id="filePick" accept=".json,application/json" hidden>
+  </div>
+</div>
+
+<script>
+@@CFG@@
+</script>
+<script>
+@@CORE@@
+</script>
+</body>
+</html>

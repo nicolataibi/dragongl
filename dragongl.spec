@@ -4,7 +4,7 @@
 %global toolchain clang
 
 Name:           dragongl
-Version:        2026.09.10.01
+Version:        2026.09.11.01
 Release:        %autorelease
 Summary:        Multi-User Client-Server 3D RPG Engine — OpenGL (GLFW) & Vulkan
 
@@ -59,10 +59,11 @@ BuildArch:      noarch
 Requires:       python3
 
 %description tools
-This package contains developer and Dungeon Master (DM) utilities
-for Dragon GL, including the combat log statistical analysis tool
-(analyze_balance.py) used to evaluate game balance from server
-session logs, and (generate_pdf_map.py) for maps.
+This package contains developer and Dungeon Master (DM) utilities for 
+Dragon GL, including the combat log statistical analysis tool 
+(analyze_balance.py) used to evaluate game balance from server session 
+logs, (generate_pdf_map.py) for maps, and an HTML suite designed to 
+manage and inspect data stored within the JSON files.
 
 
 %prep
@@ -114,6 +115,19 @@ session logs, and (generate_pdf_map.py) for maps.
 %license LICENSE.txt
 %{_datadir}/%{name}/tools/analyze_balance.py
 %{_datadir}/%{name}/tools/generate_pdf_map.py
+%{_datadir}/%{name}/tools/web/_core.js
+%{_datadir}/%{name}/tools/web/_design.css
+%{_datadir}/%{name}/tools/web/_editor-shell.html
+%{_datadir}/%{name}/tools/web/_mod-bestiary.js
+%{_datadir}/%{name}/tools/web/_mod-items.js
+%{_datadir}/%{name}/tools/web/_mod-spells.js
+%{_datadir}/%{name}/tools/web/_menu.html
+%{_datadir}/%{name}/tools/web/menu.html
+%{_datadir}/%{name}/tools/web/README.md
+%{_datadir}/%{name}/tools/web/spells.html
+%{_datadir}/%{name}/tools/web/items.html
+%{_datadir}/%{name}/tools/web/build.py
+%{_datadir}/%{name}/tools/web/bestiary.html
 %{_mandir}/man1/analyze_balance.1*
 %{_mandir}/man1/generate_pdf_map.1*
 
