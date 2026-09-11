@@ -34,10 +34,7 @@ and Vulkan.
 %package data
 Summary:        Game assets for %{name}
 BuildArch:      noarch
-#NOTE: no "Requires: %{name}" here on purpose — the main package already
-#Requires: %{name}-data, and the reverse requirement would be a circular
-#dependency that rpmlint flags. Subpackages should never require their
-#main package (it breaks atomic removal and mock builds).
+
 
 %description data
 This package contains the shaders, the game datasets (bestiary, items
@@ -60,10 +57,9 @@ Requires:       python3
 
 %description tools
 This package contains developer and Dungeon Master (DM) utilities for 
-Dragon GL, including the combat log statistical analysis tool 
-(analyze_balance.py) used to evaluate game balance from server session 
-logs, (generate_pdf_map.py) for maps, and an HTML suite designed to 
-manage and inspect data stored within the JSON files.
+Dragon GL, including the combat log statistical analysis tool used to 
+evaluate game balance from server session logs, for maps, and an HTML 
+suite designed to manage and inspect data stored within the JSON files.
 
 
 %prep

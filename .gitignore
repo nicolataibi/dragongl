@@ -1,6 +1,7 @@
 # Directory BUILD
 build/
 _build/
+_local_build
 
 # Directory SAVES
 saves/
@@ -32,6 +33,7 @@ artifacts.dat
 # NEITHER must ever reach a git tag / source tarball / RPM (L6).
 combat_log.json
 combat_log.json.1
+local_check.sh
 
 # dev artifacts produced by the DM commands (dm_pdf / dm_mapfloor)
 map_dump*.txt
