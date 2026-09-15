@@ -681,8 +681,16 @@ bool vk_init(VkState *s) {
     cb_ai.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     cb_ai.commandPool = s->command_pool;
     cb_ai.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    cb_ai.commandBufferCount = 1;
-    vkAllocateCommandBuffers(s->device, &cb_ai, &s->command_buffer);
+    cb_ai.commandBufferCount = MAX_FRAMES_IN_FLIGHT;
+
+    VkCommandBuffer command_buffers[MAX_FRAMES_IN_FLIGHT];
+    if (vkAllocateCommandBuffers(s->device, &cb_ai, command_buffers) != VK_SUCCESS) {
+        printf("[VK] Command buffer allocation error\n");
+        return false;
+    }
+    for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        s->frames[i].command_buffer = command_buffers[i];
+    }
 
     /*One semaphore pair + fence per in-flight frame (triple buffering);
      * fences start SIGNALED so the first wait per slot returns at once.*/
@@ -712,16 +720,35 @@ bool vk_init(VkState *s) {
     buf_ci.size = sizeof(VkVertex) * s->max_vertices;
     buf_ci.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
     buf_ci.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    vkCreateBuffer(s->device, &buf_ci, NULL, &s->vertex_buffer);
-    vkGetBufferMemoryRequirements(s->device, s->vertex_buffer, &mem_req);
-    memset(&mem_ai, 0, sizeof(mem_ai));
-    mem_ai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    mem_ai.allocationSize = mem_req.size;
-    mem_ai.memoryTypeIndex = vk_find_memory_type(s, mem_req.memoryTypeBits,
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-    vkAllocateMemory(s->device, &mem_ai, NULL, &s->vertex_memory);
-    vkBindBufferMemory(s->device, s->vertex_buffer, s->vertex_memory, 0);
-    vkMapMemory(s->device, s->vertex_memory, 0, mem_req.size, 0, &s->mapped_vertex_data);
+    for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        VkFrameResources *frame = &s->frames[i];
+
+        if (vkCreateBuffer(s->device, &buf_ci, NULL, &frame->vertex_buffer) != VK_SUCCESS) {
+            printf("[VK] Vertex buffer creation error (frame %u)\n", i);
+            return false;
+        }
+
+        vkGetBufferMemoryRequirements(s->device, frame->vertex_buffer, &mem_req);
+        memset(&mem_ai, 0, sizeof(mem_ai));
+        mem_ai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        mem_ai.allocationSize = mem_req.size;
+        mem_ai.memoryTypeIndex = vk_find_memory_type(s, mem_req.memoryTypeBits,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+        if (vkAllocateMemory(s->device, &mem_ai, NULL, &frame->vertex_memory) != VK_SUCCESS) {
+            printf("[VK] Vertex memory allocation error (frame %u)\n", i);
+            return false;
+        }
+        if (vkBindBufferMemory(s->device, frame->vertex_buffer, frame->vertex_memory, 0) != VK_SUCCESS) {
+            printf("[VK] Vertex buffer bind error (frame %u)\n", i);
+            return false;
+        }
+        if (vkMapMemory(s->device, frame->vertex_memory, 0, mem_req.size, 0,
+                        &frame->mapped_vertex_data) != VK_SUCCESS) {
+            printf("[VK] Vertex buffer mapping error (frame %u)\n", i);
+            return false;
+        }
+    }
 
     printf("[VK] Vulkan initialization complete.\n");
     return true;
@@ -730,8 +757,20 @@ bool vk_init(VkState *s) {
 void vk_cleanup(VkState *s) {
     uint32_t i;
     vkDeviceWaitIdle(s->device);
-    vkDestroyBuffer(s->device, s->vertex_buffer, NULL);
-    vkFreeMemory(s->device, s->vertex_memory, NULL);
+    for (i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        if (s->frames[i].mapped_vertex_data) {
+            vkUnmapMemory(s->device, s->frames[i].vertex_memory);
+            s->frames[i].mapped_vertex_data = NULL;
+        }
+        if (s->frames[i].vertex_buffer) {
+            vkDestroyBuffer(s->device, s->frames[i].vertex_buffer, NULL);
+            s->frames[i].vertex_buffer = VK_NULL_HANDLE;
+        }
+        if (s->frames[i].vertex_memory) {
+            vkFreeMemory(s->device, s->frames[i].vertex_memory, NULL);
+            s->frames[i].vertex_memory = VK_NULL_HANDLE;
+        }
+    }
     for (i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
         vkDestroyFence(s->device, s->fences[i], NULL);
         vkDestroySemaphore(s->device, s->sem_render[i], NULL);

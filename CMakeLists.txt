@@ -11,7 +11,7 @@ option(DRAGONGL_USE_CLANG "Default to clang as the C compiler (overridable)" ON)
 if(DRAGONGL_USE_CLANG AND NOT DEFINED CMAKE_C_COMPILER AND NOT DEFINED ENV{CC})
     set(CMAKE_C_COMPILER clang)
 endif()
-project(DragonGL VERSION 2026.09.15.02 LANGUAGES C)
+project(DragonGL VERSION 2026.09.15.03 LANGUAGES C)
 
 # --- Standard C e Opzioni di Compilazione ---
 # C11 (not C23): the codebase uses no C23-specific feature, and C11 is

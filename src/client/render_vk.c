@@ -700,6 +700,25 @@ static void push_box_oriented(VkVertex *v, uint32_t *c,
 #define VK_MAP_MAX_RADIUS   56   /*city visionRadius is 50 (50+8 -> 56)   */
 
 static uint32_t s_map_vertex_count = 0;
+/* CPU-side cache for the static map mesh. Each in-flight frame owns a
+ * separate GPU vertex buffer, so unchanged map geometry must be copied into
+ * the current frame buffer without rebuilding it every frame. */
+static VkVertex *s_map_vertices = NULL;
+static uint32_t s_map_vertex_capacity = 0;
+
+static bool ensure_map_vertex_capacity(uint32_t needed) {
+    if (needed <= s_map_vertex_capacity) return true;
+    uint32_t cap = s_map_vertex_capacity ? s_map_vertex_capacity : 65536u;
+    while (cap < needed) {
+        if (cap > UINT32_MAX / 2u) return false;
+        cap *= 2u;
+    }
+    VkVertex *nv = realloc(s_map_vertices, (size_t)cap * sizeof(*nv));
+    if (!nv) return false;
+    s_map_vertices = nv;
+    s_map_vertex_capacity = cap;
+    return true;
+}
 static bool s_map_built = false;
 static int s_map_floor = -1;
 static int s_map_win_x0 = 0, s_map_win_y0 = 0;
@@ -733,6 +752,15 @@ static void update_vertex_buffer(VkState *s, VkVertex *v, float dt, FrameSnapsho
             int y0 = snap->my_y - bR; if (y0 < 0) y0 = 0;
             int y1 = snap->my_y + bR; if (y1 >= MAP_HEIGHT) y1 = MAP_HEIGHT - 1;
             count = 0;
+            uint32_t map_capacity_needed =
+                (uint32_t)((x1 - x0 + 1) * (y1 - y0 + 1) * 72u);
+            if (!ensure_map_vertex_capacity(map_capacity_needed)) {
+                fprintf(stderr, "[VK] Map vertex cache allocation failed\n");
+                s_map_vertex_count = 0;
+                s_map_built = false;
+                g_map_dirty = false;
+                return;
+            }
             for (y = y0; y <= y1 && !full; y++) {
                 for (x = x0; x <= x1 && !full; x++) {
                     float fx = (float)x;
@@ -742,9 +770,9 @@ static void update_vertex_buffer(VkState *s, VkVertex *v, float dt, FrameSnapsho
 
                     if (tile == VOXEL_WALL || tile == VOXEL_OBSIDIAN || tile == VOXEL_GOLD_VEIN) {
                         if (count + 36 > s->max_vertices) { full = true; break; }
-                        if (tile == VOXEL_OBSIDIAN) push_box(v, &count, fx, 0.5f, fz, 0.5f, 1.5f, 0.5f, 0.1f, 0.05f, 0.2f);
-                        else if (tile == VOXEL_GOLD_VEIN) push_box(v, &count, fx, 0.5f, fz, 0.5f, 1.5f, 0.5f, 0.8f, 0.7f, 0.1f);
-                        else push_box(v, &count, fx, 0.5f, fz, 0.5f, 1.5f, 0.5f, 0.6f, 0.6f, 0.6f);
+                        if (tile == VOXEL_OBSIDIAN) push_box(s_map_vertices, &count, fx, 0.5f, fz, 0.5f, 1.5f, 0.5f, 0.1f, 0.05f, 0.2f);
+                        else if (tile == VOXEL_GOLD_VEIN) push_box(s_map_vertices, &count, fx, 0.5f, fz, 0.5f, 1.5f, 0.5f, 0.8f, 0.7f, 0.1f);
+                        else push_box(s_map_vertices, &count, fx, 0.5f, fz, 0.5f, 1.5f, 0.5f, 0.6f, 0.6f, 0.6f);
                     } else if (tile == VOXEL_FLOOR || tile == VOXEL_COBBLE || tile == VOXEL_WOOD || tile == VOXEL_ICE || tile == VOXEL_SAND || tile == VOXEL_ASH || tile == VOXEL_MUD || tile == VOXEL_MARBLE || tile == VOXEL_GRASS || tile == VOXEL_TRAP) {
                         if (count + 36 > s->max_vertices) { full = true; break; }
                         float r=0.2f, g=0.2f, b=0.2f;
@@ -757,7 +785,7 @@ static void update_vertex_buffer(VkState *s, VkVertex *v, float dt, FrameSnapsho
                         if (tile == VOXEL_MARBLE) { r=0.9f; g=0.9f; b=0.9f; }
                         if (tile == VOXEL_GRASS) { r=0.1f; g=0.5f; b=0.1f; }
                         if (tile == VOXEL_TRAP) { r=0.8f; g=0.2f; b=0.1f; }
-                        push_box(v, &count, fx, 0.0f, fz, 0.5f, 0.1f, 0.5f, r, g, b);
+                        push_box(s_map_vertices, &count, fx, 0.0f, fz, 0.5f, 0.1f, 0.5f, r, g, b);
                     } else if (tile >= VOXEL_CRYSTAL_BLUE && tile <= VOXEL_CRYSTAL_WHITE) {
                         if (count + 36 > s->max_vertices) { full = true; break; }
                         float r = 1.0f, g = 1.0f, b = 1.0f;
@@ -768,22 +796,22 @@ static void update_vertex_buffer(VkState *s, VkVertex *v, float dt, FrameSnapsho
                         if (tile == VOXEL_CRYSTAL_YELLOW)  { r = 1.0f; g = 0.9f; b = 0.1f; }
                         if (tile == VOXEL_CRYSTAL_ORANGE)  { r = 1.0f; g = 0.5f; b = 0.0f; }
                         if (tile == VOXEL_CRYSTAL_CYAN)    { r = 0.0f; g = 0.9f; b = 1.0f; }
-                        push_box(v, &count, fx, 0.8f, fz, 0.4f, 0.8f, 0.4f, r, g, b);
+                        push_box(s_map_vertices, &count, fx, 0.8f, fz, 0.4f, 0.8f, 0.4f, r, g, b);
                     } else if (tile == VOXEL_WATER || tile == VOXEL_LAVA) {
                         if (count + 36 > s->max_vertices) { full = true; break; }
-                        if (tile == VOXEL_WATER) push_box(v, &count, fx, -0.05f, fz, 0.5f, 0.05f, 0.5f, 0.1f, 0.4f, 0.8f);
-                        else push_box(v, &count, fx, -0.05f, fz, 0.5f, 0.05f, 0.5f, 1.0f, 0.3f, 0.0f);
+                        if (tile == VOXEL_WATER) push_box(s_map_vertices, &count, fx, -0.05f, fz, 0.5f, 0.05f, 0.5f, 0.1f, 0.4f, 0.8f);
+                        else push_box(s_map_vertices, &count, fx, -0.05f, fz, 0.5f, 0.05f, 0.5f, 1.0f, 0.3f, 0.0f);
                     } else if (tile == VOXEL_DOOR) {
                         if (count + 72 <= s->max_vertices && !full) {
-                            push_box(v, &count, fx, 0.4f, fz, 0.45f, 0.4f, 0.45f, 0.6f, 0.3f, 0.1f);
-                            push_box(v, &count, fx, -0.05f, fz, 0.5f, 0.05f, 0.5f, 0.2f, 0.2f, 0.25f);
+                            push_box(s_map_vertices, &count, fx, 0.4f, fz, 0.45f, 0.4f, 0.45f, 0.6f, 0.3f, 0.1f);
+                            push_box(s_map_vertices, &count, fx, -0.05f, fz, 0.5f, 0.05f, 0.5f, 0.2f, 0.2f, 0.25f);
                         }
                     } else if (tile == VOXEL_STAIRS_DOWN || tile == VOXEL_STAIRS_UP) {
                         if (count + 36 > s->max_vertices) { full = true; break; }
-                        push_box(v, &count, fx, 0.05f, fz, 0.5f, 0.1f, 0.5f, 0.9f, 0.9f, 0.0f);
+                        push_box(s_map_vertices, &count, fx, 0.05f, fz, 0.5f, 0.1f, 0.5f, 0.9f, 0.9f, 0.0f);
                     } else if (tile == VOXEL_MUSHROOM_GLOW) {
                         if (count + 36 > s->max_vertices) { full = true; break; }
-                        push_box(v, &count, fx, 0.2f, fz, 0.3f, 0.2f, 0.3f, 0.2f, 1.0f, 0.5f);
+                        push_box(s_map_vertices, &count, fx, 0.2f, fz, 0.3f, 0.2f, 0.3f, 0.2f, 1.0f, 0.5f);
                     }
                 }
             }
@@ -803,6 +831,9 @@ static void update_vertex_buffer(VkState *s, VkVertex *v, float dt, FrameSnapsho
         g_map_dirty = false;
     }
     count = s_map_vertex_count;
+    if (count > 0 && s_map_vertices) {
+        memcpy(v, s_map_vertices, (size_t)count * sizeof(*v));
+    }
 
     // Rendering entities with lerp
     for (int i = 0; i < CLIENT_MAX_ENTITIES; i++) {
@@ -895,12 +926,13 @@ static void update_vertex_buffer(VkState *s, VkVertex *v, float dt, FrameSnapsho
     s->vertex_count = count;
 }
 
-static void record_commands(VkState *s, float mvp[16], float vision_radius, float px, float pz, float time_val,
+static void record_commands(VkState *s, VkFrameResources *frame,
+                             float mvp[16], float vision_radius, float px, float pz, float time_val,
                              float hud_ortho[16], float sw, float sh) {
     (void)sw; (void)sh;
     VkCommandBufferBeginInfo beginInfo = {0};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    vkBeginCommandBuffer(s->command_buffer, &beginInfo);
+    vkBeginCommandBuffer(frame->command_buffer, &beginInfo);
     VkClearValue clear_vals[2];
     clear_vals[0].color.float32[0] = 0.05f;
     clear_vals[0].color.float32[1] = 0.05f;
@@ -915,37 +947,37 @@ static void record_commands(VkState *s, float mvp[16], float vision_radius, floa
     rpInfo.renderArea.extent = s->swapchain_extent;
     rpInfo.clearValueCount = 2;
     rpInfo.pClearValues = clear_vals;
-    vkCmdBeginRenderPass(s->command_buffer, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
+    vkCmdBeginRenderPass(frame->command_buffer, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
 
     /* --- Step 1: 3D Scene --- */
-    vkCmdBindPipeline(s->command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s->pipeline);
+    vkCmdBindPipeline(frame->command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s->pipeline);
     float push_data[20];
     memcpy(push_data, mvp, sizeof(float) * 16);
     push_data[16] = vision_radius;
     push_data[17] = px;
     push_data[18] = pz;
     push_data[19] = time_val;
-    vkCmdPushConstants(s->command_buffer, s->pipeline_layout,
+    vkCmdPushConstants(frame->command_buffer, s->pipeline_layout,
                        VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(float) * 20, push_data);
     VkDeviceSize offsets[] = {0};
-    vkCmdBindVertexBuffers(s->command_buffer, 0, 1, &s->vertex_buffer, offsets);
+    vkCmdBindVertexBuffers(frame->command_buffer, 0, 1, &frame->vertex_buffer, offsets);
     if (s->vertex_count > 0) {
-        vkCmdDraw(s->command_buffer, s->vertex_count, 1, 0, 0);
+        vkCmdDraw(frame->command_buffer, s->vertex_count, 1, 0, 0);
     }
 
     /*--- Step 2: 2D HUD overlay (pipeline without depth test, with blend) ---*/
     if (s->hud_vertex_count > 0 && s->pipeline_hud != VK_NULL_HANDLE) {
-        vkCmdBindPipeline(s->command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s->pipeline_hud);
+        vkCmdBindPipeline(frame->command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s->pipeline_hud);
         float hud_push[17];
         memcpy(hud_push, hud_ortho, sizeof(float) * 16);
         hud_push[16] = 99999.0f; /* disables fog in the fragment shader */
-        vkCmdPushConstants(s->command_buffer, s->pipeline_layout,
+        vkCmdPushConstants(frame->command_buffer, s->pipeline_layout,
                            VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(float) * 17, hud_push);
-        vkCmdDraw(s->command_buffer, s->hud_vertex_count, 1, s->vertex_count, 0);
+        vkCmdDraw(frame->command_buffer, s->hud_vertex_count, 1, s->vertex_count, 0);
     }
 
-    vkCmdEndRenderPass(s->command_buffer);
-    vkEndCommandBuffer(s->command_buffer);
+    vkCmdEndRenderPass(frame->command_buffer);
+    vkEndCommandBuffer(frame->command_buffer);
 }
 
 static void draw_frame(VkState *s) {
@@ -956,20 +988,20 @@ static void draw_frame(VkState *s) {
      * end of draw_frame), so the CPU and the GPU never overlapped.*/
     uint32_t slot = s->current_frame;
     uint32_t next_slot = (slot + 1) % MAX_FRAMES_IN_FLIGHT;
+    VkFrameResources *frame = &s->frames[slot];
 
     uint32_t imageIndex = 0;
     VkResult acquire_res = vkAcquireNextImageKHR(s->device, s->swapchain, UINT64_MAX,
                           s->sem_image[slot], VK_NULL_HANDLE, &imageIndex);
-    if (acquire_res == VK_ERROR_OUT_OF_DATE_KHR || acquire_res == VK_SUBOPTIMAL_KHR) {
-        /*Acquire happens BEFORE the fence wait/reset, so nothing of this
-         * slot's resources has been touched: the fence is still in the
-         * state left by the previous use (signalled) — safe to skip.*/
+    if (acquire_res == VK_ERROR_OUT_OF_DATE_KHR) {
+        /* No image was acquired, so sem_image[slot] was not signalled. */
         s->current_frame = next_slot;
-        return; /*deprecated swapchain: main loop recreates it*/
+        return;
     }
-    if (acquire_res != VK_SUCCESS && acquire_res != VK_TIMEOUT) {
+    if (acquire_res != VK_SUCCESS && acquire_res != VK_SUBOPTIMAL_KHR) {
+        /* Never continue with an undefined imageIndex (for example timeout). */
         s->current_frame = next_slot;
-        return; /*acquisition error: skip frame*/
+        return;
     }
 
     /*The GPU must be done with the shared vertex buffer + command
@@ -979,7 +1011,7 @@ static void draw_frame(VkState *s) {
      * would wait forever.*/
     vkWaitForFences(s->device, 1, &s->fences[slot], VK_TRUE, UINT64_MAX);
     vkResetFences(s->device, 1, &s->fences[slot]);
-    vkResetCommandBuffer(s->command_buffer, 0);
+    vkResetCommandBuffer(frame->command_buffer, 0);
 
     s->current_image = imageIndex;
 
@@ -1018,7 +1050,7 @@ static void draw_frame(VkState *s) {
     last_time = current_time;
 
     /*Use persistent mapping (3.4)*/
-    VkVertex *v = (VkVertex *)s->mapped_vertex_data;
+    VkVertex *v = (VkVertex *)frame->mapped_vertex_data;
     if (!v) {
         VkSubmitInfo empty = {0};
         empty.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -1053,9 +1085,9 @@ static void draw_frame(VkState *s) {
     pthread_mutex_unlock(&g_state_mutex);
     s->hud_vertex_count = hud_count - hud_start;
 
-    // vkUnmapMemory(s->device, s->vertex_memory); // Replaced with persistent mapping
+    // Vertex memory stays persistently mapped; the current frame owns it.
 
-    record_commands(s, mvp, vr, px, pz, (float)current_time, hud_ortho, sw, sh);
+    record_commands(s, frame, mvp, vr, px, pz, (float)current_time, hud_ortho, sw, sh);
 
     VkSubmitInfo submitInfo = {0};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -1065,7 +1097,7 @@ static void draw_frame(VkState *s) {
     submitInfo.pWaitSemaphores = waitSems;
     submitInfo.pWaitDstStageMask = waitStages;
     submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &s->command_buffer;
+    submitInfo.pCommandBuffers = &frame->command_buffer;
     VkSemaphore signalSems[] = { s->sem_render[slot] };
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = signalSems;
@@ -1077,7 +1109,12 @@ static void draw_frame(VkState *s) {
     presentInfo.swapchainCount = 1;
     presentInfo.pSwapchains = &s->swapchain;
     presentInfo.pImageIndices = &imageIndex;
-    vkQueuePresentKHR(s->present_queue, &presentInfo);
+    VkResult present_res = vkQueuePresentKHR(s->present_queue, &presentInfo);
+    if (present_res != VK_SUCCESS &&
+        present_res != VK_SUBOPTIMAL_KHR &&
+        present_res != VK_ERROR_OUT_OF_DATE_KHR) {
+        fprintf(stderr, "[VK] vkQueuePresentKHR failed: %d\n", present_res);
+    }
     /*No vkWaitForFences here: the next time this slot comes around
      * (3 frames later) the GPU will have signalled its fence long ago,
      * and the wait happens at the TOP of draw_frame. That is what lets
@@ -1128,6 +1165,10 @@ void render_vk_start(void) {
 
     vkDeviceWaitIdle(vk_state.device);
     vk_cleanup(&vk_state);
+    free(s_map_vertices);
+    s_map_vertices = NULL;
+    s_map_vertex_capacity = 0;
+    s_map_vertex_count = 0;
     glfwDestroyWindow(vk_state.window);
     glfwTerminate();
 }
