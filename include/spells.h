@@ -69,6 +69,10 @@ typedef struct {
     DamageType dmg_type;
     int  save_dc;        //Saving Throw DC (Constitution)
     char name[32];       // Es. "Nube Acida", "Gas Velenoso"
+    char owner[32];      //Username of the caster ("" = none): kills caused
+                         //by the cloud credit XP to this player, exactly
+                         //like a direct hit. In-memory only (clouds are
+                         //never persisted), so no save-format change.
 } PersistentCloud;
 
 typedef struct {

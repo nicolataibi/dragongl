@@ -33,6 +33,7 @@
 #include "spell_router.h"
 #include "server_internal.h"
 #include "server_spawn.h"
+#include "server_world.h"
 #include "pathfinding.h"
 #include "map.h"
 #include "rules.h"
@@ -428,7 +429,10 @@ static bool handle_summon_elemental(SpellContext *ctx) {
     /* Initialize the summoned NPC */
     memset(slot, 0, sizeof(NPC));
     slot->entity_id       = next_id++;
-    slot->active          = true;
+    /*Single entry point for the alive state (A2): the slot was just
+     *zeroed (template==NULL), so the floor cache is not touched —
+     *consistent with floor_stats_rebuild, which skips templateless slots.*/
+    npc_set_active(slot, true);
     slot->archetype       = ARCH_MELEE;
     slot->template        = NULL;
     slot->template_idx    = -1;
@@ -505,8 +509,9 @@ static bool handle_animate_dead(SpellContext *ctx) {
         return true;
     }
 
-    /*Reactivate the corpse as an undead ally*/
-    corpse->active              = true;
+    /*Reactivate the corpse as an undead ally (the corpse has a template,
+     *so npc_set_active also bumps the floor cache — A2)*/
+    npc_set_active(corpse, true);
     corpse->hp                  = corpse->max_hp / 2; /* revives with half HP */
     corpse->xp_reward           = 0;
     corpse->gold_drop           = 0;

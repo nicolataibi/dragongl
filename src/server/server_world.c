@@ -112,6 +112,34 @@ void floor_stats_npc_spawned(int floor_id) {
     g_floor_stats[floor_id].active++;
 }
 
+/*Single point for NPC alive/dead transitions (see the comment in
+ * server_world.h). The stats update mirrors floor_stats_rebuild() EXACTLY
+ * (template != NULL, not a merchant, respawn_timer >= 0, floor in range):
+ * a slot that the rebuild would not count must not move the counters
+ * either, otherwise every summon/drop/corpse-reuse would leak one count
+ * per transition. Callers must invoke it with the NPC's FINAL fields
+ * already set (template, floor_id, archetype), not before.*/
+void npc_set_active(NPC *n, bool active) {
+    if (!n || n->active == active) {
+        return;
+    }
+    n->active = active;
+    if (n->archetype == ARCH_MERCHANT) {
+        return; /*excluded from the cache, like in floor_stats_rebuild*/
+    }
+    if (n->template == NULL || n->respawn_timer < 0) {
+        return; /*not counted by the rebuild: nothing to keep in sync*/
+    }
+    if (n->floor_id < 0 || n->floor_id >= MAX_FLOORS) {
+        return;
+    }
+    if (active) {
+        floor_stats_npc_spawned(n->floor_id);
+    } else {
+        floor_stats_npc_died(n->floor_id);
+    }
+}
+
 /*============================================================================
  * Per-floor active NPC index
  *
@@ -180,6 +208,43 @@ const int *floor_index_for(int floor_id, int *count_out) {
  * @clients: Array of connected clients.
  * @npcs: Array of active and inactive NPCs.
  * ==========================================================================*/
+
+/*Respawn a dead player in town, keeping entity_grid consistent and the
+ * client in sync.
+ *
+ * The old code (six death sites: starvation/poison/burn/bleed in
+ * update_world, bleed during MSG_MOVE, perform_attack_npc and the mage
+ * AI) set hp/floor_id/x/y by hand and did NOT:
+ *   - clear the player's cell on the OLD floor (it stayed "occupied"
+ *     forever, blocking that tile for other entities);
+ *   - register the player in the NEW floor's grid (invisible to
+ *     collision detection until the next sync);
+ *   - send the respawned player anything (his client kept showing the
+ *     dungeon until the next move, and the town map was never sent,
+ *     so the first view after death was pure rock).
+ * This helper does all of it in one place.*/
+void player_respawn_town(Client *c) {
+  if (!c || !master_world)
+    return;
+  int old_floor = c->floor_id;
+  if (old_floor >= 0 && old_floor < MAX_FLOORS &&
+      c->x >= 0 && c->x < MAP_WIDTH && c->y >= 0 && c->y < MAP_HEIGHT &&
+      master_world->floors[old_floor].entity_grid[c->y][c->x] == c->entity_id) {
+    master_world->floors[old_floor].entity_grid[c->y][c->x] = 0;
+  }
+  c->hp = c->max_hp;
+  c->floor_id = 0;
+  c->x = MAP_CENTER_X + 1;
+  c->y = MAP_CENTER_Y + 1;
+  if (master_world->floors[0].entity_grid[c->y][c->x] == 0)
+    master_world->floors[0].entity_grid[c->y][c->x] = c->entity_id;
+  notify_player_left_floor(c, old_floor);
+  broadcast_player_state(c);
+  send_detailed_state(c);
+  send_map_chunk(c->sock, &master_world->floors[0].map, c->x, c->y,
+                 INITIAL_VIEW_RADIUS);
+  broadcast_nearby_entities(c, g_npcs);
+}
 
 static void broadcast_game_time(Client *clients) {
   int total_mins = (global_total_turns % 1440);
@@ -363,10 +428,7 @@ void update_world(Client *clients, NPC *npcs) {
           if (clients[i].hp <= 0) {
             server_log("DEATH", "%s starved to death.", clients[i].username);
             save_bones(&clients[i]);
-            clients[i].hp = clients[i].max_hp;
-            clients[i].floor_id = 0;
-            clients[i].x = MAP_CENTER_X + 1;
-            clients[i].y = MAP_CENTER_Y + 1;
+            player_respawn_town(&clients[i]);
             send_text_to_client(clients[i].sock, "[SYSTEM] You died! The Arcane has returned you to town without your equipment!");
           }
         }
@@ -455,10 +517,7 @@ void update_world(Client *clients, NPC *npcs) {
         if (clients[i].hp <= 0) {
           server_log("DEATH", "%s died from poison.", clients[i].username);
             save_bones(&clients[i]);
-            clients[i].hp = clients[i].max_hp;
-            clients[i].floor_id = 0;
-            clients[i].x = MAP_CENTER_X + 1;
-            clients[i].y = MAP_CENTER_Y + 1;
+            player_respawn_town(&clients[i]);
             send_text_to_client(clients[i].sock, "[SYSTEM] You died! The Arcane has returned you to town without your equipment!");
         }
         send_detailed_state(&clients[i]);
@@ -485,10 +544,7 @@ void update_world(Client *clients, NPC *npcs) {
           if (clients[i].hp <= 0) {
             server_log("DEATH", "%s burned to death.", clients[i].username);
             save_bones(&clients[i]);
-            clients[i].hp = clients[i].max_hp;
-            clients[i].floor_id = 0;
-            clients[i].x = MAP_CENTER_X + 1;
-            clients[i].y = MAP_CENTER_Y + 1;
+            player_respawn_town(&clients[i]);
             send_text_to_client(clients[i].sock, "[SYSTEM] You died! The Arcane has returned you to town without your equipment!");
           }
           send_detailed_state(&clients[i]);
@@ -503,10 +559,7 @@ void update_world(Client *clients, NPC *npcs) {
           server_log("DEATH", "%s bled to death.",
                      clients[i].username);
             save_bones(&clients[i]);
-            clients[i].hp = clients[i].max_hp;
-            clients[i].floor_id = 0;
-            clients[i].x = MAP_CENTER_X + 1;
-            clients[i].y = MAP_CENTER_Y + 1;
+            player_respawn_town(&clients[i]);
             send_text_to_client(clients[i].sock, "[SYSTEM] You died! The Arcane has returned you to town without your equipment!");
         }
         send_detailed_state(&clients[i]);
@@ -598,9 +651,8 @@ void update_world(Client *clients, NPC *npcs) {
           n->hp -= 1;
           if (n->hp <= 0) {
             n->hp = 0;
-            n->active = false;
+            npc_set_active(n, false);
             n->respawn_timer = 60;
-            floor_stats_npc_died(n->floor_id);
             if (n->archetype == ARCH_BOSS) {
               handle_boss_death(NULL, n);
             }
@@ -638,7 +690,10 @@ void update_world(Client *clients, NPC *npcs) {
           int roll_v = 0;
           /*Base modifier +2 for NPCs*/
           bool success = rules_roll_save(2, 12, false, dis, &roll_v);
-          clog_save(n->template->name, condition_to_name(npc_conditions[c_idx]),
+          /*npc_name(): an NPC with effects but template==NULL (a
+           * summoned elemental under a cloud) must not deref the
+           * template.*/
+          clog_save(npc_name(n), condition_to_name(npc_conditions[c_idx]),
                     roll_v, 2, 12, success);
           if (success) {
             const char *cond_name = condition_to_name(npc_conditions[c_idx]);
@@ -701,13 +756,22 @@ void update_world(Client *clients, NPC *npcs) {
         n->respawn_timer--;
       }
       if (n->respawn_timer == 0) {
+        /*Bounds: a corrupted npcs.dat can carry an out-of-range floor
+         * or spawn point. Leave the slot dead (the density monitor
+         * skips it too) instead of indexing the world out of bounds.*/
+        if (n->floor_id < 0 || n->floor_id >= MAX_FLOORS ||
+            n->spawn_x < 0 || n->spawn_x >= MAP_WIDTH ||
+            n->spawn_y < 0 || n->spawn_y >= MAP_HEIGHT) {
+            continue;
+        }
         /* Ensure the spawn tile is free, otherwise delay */
         if (master_world->floors[n->floor_id].entity_grid[n->spawn_y][n->spawn_x] != 0) {
             n->respawn_timer = 5;
             continue;
         }
-        /*Revives at the spawn location*/
-        n->active = true;
+        /*Revives at the spawn location (npc_set_active updates the
+         * O(1) floor cache in the same step — see A2).*/
+        npc_set_active(n, true);
         n->x = n->spawn_x;
         n->y = n->spawn_y;
         n->hp = n->max_hp;
@@ -716,7 +780,6 @@ void update_world(Client *clients, NPC *npcs) {
         n->respawn_timer = 0;
         master_world->floors[n->floor_id].entity_grid[n->y][n->x] = n->entity_id;
         ai_init_npc(n, n->template->name, n->floor_id);
-        floor_stats_npc_spawned(n->floor_id);
         server_log("SPAWN", "%s respawned on floor %d (%d,%d)",
                    n->template->name, n->floor_id, n->x, n->y);
       }
@@ -780,10 +843,14 @@ void update_world(Client *clients, NPC *npcs) {
         if (n->respawn_timer < 0) {
           continue;
         }
+        if (n->spawn_x < 0 || n->spawn_x >= MAP_WIDTH ||
+            n->spawn_y < 0 || n->spawn_y >= MAP_HEIGHT) {
+          continue; /*corrupted spawn point: never index the grid OOB*/
+        }
         if (master_world->floors[f].entity_grid[n->spawn_y][n->spawn_x] != 0) {
             continue; /* Skip and try another NPC if this spawn spot is blocked */
         }
-        n->active       = true;
+        npc_set_active(n, true); /* Updates the O(1) cache (A2) */
         n->x            = n->spawn_x;
         n->y            = n->spawn_y;
         n->hp           = n->max_hp;
@@ -792,7 +859,6 @@ void update_world(Client *clients, NPC *npcs) {
         n->respawn_timer = 0;
         master_world->floors[f].entity_grid[n->y][n->x] = n->entity_id;
         ai_init_npc(n, n->template->name, n->floor_id);
-        floor_stats_npc_spawned(f); /* Update O(1) cache */
         server_log("SPAWN",
                    "[DENSITY] Floor %d (%d%%): emergency %s",
                    f, pct, n->template->name);

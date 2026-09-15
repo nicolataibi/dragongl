@@ -193,9 +193,14 @@ void tombstone_load_all(void) {
             continue;
         }
         
-        /*Validation of tombstone data*/
-        if (tmp.x < 0 || tmp.y < 0 || tmp.floor_id < 0) {
-            server_log("TOMB", "Invalid tombstone file (negative coordinates): %s (skip)", path);
+        /*Validation of tombstone data: upper bounds matter as well —
+         * a corrupted file with floor_id=5000 or x=99999 would index
+         * the world out of bounds whenever the tombstone is drawn or
+         * queried.*/
+        if (tmp.x < 0 || tmp.y < 0 || tmp.floor_id < 0 ||
+            tmp.x >= MAP_WIDTH || tmp.y >= MAP_HEIGHT ||
+            tmp.floor_id >= MAX_FLOORS) {
+            server_log("TOMB", "Invalid tombstone file (coordinates out of range): %s (skip)", path);
             continue;
         }
         
@@ -440,21 +445,35 @@ bool tombstone_pickup(Client *c) {
             return false;
         }
 
-        /*Recover gold*/
-        c->gold += t->gold;
+        /*A6 — partial recovery is now SAFE. The old code broke out of the
+         *backpack loop when it was full, printed "Some items cannot be
+         *recovered" — and then DELETED the tombstone anyway, so everything
+         *left behind (rest of the backpack, belt, equipment, gold) vanished
+         *forever. Now: every item that is actually transferred is consumed
+         *from the tombstone, and if ANYTHING is left at the end the
+         *tombstone stays active (re-saved to disk) until the player comes
+         *back with space. Nothing can be lost.*/
 
-        /*Retrieve backpack (place in player's backpack)*/
+        /*Recover gold (zero the tombstone's share: a retry must not pay it
+         *twice)*/
+        uint64_t gold_recovered = t->gold;
+        c->gold += t->gold;
+        t->gold = 0;
+
+        /*Retrieve backpack (place in player's backpack); consumed slots are
+         *marked so a later retry sees only what is still here*/
         for (int j = 0; j < TOMBSTONE_BACKPACK_SIZE; j++) {
             if (t->backpack[j].template_idx < 0) {
                 continue;
             }
             if (c->backpack_count >= MAX_BACKPACK) {
-                send_text_to_client(c->sock,
-                    "[WARNING] Backpack full! Some items cannot be recovered.");
-                break;
+                break; /*stays in the tombstone — checked below*/
             }
             c->backpack[c->backpack_count] = t->backpack[j];
             c->backpack_count++;
+            t->backpack_count--;
+            t->backpack[j].template_idx = -1;
+            t->backpack[j].stack_count  = 0;
         }
 
         /*Recover belt (fill free slots)*/
@@ -465,22 +484,24 @@ bool tombstone_pickup(Client *c) {
             for (int k = 0; k < MAX_BELT; k++) {
                 if (c->belt[k].template_idx < 0) {
                     c->belt[k] = t->belt[j];
+                    t->belt[j].template_idx = -1;
+                    t->belt[j].stack_count  = 0;
                     break;
                 }
             }
         }
 
         /*Recovers equipment slots (only if empty in the character)*/
-        if (c->slot_head.template_idx < 0)    c->slot_head    = t->slot_head;
-        if (c->slot_neck.template_idx < 0)    c->slot_neck    = t->slot_neck;
-        if (c->slot_body.template_idx < 0)    c->slot_body    = t->slot_body;
-        if (c->slot_back.template_idx < 0)    c->slot_back    = t->slot_back;
-        if (c->slot_hand_r.template_idx < 0)  c->slot_hand_r  = t->slot_hand_r;
-        if (c->slot_hand_l.template_idx < 0)  c->slot_hand_l  = t->slot_hand_l;
-        if (c->slot_hands.template_idx < 0)   c->slot_hands   = t->slot_hands;
-        if (c->slot_arm_r.template_idx < 0)   c->slot_arm_r   = t->slot_arm_r;
-        if (c->slot_arm_l.template_idx < 0)   c->slot_arm_l   = t->slot_arm_l;
-        if (c->slot_feet.template_idx < 0)    c->slot_feet    = t->slot_feet;
+        if (c->slot_head.template_idx < 0)    { c->slot_head    = t->slot_head;    t->slot_head.template_idx    = -1; }
+        if (c->slot_neck.template_idx < 0)    { c->slot_neck    = t->slot_neck;    t->slot_neck.template_idx    = -1; }
+        if (c->slot_body.template_idx < 0)    { c->slot_body    = t->slot_body;    t->slot_body.template_idx    = -1; }
+        if (c->slot_back.template_idx < 0)    { c->slot_back    = t->slot_back;    t->slot_back.template_idx    = -1; }
+        if (c->slot_hand_r.template_idx < 0)  { c->slot_hand_r  = t->slot_hand_r;  t->slot_hand_r.template_idx  = -1; }
+        if (c->slot_hand_l.template_idx < 0)  { c->slot_hand_l  = t->slot_hand_l;  t->slot_hand_l.template_idx  = -1; }
+        if (c->slot_hands.template_idx < 0)   { c->slot_hands   = t->slot_hands;   t->slot_hands.template_idx   = -1; }
+        if (c->slot_arm_r.template_idx < 0)   { c->slot_arm_r   = t->slot_arm_r;   t->slot_arm_r.template_idx   = -1; }
+        if (c->slot_arm_l.template_idx < 0)   { c->slot_arm_l   = t->slot_arm_l;   t->slot_arm_l.template_idx   = -1; }
+        if (c->slot_feet.template_idx < 0)    { c->slot_feet    = t->slot_feet;    t->slot_feet.template_idx    = -1; }
         for (int j = 0; j < TOMBSTONE_RINGS; j++) {
             if (t->slot_rings[j].template_idx < 0) {
                 continue;
@@ -488,12 +509,53 @@ bool tombstone_pickup(Client *c) {
             for (int k = 0; k < 10; k++) {
                 if (c->slot_rings[k].template_idx < 0) {
                     c->slot_rings[k] = t->slot_rings[j];
+                    t->slot_rings[j].template_idx = -1;
+                    t->slot_rings[j].stack_count  = 0;
                     break;
                 }
             }
         }
 
-        /*Removes the tombstone from memory and disk*/
+        /*Anything left? Then the tombstone SURVIVES (memory + disk) with
+         *its reduced contents — no item is destroyed.*/
+        bool anything_left = false;
+        for (int j = 0; j < TOMBSTONE_BACKPACK_SIZE && !anything_left; j++) {
+            if (t->backpack[j].template_idx >= 0) anything_left = true;
+        }
+        for (int j = 0; j < 4 && !anything_left; j++) {
+            if (t->belt[j].template_idx >= 0) anything_left = true;
+        }
+        if (!anything_left) {
+            const ItemInstance *eq[] = {
+                &t->slot_head, &t->slot_neck, &t->slot_body, &t->slot_back,
+                &t->slot_hand_r, &t->slot_hand_l, &t->slot_hands,
+                &t->slot_arm_r, &t->slot_arm_l, &t->slot_feet
+            };
+            for (int j = 0; j < 10 && !anything_left; j++) {
+                if (eq[j]->template_idx >= 0) anything_left = true;
+            }
+        }
+        for (int j = 0; j < TOMBSTONE_RINGS && !anything_left; j++) {
+            if (t->slot_rings[j].template_idx >= 0) anything_left = true;
+        }
+
+        if (anything_left) {
+            /*Persist the reduced tombstone (the file still carries the
+             *original death_time, so the 24h expiry clock is unchanged).
+             *No MSG_TOMBSTONE_REMOVE here on purpose: the tombstone is
+             *STILL on the map for everyone.*/
+            tombstone_save(t);
+            send_text_to_client(c->sock,
+                "[WARNING] You cannot carry everything — only PART of "
+                "your belongings could be recovered (gold: %lu gp). The "
+                "rest still waits in the tombstone: come back with free "
+                "space (backpack, belt or empty equipment slots).",
+                (unsigned long)gold_recovered);
+            server_log("TOMB", "%s partially recovered their tombstone on floor %d (%d,%d) — items left behind", c->username, t->floor_id, t->x, t->y);
+            return true;
+        }
+
+        /*Everything recovered: removes the tombstone from memory and disk*/
         t->active = false;
         tombstone_delete_file(t);
 
@@ -519,7 +581,7 @@ bool tombstone_pickup(Client *c) {
 
         send_text_to_client(c->sock,
             "[SYSTEM] You have recovered your items from the tombstone. Gold recovered: %lu gp.",
-            (unsigned long)t->gold);
+            (unsigned long)gold_recovered);
         server_log("TOMB", "%s recovered their tombstone on floor %d (%d,%d)",
                    c->username, t->floor_id, t->x, t->y);
         return true;

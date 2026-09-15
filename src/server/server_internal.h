@@ -143,6 +143,17 @@ void broadcast_player_state(Client *c);
 void handle_boss_death(Client *c, NPC *boss);
 void sync_entity_grid(NPC *npcs);
 void give_starting_gear(Client *c);
+/*NULL-safe display name for NPC messages/logs: custom_name (ghosts,
+ * summons, dominated) > template name > archetype fallback. NEVER
+ * dereference n->template->name directly: gold piles, chests and
+ * summoned elementals have template==NULL and crashed the server.*/
+const char *npc_name(const NPC *n);
+/*Respawn a dead player in town (floor 0, next to center): clears the
+ * old floor's grid cell, registers the new one, and re-syncs the
+ * client (state + map chunk + nearby entities). Use at EVERY death
+ * site instead of setting hp/floor_id/x/y by hand (which leaked the
+ * entity_grid and left the client showing the dungeon).*/
+void player_respawn_town(Client *c);
 
 
 

@@ -41,6 +41,7 @@
 #include "aoe.h"
 #include "combat_log.h"
 #include "spell_router.h"
+#include "server_world.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1291,7 +1292,9 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
       int boss_id = pool[rand() % psize];
       NPC *b = &npcs[empty_idx];
       memset(b, 0, sizeof(NPC));
-      b->active = true;
+      /*active is set at the END of the setup (after the template), via
+       *npc_set_active, so the floor cache is updated with the final
+       *fields (A2).*/
       b->archetype = ARCH_BOSS;
       b->entity_id = next_id++;
       b->floor_id = target_floor;
@@ -1305,6 +1308,7 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
       b->max_hp = b->hp;
       snprintf(b->custom_name, sizeof(b->custom_name), "Boss %s", b->template->name);
       ai_init_npc(b, b->custom_name, b->floor_id);
+      npc_set_active(b, true);
       
       send_text_to_client(c->sock, "[DM] Boss %s (Entity %d) successfully spawned on floor %d!", b->custom_name, b->entity_id, target_floor);
       return;
@@ -1551,7 +1555,6 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
             tx >= 0 && tx < MAP_WIDTH && ty >= 0 && ty < MAP_HEIGHT) {
           for (int i = 0; i < MAX_NPCS; i++) {
             if (!npcs[i].active) {
-              npcs[i].active = true;
               npcs[i].entity_id = next_id++;
               npcs[i].floor_id = c->floor_id;
               npcs[i].x = tx;
@@ -1563,6 +1566,9 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
               npcs[i].hp = npcs[i].max_hp = npcs[i].template->hp_avg;
               ai_attach_behavior(&npcs[i]);
               master_world->floors[c->floor_id].entity_grid[ty][tx] = npcs[i].entity_id;
+              /*Activate only once the template is assigned: npc_set_active
+               *must see the final fields to update the floor cache (A2).*/
+              npc_set_active(&npcs[i], true);
               send_text_to_client(c->sock, "[DM] Spawned %s at %d,%d",
                                   npcs[i].template->name, tx, ty);
               return;
@@ -1652,10 +1658,12 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
     if (strncmp(cmd, "dm_place ", 9) == 0) {
       int iid = 0, tx = 0, ty = 0;
       if (sscanf(cmd + 9, "%d %d %d", &iid, &tx, &ty) == 3) {
-        if (iid >= 0 && iid < item_database_size) {
+        /*Bounds: out-of-range x/y would index the map and the
+         * entity_grid out of bounds on the very next sync tick.*/
+        if (iid >= 0 && iid < item_database_size &&
+            tx >= 0 && tx < MAP_WIDTH && ty >= 0 && ty < MAP_HEIGHT) {
           for (int i = 0; i < MAX_NPCS; i++) {
             if (!npcs[i].active) {
-              npcs[i].active = true;
               npcs[i].entity_id = next_id++;
               npcs[i].floor_id = c->floor_id;
               npcs[i].x = tx;
@@ -1663,6 +1671,11 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
               npcs[i].archetype = ARCH_TREASURE;
               npcs[i].template_idx = iid; // Store item ID here for chests
               npcs[i].hp = npcs[i].max_hp = 1;
+              /*Activate after floor_id/archetype are final (A2). Note the
+               *slot's template is untouched (a reused corpse may keep its
+               *own): the helper applies the same counted/not-counted rule
+               *as floor_stats_rebuild, so the cache stays consistent.*/
+              npc_set_active(&npcs[i], true);
               send_text_to_client(c->sock,
                                   "[DM] Placed treasure with item %s at %d,%d",
                                   item_database[iid].name, tx, ty);
@@ -1739,7 +1752,7 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
       }
       
       send_text_to_client(c->sock, "[SYSTEM] You have recovered your soul and equipment!");
-      npcs[ghost_npc_idx].active = false;
+      npc_set_active(&npcs[ghost_npc_idx], false);
       npcs[ghost_npc_idx].respawn_timer = 0;
       master_world->floors[c->floor_id].entity_grid[npcs[ghost_npc_idx].y][npcs[ghost_npc_idx].x] = 0;
       save_player_data(c);
@@ -3962,7 +3975,7 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
       clog_spell(c->username, sp->name,
                  target->template ? target->template->name : "???", dmg, saved);
       if (target->hp <= 0) {
-        target->active = false;
+        npc_set_active(target, false);
         target->respawn_timer = RESPAWN_TICKS;
         int gained_xp = target->template ? target->template->xp : 10;
         c->xp += gained_xp;
@@ -4053,7 +4066,7 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
         if (n->archetype == ARCH_GOLD) {
             c->gold += n->gold_drop;
             send_text_to_client(c->sock, "[SYSTEM] You have collected %d gold coins!", n->gold_drop);
-            n->active = false;
+            npc_set_active(n, false);
         } else if (n->archetype == ARCH_TREASURE) {
             if (n->ghost_loot[0].stack_count > 0) {
                 if (c->backpack_count >= MAX_BACKPACK) {
@@ -4061,18 +4074,21 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
                 } else {
                     c->backpack[c->backpack_count++] = n->ghost_loot[0];
                     send_text_to_client(c->sock, "[SYSTEM] You have collected: %s", item_database[n->ghost_loot[0].template_idx].name);
-                    n->active = false;
+                    npc_set_active(n, false);
                     n->respawn_timer = 0;
                 }
             } else {
                 send_text_to_client(c->sock, "[SYSTEM] Open the chest and find something...");
                 drop_loot_from_monster(c, n);
-                n->active = false;
+                npc_set_active(n, false);
                 n->respawn_timer = 100;
             }
         }
-        extern void floor_stats_npc_died(int floor_id);
-        floor_stats_npc_died(c->floor_id);
+        /*The unconditional floor_stats_npc_died() that used to sit here
+         *decremented the floor cache even when NOTHING was collected
+         *(backpack full) and for templateless piles/chests the cache never
+         *counted — both drifts. The counter is now maintained inside
+         *npc_set_active() at each successful removal (A2).*/
         save_player_data(c);
     } else {
         send_text_to_client(c->sock, "[SYSTEM] There are more objects:");
@@ -4161,8 +4177,8 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
       return;
     }
 
-    // Assign NPC as dropped item
-    npcs[npc_slot].active = true;
+    // Assign NPC as dropped item (activation happens AFTER the fields
+    // below are final — see npc_set_active, A2)
     npcs[npc_slot].entity_id = next_id++;
     npcs[npc_slot].floor_id = c->floor_id;
     npcs[npc_slot].x = c->x;
@@ -4173,6 +4189,9 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
     memset(npcs[npc_slot].ghost_loot, 0, sizeof(npcs[npc_slot].ghost_loot));
     npcs[npc_slot].ghost_loot[0] = *item_to_drop; // Copy full item state
     npcs[npc_slot].template = NULL;
+    /*template==NULL: the floor cache ignores the slot, but the activation
+     *still goes through the single entry point (A2).*/
+    npc_set_active(&npcs[npc_slot], true);
 
     // Register on the grid so players can pick it up
     master_world->floors[c->floor_id].entity_grid[c->y][c->x] = npcs[npc_slot].entity_id;
@@ -4317,7 +4336,7 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
                             target->template ? target->template->name : "the target", dmg, target->hp, target->max_hp);
         
         if (target->hp <= 0) {
-          target->active = false;
+          npc_set_active(target, false);
           target->respawn_timer = RESPAWN_TICKS;
           int gained_xp = target->template ? target->template->xp : 10;
           c->xp += gained_xp;
@@ -4341,7 +4360,7 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
     }
 
     if (npc_slot != -1) {
-      npcs[npc_slot].active = true;
+      /*Fields first, activation last (A2)*/
       npcs[npc_slot].entity_id = next_id++;
       npcs[npc_slot].floor_id = c->floor_id;
       npcs[npc_slot].x = last_valid_x;
@@ -4352,6 +4371,7 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
       memset(npcs[npc_slot].ghost_loot, 0, sizeof(npcs[npc_slot].ghost_loot));
       npcs[npc_slot].ghost_loot[0] = *item_to_throw;
       npcs[npc_slot].template = NULL;
+      npc_set_active(&npcs[npc_slot], true);
 
       master_world->floors[c->floor_id].entity_grid[last_valid_y][last_valid_x] = npcs[npc_slot].entity_id;
     }

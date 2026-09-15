@@ -35,6 +35,7 @@
 #include <math.h>
 #include "../../include/map.h"
 #include "server_internal.h"
+#include "server_world.h"
 
 extern World *master_world;
 #include <stdio.h>
@@ -104,10 +105,14 @@ void aoe_apply_damage_to_npc(
         npc->max_hp);
 
     if (npc->hp <= 0) {
-        npc->active       = false;
+        npc_set_active(npc, false);
         npc->respawn_timer = 120; //RESPAWN_TICKS
         int xp_gained    = npc->template ? npc->template->xp : 10;
         caster->xp       += xp_gained;
+        /*A1: a magical kill is a kill — check the level-up immediately,
+         * exactly like the melee path in server_combat.c (the old code
+         * delayed it until the next melee kill or an unrelated command).*/
+        check_level_up(caster);
         send_text_to_client(caster->sock, kill_msg,
             npc->template ? npc->template->name : "???",
             xp_gained);
@@ -124,7 +129,8 @@ void aoe_apply_damage_to_npc(
 // -------------------------------------------------------
 //HELPER: create persistent cloud
 // -------------------------------------------------------
-static void spawn_cloud(SpellTemplate *sp, int cx, int cy, int floor_id, int save_dc) {
+static void spawn_cloud(SpellTemplate *sp, int cx, int cy, int floor_id, int save_dc,
+                        const char *owner_name) {
     for (int i = 0; i < MAX_CLOUDS; i++) {
         if (!g_clouds[i].active) {
             g_clouds[i].active      = true;
@@ -138,6 +144,11 @@ static void spawn_cloud(SpellTemplate *sp, int cx, int cy, int floor_id, int sav
             g_clouds[i].dmg_type    = sp->damage_type;
             g_clouds[i].save_dc     = save_dc;
             strncpy(g_clouds[i].name, sp->name, 31);
+            g_clouds[i].owner[0]    = '\0';
+            if (owner_name && owner_name[0] != '\0') {
+                strncpy(g_clouds[i].owner, owner_name, sizeof(g_clouds[i].owner) - 1);
+                g_clouds[i].owner[sizeof(g_clouds[i].owner) - 1] = '\0';
+            }
             break;
         }
     }
@@ -320,8 +331,10 @@ int aoe_resolve_spell(
                 dmg_type_name(sp->damage_type),
                 sp->cloud_rounds > 0 ? sp->cloud_rounds : 3);
         }
-        //Create persistent cloud, then apply first-round damage
-        spawn_cloud(sp, origin_x, origin_y, caster->floor_id, spell_save_dc);
+        //Create persistent cloud (remembering the caster, so kills it
+        //causes later still credit XP), then apply first-round damage
+        spawn_cloud(sp, origin_x, origin_y, caster->floor_id, spell_save_dc,
+                    caster->username);
         break;
 
     default:
@@ -511,8 +524,30 @@ void aoe_update_clouds(NPC *npcs, int npc_count, Client *clients, int client_cou
                     n->max_hp);
 
                 if (n->hp <= 0) {
-                    n->active        = false;
+                    npc_set_active(n, false);
                     n->respawn_timer = 120;
+                    /*A1 (clouds): the cloud knows its owner now, so a kill
+                     *caused by it credits XP + level-up check to the caster,
+                     *like a direct hit. If the caster logged out during the
+                     *cloud's few rounds of life there is no slot to credit
+                     *— the XP is simply lost (accepted edge case).*/
+                    if (cloud->owner[0] != '\0') {
+                        for (int o = 0; o < client_count; o++) {
+                            if (!clients[o].active || !clients[o].authenticated) {
+                                continue;
+                            }
+                            if (strcmp(clients[o].username, cloud->owner) == 0) {
+                                int xp_gained = n->template ? n->template->xp : 10;
+                                clients[o].xp += xp_gained;
+                                check_level_up(&clients[o]);
+                                send_text_to_client(clients[o].sock,
+                                    "[VICTORY] %s is destroyed by your %s! (+%d XP)",
+                                    n->template ? n->template->name : "???",
+                                    cloud->name, xp_gained);
+                                break;
+                            }
+                        }
+                    }
                     send_text_to_client(clients[p].sock,
                         "[CLOUDS] %s succumbs to lethal fumes!",
                         n->template ? n->template->name : "???");

@@ -1,3 +1,39 @@
+* Tue Sep 15 2026 nicolataibi <nicola.taibi.1967@gmail.com> - 2026.09.15.02
+- BUGFIX: AoE kills now call check_level_up() immediately (aoe.c), like the
+  melee path — magical kills no longer delay the level-up until the next
+  melee kill. Persistent clouds also remember their caster: kills caused by
+  a lingering cloud now credit XP (and the level-up check) to the owner
+  instead of granting none.
+- BUGFIX: The per-floor O(1) NPC stats cache (density monitor) was only
+  updated in a few of the ~30 spawn/death sites, so AoE kills, DM spawns,
+  summons, drops and ghosts all left the cache stale. New helper
+  npc_set_active() (server_world.c) is now the single point where an NPC's
+  alive/dead state changes, and it keeps the cache in sync using exactly
+  the same accounting as floor_stats_rebuild(). Emergency respawns now
+  trigger on time.
+- BUGFIX: The three trap death sites (dart wall, spring spear, floor traps
+  in main_server.c) set floor_id/x/y/hp by hand instead of calling
+  player_respawn_town(): the dead player stayed a "ghost" on other
+  clients' screens until the next sync and his own client kept showing the
+  dungeon. All death sites now use the helper.
+- BUGFIX (Vulkan): particles never decayed on the VK backend —
+  particles_update() was only called by the GL render loop. Particles froze
+  in place (alpha stuck at 1.0) and the 2000-slot pool saturated after a
+  few seconds of magic, after which no new VFX were spawned at all. The VK
+  frame loop now updates the simulation once per frame, like GL.
+- BUGFIX: the game clock advanced twice — once per tick in update_world()
+  (correct, 5/s) and once per player move in the MSG_MOVE handler (leftover
+  of the pre-epoll action-based design). The per-move increment is removed:
+  day/night, hunger and trap respawns no longer run faster the more players
+  walk.
+- BUGFIX: tombstone_pickup() deleted the tombstone even when the player's
+  backpack was full, so every item that did not fit (backpack overflow,
+  belt, equipment, gold) was destroyed forever. Transferred items are now
+  consumed from the tombstone; if anything is left behind the tombstone
+  stays active (re-saved to disk, original expiry clock) and tells the
+  player to come back with free space.
+* Tue Sep 15 2026 nicolataibi <nicola.taibi.1967@gmail.com> - 2026.09.15.01
+- BUGFIX: Fix crash server, Client: UB mutex + anti-stuttering, etc.
 * Fri Sep 11 2026 nicolataibi <nicola.taibi.1967@gmail.com> - 2026.09.11.01
 - FEATURE: Added the "Data Studio", a set of self-contained HTML workbenches in
   `tools/web/` for full CRUD management of the three JSON databases

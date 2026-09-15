@@ -306,13 +306,26 @@ void* net_thread_loop(void* arg) {
                     if (net_receive_all(g_server_sock, chunk_buf, chunk_size) > 0) {
                         pthread_mutex_lock(&g_state_mutex);
                         i = 0;
+                        /*Change detection: the server re-sends the
+                         * player-centered 100x100 window on EVERY step
+                         * (M7). While walking, ~98% of the chunk is
+                         * identical to what g_local_map already holds —
+                         * marking the map dirty unconditionally made the
+                         * renderer rebuild the floor mesh on every step
+                         * (100-130 ms stalls). Dirty ONLY when at least
+                         * one tile actually changed.*/
+                        bool chunk_changed = false;
                         for (cy = msg_chunk.start_y; cy < msg_chunk.start_y + msg_chunk.height; cy++) {
                             for (cx = msg_chunk.start_x; cx < msg_chunk.start_x + msg_chunk.width; cx++) {
-                                if (cx >= 0 && cx < MAP_WIDTH && cy >= 0 && cy < MAP_HEIGHT) g_local_map[cy][cx] = chunk_buf[i];
+                                if (cx >= 0 && cx < MAP_WIDTH && cy >= 0 && cy < MAP_HEIGHT &&
+                                    g_local_map[cy][cx] != chunk_buf[i]) {
+                                    g_local_map[cy][cx] = chunk_buf[i];
+                                    chunk_changed = true;
+                                }
                                 i++;
                             }
                         }
-                        g_map_dirty = true;
+                        if (chunk_changed) g_map_dirty = true;
                         pthread_mutex_unlock(&g_state_mutex);
                     }
                     free(chunk_buf);

@@ -26,6 +26,26 @@
 // Define LOOT_DROP_CHANCE here since it is used in perform_attack -> drop_loot_from_monster
 // NOTE: canonical value is defined in server_internal.h — do NOT redefine here.
 
+/*NULL-safe display name for messages/combat log: custom_name (ghosts,
+ * summons, dominated) > template name > archetype fallback. NPCs with
+ * template==NULL (gold piles, chests, summoned elementals) used to
+ * crash the server here: perform_attack* dereferenced n->template->name.*/
+const char *npc_name(const NPC *n) {
+  if (!n)
+    return "???";
+  if (n->custom_name[0] != '\0')
+    return n->custom_name;
+  if (n->template && n->template->name)
+    return n->template->name;
+  if (n->archetype == ARCH_TREASURE)
+    return "Treasure Chest";
+  if (n->archetype == ARCH_GOLD)
+    return "Gold Pile";
+  if (n->archetype == ARCH_MERCHANT)
+    return "Merchant";
+  return "???";
+}
+
 void perform_attack(Client *c, NPC *t, NPC *npcs) {
   if (!c || !t)
     return;
@@ -84,14 +104,14 @@ void perform_attack(Client *c, NPC *t, NPC *npcs) {
   if (w && w->category == ITEM_WEAPON && w->damage_dice_sides <= 6) {
     send_text_to_client(c->sock,
                         "[ACTION] Quickly dash and launch an attack against %s!",
-                        t->template->name);
+                        npc_name(t));
   } else if (w && w->category == ITEM_WEAPON) {
     send_text_to_client(c->sock,
                         "[ACTION] You load the shot and lower your weapon on %s!",
-                        t->template->name);
+                        npc_name(t));
   } else {
     send_text_to_client(c->sock, "[ACTION] You attack %s with your bare hands!",
-                        t->template->name);
+                        npc_name(t));
   }
 
   send_text_to_client(c->sock,
@@ -152,7 +172,7 @@ void perform_attack(Client *c, NPC *t, NPC *npcs) {
                           "  > Colpito! [%dd%d: %d %+d (+%d elem) = %d danni] (HP: %d/%d)",
                           dc, ds, roll_d, mod_d, element_d, d, t->hp, t->max_hp);
     }
-    clog_attack(c->username, t->template->name, roll_v, ctx.final_value, t->ac,
+    clog_attack(c->username, npc_name(t), roll_v, ctx.final_value, t->ac,
                 true, is_crit, d);
     //===== COMBAT WEAR =====
     //5% chance per hit: weapon loses 1 durability
@@ -179,7 +199,7 @@ void perform_attack(Client *c, NPC *t, NPC *npcs) {
       }
     }
     if (t->hp <= 0) {
-      t->active = false;
+      npc_set_active(t, false); /*also updates the O(1) floor cache (A2)*/
       t->respawn_timer = RESPAWN_TICKS;
       extern World *master_world;
       master_world->floors[t->floor_id].entity_grid[t->y][t->x] = 0;
@@ -200,7 +220,7 @@ void perform_attack(Client *c, NPC *t, NPC *npcs) {
                   g_clients[i].xp += xp_gained;
                   check_level_up(&g_clients[i]);
                   if (&g_clients[i] != c) {
-                      send_text_to_client(g_clients[i].sock, "[PARTY] Receive %d XP for killing %s.", xp_gained, t->template->name);
+                      send_text_to_client(g_clients[i].sock, "[PARTY] Receive %d XP for killing %s.", xp_gained, npc_name(t));
                   }
               }
           }
@@ -216,25 +236,27 @@ void perform_attack(Client *c, NPC *t, NPC *npcs) {
           }
       }
 
-      floor_stats_npc_died(t->floor_id);
+      /*The floor-stats update now happens inside npc_set_active(t, false)
+       *above — the separate floor_stats_npc_died() call lived here and is
+       *gone (single point of truth, A2).*/
 
       send_text_to_client(
           c->sock,
           "[VICTORY] With a fatal blow, you take %s' life! (+%d XP)",
-          t->template->name, xp_gained);
-      clog_death(t->template->name, c->username, t->floor_id);
+          npc_name(t), xp_gained);
+      clog_death(npc_name(t), c->username, t->floor_id);
       drop_loot_from_monster(c, t);
       if (t->archetype == ARCH_BOSS) {
         handle_boss_death(c, t);
       }
     }
   } else {
-    clog_attack(c->username, t->template->name, roll_v, ctx.final_value, t->ac,
+    clog_attack(c->username, npc_name(t), roll_v, ctx.final_value, t->ac,
                 false, false, 0);
     send_text_to_client(c->sock,
                         "> Missed... the attack bounces off the armor of"
-                        "%s, leaving not even a scratch.",
-                        t->template->name);
+                        " %s, leaving not even a scratch.",
+                        npc_name(t));
   }
 }
 
@@ -268,24 +290,24 @@ void perform_attack_npc(NPC *n, Client *c, NPC *npcs) {
     send_text_to_client(c->sock,
                         "[DANGER] %s slips into the shadows and attempts to "
                         "stab you: 1d20 [%d] %+d = %d (VS AC %d)%s",
-                        n->template->name, roll_v, n_bonus, roll_v + n_bonus,
+                        npc_name(n), roll_v, n_bonus, roll_v + n_bonus,
                         p_ac, is_crit ? " [CRITICAL!]" : "");
   } else if (n->archetype == ARCH_DRAGON) {
     send_text_to_client(c->sock,
                         "[DANGER] %s roars and envelops you in flame: "
                         "1d20 [%d] %+d = %d (VS AC %d)%s",
-                        n->template->name, roll_v, n_bonus, roll_v + n_bonus,
+                        npc_name(n), roll_v, n_bonus, roll_v + n_bonus,
                         p_ac, is_crit ? " [CRITICAL!]" : "");
   } else if (n->archetype == ARCH_BRUTE) {
     send_text_to_client(c->sock,
                         "[DANGER] %s raises his fists and delivers a "
                         "devastating blow: 1d20 [%d] %+d = %d (VS AC %d)%s",
-                        n->template->name, roll_v, n_bonus, roll_v + n_bonus,
+                        npc_name(n), roll_v, n_bonus, roll_v + n_bonus,
                         p_ac, is_crit ? " [CRITICAL!]" : "");
   } else {
     send_text_to_client(
         c->sock, "[DANGER] %s attacks you: 1d20 [%d] %+d = %d (VS AC %d)%s",
-        n->template->name, roll_v, n_bonus, roll_v + n_bonus, p_ac,
+        npc_name(n), roll_v, n_bonus, roll_v + n_bonus, p_ac,
         is_crit ? " [CRITICAL!]" : "");
   }
   //Aggro Group: Alert NPCs close to the attacker (per-floor index, see
@@ -319,26 +341,23 @@ void perform_attack_npc(NPC *n, Client *c, NPC *npcs) {
     d = rules_calculate_damage(d, d_mod);
     c->hp -= d;
     send_text_to_client(c->sock, "[COMBAT] You take %d damage!", d);
-    clog_attack(n->template->name, c->username, roll_v, n_bonus, p_ac, true,
+    clog_attack(npc_name(n), c->username, roll_v, n_bonus, p_ac, true,
                 is_crit, d);
     if (c->slot_body.template_idx != -1) {
       damage_item(&c->slot_body, 1);
     }
     if (c->hp <= 0) {
-      clog_death(c->username, n->template->name, c->floor_id);
+      clog_death(c->username, npc_name(n), c->floor_id);
       save_bones(c);
-       c->hp = c->max_hp;
-       c->floor_id = 0;
-       c->x = MAP_CENTER_X + 1;
-       c->y = MAP_CENTER_Y + 1;
+      player_respawn_town(c);
       send_text_to_client(
           c->sock, "[SYSTEM] You died! The Arcane has returned you to town without your equipment!");
     }
   } else {
-    clog_attack(n->template->name, c->username, roll_v, n_bonus, p_ac, false,
+    clog_attack(npc_name(n), c->username, roll_v, n_bonus, p_ac, false,
                 false, 0);
     send_text_to_client(c->sock, "[COMBAT] %s missed you!",
-                        n->template->name);
+                        npc_name(n));
   }
 }
 

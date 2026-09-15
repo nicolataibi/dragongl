@@ -537,19 +537,34 @@ void sync_entity_grid(NPC *npcs) {
   }
   if (global_clients) {
     for (int i = 0; i < MAX_CLIENTS; i++) {
-      if (global_clients[i].active && global_clients[i].authenticated) {
-        Floor *fl = &master_world->floors[global_clients[i].floor_id];
-        fl->entity_grid[global_clients[i].y][global_clients[i].x] =
-            global_clients[i].entity_id;
-      }
+      if (!global_clients[i].active || !global_clients[i].authenticated)
+        continue;
+      /*Bounds: an out-of-range floor or coordinate (corrupted save, bad
+       * dm_place) must never index the world out of bounds — this runs
+       * on every round tick and would corrupt the heap.*/
+      int f = global_clients[i].floor_id;
+      if (f < 0 || f >= MAX_FLOORS)
+        continue;
+      if (global_clients[i].x < 0 || global_clients[i].x >= MAP_WIDTH ||
+          global_clients[i].y < 0 || global_clients[i].y >= MAP_HEIGHT)
+        continue;
+      master_world->floors[f].entity_grid[global_clients[i].y]
+                                     [global_clients[i].x] =
+          global_clients[i].entity_id;
     }
   }
   if (npcs) {
     for (int i = 0; i < MAX_NPCS; i++) {
-      if (npcs[i].active) {
-        Floor *fl = &master_world->floors[npcs[i].floor_id];
-        fl->entity_grid[npcs[i].y][npcs[i].x] = npcs[i].entity_id;
-      }
+      if (!npcs[i].active)
+        continue;
+      int f = npcs[i].floor_id;
+      if (f < 0 || f >= MAX_FLOORS)
+        continue;
+      if (npcs[i].x < 0 || npcs[i].x >= MAP_WIDTH ||
+          npcs[i].y < 0 || npcs[i].y >= MAP_HEIGHT)
+        continue;
+      master_world->floors[f].entity_grid[npcs[i].y][npcs[i].x] =
+          npcs[i].entity_id;
     }
   }
 }
@@ -711,10 +726,11 @@ void check_traps(Client *c, NPC *npcs) {
                 "[DEATH] The poison reaches your heart. You fell...");
             clog_death(c->username, "Dardo Avvelenato", c->floor_id);
             save_bones(c);
-            c->floor_id = 0;
-            c->x = MAP_CENTER_X;
-            c->y = MAP_CENTER_Y;
-            c->hp = c->max_hp;
+            /*A3: this death site used to set floor_id/x/y/hp by hand, so
+             *the player was never reported as left-floor (a "ghost" on
+             *other clients' screens) and the client kept showing the
+             *dungeon. player_respawn_town does it all (L2).*/
+            player_respawn_town(c);
           }
         }
         t->active = false;
@@ -760,10 +776,10 @@ void check_traps(Client *c, NPC *npcs) {
                                 "[DEATH] Pierced by the spear, you have fallen.");
             clog_death(c->username, "Spring spear", c->floor_id);
             save_bones(c);
-            c->floor_id = 0;
-            c->x = MAP_CENTER_X;
-            c->y = MAP_CENTER_Y;
-            c->hp = c->max_hp;
+            /*A3: same as the dart wall — the manual floor_id/x/y/hp set
+             *skipped notify_player_left_floor() and the client re-sync.
+             *player_respawn_town() does it all (L2).*/
+            player_respawn_town(c);
           }
         }
         t->active = false;
@@ -1001,12 +1017,14 @@ void check_traps(Client *c, NPC *npcs) {
         if (c->hp <= 0) {
           clog_death(c->username, "Trap", c->floor_id);
           save_bones(c);
-          c->hp = c->max_hp;
+          /*A3: this was the third death site setting floor_id/x/y by hand
+           *instead of using player_respawn_town() (the starvation/poison/
+           *burn/bleed paths and MSG_MOVE all use it). Without it the other
+           *players kept seeing the corpse on the floor until the next sync
+           *and the dead client kept rendering the dungeon.*/
+          player_respawn_town(c);
           send_text_to_client(c->sock,
                               "[DEATH] You died from a trap... The Arcane has returned you to town without your equipment!");
-          c->floor_id = 0;
-          c->x = MAP_CENTER_X + 1;
-          c->y = MAP_CENTER_Y + 1;
         }
       }
       if (t->type == TRAP_TELEPORT || t->type == TRAP_FAKE_DOOR) {
@@ -1352,7 +1370,7 @@ void drop_loot_from_monster(Client *c, NPC *killer) {
           c->backpack[i].stack_count < it->max_stack) {
         c->backpack[i].stack_count++;
         send_text_to_client(c->sock, "[LOOT] %s dropped: %s (x%d)",
-                            killer->template->name,
+                            npc_name(killer),
                             identified ? it->name : "??? (unknown)",
                             c->backpack[i].stack_count);
         return;
@@ -1440,7 +1458,7 @@ void drop_loot_from_monster(Client *c, NPC *killer) {
             c->sock,
             "[*** ARTIFACT ***] %s has surrendered the legendary: %s"
             "-- FIRST AND ONLY IN THE WORLD!",
-            killer->template->name, abuf);
+            npc_name(killer), abuf);
         return; //artifact drop: does not continue with normal drop
       }
     }
@@ -1451,7 +1469,7 @@ void drop_loot_from_monster(Client *c, NPC *killer) {
   char buf[128];
   get_full_item_name(&drop, buf, sizeof(buf));
   send_text_to_client(c->sock, "[LOOT] %s dropped: %s [%s]",
-                      killer->template->name,
+                      npc_name(killer),
                       buf,
                       rarity_name[rarity_tier]);
 }
@@ -2009,7 +2027,9 @@ void save_bones(Client* c) {
     if (ghost_slot >= 0) {
         NPC *g = &g_npcs[ghost_slot];
         memset(g, 0, sizeof(NPC));
-        g->active       = true;
+        /*active is set at the END of the setup, after the template is
+         *chosen, via npc_set_active: the helper must see the FINAL fields
+         *to update the floor cache correctly (A2).*/
         g->is_ghost     = true;
         g->archetype    = ARCH_BOSS;
         g->entity_id    = next_id++;
@@ -2041,6 +2061,11 @@ void save_bones(Client* c) {
         }
         snprintf(g->custom_name, sizeof(g->custom_name), "Ghost of %s", c->username);
         g->gold_drop = 0; /*The gold is in the tombstone, not in the ghost*/
+        /*Activate through the single entry point now that the template is
+         *final (A2): the old code set active=true with no floor-cache
+         *update at all, so every death leaked one "missing" NPC from the
+         *density monitor's view of the floor.*/
+        npc_set_active(g, true);
         /*Register in the entity_grid*/
         master_world->floors[c->floor_id].entity_grid[c->y][c->x] = g->entity_id;
         /*The corpse must be visible in the very next broadcast (the
@@ -2106,6 +2131,16 @@ void check_tile_events(Client *c, NPC *npcs) {
           c->sock, "[DANGER] The ground is slippery! You fell to the ground!");
     }
   } else if (vt == VOXEL_STAIRS_DOWN) {
+    /*Floor boundary: there is no world below the last floor. The old
+     * unguarded c->floor_id++ on MAX_FLOORS-1 read/wrote floors[101]
+     * (heap OOB: crash or silent corruption). TRAP_FALLING_FLOOR already
+     * had this guard — the stairs were the only floor transition missing
+     * it.*/
+    if (c->floor_id >= MAX_FLOORS - 1) {
+      send_text_to_client(c->sock,
+          "[SYSTEM] The dungeon ends here: there is no floor below this one.");
+      return;
+    }
     if (c->floor_id > 0 && c->floor_id % 10 == 0) {
       int boss_index = (c->floor_id / 10) - 1;
       if (!(c->bosses_defeated & (1u << boss_index))) {
@@ -3207,9 +3242,8 @@ int main(int argc, char **argv) {
                            send_text_to_client(clients[i].sock,
                                "[SYSTEM] Collect a stack of %d gold coins!",
                                npcs[n].gold_drop);
-                           npcs[n].active = false;
+                           npc_set_active(&npcs[n], false);
                            npcs[n].respawn_timer = 0;
-                           floor_stats_npc_died(npcs[n].floor_id);
                            fl->entity_grid[ny][nx] = 0;
                            coll = false;
                            save_player_data(&clients[i]);
@@ -3245,9 +3279,8 @@ int main(int argc, char **argv) {
                                send_text_to_client(clients[i].sock,
                                    "[SYSTEM] Recover everything you were carrying!");
                              }
-                             npcs[n].active = false;
+                             npc_set_active(&npcs[n], false);
                              npcs[n].respawn_timer = 0;
-                             floor_stats_npc_died(npcs[n].floor_id);
                              fl->entity_grid[ny][nx] = 0;
                              coll = false;
                            }
@@ -3264,9 +3297,8 @@ int main(int argc, char **argv) {
                              send_text_to_client(clients[i].sock,
                                  "[SYSTEM] You picked up: %s",
                                  item_database[npcs[n].ghost_loot[0].template_idx].name);
-                             npcs[n].active = false;
+                             npc_set_active(&npcs[n], false);
                              npcs[n].respawn_timer = 0;
-                             floor_stats_npc_died(npcs[n].floor_id);
                              fl->entity_grid[ny][nx] = 0;
                              coll = false;
                              save_player_data(&clients[i]);
@@ -3277,9 +3309,8 @@ int main(int argc, char **argv) {
                                "[SYSTEM] You open the treasure chest and find"
                                " something inside...");
                            drop_loot_from_monster(&clients[i], &npcs[n]);
-                           npcs[n].active = false;
+                           npc_set_active(&npcs[n], false);
                            npcs[n].respawn_timer = 100;
-                           floor_stats_npc_died(npcs[n].floor_id);
                            fl->entity_grid[ny][nx] = 0;
                            coll = false;
                            save_player_data(&clients[i]);
@@ -3336,6 +3367,16 @@ int main(int argc, char **argv) {
                   clients[i].y = ny;
                   fl->entity_grid[ny][nx] = clients[i].entity_id;
 
+                  /*A5: the old `global_total_turns++` here (once per player
+                   *move) is GONE. It is a leftover of the pre-epoll design
+                   *where a round advanced per action: with the fixed-step
+                   *clock (2026.09.09) the counter is already incremented
+                   *exactly 5/s in update_world() (server_world.c), so this
+                   *second, per-move increment made day/night, hunger and
+                   *trap respawns (all expressed in rounds) run faster the
+                   *more players walked — up to 64 clients x 5 moves/s.
+                   *The simulation clock must be independent of player input.*/
+
                   //--- BLOODY MOVEMENT EFFECT ---
                   if (rules_has_condition_t(clients[i].effects, clients[i].effect_count, COND_BLEEDING)) {
                     clients[i].hp -= 2;
@@ -3348,15 +3389,14 @@ int main(int argc, char **argv) {
                           "%s bled to death during the movement.",
                           clients[i].username);
                       save_bones(&clients[i]);
-                      clients[i].hp = clients[i].max_hp;
-                      clients[i].floor_id = 0;
-                      clients[i].x = MAP_CENTER_X + 1;
-                      clients[i].y = MAP_CENTER_Y + 1;
+                      player_respawn_town(&clients[i]);
                       send_text_to_client(clients[i].sock, "[SYSTEM] You died! The Arcane has returned you to town without your equipment!");
                     }
                   }
 
-                  global_total_turns++;
+                  /*A5: `global_total_turns++` USED to be here (see the
+                   *comment at the top of the can_pass block): removed.
+                   *The counter advances exactly 5/s in update_world().*/
                   update_city_doors();
                   check_tile_events(&clients[i], npcs);
                   check_traps(&clients[i], npcs);

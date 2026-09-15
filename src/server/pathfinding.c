@@ -249,7 +249,16 @@ int pathfind_astar(const Map *map,
                 path_len++;
                 node = &grid[node->parent_y][node->parent_x];
             }
-            /*I add the starting node*/
+            /*I add the starting node. If the buffer is full the true path
+             * has more nodes than it can hold: return "no path" so the
+             * caller falls back to a SAFE single step. A truncated path
+             * would not start at the source, and using its path[1] would
+             * teleport the entity. The old code wrote reverse[path_len]
+             * unconditionally here: with path_len == max_steps that was
+             * a one-element STACK BUFFER OVERFLOW.*/
+            if (path_len >= max_steps) {
+                return 0;
+            }
             reverse[path_len].x = sx;
             reverse[path_len].y = sy;
             path_len++;

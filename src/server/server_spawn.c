@@ -36,6 +36,7 @@
 
 #include "server_spawn.h"
 #include "server_internal.h"
+#include "server_world.h"
 #include "ai.h"
 #include "bestiary.h"
 #include "data_loader.h"
@@ -367,7 +368,7 @@ void spawn_city_merchants(NPC *npcs, int *next_id) {
 
   // 0: Weapons and Armor - The Iron Anvil
   NPC *f = &npcs[0];
-  f->active = true;
+  npc_set_active(f, true); /*merchant: no floor-cache effect*/
   f->archetype = ARCH_MERCHANT;
   f->entity_id = (*next_id)++;
   f->floor_id = 0;
@@ -383,7 +384,7 @@ void spawn_city_merchants(NPC *npcs, int *next_id) {
 
   // 1: Alchemy and Potions - The Bubbling Cauldron
   NPC *p = &npcs[1];
-  p->active = true;
+  npc_set_active(p, true); /*merchant: no floor-cache effect*/
   p->archetype = ARCH_MERCHANT;
   p->entity_id = (*next_id)++;
   p->floor_id = 0;
@@ -399,7 +400,7 @@ void spawn_city_merchants(NPC *npcs, int *next_id) {
 
   // 2: General Store - The Drunken Dragon
   NPC *o = &npcs[2];
-  o->active = true;
+  npc_set_active(o, true); /*merchant: no floor-cache effect*/
   o->archetype = ARCH_MERCHANT;
   o->entity_id = (*next_id)++;
   o->floor_id = 0;
@@ -415,7 +416,7 @@ void spawn_city_merchants(NPC *npcs, int *next_id) {
 
   // 3: Magic and Utility - Temple of Arcana
   NPC *s = &npcs[3];
-  s->active = true;
+  npc_set_active(s, true); /*merchant: no floor-cache effect*/
   s->archetype = ARCH_MERCHANT;
   s->entity_id = (*next_id)++;
   s->floor_id = 0;
@@ -431,7 +432,7 @@ void spawn_city_merchants(NPC *npcs, int *next_id) {
 
   // 4: Black Market - The Shadow's Edge
   NPC *m = &npcs[4];
-  m->active = true;
+  npc_set_active(m, true); /*merchant: no floor-cache effect*/
   m->archetype = ARCH_MERCHANT;
   m->entity_id = (*next_id)++;
   m->floor_id = 0;
@@ -462,7 +463,7 @@ void spawn_magic_shops(NPC *npcs, int *next_id) {
 
   // 5: Magic and Utility - Master Xanthus
   NPC *m = &npcs[5];
-  m->active = true;
+  npc_set_active(m, true); /*merchant: no floor-cache effect*/
   m->archetype = ARCH_MERCHANT;
   m->entity_id = (*next_id)++;
   m->floor_id = 0;
@@ -479,7 +480,7 @@ void spawn_magic_shops(NPC *npcs, int *next_id) {
 
   //6: Sanctum of Prayers - Sister Elara
   NPC *p = &npcs[6];
-  p->active = true;
+  npc_set_active(p, true); /*merchant: no floor-cache effect*/
   p->archetype = ARCH_MERCHANT;
   p->entity_id = (*next_id)++;
   p->floor_id = 0;
@@ -496,7 +497,7 @@ void spawn_magic_shops(NPC *npcs, int *next_id) {
 
   // 7: Catalyst Emporium - Master Malchor
   NPC *c = &npcs[7];
-  c->active = true;
+  npc_set_active(c, true); /*merchant: no floor-cache effect*/
   c->archetype = ARCH_MERCHANT;
   c->entity_id = (*next_id)++;
   c->floor_id = 0;
@@ -513,7 +514,7 @@ void spawn_magic_shops(NPC *npcs, int *next_id) {
 
   // 8: Arcane Bookshop (books for mages, warlocks, etc.)
   NPC *r = &npcs[8];
-  r->active = true;
+  npc_set_active(r, true); /*merchant: no floor-cache effect*/
   r->archetype = ARCH_MERCHANT;
   r->entity_id = (*next_id)++;
   r->floor_id = 0;
@@ -530,7 +531,7 @@ void spawn_magic_shops(NPC *npcs, int *next_id) {
 
   // 9: Temple Library (books of clerics, druids, etc.)
   NPC *b = &npcs[9];
-  b->active = true;
+  npc_set_active(b, true); /*merchant: no floor-cache effect*/
   b->archetype = ARCH_MERCHANT;
   b->entity_id = (*next_id)++;
   b->floor_id = 0;
@@ -562,7 +563,7 @@ void spawn_martial_archive(NPC *npcs, int *next_id) {
   int ay = cy + (int)(sinf(angle) * 26.0f);
 
   NPC *a = &npcs[10];
-  a->active = true;
+  npc_set_active(a, true); /*merchant: no floor-cache effect*/
   a->archetype = ARCH_MERCHANT;
   a->entity_id = (*next_id)++;
   a->floor_id = 0;
@@ -595,7 +596,9 @@ void populate_dungeons(NPC *npcs, int *next_id) {
       if (fread(&b, sizeof(BonesData), 1, bfile) == 1) {
         if (npc_idx < MAX_NPCS) {
           NPC *g = &npcs[npc_idx++];
-          g->active = true;
+          /*active is set at the END of this block (after the template is
+           *chosen) through npc_set_active: the helper must see the FINAL
+           *fields to update the floor cache correctly (A2).*/
           g->archetype = ARCH_BOSS;
           g->entity_id = (*next_id)++;
           g->floor_id = f;
@@ -622,6 +625,7 @@ void populate_dungeons(NPC *npcs, int *next_id) {
             g->ghost_loot[i].stack_count = b.amounts[i];
           }
           ai_init_npc(g, g->template->name, g->floor_id);
+          npc_set_active(g, true);
         }
       }
       fclose(bfile);
@@ -655,7 +659,8 @@ void populate_dungeons(NPC *npcs, int *next_id) {
         int boss_id = floor_pool[r_idx];
 
         NPC *b = &npcs[npc_idx++];
-        b->active = true;
+        /*active is set at the END of this block (after the template is
+         *assigned) through npc_set_active — see the ghost block above.*/
         b->archetype = ARCH_BOSS;
         b->entity_id = (*next_id)++;
         b->floor_id = f;
@@ -674,6 +679,7 @@ void populate_dungeons(NPC *npcs, int *next_id) {
         snprintf(b->custom_name, sizeof(b->custom_name), "Boss %s", b->template->name);
         
         ai_init_npc(b, b->custom_name, b->floor_id);
+        npc_set_active(b, true);
       }
       if (floor_pool) free(floor_pool);
       continue; //Boss floors only have the boss
@@ -717,7 +723,8 @@ void populate_dungeons(NPC *npcs, int *next_id) {
         }
 
         NPC *n = &npcs[npc_idx++];
-        n->active = true;
+        /*active is set at the END of this block (after the template is
+         *assigned) through npc_set_active — see the ghost block above.*/
         n->archetype = ARCH_MELEE; //ai_init refines it
         n->entity_id = (*next_id)++;
         n->floor_id = f;
@@ -733,6 +740,7 @@ void populate_dungeons(NPC *npcs, int *next_id) {
         //ai_init_npc calculates hp, max_hp, ac, attack_bonus, damage dice
         //and assign archetype + behavior tree based on the monster name
         ai_init_npc(n, n->template->name, n->floor_id);
+        npc_set_active(n, true);
       }
     }
 
@@ -762,7 +770,6 @@ void populate_dungeons(NPC *npcs, int *next_id) {
       }
       if (lx != -1) {
         NPC *s = &npcs[npc_idx++];
-        s->active = true;
         s->entity_id = (*next_id)++;
         s->floor_id = f;
         s->x = lx;
@@ -774,6 +781,9 @@ void populate_dungeons(NPC *npcs, int *next_id) {
         s->template = NULL; //No template, so it doesn't respawn as a monster
         s->hp = 9999;
         s->max_hp = 9999;
+        /*template==NULL: not counted by the floor cache, but the
+         *activation still goes through the single entry point (A2).*/
+        npc_set_active(s, true);
 
         if (rand() % 4 == 0) {
           s->archetype = ARCH_TREASURE;
@@ -800,7 +810,7 @@ void populate_dungeons(NPC *npcs, int *next_id) {
       }
       if (lx != -1) {
         NPC *s = &npcs[npc_idx++];
-        s->active = true;
+        npc_set_active(s, true); /*merchant: no floor-cache effect*/
         s->archetype = ARCH_MERCHANT;
         s->entity_id = (*next_id)++;
         s->floor_id = f;

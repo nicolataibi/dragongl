@@ -336,6 +336,12 @@ AINodeStatus ai_swarm_behavior(NPC* npc, Client* clients, int num_clients, bool 
                             
                             NPC* clone = &all_npcs[slot];
                             *clone = *npc; //copy all stats
+                            /*The copy also copied active=true: undo it so
+                             *the activation below goes through npc_set_active
+                             *(the single point that updates the O(1) floor
+                             *cache, A2) — a raw struct copy has no chance
+                             *to keep the density counters in sync.*/
+                            clone->active = false;
                             /*A truly unique ID: the slot index could
                              * collide with an already-assigned entity_id
                              * (NPC or player) and corrupt the
@@ -351,7 +357,12 @@ AINodeStatus ai_swarm_behavior(NPC* npc, Client* clients, int num_clients, bool 
                              * spot after dying in different places.*/
                             clone->spawn_x = nx;
                             clone->spawn_y = ny;
-                            
+                            /*All fields are final now: activate the clone
+                             *through the helper so the floor cache counts it
+                             *(the old split never did — a drift of one NPC
+                             *per split until the next full rebuild).*/
+                            npc_set_active(clone, true);
+
                             broadcast_spell_vfx(npc->x, npc->y, nx, ny, 1, 0.0f, 1.0f, 0.0f, npc->floor_id); // Green explosion
                             return AI_SUCCESS;
                         }
@@ -367,7 +378,15 @@ AINodeStatus ai_swarm_behavior(NPC* npc, Client* clients, int num_clients, bool 
 }
 
 void ai_update_npc(NPC* npc, Client* clients, int num_clients, bool new_round, NPC* all_npcs) {
-    if (!npc || !npc->active || npc->archetype == ARCH_MERCHANT) return;
+    /*Merchants have no AI; TREASURE and GOLD have NO AI at all: they are
+     * pickable loot with template==NULL. Running them through the default
+     * behavior made them walk to the player and call
+     * perform_attack_npc -> n->template->name -> NULL deref (server crash).
+     * Summoned elementals keep the melee AI (they DO fight).*/
+    if (!npc || !npc->active) return;
+    if (npc->archetype == ARCH_MERCHANT ||
+        npc->archetype == ARCH_TREASURE ||
+        npc->archetype == ARCH_GOLD) return;
 
     AINodeFunc root = (AINodeFunc)npc->ai_ctx.behavior_tree_root;
     if (root) {
@@ -399,12 +418,9 @@ AINodeStatus ai_mage_behavior(NPC* npc, Client* clients, int num_clients, bool n
                 dmg, target->hp > 0 ? target->hp : 0, target->max_hp);
             if (target->hp <= 0) {
                 target->hp = 0;
-                clog_death(target->username, npc->template->name, npc->floor_id);
+                clog_death(target->username, npc_name(npc), npc->floor_id);
                 save_bones(target);
-                target->hp = target->max_hp;
-                target->floor_id = 0;
-                target->x = MAP_CENTER_X + 1;
-                target->y = MAP_CENTER_Y + 1;
+                player_respawn_town(target);
                 send_text_to_client(target->sock,
                     "[SYSTEM] You died! The Arcane has returned you to town without your equipment!");
             }

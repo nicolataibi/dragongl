@@ -26,7 +26,7 @@ show_help() {
     echo "  -P, --port <port>          TCP port (default: 8080)"
     echo "  -h, --help                 Shows this help message"
     echo -e "\nExample:"
-    echo "  $0 --password segreto123 --dm-password dm123 --port 9000"
+    echo "  $0 --password myPwd123 --dm-password dm123 --port 9000"
 }
 
 # Parsing parameters

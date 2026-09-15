@@ -676,8 +676,34 @@ static void push_box_oriented(VkVertex *v, uint32_t *c,
     }
 }
 
+/*The map mesh is built only for a WINDOW around the player, not the
+ * whole 300x300 floor. The fragment shader DISCARDS every fragment
+ * further than visionRadius (max 50 in the city), so geometry outside
+ * that radius is never visible — yet the old code emitted all ~90 000
+ * tiles and redid it on every map chunk, i.e. on EVERY step while
+ * exploring: 3M+ vertices (~130 MB of coherent writes) per step, the
+ * 100-130 ms CPU stall the player felt as stutter.
+ *
+ * Rebuild policy (simple because it is now cheap):
+ *  - skip the rebuild when the built window still covers the player's
+ *    required window and no tile data changed (g_map_dirty is set by
+ *    the net thread ONLY when a chunk actually differs from
+ *    g_local_map, so no-op chunks cost nothing);
+ *  - otherwise rebuild the window around the current position with a
+ *    BUILD_MARGIN, so a rebuild re-happens only after ~MARGIN tiles of
+ *    travel (amortized), not on every step.
+ * The persistent vertex buffer keeps the map block intact between
+ * frames; only the entity/particle tail is rewritten every frame.*/
+#define VK_MAP_VISION_MARGIN 8   /*fog fade-out slack beyond visionRadius */
+#define VK_MAP_BUILD_MARGIN  16  /*rebuild amortization: tiles of travel  */
+#define VK_MAP_MIN_RADIUS   16
+#define VK_MAP_MAX_RADIUS   56   /*city visionRadius is 50 (50+8 -> 56)   */
+
 static uint32_t s_map_vertex_count = 0;
 static bool s_map_built = false;
+static int s_map_floor = -1;
+static int s_map_win_x0 = 0, s_map_win_y0 = 0;
+static int s_map_win_x1 = -1, s_map_win_y1 = -1;
 
 static void update_vertex_buffer(VkState *s, VkVertex *v, float dt, FrameSnapshot *snap) {
     uint32_t count = 0;
@@ -687,95 +713,96 @@ static void update_vertex_buffer(VkState *s, VkVertex *v, float dt, FrameSnapsho
     int vr = snap->vision_radius;
     bool full = false;
 
-    if (g_map_dirty) {
-        s_map_built = false;
-        g_map_dirty = false;
-    }
+    if (snap->my_x >= 0 && snap->my_y >= 0) {
+        int R = vr + VK_MAP_VISION_MARGIN;
+        if (R < VK_MAP_MIN_RADIUS) R = VK_MAP_MIN_RADIUS;
+        if (R > VK_MAP_MAX_RADIUS) R = VK_MAP_MAX_RADIUS;
+        int need_x0 = snap->my_x - R, need_x1 = snap->my_x + R;
+        int need_y0 = snap->my_y - R, need_y1 = snap->my_y + R;
+        if (need_x0 < 0) need_x0 = 0;
+        if (need_y0 < 0) need_y0 = 0;
+        if (need_x1 >= MAP_WIDTH) need_x1 = MAP_WIDTH - 1;
+        if (need_y1 >= MAP_HEIGHT) need_y1 = MAP_HEIGHT - 1;
+        bool covers = s_map_built && s_map_floor == snap->my_floor &&
+                      s_map_win_x0 <= need_x0 && s_map_win_x1 >= need_x1 &&
+                      s_map_win_y0 <= need_y0 && s_map_win_y1 >= need_y1;
+        if (g_map_dirty || !covers) {
+            int bR = R + VK_MAP_BUILD_MARGIN;
+            int x0 = snap->my_x - bR; if (x0 < 0) x0 = 0;
+            int x1 = snap->my_x + bR; if (x1 >= MAP_WIDTH) x1 = MAP_WIDTH - 1;
+            int y0 = snap->my_y - bR; if (y0 < 0) y0 = 0;
+            int y1 = snap->my_y + bR; if (y1 >= MAP_HEIGHT) y1 = MAP_HEIGHT - 1;
+            count = 0;
+            for (y = y0; y <= y1 && !full; y++) {
+                for (x = x0; x <= x1 && !full; x++) {
+                    float fx = (float)x;
+                    float fz = (float)y;
+                    VoxelType tile = snap->map[y][x];
+                    if (tile == 0) continue; // optimization
 
-    if (!s_map_built) {
-        for (y = 0; y < MAP_HEIGHT && !full; y++) {
-            for (x = 0; x < MAP_WIDTH; x++) {
-                float fx = (float)x;
-                float fz = (float)y;
-                VoxelType tile = snap->map[y][x];
-                if (tile == 0) continue; // optimization
-
-                if (tile == VOXEL_WALL || tile == VOXEL_OBSIDIAN || tile == VOXEL_GOLD_VEIN) {
-                    if (count + 36 > s->max_vertices) { full = true; break; }
-                    if (tile == VOXEL_OBSIDIAN) push_box(v, &count, fx, 0.5f, fz, 0.5f, 1.5f, 0.5f, 0.1f, 0.05f, 0.2f);
-                    else if (tile == VOXEL_GOLD_VEIN) push_box(v, &count, fx, 0.5f, fz, 0.5f, 1.5f, 0.5f, 0.8f, 0.7f, 0.1f);
-                    else push_box(v, &count, fx, 0.5f, fz, 0.5f, 1.5f, 0.5f, 0.6f, 0.6f, 0.6f);
-                } else if (tile == VOXEL_FLOOR || tile == VOXEL_COBBLE || tile == VOXEL_WOOD || tile == VOXEL_ICE || tile == VOXEL_SAND || tile == VOXEL_ASH || tile == VOXEL_MUD || tile == VOXEL_MARBLE || tile == VOXEL_GRASS || tile == VOXEL_TRAP) {
-                    if (count + 36 > s->max_vertices) { full = true; break; }
-                    float r=0.2f, g=0.2f, b=0.2f;
-                    if (tile == VOXEL_WOOD) { r=0.4f; g=0.3f; b=0.2f; }
-                    if (tile == VOXEL_COBBLE) { r=0.3f; g=0.3f; b=0.3f; }
-                    if (tile == VOXEL_ICE) { r=0.6f; g=0.8f; b=1.0f; }
-                    if (tile == VOXEL_SAND) { r=0.8f; g=0.7f; b=0.4f; }
-                    if (tile == VOXEL_ASH) { r=0.25f; g=0.25f; b=0.25f; }
-                    if (tile == VOXEL_MUD) { r=0.3f; g=0.2f; b=0.1f; }
-                    if (tile == VOXEL_MARBLE) { r=0.9f; g=0.9f; b=0.9f; }
-                    if (tile == VOXEL_GRASS) { r=0.1f; g=0.5f; b=0.1f; }
-                    if (tile == VOXEL_TRAP) { r=0.8f; g=0.2f; b=0.1f; }
-                    push_box(v, &count, fx, 0.0f, fz, 0.5f, 0.1f, 0.5f, r, g, b);
-                } else if (tile >= VOXEL_CRYSTAL_BLUE && tile <= VOXEL_CRYSTAL_WHITE) {
-                    if (count + 36 > s->max_vertices) { full = true; break; }
-                    float r = 1.0f, g = 1.0f, b = 1.0f;
-                    if (tile == VOXEL_CRYSTAL_BLUE)   { r = 0.3f; g = 0.7f; b = 1.0f; }
-                    if (tile == VOXEL_CRYSTAL_PURPLE)  { r = 0.8f; g = 0.2f; b = 1.0f; }
-                    if (tile == VOXEL_CRYSTAL_RED)     { r = 1.0f; g = 0.1f; b = 0.1f; }
-                    if (tile == VOXEL_CRYSTAL_GREEN)   { r = 0.1f; g = 1.0f; b = 0.2f; }
-                    if (tile == VOXEL_CRYSTAL_YELLOW)  { r = 1.0f; g = 0.9f; b = 0.1f; }
-                    if (tile == VOXEL_CRYSTAL_ORANGE)  { r = 1.0f; g = 0.5f; b = 0.0f; }
-                    if (tile == VOXEL_CRYSTAL_CYAN)    { r = 0.0f; g = 0.9f; b = 1.0f; }
-                    push_box(v, &count, fx, 0.8f, fz, 0.4f, 0.8f, 0.4f, r, g, b);
-                } else if (tile == VOXEL_WALL) {
-                    if (count + 36 > s->max_vertices) { full = true; break; }
-                    push_box(v, &count, fx, 0.5f, fz, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f);
-                } else if (tile == VOXEL_FLOOR) {
-                    if (count + 36 > s->max_vertices) { full = true; break; }
-                    push_box(v, &count, fx, -0.05f, fz, 0.5f, 0.05f, 0.5f, 0.2f, 0.2f, 0.25f);
-                } else if (tile == VOXEL_OBSIDIAN) {
-                    if (count + 36 > s->max_vertices) { full = true; break; }
-                    push_box(v, &count, fx, 0.5f, fz, 0.5f, 0.5f, 0.5f, 0.1f, 0.05f, 0.2f);
-                } else if (tile == VOXEL_GOLD_VEIN) {
-                    if (count + 36 > s->max_vertices) { full = true; break; }
-                    push_box(v, &count, fx, 0.5f, fz, 0.5f, 0.5f, 0.5f, 0.8f, 0.7f, 0.1f);
-                } else if (tile == VOXEL_WATER || tile == VOXEL_LAVA) {
-                    // Static water/lava base, we can animate it in shader if needed, or leave it flat
-                    if (count + 36 > s->max_vertices) { full = true; break; }
-                    if (tile == VOXEL_WATER) push_box(v, &count, fx, -0.05f, fz, 0.5f, 0.05f, 0.5f, 0.1f, 0.4f, 0.8f);
-                    else push_box(v, &count, fx, -0.05f, fz, 0.5f, 0.05f, 0.5f, 1.0f, 0.3f, 0.0f);
-                } else if (tile == VOXEL_DOOR) {
-                    if (count + 72 <= s->max_vertices && !full) {
-                        push_box(v, &count, fx, 0.4f, fz, 0.45f, 0.4f, 0.45f, 0.6f, 0.3f, 0.1f);
-                        push_box(v, &count, fx, -0.05f, fz, 0.5f, 0.05f, 0.5f, 0.2f, 0.2f, 0.25f);
+                    if (tile == VOXEL_WALL || tile == VOXEL_OBSIDIAN || tile == VOXEL_GOLD_VEIN) {
+                        if (count + 36 > s->max_vertices) { full = true; break; }
+                        if (tile == VOXEL_OBSIDIAN) push_box(v, &count, fx, 0.5f, fz, 0.5f, 1.5f, 0.5f, 0.1f, 0.05f, 0.2f);
+                        else if (tile == VOXEL_GOLD_VEIN) push_box(v, &count, fx, 0.5f, fz, 0.5f, 1.5f, 0.5f, 0.8f, 0.7f, 0.1f);
+                        else push_box(v, &count, fx, 0.5f, fz, 0.5f, 1.5f, 0.5f, 0.6f, 0.6f, 0.6f);
+                    } else if (tile == VOXEL_FLOOR || tile == VOXEL_COBBLE || tile == VOXEL_WOOD || tile == VOXEL_ICE || tile == VOXEL_SAND || tile == VOXEL_ASH || tile == VOXEL_MUD || tile == VOXEL_MARBLE || tile == VOXEL_GRASS || tile == VOXEL_TRAP) {
+                        if (count + 36 > s->max_vertices) { full = true; break; }
+                        float r=0.2f, g=0.2f, b=0.2f;
+                        if (tile == VOXEL_WOOD) { r=0.4f; g=0.3f; b=0.2f; }
+                        if (tile == VOXEL_COBBLE) { r=0.3f; g=0.3f; b=0.3f; }
+                        if (tile == VOXEL_ICE) { r=0.6f; g=0.8f; b=1.0f; }
+                        if (tile == VOXEL_SAND) { r=0.8f; g=0.7f; b=0.4f; }
+                        if (tile == VOXEL_ASH) { r=0.25f; g=0.25f; b=0.25f; }
+                        if (tile == VOXEL_MUD) { r=0.3f; g=0.2f; b=0.1f; }
+                        if (tile == VOXEL_MARBLE) { r=0.9f; g=0.9f; b=0.9f; }
+                        if (tile == VOXEL_GRASS) { r=0.1f; g=0.5f; b=0.1f; }
+                        if (tile == VOXEL_TRAP) { r=0.8f; g=0.2f; b=0.1f; }
+                        push_box(v, &count, fx, 0.0f, fz, 0.5f, 0.1f, 0.5f, r, g, b);
+                    } else if (tile >= VOXEL_CRYSTAL_BLUE && tile <= VOXEL_CRYSTAL_WHITE) {
+                        if (count + 36 > s->max_vertices) { full = true; break; }
+                        float r = 1.0f, g = 1.0f, b = 1.0f;
+                        if (tile == VOXEL_CRYSTAL_BLUE)   { r = 0.3f; g = 0.7f; b = 1.0f; }
+                        if (tile == VOXEL_CRYSTAL_PURPLE)  { r = 0.8f; g = 0.2f; b = 1.0f; }
+                        if (tile == VOXEL_CRYSTAL_RED)     { r = 1.0f; g = 0.1f; b = 0.1f; }
+                        if (tile == VOXEL_CRYSTAL_GREEN)   { r = 0.1f; g = 1.0f; b = 0.2f; }
+                        if (tile == VOXEL_CRYSTAL_YELLOW)  { r = 1.0f; g = 0.9f; b = 0.1f; }
+                        if (tile == VOXEL_CRYSTAL_ORANGE)  { r = 1.0f; g = 0.5f; b = 0.0f; }
+                        if (tile == VOXEL_CRYSTAL_CYAN)    { r = 0.0f; g = 0.9f; b = 1.0f; }
+                        push_box(v, &count, fx, 0.8f, fz, 0.4f, 0.8f, 0.4f, r, g, b);
+                    } else if (tile == VOXEL_WATER || tile == VOXEL_LAVA) {
+                        if (count + 36 > s->max_vertices) { full = true; break; }
+                        if (tile == VOXEL_WATER) push_box(v, &count, fx, -0.05f, fz, 0.5f, 0.05f, 0.5f, 0.1f, 0.4f, 0.8f);
+                        else push_box(v, &count, fx, -0.05f, fz, 0.5f, 0.05f, 0.5f, 1.0f, 0.3f, 0.0f);
+                    } else if (tile == VOXEL_DOOR) {
+                        if (count + 72 <= s->max_vertices && !full) {
+                            push_box(v, &count, fx, 0.4f, fz, 0.45f, 0.4f, 0.45f, 0.6f, 0.3f, 0.1f);
+                            push_box(v, &count, fx, -0.05f, fz, 0.5f, 0.05f, 0.5f, 0.2f, 0.2f, 0.25f);
+                        }
+                    } else if (tile == VOXEL_STAIRS_DOWN || tile == VOXEL_STAIRS_UP) {
+                        if (count + 36 > s->max_vertices) { full = true; break; }
+                        push_box(v, &count, fx, 0.05f, fz, 0.5f, 0.1f, 0.5f, 0.9f, 0.9f, 0.0f);
+                    } else if (tile == VOXEL_MUSHROOM_GLOW) {
+                        if (count + 36 > s->max_vertices) { full = true; break; }
+                        push_box(v, &count, fx, 0.2f, fz, 0.3f, 0.2f, 0.3f, 0.2f, 1.0f, 0.5f);
                     }
-                } else if (tile == VOXEL_GRASS) {
-                    if (count + 36 > s->max_vertices) { full = true; break; }
-                    push_box(v, &count, fx, -0.05f, fz, 0.5f, 0.05f, 0.5f, 0.1f, 0.5f, 0.1f);
-                } else if (tile == VOXEL_STAIRS_DOWN || tile == VOXEL_STAIRS_UP) {
-                    if (count + 36 > s->max_vertices) { full = true; break; }
-                    push_box(v, &count, fx, 0.05f, fz, 0.5f, 0.1f, 0.5f, 0.9f, 0.9f, 0.0f);
-                } else if (tile == VOXEL_TRAP) {
-                    if (count + 36 > s->max_vertices) { full = true; break; }
-                    push_box(v, &count, fx, -0.05f, fz, 0.5f, 0.05f, 0.5f, 0.8f, 0.2f, 0.1f);
-                } else if (tile == VOXEL_MUSHROOM_GLOW) {
-                    if (count + 36 > s->max_vertices) { full = true; break; }
-                    push_box(v, &count, fx, 0.2f, fz, 0.3f, 0.2f, 0.3f, 0.2f, 1.0f, 0.5f);
-                } else if (tile >= VOXEL_CRYSTAL_BLUE && tile <= VOXEL_CRYSTAL_WHITE) {
-                    if (count + 36 > s->max_vertices) { full = true; break; }
-                    push_box(v, &count, fx, 0.8f, fz, 0.4f, 0.8f, 0.4f, 0.5f, 0.8f, 1.0f);
                 }
             }
+            s_map_vertex_count = count;
+            s_map_built = true;
+            s_map_floor = snap->my_floor;
+            s_map_win_x0 = x0; s_map_win_y0 = y0;
+            s_map_win_x1 = x1; s_map_win_y1 = y1;
+            g_map_dirty = false;
         }
-        s_map_vertex_count = count;
-        s_map_built = true;
+    } else {
+        /*Not in the game yet: no map, and forget the previous floor.*/
+        s_map_built = false;
+        s_map_vertex_count = 0;
+        s_map_floor = -1;
+        s_map_win_x1 = -1;
+        g_map_dirty = false;
     }
     count = s_map_vertex_count;
-    /* DUMMY REPLACE FOR OLD LOOP TO KEEP REGEX HAPPY */
-    if (false) {
-    }
 
     // Rendering entities with lerp
     for (int i = 0; i < CLIENT_MAX_ENTITIES; i++) {
@@ -833,7 +860,10 @@ static void update_vertex_buffer(VkState *s, VkVertex *v, float dt, FrameSnapsho
 
     //Boss Trophies removed as per request.
 
-    //Update and draw particles (update delegated to the main loop, here only vbo mapping)
+    //Draw particles. NOTE: the SIMULATION (positions, life, alpha, and
+    //freeing the slots) is NOT done here — it runs in draw_frame() via
+    //particles_update(dt), BEFORE this vertex buffer is filled (A4).
+    //Here we only map the pool into the VBO.
     for (int i = 0; i < MAX_PARTICLES; i++) {
         if (!g_particles[i].active) continue;
         Particle *p = &g_particles[i];
@@ -856,7 +886,12 @@ static void update_vertex_buffer(VkState *s, VkVertex *v, float dt, FrameSnapsho
         }
     }
 
-    pthread_mutex_unlock(&g_state_mutex);
+    /*No pthread_mutex_unlock here: update_vertex_buffer runs on the
+     * RENDER thread over a private FrameSnapshot — frame_snapshot_acquire
+     * already locked, copied and UNLOCKED the state mutex. The unlock
+     * that used to be here was unmatched: releasing a mutex the calling
+     * thread does not hold is undefined behavior (it can corrupt the
+     * mutex and, with it, every other thread).*/
     s->vertex_count = count;
 }
 
@@ -991,6 +1026,22 @@ static void draw_frame(VkState *s) {
         s->current_frame = next_slot;
         return;
     }
+
+    /*A4: advance the particle simulation with this frame's dt. The GL
+     *backend does the same in its render loop (render_gl.c), but the VK
+     *path never did — the comment in update_vertex_buffer claimed the
+     *update was "delegated to the main loop" and there it simply wasn't
+     *called. Result: particles froze in place (alpha stuck at 1.0, no
+     *motion, slots never freed), the 2000-slot pool saturated after a
+     *few seconds of magic (one fireball alone spawns 200), and spawn_vfx
+     *found no free slot again — no VFX at all until the client restarted.
+     *Running it here, right before the VBO is filled from the pool, keeps
+     *both backends on the exact same cadence (once per rendered frame).
+     *Threading: identical to the GL backend — the net thread spawns via
+     *spawn_vfx() (net_thread.c) while the render thread updates, a
+     *tolerated loose race on a best-effort VFX pool, not made worse by
+     *this change.*/
+    particles_update(dt);
 
     update_vertex_buffer(s, v, dt, &snap);
 

@@ -30,6 +30,19 @@ void floor_stats_rebuild(NPC *npcs);
 void floor_stats_npc_died(int floor_id);
 void floor_stats_npc_spawned(int floor_id);
 
+/* THE single point where an NPC's alive/dead state changes: sets
+ * n->active and, in the same step, keeps the per-floor O(1) stats cache
+ * consistent (the density monitor reads it). It applies exactly the same
+ * accounting as floor_stats_rebuild() — merchants are excluded, slots
+ * without a template (gold piles, chests, dropped items, summons) and
+ * out-of-range floors are ignored — so the cache can never drift.
+ * Use it at EVERY spawn/death site instead of writing n->active by hand:
+ * the old code had 20+ hand-written mutations of which only a handful
+ * called floor_stats_npc_died/spawned, so AoE kills, DM spawns, drops,
+ * summons and ghosts all left the cache stale (floors looked fuller than
+ * they were, and emergency respawns fired late).*/
+void npc_set_active(NPC *n, bool active);
+
 /* Per-floor index of active NPCs — local queries (broadcast on a step,
  * aggro on an attack, swarm splits) iterate O(entities on the floor)
  * instead of scanning all MAX_NPCS (50k) slots.
