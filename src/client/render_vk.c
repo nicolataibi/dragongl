@@ -247,6 +247,10 @@ static void draw_text_vk(VkVertex *v, uint32_t *c, uint32_t max_v,
 /*Updates the minimap and draws it into the HUD vertex buffer*/
 static void draw_minimap_vk(VkVertex *v, uint32_t *c, uint32_t max_v,
                              int px, int py, float ox, float oy, float cell_sz) {
+    /*Safe to use the LIVE g_local_map here (unlike the GL path, which
+     * must pass the snapshot copy): the only caller, render_vk_hud(), is
+     * always invoked while holding g_state_mutex (see render_frame), and
+     * the net thread writes the map under that same lock.*/
     minimap_update(px, py, g_local_map, g_vision_radius);
     int buf_size = MINIMAP_BUF_SIZE;
     for (int by = 0; by < buf_size; by++) {
@@ -745,7 +749,9 @@ static void update_vertex_buffer(VkState *s, VkVertex *v, float dt, FrameSnapsho
         bool covers = s_map_built && s_map_floor == snap->my_floor &&
                       s_map_win_x0 <= need_x0 && s_map_win_x1 >= need_x1 &&
                       s_map_win_y0 <= need_y0 && s_map_win_y1 >= need_y1;
-        if (g_map_dirty || !covers) {
+        /*Atomic load: the net thread may set the flag (under
+         * g_state_mutex) at any moment; a plain read races with it.*/
+        if (atomic_load_explicit(&g_map_dirty, memory_order_acquire) || !covers) {
             int bR = R + VK_MAP_BUILD_MARGIN;
             int x0 = snap->my_x - bR; if (x0 < 0) x0 = 0;
             int x1 = snap->my_x + bR; if (x1 >= MAP_WIDTH) x1 = MAP_WIDTH - 1;
@@ -758,7 +764,9 @@ static void update_vertex_buffer(VkState *s, VkVertex *v, float dt, FrameSnapsho
                 fprintf(stderr, "[VK] Map vertex cache allocation failed\n");
                 s_map_vertex_count = 0;
                 s_map_built = false;
-                g_map_dirty = false;
+                /*Exchange (not store): a set racing with this clear must
+                 * survive, or the mesh would never be rebuilt.*/
+                (void)atomic_exchange_explicit(&g_map_dirty, false, memory_order_acq_rel);
                 return;
             }
             for (y = y0; y <= y1 && !full; y++) {
@@ -820,7 +828,7 @@ static void update_vertex_buffer(VkState *s, VkVertex *v, float dt, FrameSnapsho
             s_map_floor = snap->my_floor;
             s_map_win_x0 = x0; s_map_win_y0 = y0;
             s_map_win_x1 = x1; s_map_win_y1 = y1;
-            g_map_dirty = false;
+            (void)atomic_exchange_explicit(&g_map_dirty, false, memory_order_acq_rel);
         }
     } else {
         /*Not in the game yet: no map, and forget the previous floor.*/
@@ -828,7 +836,7 @@ static void update_vertex_buffer(VkState *s, VkVertex *v, float dt, FrameSnapsho
         s_map_vertex_count = 0;
         s_map_floor = -1;
         s_map_win_x1 = -1;
-        g_map_dirty = false;
+        (void)atomic_exchange_explicit(&g_map_dirty, false, memory_order_acq_rel);
     }
     count = s_map_vertex_count;
     if (count > 0 && s_map_vertices) {
@@ -895,6 +903,11 @@ static void update_vertex_buffer(VkState *s, VkVertex *v, float dt, FrameSnapsho
     //freeing the slots) is NOT done here — it runs in draw_frame() via
     //particles_update(dt), BEFORE this vertex buffer is filled (A4).
     //Here we only map the pool into the VBO.
+    /*B1: the net thread may be spawning particles concurrently
+     * (spawn_vfx on MSG_SPELL_VFX) and this pass also WRITES p->a, so
+     * the whole mapping runs under g_particles_mutex (the same mutex
+     * particles_update takes, called just above in draw_frame).*/
+    pthread_mutex_lock(&g_particles_mutex);
     for (int i = 0; i < MAX_PARTICLES; i++) {
         if (!g_particles[i].active) continue;
         Particle *p = &g_particles[i];
@@ -916,6 +929,7 @@ static void update_vertex_buffer(VkState *s, VkVertex *v, float dt, FrameSnapsho
             push_box(v, &count, fx, -fy, fz, p->size, p->size, p->size, pr, pg, pb);
         }
     }
+    pthread_mutex_unlock(&g_particles_mutex);
 
     /*No pthread_mutex_unlock here: update_vertex_buffer runs on the
      * RENDER thread over a private FrameSnapshot — frame_snapshot_acquire
@@ -1069,10 +1083,11 @@ static void draw_frame(VkState *s) {
      *found no free slot again — no VFX at all until the client restarted.
      *Running it here, right before the VBO is filled from the pool, keeps
      *both backends on the exact same cadence (once per rendered frame).
-     *Threading: identical to the GL backend — the net thread spawns via
-     *spawn_vfx() (net_thread.c) while the render thread updates, a
-     *tolerated loose race on a best-effort VFX pool, not made worse by
-     *this change.*/
+     *Threading: the pool is shared with the net thread (spawn_vfx on
+     *MSG_SPELL_VFX) but is now fully protected — both this call and the
+     *VBO mapping pass below hold g_particles_mutex (B1, see
+     *client_particles.h), so the "tolerated loose race" that used to
+     *live here is gone.*/
     particles_update(dt);
 
     update_vertex_buffer(s, v, dt, &snap);

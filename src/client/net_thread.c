@@ -24,7 +24,10 @@
 #include <string.h>
 #include "client_state.h"
 #include "client_fct.h"
-bool g_map_dirty = false;
+/*Atomic: shared between the net thread (sets, under g_state_mutex) and
+ * the VK render thread (reads/clears, without the lock) — see the
+ * declaration in client_state.h.*/
+atomic_bool g_map_dirty = false;
 #include "client_minimap.h"
 #include "client_particles.h"
 #include "protocol.h"

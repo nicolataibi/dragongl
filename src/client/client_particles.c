@@ -20,6 +20,7 @@
 #include "client_particles.h"
 #include <stdlib.h>
 #include <string.h>
+#include <pthread.h>
 
 /*Helper: random float in [0, 1] without triggering RAND_MAX int->float warning*/
 static inline float randf(void) {
@@ -27,12 +28,16 @@ static inline float randf(void) {
 }
 
 Particle g_particles[MAX_PARTICLES];
+/*See client_particles.h: guards the pool against the net thread, which
+ * spawns concurrently (B1).*/
+pthread_mutex_t g_particles_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void particles_init(void) {
     memset(g_particles, 0, sizeof(g_particles));
 }
 
 void particles_update(float dt) {
+    pthread_mutex_lock(&g_particles_mutex);
     for (int i = 0; i < MAX_PARTICLES; i++) {
         if (!g_particles[i].active) continue;
         Particle *p = &g_particles[i];
@@ -50,9 +55,11 @@ void particles_update(float dt) {
             p->active = false;
         }
     }
+    pthread_mutex_unlock(&g_particles_mutex);
 }
 
 void spawn_vfx(int type, float sx, float sy, float tx, float ty, float r, float g, float b) {
+    pthread_mutex_lock(&g_particles_mutex);
     int count = 50; 
     if (type == 1) count = 200; // explosion / fireball
     if (type == 2) count = 100; // aura / heal
@@ -130,4 +137,5 @@ void spawn_vfx(int type, float sx, float sy, float tx, float ty, float r, float 
             p->r = 0.7f; p->g = 0.9f; p->b = 1.0f; // Ice blue
         }
     }
+    pthread_mutex_unlock(&g_particles_mutex);
 }

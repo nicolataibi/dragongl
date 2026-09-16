@@ -75,35 +75,44 @@ static void lerp_update(LerpPos *lp, float tgt_x, float tgt_z, float dt) {
 
 
 
-static void draw_particles(void) {
+/*px/py/vr come from the caller's per-frame FrameSnapshot: the old code
+ * read g_my_x/g_my_y/g_vision_radius LIVE here, which raced with the net
+ * thread's writes under g_state_mutex (same class as B1/B2).*/
+static void draw_particles(int px, int py, int vr) {
     glDisable(GL_LIGHTING);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE); // Additive blending for magic
     glDepthMask(GL_FALSE); // don't write to depth buffer
-    float px = (float)g_my_x;
-    float pz = (float)g_my_y;
+    float px_f = (float)px;
+    float pz_f = (float)py;
+    float vr_f = (float)vr;
 
+    /*B1: the net thread may be spawning particles concurrently
+     * (spawn_vfx on MSG_SPELL_VFX) and this pass also DEACTIVATES
+     * out-of-range particles (a write to the shared pool), so the whole
+     * draw pass runs under g_particles_mutex. Only this thread touches
+     * GL, so issuing the GL calls while holding it is safe.*/
+    pthread_mutex_lock(&g_particles_mutex);
     glBegin(GL_QUADS);
     for (int i = 0; i < MAX_PARTICLES; i++) {
         if (!g_particles[i].active) continue;
         Particle *p = &g_particles[i];
 
-        float rel_x = p->x - px;
-        float rel_z = p->z - pz;
+        float rel_x = p->x - px_f;
+        float rel_z = p->z - pz_f;
 
         /*Apply fog of war and vignetting based on distance from center (player)*/
         float d = sqrtf(rel_x * rel_x + rel_z * rel_z);
-        float vr = (float)g_vision_radius;
-        if (d > vr) {
+        if (d > vr_f) {
             p->active = 0; /*Beyond visual range, remove*/
             continue;
         }
         
-        float t_fog = (d - vr * 0.7f) / (vr * 0.3f);
+        float t_fog = (d - vr_f * 0.7f) / (vr_f * 0.3f);
         if (t_fog < 0.0f) t_fog = 0.0f;
         if (t_fog > 1.0f) t_fog = 1.0f;
         float fog = 1.0f - (t_fog * t_fog * (3.0f - 2.0f * t_fog));
-        float vignette = 1.0f - (d / (vr * 1.2f)) * 0.15f;
+        float vignette = 1.0f - (d / (vr_f * 1.2f)) * 0.15f;
         if (vignette < 0.5f) vignette = 0.5f;
         if (vignette > 1.0f) vignette = 1.0f;
         float total_fade = fog * vignette;
@@ -122,6 +131,7 @@ static void draw_particles(void) {
         glVertex3f(rel_x, p->y + s, rel_z - s);
     }
     glEnd();
+    pthread_mutex_unlock(&g_particles_mutex);
     
     glDepthMask(GL_TRUE);
     glDisable(GL_BLEND);
@@ -654,6 +664,11 @@ static void draw_floating_combat_text(int width, int height) {
     float cx = (float)width / 2.0f;
     float cy = (float)height / 2.0f;
 
+    /*B1: the net thread may be spawning floating texts concurrently
+     * (fct_parse_log on MSG_TEXT); hold the FCT mutex for the whole
+     * pass (this one is read-only — updates happen in fct_update,
+     * which takes the same mutex).*/
+    pthread_mutex_lock(&g_fct_mutex);
     for (int i = 0; i < FCT_MAX_ENTRIES; i++) {
         if (!g_fct[i].active) {
             continue;
@@ -718,6 +733,7 @@ static void draw_floating_combat_text(int width, int height) {
 
         draw_text(screen_x, screen_y, f->text, f->scale, r, g, b);
     }
+    pthread_mutex_unlock(&g_fct_mutex);
 
     /*Restore state*/
     glEnable(GL_DEPTH_TEST);
@@ -1223,13 +1239,27 @@ void render_gl_start(void) {
         glGetDoublev(GL_PROJECTION_MATRIX, projection);
         glGetIntegerv(GL_VIEWPORT, viewport);
         
-        /*The particle system is render-thread-only (the net thread never
-         * touches it), so it renders outside the snapshot lock.*/
-        draw_particles();
+        /*The particle pool is shared with the net thread (it spawns via
+         * spawn_vfx on MSG_SPELL_VFX, B1) — the old comment claiming the
+         * net thread never touches it was false. The pass runs OUTSIDE
+         * the snapshot lock but HOLDS g_particles_mutex internally, and
+         * px/py/vr come from the snapshot (live reads would race).*/
+        draw_particles(snap.my_x, snap.my_y, snap.vision_radius);
 
         // 2. RENDER HUD
         glViewport(0, 0, width, height);
+        /*B4: the HUD reads ~20 shared scalars (HP, floor, status icons,
+         * gold, spell slots, equipment names, log lines, ...) that the
+         * net thread writes under g_state_mutex on EVERY MSG_STATE, and
+         * it used to read them all without the lock. Holding the lock
+         * for the HUD pass is the VK precedent (render_vk_hud is always
+         * called under g_state_mutex — see render_frame in render_vk.c).
+         * draw_player_names_gl() below takes the same lock itself; the
+         * two calls are sequential, not nested, so there is no
+         * deadlock (non-recursive mutex).*/
+        pthread_mutex_lock(&g_state_mutex);
         render_gl_hud(width, height);
+        pthread_mutex_unlock(&g_state_mutex);
         draw_player_names_gl(width, height, modelview, projection, viewport);
 
         // 3. FLOATING COMBAT TEXT
@@ -1237,21 +1267,29 @@ void render_gl_start(void) {
         draw_floating_combat_text(width, height);
 
         // 4. MINIMAP RADAR
-        minimap_update(px, py, g_local_map, vr);
+        /*snap.map, NOT the live g_local_map: the net thread rewrites the
+         * live array under g_state_mutex on every map chunk while this
+         * call runs WITHOUT the lock — passing the live 90 KB array is a
+         * data race (B2). The rest of the frame already renders from the
+         * snapshot. (The VK path calls minimap_update while HOLDING
+         * g_state_mutex, where the live map is safe — see render_vk.c.)*/
+        minimap_update(px, py, snap.map, vr);
         draw_minimap_gl(width, height);
         
         glfwSwapBuffers(window);
         glfwPollEvents();
         
-        /*Polling for key held: Send every g_movement_cooldown seconds.
-         * last_m starts from the current time to not send immediately to the first frame
-         * (the GLFW_PRESS in key_callback has already sent the first packet).*/
+        /*Polling for key held: Send every movement_cooldown seconds
+         * (from the per-frame snapshot — B4: the live g_movement_cooldown
+         * raced with the net thread's writes). last_m starts from the
+         * current time to not send immediately to the first frame (the
+         * GLFW_PRESS in key_callback has already sent the first packet).*/
         static double last_m = -1.0;
         double n = glfwGetTime();
         if (last_m < 0.0) {
             last_m = n; /*First initialization: wait for a full cooldown*/
         }
-        if (n - last_m >= (double)g_movement_cooldown) {
+        if (n - last_m >= (double)snap.movement_cooldown) {
             bool mov = false;
             if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
                 client_send_move(0, -1);

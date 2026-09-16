@@ -94,6 +94,7 @@ void frame_snapshot_acquire(FrameSnapshot *snap) {
     snap->my_entity_id = g_my_entity_id;
     snap->my_floor = g_my_floor;
     snap->vision_radius = g_vision_radius;
+    snap->movement_cooldown = g_movement_cooldown;
     memcpy(snap->map, g_local_map, sizeof(snap->map));
     memcpy(snap->entities, g_entities, sizeof(snap->entities));
     pthread_mutex_unlock(&g_state_mutex);

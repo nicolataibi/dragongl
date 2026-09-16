@@ -100,6 +100,11 @@ typedef struct {
     int my_entity_id;
     int my_floor;
     int vision_radius;
+    /*B4: the GL loop polled the key-hold movement against the LIVE
+     * g_movement_cooldown (written by the net thread under the lock on
+     * every MSG_STATE) — a cross-thread race. It now polls against the
+     * snapshot copy, like everything else in the frame.*/
+    float movement_cooldown;
     TileType map[MAP_HEIGHT][MAP_WIDTH];
     Entity entities[CLIENT_MAX_ENTITIES];
 } FrameSnapshot;
@@ -119,9 +124,18 @@ extern pthread_mutex_t g_net_mutex;
  * store — the only change is the declaration.*/
 extern atomic_bool g_running;
 
+/*Set by the NET thread (under g_state_mutex, and ONLY when a map chunk
+ * actually differs from g_local_map) and read/cleared by the VK render
+ * thread to trigger the floor-mesh rebuild. A plain bool written by one
+ * thread and cleared by another is a data race — and worse, the
+ * unsynchronized clear could swallow a concurrent set (lost update),
+ * leaving the mesh stale until the NEXT tile change. Atomic, like
+ * g_running (L1); the renderer clears it with atomic_exchange so a set
+ * can never be lost.*/
+extern atomic_bool g_map_dirty;
+
 void client_send_move(int dx, int dy);
 void client_send_text_cmd(const char *cmd);
 void client_log_add(const char *text);
 
 #endif // CLIENT_STATE_H
-extern bool g_map_dirty;

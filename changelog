@@ -1,3 +1,39 @@
+* Thu Sep 16 2026 nicolataibi <nicola.taibi.1967@gmail.com> - 2026.09.16.01
+- BUGFIX (client, threading): fixed the data races on the shared VFX and
+  FCT pools (B1). spawn_vfx() and fct_parse_log() run on the NET thread
+  (MSG_SPELL_VFX / MSG_TEXT) while particles_update()/fct_update() and
+  the GL/VK draw passes run on the RENDER thread, with NO synchronization
+  on g_particles[]/g_fct[] at all — a ThreadSanitizer-flaggable race the
+  code even documented ("render-thread-only" comment in render_gl.c, the
+  "tolerated loose race" in render_vk.c). Each pool now has its own mutex
+  (g_particles_mutex, g_fct_mutex): spawn and update take it internally,
+  the GL/VK draw passes take it for the whole pass. GL draw_particles()
+  also read g_my_x/g_my_y/g_vision_radius live; it now takes px/py/vr
+  from the per-frame FrameSnapshot. The two new mutexes are never nested
+  with g_state_mutex. Regression test: tests/test_vfx_threads.c
+  (concurrent spawn/update/draw hammer — clean under ThreadSanitizer).
+- BUGFIX (client, threading): the GL minimap passed the LIVE g_local_map
+  (90 KB) to minimap_update() without the lock while the NET thread
+  rewrites it under g_state_mutex on every map chunk (B2): it now passes
+  the FrameSnapshot copy (snap.map), like the rest of the frame. The VK
+  path was already safe (called while holding g_state_mutex) and is now
+  documented as such.
+- BUGFIX (client, threading): g_map_dirty was a plain bool set by the
+  NET thread under the lock and read/cleared WITHOUT the lock by the VK
+  render thread (B3) — a data race AND a lost update: the unsynchronized
+  clear could swallow a set, leaving the floor mesh stale until the next
+  tile change. It is now an atomic_bool and the renderer clears it with
+  atomic_exchange so a concurrent set can never be lost (same treatment
+  as g_running, L1). The declaration also moved inside the
+  client_state.h header guard, where it belongs.
+- BUGFIX (client, threading): the GL HUD read ~20 shared scalars (HP,
+  floor, status icons, gold, spell slots, equipment names, log lines)
+  without the lock while the NET thread writes them all under
+  g_state_mutex on EVERY MSG_STATE (B4, found during the B1-B3 audit):
+  the HUD pass now runs under g_state_mutex — the VK precedent
+  (render_vk_hud is always called under the lock) — and the key-hold
+  movement polling uses the movement_cooldown copied into the
+  FrameSnapshot instead of the live g_movement_cooldown.
 * Tue Sep 15 2026 nicolataibi <nicola.taibi.1967@gmail.com> - 2026.09.15.03
 - BUGFIX (Vulkan): Fix frame flickering caused by shared command and vertex
   buffers between frames in flight. Allocate independent per-frame rendering

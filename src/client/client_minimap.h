@@ -46,7 +46,10 @@
  *
  * @param player_x Player's X position on the map.
  * @param player_y Y position of the player in the map.
- * @param map Reference to the local map (g_local_map).
+ * @param map Map for the CURRENT FRAME — pass the FrameSnapshot copy
+ *           (snap.map). Do NOT pass the live g_local_map: the net thread
+ *           rewrites it under g_state_mutex on every map chunk, and the
+ *           GL renderer calls this without the lock (data race, B2).
  * @param vision_r Vision range of the player.
  *
  * Call every frame (or when the player moves).

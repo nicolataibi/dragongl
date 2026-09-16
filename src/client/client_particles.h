@@ -21,6 +21,7 @@
 #define CLIENT_PARTICLES_H
 
 #include <stdbool.h>
+#include <pthread.h>
 
 #define MAX_PARTICLES 2000
 
@@ -35,6 +36,16 @@ typedef struct {
 } Particle;
 
 extern Particle g_particles[MAX_PARTICLES];
+
+/*THREADING (B1): the pool is shared by TWO threads — the NET thread fills
+ * it (spawn_vfx, called from net_thread.c on MSG_SPELL_VFX) and the RENDER
+ * thread drains/reads it (particles_update + the per-backend draw pass). It
+ * used to be accessed with no synchronization at all (TSan-flaggable).
+ * RULE: every access to g_particles[] — spawn, update OR draw — must hold
+ * g_particles_mutex (spawn_vfx/particles_update take it internally; the
+ * renderers take it around their draw passes). This mutex is NEVER nested
+ * with g_state_mutex, so there is no lock-ordering hazard.*/
+extern pthread_mutex_t g_particles_mutex;
 
 void particles_init(void);
 void particles_update(float dt);

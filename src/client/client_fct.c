@@ -31,9 +31,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <pthread.h>
 
 /*Pre-allocated global array — zero-initialized (all inactive)*/
 FloatingText g_fct[FCT_MAX_ENTRIES] = {0};
+/*See client_fct.h: guards the pool against the net thread, which spawns
+ * concurrently (B1).*/
+pthread_mutex_t g_fct_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 /*----------------------------------------------------------------
  * Animation constants
@@ -47,6 +51,7 @@ FloatingText g_fct[FCT_MAX_ENTRIES] = {0};
 * fct_spawn — Inserts a new FCT into the first free slot.
  * ----------------------------------------------------------------*/
 void fct_spawn(FctType type, float wx, float wz, const char *text) {
+    pthread_mutex_lock(&g_fct_mutex);
     for (int i = 0; i < FCT_MAX_ENTRIES; i++) {
         if (!g_fct[i].active) {
             FloatingText *f = &g_fct[i];
@@ -81,6 +86,7 @@ void fct_spawn(FctType type, float wx, float wz, const char *text) {
 
             strncpy(f->text, text, FCT_TEXT_LEN - 1);
             f->text[FCT_TEXT_LEN - 1] = '\0';
+            pthread_mutex_unlock(&g_fct_mutex);
             return;
         }
     }
@@ -105,12 +111,14 @@ void fct_spawn(FctType type, float wx, float wz, const char *text) {
     f->scale    = (type == FCT_CRITICAL) ? 3.5f : 2.5f;
     strncpy(f->text, text, FCT_TEXT_LEN - 1);
     f->text[FCT_TEXT_LEN - 1] = '\0';
+    pthread_mutex_unlock(&g_fct_mutex);
 }
 
 /* ----------------------------------------------------------------
  * fct_update — Updates position and opacity of every active FCT.
  * ---------------------------------------------------------------- */
 void fct_update(float dt) {
+    pthread_mutex_lock(&g_fct_mutex);
     for (int i = 0; i < FCT_MAX_ENTRIES; i++) {
         if (!g_fct[i].active) {
             continue;
@@ -133,6 +141,7 @@ void fct_update(float dt) {
             f->alpha = 1.0f;
         }
     }
+    pthread_mutex_unlock(&g_fct_mutex);
 }
 
 /* ----------------------------------------------------------------

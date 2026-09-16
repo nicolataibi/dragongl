@@ -31,6 +31,7 @@
 #define CLIENT_FCT_H
 
 #include <stdbool.h>
+#include <pthread.h>
 
 #define FCT_MAX_ENTRIES 64
 #define FCT_TEXT_LEN    16
@@ -63,6 +64,15 @@ typedef struct {
 
 /*Global array of FCTs — read by renderers*/
 extern FloatingText g_fct[FCT_MAX_ENTRIES];
+
+/*THREADING (B1): the pool is shared by the NET thread (fct_parse_log →
+ * fct_spawn, called from net_thread.c on MSG_TEXT) and the GL RENDER
+ * thread (fct_update + draw_floating_combat_text). It used to be touched
+ * with no synchronization (TSan-flaggable). RULE: every access to g_fct[]
+ * — spawn, update OR draw — must hold g_fct_mutex (fct_spawn/fct_update
+ * take it internally; the GL renderer takes it around its draw pass). The
+ * VK backend does not render FCT at all. Never nested with g_state_mutex.*/
+extern pthread_mutex_t g_fct_mutex;
 
 /**
  * fct_spawn — Generates new floating text.
