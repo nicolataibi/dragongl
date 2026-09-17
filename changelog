@@ -1,3 +1,8 @@
+* Thu Sep 17 2026 nicolataibi <nicola.taibi.1967@gmail.com> - 2026.09.17.02
+- VULKAN FIX (client): fixed UI projection for Player Names and Floating Combat Text (FCT) in the GPU-driven path. Removed old 2D hardcoded offset calculations and switched to accurate world-space projection via MVP matrix.
+- CI/BUILD FIX: Handled missing Vulkan 1.4 API definitions on older systems (e.g., GitHub Actions ubuntu-latest) by safely polyfilling VK_API_VERSION_1_4 and VkPhysicalDeviceVulkan14Features if not provided by the system libvulkan-dev.
+- CI FIX: Added mesa-vulkan-drivers (Lavapipe) to CI dependencies so headless Vulkan compute tests run correctly instead of skipping.
+- CLEANUP: Fixed a compilation warning related to unused variables in render_vk.c.
 * Thu Sep 17 2026 nicolataibi <nicola.taibi.1967@gmail.com> - 2026.09.17.01
 - VULKAN GPU-DRIVEN ARCHITECTURE: Ported the Vulkan backend to a modern GPU-driven
   architecture using Vulkan 1.4 dynamic rendering. Compute Shaders now perform culling

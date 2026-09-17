@@ -300,8 +300,6 @@ static void project_point(const float mvp[16], float x, float y, float z, float 
 }
 
 static void draw_player_names_vk(VkVertex *v, uint32_t *c, uint32_t max_v, float sw, float sh, const float mvp[16], FrameSnapshot *snap) {
-    float px = (snap->my_x != -1) ? (float)snap->my_x : 500.0f;
-    float py = (snap->my_y != -1) ? (float)snap->my_y : 500.0f;
     for (int i = 0; i < CLIENT_MAX_ENTITIES; i++) {
         if (snap->entities[i].active && snap->entities[i].is_player && snap->entities[i].id != snap->my_entity_id && snap->entities[i].floor_id == snap->my_floor) {
             if (snap->entities[i].username[0] != '\0') {
@@ -311,11 +309,9 @@ static void draw_player_names_vk(VkVertex *v, uint32_t *c, uint32_t max_v, float
                     ex = g_entity_lerp[i].cur_x;
                     ez = g_entity_lerp[i].cur_z;
                 }
-                float rx = ex - px;
-                float rz = ez - py;
                 float sx, sy;
                 bool visible;
-                project_point(mvp, rx, 1.2f, rz, sw, sh, &sx, &sy, &visible);
+                project_point(mvp, ex, 1.2f, ez, sw, sh, &sx, &sy, &visible);
                 if (visible) {
                     float len = strlen(snap->entities[i].username) * 5.0f * 1.5f;
                     draw_text_vk(v, c, max_v, sx - len / 2.0f, sy, snap->entities[i].username, 1.5f, 0.4f, 1.0f, 0.4f);
@@ -325,22 +321,21 @@ static void draw_player_names_vk(VkVertex *v, uint32_t *c, uint32_t max_v, float
     }
 }
 
-static void draw_floating_combat_text_vk(VkVertex *v, uint32_t *c, uint32_t max_v, float sw, float sh) {
-    float cx = sw / 2.0f;
-    float cy = sh / 2.0f;
+static void draw_floating_combat_text_vk(VkVertex *v, uint32_t *c, uint32_t max_v, float sw, float sh, const float mvp[16], FrameSnapshot *snap) {
+    float px = (snap->my_x != -1) ? (float)snap->my_x : 500.0f;
+    float pz = (snap->my_y != -1) ? (float)snap->my_y : 500.0f;
 
     pthread_mutex_lock(&g_fct_mutex);
     for (int i = 0; i < FCT_MAX_ENTRIES; i++) {
         if (!g_fct[i].active) continue;
         const FloatingText *f = &g_fct[i];
 
-        // In Vulkan, world coordinates for FCT are mapped using project_point 
-        // to be consistent with perspective, but the old GL code did a weird 2D approximation:
-        // float screen_x = cx + f->world_x * 40.0f;
-        // float screen_y = cy + f->world_z * 40.0f - f->offset_y * 30.0f;
-        
-        float screen_x = cx + f->world_x * 40.0f;
-        float screen_y = cy + f->world_z * 40.0f - f->offset_y * 30.0f;
+        float sx, sy;
+        bool visible;
+        project_point(mvp, px + f->world_x, f->offset_y, pz + f->world_z, sw, sh, &sx, &sy, &visible);
+        if (!visible) continue;
+        float screen_x = sx;
+        float screen_y = sy;
 
         float r = 1.0f, g = 1.0f, b = 1.0f;
         switch (f->type) {
@@ -1614,7 +1609,7 @@ static void draw_frame(VkState *s) {
     
     draw_player_names_vk(v, &hud_count, s->max_vertices, sw, sh, mvp, &snap);
     fct_update(dt);
-    draw_floating_combat_text_vk(v, &hud_count, s->max_vertices, sw, sh);
+    draw_floating_combat_text_vk(v, &hud_count, s->max_vertices, sw, sh, mvp, &snap);
 
     s->hud_vertex_count = hud_count - hud_start;
 
