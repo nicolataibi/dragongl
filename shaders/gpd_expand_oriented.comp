@@ -1,0 +1,45 @@
+#version 450
+/*
+ * DRAGON GL - GPD compute pass 2c: MESH ALLOCATION/EXPANSION for
+ * ORIENTED boxes (the floating tome of the book merchant).
+ * (GPL-3.0-or-later, see gpd_mesh.glsl)
+ *
+ * No culling for this pass: at most a handful of instances per frame
+ * (VKD_ORIENTED_MAX = 8), and the fragment shader's visionRadius
+ * discard handles the rest. Reads the oriented list directly (no index
+ * list) and allocates/expands like the other expand passes.
+ *
+ * world = pos + orient * (cornerSign * scale), orient a column-major
+ * mat3 — the same convention as the CPU push_box_oriented().
+ */
+#include "gpd_mesh.glsl"
+
+layout(local_size_x = 256) in;
+
+layout(binding = 0) buffer Oriented { GpdOriented boxes[]; } oriented_boxes;
+layout(binding = 2) buffer Counts   { GpdCounts   c; }      gpd_counts;
+layout(binding = 3) buffer Verts    { GpdVertex   verts[]; } gpd_verts;
+
+#include "gpd_ops.glsl"
+
+void main() {
+    uint i = gl_GlobalInvocationID.x;
+    if (i >= pc.count) return;
+
+    GpdOriented it = oriented_boxes.boxes[i];
+    mat3 m = mat3(it.m00, it.m01, it.m02, it.m10, it.m11, it.m12, it.m20, it.m21, it.m22);
+
+    uint base;
+    if (!gpd_reserve(36u, base)) return;
+
+    for (int k = 0; k < 36; k++) {
+        vec3 local = vec3(GPD_BOX_SIGNS[k]) * it.b.xyz;
+        vec3 p = it.a.xyz + m * local;
+        /* Same mul-add chain as the CPU push_box_oriented(). */
+        vec3 fn = GPD_BOX_FACE_N[k / 6];
+        vec3 n = vec3(it.m00, it.m01, it.m02) * fn.x + 
+                 vec3(it.m10, it.m11, it.m12) * fn.y + 
+                 vec3(it.m20, it.m21, it.m22) * fn.z;
+        gpd_verts.verts[base + k] = GpdVertex(p, it.c, n);
+    }
+}

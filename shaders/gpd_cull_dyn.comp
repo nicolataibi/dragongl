@@ -1,0 +1,34 @@
+#version 450
+/*
+ * DRAGON GL - GPD compute pass 1b: GPU CULLING of dynamic instances
+ * (entities, player, particles). (GPL-3.0-or-later, see gpd_mesh.glsl)
+ *
+ * Same isolation rationale as gpd_cull_map: visibility decision only,
+ * output is the index list dyn_visible[]. Particles (type 2) are never
+ * culled — they are spawned by spells around the player and the pool is
+ * tiny (2000), so the extra fragments cost nothing and the fragment
+ * shader's visionRadius discard still applies.
+ */
+#include "gpd_mesh.glsl"
+
+layout(local_size_x = 256) in;
+
+layout(binding = 0) buffer DynInst    { GpdInstance instances[]; } dyn_instances;
+layout(binding = 1) buffer DynVisible { uint            indices[]; } dyn_visible;
+layout(binding = 2) buffer Counts     { GpdCounts       c; }       gpd_counts;
+
+void main() {
+    uint i = gl_GlobalInvocationID.x;
+    if (i >= pc.count) return;
+
+    GpdInstance it = dyn_instances.instances[i];
+    int type = int(it.a.w + 0.5);
+
+    if (type != GPD_TYPE_PARTICLE) {
+        float dx = it.a.x - pc.cull.y;
+        float dz = it.a.z - pc.cull.z;
+        if (dx * dx + dz * dz > pc.cull.x * pc.cull.x) return;
+    }
+
+    dyn_visible.indices[atomicAdd(gpd_counts.c.dyn_vis, 1u)] = i;
+}

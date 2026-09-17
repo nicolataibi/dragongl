@@ -80,6 +80,16 @@ endif()
 set(SHADER_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/shaders/shader.vert"
     "${CMAKE_CURRENT_SOURCE_DIR}/shaders/shader.frag"
+    # GPU-driven path (GPD): GPU culling passes, mesh allocation/expand
+    # passes, the indirect-command writer and the SSBO-based scene vertex
+    # shader (common code in shaders/gpd_mesh.glsl + gpd_ops.glsl)
+    "${CMAKE_CURRENT_SOURCE_DIR}/shaders/gpd_cull_map.comp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/shaders/gpd_cull_dyn.comp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/shaders/gpd_expand_map.comp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/shaders/gpd_expand_dyn.comp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/shaders/gpd_expand_oriented.comp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/shaders/gpd_final.comp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/shaders/gpd_scene.vert"
 )
 set(SPV_OUTPUT_DIR "${CMAKE_BINARY_DIR}/shaders")
 file(MAKE_DIRECTORY ${SPV_OUTPUT_DIR})
@@ -87,10 +97,19 @@ file(MAKE_DIRECTORY ${SPV_OUTPUT_DIR})
 foreach(SHADER ${SHADER_SOURCES})
     get_filename_component(SHADER_NAME ${SHADER} NAME)
     set(SPV_FILE "${SPV_OUTPUT_DIR}/${SHADER_NAME}.spv")
+    # The GPD compute shaders #include the shared gpd_mesh.glsl: recompile
+    # them when it changes, and give glslc the include dir.
+    if(SHADER MATCHES "gpd_(cull_map|cull_dyn|expand_map|expand_dyn|expand_oriented)\.comp$")
+        set(SHADER_EXTRA_DEPENDS
+            "${CMAKE_CURRENT_SOURCE_DIR}/shaders/gpd_mesh.glsl"
+            "${CMAKE_CURRENT_SOURCE_DIR}/shaders/gpd_ops.glsl")
+    else()
+        set(SHADER_EXTRA_DEPENDS "")
+    endif()
     add_custom_command(
         OUTPUT ${SPV_FILE}
-        COMMAND ${GLSLC_EXECUTABLE} ${SHADER} -o ${SPV_FILE}
-        DEPENDS ${SHADER}
+        COMMAND ${GLSLC_EXECUTABLE} -I${CMAKE_CURRENT_SOURCE_DIR}/shaders ${SHADER} -o ${SPV_FILE}
+        DEPENDS ${SHADER} ${SHADER_EXTRA_DEPENDS}
         COMMENT "Compiling shader ${SHADER_NAME}"
     )
     list(APPEND SHADER_SPV_FILES ${SPV_FILE})

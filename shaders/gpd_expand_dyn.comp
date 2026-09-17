@@ -1,0 +1,36 @@
+#version 450
+/*
+ * DRAGON GL - GPD compute pass 2b: MESH ALLOCATION/EXPANSION for
+ * dynamic instances (entities, player, particles). (GPL-3.0-or-later,
+ * see gpd_mesh.glsl)
+ *
+ * Consumes the gpd_cull_dyn index list (culling is a SEPARATE pass).
+ * Boxes get 36 vertices, pyramids 18 (players are pyramids).
+ */
+#include "gpd_mesh.glsl"
+
+layout(local_size_x = 256) in;
+
+layout(binding = 0) buffer DynInst    { GpdInstance instances[]; } dyn_instances;
+layout(binding = 1) buffer DynVisible { uint            indices[]; } dyn_visible;
+layout(binding = 2) buffer Counts     { GpdCounts       c; }       gpd_counts;
+layout(binding = 3) buffer Verts      { GpdVertex       verts[]; } gpd_verts;
+
+#include "gpd_ops.glsl"
+
+void main() {
+    uint i = gl_GlobalInvocationID.x;
+    if (i >= gpd_counts.c.dyn_vis) return;
+
+    GpdInstance it = dyn_instances.instances[dyn_visible.indices[i]];
+    int type = int(it.a.w + 0.5);
+
+    uint base;
+    if (type == GPD_TYPE_PYRAMID) {
+        if (!gpd_reserve(18u, base)) return;
+        gpd_expand_pyramid(base, it.a.xyz, it.b.xyz, it.c);
+    } else {
+        if (!gpd_reserve(36u, base)) return;
+        gpd_expand_box(base, it.a.xyz, it.b.xyz, it.c);
+    }
+}

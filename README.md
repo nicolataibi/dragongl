@@ -10,7 +10,7 @@
 ## Multi-User Client-Server 3D RPG Engine — OpenGL (GLFW) & Vulkan
 
 <p>May 2026</p>
-<p>BETA Release</p>
+<p>RC Release</p>
 <p>Officially released on September, 2026.</p>
 </div>
 
@@ -179,6 +179,26 @@ In a legendary world, beneath the ruins of an ancient arcane civilization, lies 
 - **Retroactive Constitution:** True to tabletop rules, if investing a point in Constitution (`con`) increases your CON modifier, your Maximum HP and Current HP will be retroactively increased by an amount equal to your total level.
 - **Save Compatibility:** Unspent stat points are seamlessly serialized and restored from the binary `.save` files without breaking compatibility with existing characters.
 
+
+## 🌋 Vulkan GPU-Driven Rendering Architecture
+
+Dragon GL features an advanced, dual-path rendering engine. While the legacy OpenGL backend utilizes a traditional CPU-driven vertex generation approach, the **Vulkan** backend has been completely overhauled to leverage a modern **GPU-Driven Architecture** utilizing Vulkan 1.4 dynamic rendering.
+
+### GPU-Side Culling and Instancing
+Instead of having the CPU iterate over thousands of map tiles and entities to build raw vertices, the engine now pushes lightweight `GpdInstance` and `GpdOriented` structures (containing only position, scale, color, and orientation) to mapped Shader Storage Buffer Objects (SSBOs). 
+A set of highly optimized **Compute Shaders** (`gpd_cull.comp` / `gpd_dyn.comp`) run directly on the GPU to:
+1. Perform frustum culling and distance culling.
+2. Dynamically generate geometry (boxes, pyramids, particles) for visible instances.
+3. Populate the vertex buffer (`gpd_verts`) and atomically increment the draw count (`gpd_draw_cmd`) for a final `vkCmdDrawIndirect` call.
+
+### HUD, Floating Combat Text (FCT), and Player Names
+The 2D UI overlay is decoupled from the 3D scene. The Floating Combat Text (FCT) and Player Names—previously exclusive to the OpenGL backend—have been brought to Vulkan. The engine uses the camera's View-Projection matrix to accurately project 3D world coordinates onto the 2D screen space, appending the text directly into the HUD's vertex buffer. This ensures zero visual desync between the 3D world and the 2D data overlays.
+
+### The `DRAGONGL_GPD` Fallback Variable
+The legacy CPU-vertex path has been meticulously maintained as a functional fallback for systems that might not support advanced compute capabilities or for debugging purposes.
+You can hot-swap the architecture at launch using the `DRAGONGL_GPD` environment variable:
+- **`DRAGONGL_GPD=1`** *(Default)*: Launches the Vulkan client using the modern GPU-driven compute pipeline.
+- **`DRAGONGL_GPD=0`**: Forces the Vulkan client to fallback to the legacy CPU-driven vertex generation.
 ## 🧬 Playable Ancestries (Races)
 
 Dragon GL offers a vast array of 52 playable races, each with unique traits and stat variations.

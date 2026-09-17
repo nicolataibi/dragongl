@@ -1,3 +1,16 @@
+* Thu Sep 17 2026 nicolataibi <nicola.taibi.1967@gmail.com> - 2026.09.17.01
+- VULKAN GPU-DRIVEN ARCHITECTURE: Ported the Vulkan backend to a modern GPU-driven
+  architecture using Vulkan 1.4 dynamic rendering. Compute Shaders now perform culling
+  and geometry expansion directly on the GPU for map tiles, dynamic entities, and
+  particles via GpdInstance and GpdOriented structures.
+- VULKAN UI PARITY: Ported the Floating Combat Text (FCT) and Player Names to the 
+  Vulkan backend (previously exclusive to OpenGL), mapping 3D world coordinates to
+  the 2D HUD layer and rendering them safely using the existing mutexes. Fixed the 
+  Vulkan HUD rendering by ensuring the 2D vertex buffer is correctly bound when 
+  using the GPU-driven path.
+- FALLBACK PATH MAINTAINED: The legacy CPU-driven vertex generation path 
+  (update_vertex_buffer) has been preserved as a fully functional fallback, which
+  can be dynamically selected by setting the DRAGONGL_GPD=0 environment variable.
 * Thu Sep 16 2026 nicolataibi <nicola.taibi.1967@gmail.com> - 2026.09.16.01
 - BUGFIX (client, threading): fixed the data races on the shared VFX and
   FCT pools (B1). spawn_vfx() and fct_parse_log() run on the NET thread

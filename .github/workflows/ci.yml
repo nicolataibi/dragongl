@@ -24,7 +24,8 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             clang cmake ninja-build pkg-config \
             libglfw3-dev libgl1-mesa-dev libglu1-mesa-dev \
-            libvulkan-dev vulkan-validationlayers glslc python3
+            libvulkan-dev vulkan-validationlayers glslc python3 \
+            mesa-vulkan-drivers
 
       - name: Configure (Release)
         run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release

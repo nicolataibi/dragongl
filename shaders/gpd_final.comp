@@ -1,0 +1,21 @@
+#version 450
+/*
+ * DRAGON GL - GPD compute pass 3: publish the indirect draw command.
+ * (GPL-3.0-or-later, see gpd_mesh.glsl)
+ *
+ * Runs after the two cull and three expand passes (same queue =
+ * in-order), so gpd_counts.verts holds the exact total of generated
+ * vertices. Always dispatched (even when everything was culled): it
+ * publishes vertexCount = 0, which makes vkCmdDrawIndirect a valid no-op.
+ */
+layout(local_size_x = 1) in;
+
+layout(binding = 0) buffer Indirect { uint cmd[4]; } gpd_indirect; /* VkDrawIndirectCommand */
+layout(binding = 1) buffer Counts   { uint verts; uint map_vis; uint dyn_vis; } gpd_counts;
+
+void main() {
+    gpd_indirect.cmd[0] = gpd_counts.verts; /* vertexCount   */
+    gpd_indirect.cmd[1] = 1u;               /* instanceCount */
+    gpd_indirect.cmd[2] = 0u;               /* firstVertex   */
+    gpd_indirect.cmd[3] = 0u;               /* firstInstance */
+}

@@ -1,3 +1,4 @@
+#include "client_fct.h"
 /*
  * DRAGON GL - 3D ARCANE ENGINE
  * Copyright (C) 2026 Nicola Taibi
@@ -298,6 +299,66 @@ static void project_point(const float mvp[16], float x, float y, float z, float 
     *visible = (ndc_x >= -1.0f && ndc_x <= 1.0f && ndc_y >= -1.0f && ndc_y <= 1.0f);
 }
 
+static void draw_player_names_vk(VkVertex *v, uint32_t *c, uint32_t max_v, float sw, float sh, const float mvp[16], FrameSnapshot *snap) {
+    float px = (snap->my_x != -1) ? (float)snap->my_x : 500.0f;
+    float py = (snap->my_y != -1) ? (float)snap->my_y : 500.0f;
+    for (int i = 0; i < CLIENT_MAX_ENTITIES; i++) {
+        if (snap->entities[i].active && snap->entities[i].is_player && snap->entities[i].id != snap->my_entity_id && snap->entities[i].floor_id == snap->my_floor) {
+            if (snap->entities[i].username[0] != '\0') {
+                float ex = (float)snap->entities[i].x;
+                float ez = (float)snap->entities[i].y;
+                if (g_entity_lerp[i].initialized) {
+                    ex = g_entity_lerp[i].cur_x;
+                    ez = g_entity_lerp[i].cur_z;
+                }
+                float rx = ex - px;
+                float rz = ez - py;
+                float sx, sy;
+                bool visible;
+                project_point(mvp, rx, 1.2f, rz, sw, sh, &sx, &sy, &visible);
+                if (visible) {
+                    float len = strlen(snap->entities[i].username) * 5.0f * 1.5f;
+                    draw_text_vk(v, c, max_v, sx - len / 2.0f, sy, snap->entities[i].username, 1.5f, 0.4f, 1.0f, 0.4f);
+                }
+            }
+        }
+    }
+}
+
+static void draw_floating_combat_text_vk(VkVertex *v, uint32_t *c, uint32_t max_v, float sw, float sh) {
+    float cx = sw / 2.0f;
+    float cy = sh / 2.0f;
+
+    pthread_mutex_lock(&g_fct_mutex);
+    for (int i = 0; i < FCT_MAX_ENTRIES; i++) {
+        if (!g_fct[i].active) continue;
+        const FloatingText *f = &g_fct[i];
+
+        // In Vulkan, world coordinates for FCT are mapped using project_point 
+        // to be consistent with perspective, but the old GL code did a weird 2D approximation:
+        // float screen_x = cx + f->world_x * 40.0f;
+        // float screen_y = cy + f->world_z * 40.0f - f->offset_y * 30.0f;
+        
+        float screen_x = cx + f->world_x * 40.0f;
+        float screen_y = cy + f->world_z * 40.0f - f->offset_y * 30.0f;
+
+        float r = 1.0f, g = 1.0f, b = 1.0f;
+        switch (f->type) {
+            case FCT_DAMAGE:      r = 1.0f; g = 0.2f; b = 0.2f; break;
+            case FCT_DAMAGE_OUT:  r = 1.0f; g = 0.6f; b = 0.0f; break;
+            case FCT_HEAL:        r = 0.2f; g = 1.0f; b = 0.2f; break;
+            case FCT_CRITICAL:    r = 1.0f; g = 1.0f; b = 0.2f; break;
+            case FCT_XP:          r = 0.2f; g = 1.0f; b = 1.0f; break;
+            case FCT_GOLD:        r = 1.0f; g = 0.9f; b = 0.1f; break;
+            case FCT_MISS:        r = 0.6f; g = 0.6f; b = 0.6f; break;
+            case FCT_LEVELUP:     r = 1.0f; g = 1.0f; b = 1.0f; break;
+        }
+
+        float len = strlen(f->text) * 5.0f * f->scale;
+        draw_text_vk(v, c, max_v, screen_x - len / 2.0f, screen_y, f->text, f->scale, r, g, b);
+    }
+    pthread_mutex_unlock(&g_fct_mutex);
+}
 static void render_vk_hud(VkVertex *v, uint32_t *c, uint32_t max_v, float sw, float sh, float mvp[16], float px, float pz) {
     float sx = 20.0f;
     float sy = 20.0f;
@@ -552,25 +613,9 @@ static void render_vk_hud(VkVertex *v, uint32_t *c, uint32_t max_v, float sw, fl
     draw_text_vk(v, c, max_v, cx_c -  4.0f, cy_c - 8.0f, "+",  scale, 0.2f, 1.0f, 0.2f);
     draw_text_vk(v, c, max_v, cx_c + 12.0f, cy_c - 8.0f, "]",  scale, 0.2f, 1.0f, 0.2f);
 
-    /* Player Names */
-    for (int i = 0; i < CLIENT_MAX_ENTITIES; i++) {
-        if (g_entities[i].active && g_entities[i].is_player && g_entities[i].id != g_my_entity_id && g_entities[i].floor_id == g_my_floor) {
-            if (g_entities[i].username[0] != '\0') {
-                float ex = (float)g_entities[i].x;
-                float ez = (float)g_entities[i].y;
-                float psx, psy;
-                bool pvis;
-                project_point(mvp, ex, 1.2f, ez, sw, sh, &psx, &psy, &pvis);
-                if (pvis) {
-                    float len = strlen(g_entities[i].username) * 5.0f * 1.5f;
-                    draw_text_vk(v, c, max_v, psx - (len / 2.0f), psy, g_entities[i].username, 1.5f, 0.4f, 1.0f, 0.4f);
-                }
-            }
-        }
-    }
+
+
 }
-
-
 static void push_box(VkVertex *v, uint32_t *c, float cx, float cy, float cz, float hx, float hy, float hz, float r, float g, float b) {
     float x1 = cx-hx, x2 = cx+hx;
     float y1 = cy-hy, y2 = cy+hy;
@@ -947,41 +992,198 @@ static void record_commands(VkState *s, VkFrameResources *frame,
     VkCommandBufferBeginInfo beginInfo = {0};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     vkBeginCommandBuffer(frame->command_buffer, &beginInfo);
-    VkClearValue clear_vals[2];
-    clear_vals[0].color.float32[0] = 0.05f;
-    clear_vals[0].color.float32[1] = 0.05f;
-    clear_vals[0].color.float32[2] = 0.08f;
-    clear_vals[0].color.float32[3] = 1.0f;
-    clear_vals[1].depthStencil.depth = 1.0f;
-    clear_vals[1].depthStencil.stencil = 0;
-    VkRenderPassBeginInfo rpInfo = {0};
-    rpInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    rpInfo.renderPass = s->render_pass;
-    rpInfo.framebuffer = s->framebuffers[s->current_image];
-    rpInfo.renderArea.extent = s->swapchain_extent;
-    rpInfo.clearValueCount = 2;
-    rpInfo.pClearValues = clear_vals;
-    vkCmdBeginRenderPass(frame->command_buffer, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+    VkImageMemoryBarrier2 color_barrier = {0};
+    color_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+    color_barrier.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+    color_barrier.srcAccessMask = 0;
+    color_barrier.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+    color_barrier.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+    color_barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    color_barrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    color_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    color_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    color_barrier.image = s->images[s->current_image];
+    color_barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    color_barrier.subresourceRange.baseMipLevel = 0;
+    color_barrier.subresourceRange.levelCount = 1;
+    color_barrier.subresourceRange.baseArrayLayer = 0;
+    color_barrier.subresourceRange.layerCount = 1;
+
+    VkDependencyInfo dep_info = {0};
+    dep_info.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+    dep_info.imageMemoryBarrierCount = 1;
+    dep_info.pImageMemoryBarriers = &color_barrier;
+
+    vkCmdPipelineBarrier2(frame->command_buffer, &dep_info);
+
+    if (s->gpu_driven) {
+        vkCmdFillBuffer(frame->command_buffer, frame->gpd_counts, 0, 16, 0);
+
+        VkMemoryBarrier2 fill_barrier = {0};
+        fill_barrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2;
+        fill_barrier.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+        fill_barrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+        fill_barrier.dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+        fill_barrier.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
+
+        VkDependencyInfo fill_dep = {0};
+        fill_dep.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+        fill_dep.memoryBarrierCount = 1;
+        fill_dep.pMemoryBarriers = &fill_barrier;
+        vkCmdPipelineBarrier2(frame->command_buffer, &fill_dep);
+
+        GpdPush pc;
+        pc.cull_radius = vision_radius;
+        pc.player_x = px;
+        pc.player_z = pz;
+        pc.time = time_val;
+        pc.capacity = VKD_VERTEX_CAPACITY;
+
+        uint32_t map_wg = (frame->gpd_map_count + VKD_WORKGROUP - 1) / VKD_WORKGROUP;
+        if (map_wg > 0) {
+            vkCmdBindPipeline(frame->command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s->gpd_pipe_cull_map);
+            vkCmdBindDescriptorSets(frame->command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s->gpd_pl_cull, 0, 1, &frame->gpd_desc_cull_map, 0, NULL);
+            pc.count = frame->gpd_map_count;
+            vkCmdPushConstants(frame->command_buffer, s->gpd_pl_cull, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(GpdPush), &pc);
+            vkCmdDispatch(frame->command_buffer, map_wg, 1, 1);
+        }
+
+        uint32_t dyn_wg = (frame->gpd_dyn_count + VKD_WORKGROUP - 1) / VKD_WORKGROUP;
+        if (dyn_wg > 0) {
+            vkCmdBindPipeline(frame->command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s->gpd_pipe_cull_dyn);
+            vkCmdBindDescriptorSets(frame->command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s->gpd_pl_cull, 0, 1, &frame->gpd_desc_cull_dyn, 0, NULL);
+            pc.count = frame->gpd_dyn_count;
+            vkCmdPushConstants(frame->command_buffer, s->gpd_pl_cull, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(GpdPush), &pc);
+            vkCmdDispatch(frame->command_buffer, dyn_wg, 1, 1);
+        }
+
+        VkMemoryBarrier2 cull_barrier = {0};
+        cull_barrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2;
+        cull_barrier.srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+        cull_barrier.srcAccessMask = VK_ACCESS_2_SHADER_WRITE_BIT;
+        cull_barrier.dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+        cull_barrier.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
+
+        VkDependencyInfo cull_dep = {0};
+        cull_dep.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+        cull_dep.memoryBarrierCount = 1;
+        cull_dep.pMemoryBarriers = &cull_barrier;
+        vkCmdPipelineBarrier2(frame->command_buffer, &cull_dep);
+
+        if (map_wg > 0) {
+            vkCmdBindPipeline(frame->command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s->gpd_pipe_exp_map);
+            vkCmdBindDescriptorSets(frame->command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s->gpd_pl_exp, 0, 1, &frame->gpd_desc_exp_map, 0, NULL);
+            vkCmdDispatch(frame->command_buffer, map_wg, 1, 1);
+        }
+
+        if (dyn_wg > 0) {
+            vkCmdBindPipeline(frame->command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s->gpd_pipe_exp_dyn);
+            vkCmdBindDescriptorSets(frame->command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s->gpd_pl_exp, 0, 1, &frame->gpd_desc_exp_dyn, 0, NULL);
+            vkCmdDispatch(frame->command_buffer, dyn_wg, 1, 1);
+        }
+
+        uint32_t ori_wg = (frame->gpd_ori_count + VKD_WORKGROUP - 1) / VKD_WORKGROUP;
+        if (ori_wg > 0) {
+            vkCmdBindPipeline(frame->command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s->gpd_pipe_exp_ori);
+            vkCmdBindDescriptorSets(frame->command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s->gpd_pl_exp_ori, 0, 1, &frame->gpd_desc_exp_ori, 0, NULL);
+            pc.count = frame->gpd_ori_count;
+            vkCmdPushConstants(frame->command_buffer, s->gpd_pl_exp_ori, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(GpdPush), &pc);
+            vkCmdDispatch(frame->command_buffer, ori_wg, 1, 1);
+        }
+
+        VkMemoryBarrier2 exp_barrier = {0};
+        exp_barrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2;
+        exp_barrier.srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+        exp_barrier.srcAccessMask = VK_ACCESS_2_SHADER_WRITE_BIT;
+        exp_barrier.dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+        exp_barrier.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
+
+        VkDependencyInfo exp_dep = {0};
+        exp_dep.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+        exp_dep.memoryBarrierCount = 1;
+        exp_dep.pMemoryBarriers = &exp_barrier;
+        vkCmdPipelineBarrier2(frame->command_buffer, &exp_dep);
+
+        vkCmdBindPipeline(frame->command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s->gpd_pipe_final);
+        vkCmdBindDescriptorSets(frame->command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s->gpd_pl_final, 0, 1, &frame->gpd_desc_final, 0, NULL);
+        vkCmdDispatch(frame->command_buffer, 1, 1, 1);
+
+        VkMemoryBarrier2 comp_to_gfx_barrier = {0};
+        comp_to_gfx_barrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2;
+        comp_to_gfx_barrier.srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+        comp_to_gfx_barrier.srcAccessMask = VK_ACCESS_2_SHADER_WRITE_BIT;
+        comp_to_gfx_barrier.dstStageMask = VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT | VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT;
+        comp_to_gfx_barrier.dstAccessMask = VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT | VK_ACCESS_2_SHADER_READ_BIT;
+
+        VkDependencyInfo comp_to_gfx_dep = {0};
+        comp_to_gfx_dep.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+        comp_to_gfx_dep.memoryBarrierCount = 1;
+        comp_to_gfx_dep.pMemoryBarriers = &comp_to_gfx_barrier;
+        vkCmdPipelineBarrier2(frame->command_buffer, &comp_to_gfx_dep);
+    }
+    VkRenderingAttachmentInfo colorAttachment = {0};
+    colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+    colorAttachment.imageView = s->image_views[s->current_image];
+    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    colorAttachment.clearValue.color.float32[0] = 0.05f;
+    colorAttachment.clearValue.color.float32[1] = 0.05f;
+    colorAttachment.clearValue.color.float32[2] = 0.08f;
+    colorAttachment.clearValue.color.float32[3] = 1.0f;
+
+    VkRenderingAttachmentInfo depthAttachment = {0};
+    depthAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+    depthAttachment.imageView = s->depth_image_view;
+    depthAttachment.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depthAttachment.clearValue.depthStencil.depth = 1.0f;
+    depthAttachment.clearValue.depthStencil.stencil = 0;
+
+    VkRenderingInfo renderingInfo = {0};
+    renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+    renderingInfo.renderArea.offset.x = 0;
+    renderingInfo.renderArea.offset.y = 0;
+    renderingInfo.renderArea.extent = s->swapchain_extent;
+    renderingInfo.layerCount = 1;
+    renderingInfo.colorAttachmentCount = 1;
+    renderingInfo.pColorAttachments = &colorAttachment;
+    renderingInfo.pDepthAttachment = &depthAttachment;
+
+    vkCmdBeginRendering(frame->command_buffer, &renderingInfo);
 
     /* --- Step 1: 3D Scene --- */
-    vkCmdBindPipeline(frame->command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s->pipeline);
     float push_data[20];
     memcpy(push_data, mvp, sizeof(float) * 16);
     push_data[16] = vision_radius;
     push_data[17] = px;
     push_data[18] = pz;
     push_data[19] = time_val;
-    vkCmdPushConstants(frame->command_buffer, s->pipeline_layout,
-                       VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(float) * 20, push_data);
-    VkDeviceSize offsets[] = {0};
-    vkCmdBindVertexBuffers(frame->command_buffer, 0, 1, &frame->vertex_buffer, offsets);
-    if (s->vertex_count > 0) {
-        vkCmdDraw(frame->command_buffer, s->vertex_count, 1, 0, 0);
+
+    if (s->gpu_driven) {
+        vkCmdBindPipeline(frame->command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s->gpd_scene_pipeline);
+        vkCmdBindDescriptorSets(frame->command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s->gpd_scene_layout, 0, 1, &frame->gpd_desc_scene, 0, NULL);
+        vkCmdPushConstants(frame->command_buffer, s->gpd_scene_layout,
+                           VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(float) * 20, push_data);
+        vkCmdDrawIndirect(frame->command_buffer, frame->gpd_indirect, 0, 1, 16);
+    } else {
+        vkCmdBindPipeline(frame->command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s->pipeline);
+        vkCmdPushConstants(frame->command_buffer, s->pipeline_layout,
+                           VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(float) * 20, push_data);
+        VkDeviceSize offsets[] = {0};
+        vkCmdBindVertexBuffers(frame->command_buffer, 0, 1, &frame->vertex_buffer, offsets);
+        if (s->vertex_count > 0) {
+            vkCmdDraw(frame->command_buffer, s->vertex_count, 1, 0, 0);
+        }
     }
 
     /*--- Step 2: 2D HUD overlay (pipeline without depth test, with blend) ---*/
     if (s->hud_vertex_count > 0 && s->pipeline_hud != VK_NULL_HANDLE) {
         vkCmdBindPipeline(frame->command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s->pipeline_hud);
+        VkDeviceSize offsets[] = {0};
+        vkCmdBindVertexBuffers(frame->command_buffer, 0, 1, &frame->vertex_buffer, offsets);
         float hud_push[17];
         memcpy(hud_push, hud_ortho, sizeof(float) * 16);
         hud_push[16] = 99999.0f; /* disables fog in the fragment shader */
@@ -990,8 +1192,315 @@ static void record_commands(VkState *s, VkFrameResources *frame,
         vkCmdDraw(frame->command_buffer, s->hud_vertex_count, 1, s->vertex_count, 0);
     }
 
-    vkCmdEndRenderPass(frame->command_buffer);
+    vkCmdEndRendering(frame->command_buffer);
+
+    VkImageMemoryBarrier2 present_barrier = {0};
+    present_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+    present_barrier.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+    present_barrier.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+    present_barrier.dstStageMask = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT;
+    present_barrier.dstAccessMask = 0;
+    present_barrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    present_barrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    present_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    present_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    present_barrier.image = s->images[s->current_image];
+    present_barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    present_barrier.subresourceRange.baseMipLevel = 0;
+    present_barrier.subresourceRange.levelCount = 1;
+    present_barrier.subresourceRange.baseArrayLayer = 0;
+    present_barrier.subresourceRange.layerCount = 1;
+
+    VkDependencyInfo present_dep_info = {0};
+    present_dep_info.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+    present_dep_info.imageMemoryBarrierCount = 1;
+    present_dep_info.pImageMemoryBarriers = &present_barrier;
+
+    vkCmdPipelineBarrier2(frame->command_buffer, &present_dep_info);
+
     vkEndCommandBuffer(frame->command_buffer);
+}
+
+static GpdInstance *s_map_gpd_instances = NULL;
+static uint32_t s_map_gpd_capacity = 0;
+static uint32_t s_map_gpd_count = 0;
+
+static bool ensure_map_gpd_capacity(uint32_t needed) {
+    if (needed <= s_map_gpd_capacity) return true;
+    uint32_t cap = s_map_gpd_capacity ? s_map_gpd_capacity : 65536u;
+    while (cap < needed) {
+        if (cap > UINT32_MAX / 2u) return false;
+        cap *= 2u;
+    }
+    GpdInstance *nv = realloc(s_map_gpd_instances, (size_t)cap * sizeof(*nv));
+    if (!nv) return false;
+    s_map_gpd_instances = nv;
+    s_map_gpd_capacity = cap;
+    return true;
+}
+
+static void push_gpd_box(GpdInstance *instances, uint32_t *count, uint32_t max_count,
+                         float cx, float cy, float cz,
+                         float hx, float hy, float hz,
+                         float r, float g, float b) {
+    if (!instances || *count >= max_count) return;
+    instances[*count].pos[0] = cx;
+    instances[*count].pos[1] = cy;
+    instances[*count].pos[2] = cz;
+    instances[*count].type = 0.0f; // Box
+    instances[*count].scale[0] = hx;
+    instances[*count].scale[1] = hy;
+    instances[*count].scale[2] = hz;
+    instances[*count].pad = 0.0f;
+    instances[*count].color[0] = r;
+    instances[*count].color[1] = g;
+    instances[*count].color[2] = b;
+    instances[*count].pad2 = 0.0f;
+    (*count)++;
+}
+
+static void push_gpd_pyramid(GpdInstance *instances, uint32_t *count, uint32_t max_count,
+                             float cx, float cy, float cz,
+                             float hx, float hy, float hz,
+                             float r, float g, float b) {
+    if (!instances || *count >= max_count) return;
+    instances[*count].pos[0] = cx;
+    instances[*count].pos[1] = cy;
+    instances[*count].pos[2] = cz;
+    instances[*count].type = 1.0f; // Pyramid
+    instances[*count].scale[0] = hx;
+    instances[*count].scale[1] = hy;
+    instances[*count].scale[2] = hz;
+    instances[*count].pad = 0.0f;
+    instances[*count].color[0] = r;
+    instances[*count].color[1] = g;
+    instances[*count].color[2] = b;
+    instances[*count].pad2 = 0.0f;
+    (*count)++;
+}
+
+static void push_gpd_oriented(GpdOriented *instances, uint32_t *count, uint32_t max_count,
+                              float cx, float cy, float cz,
+                              float hx, float hy, float hz,
+                              const float orient[16],
+                              float r, float g, float b) {
+    if (!instances || *count >= max_count) return;
+    instances[*count].pos[0] = cx;
+    instances[*count].pos[1] = cy;
+    instances[*count].pos[2] = cz;
+    instances[*count].type = 0.0f; // Box
+    instances[*count].scale[0] = hx;
+    instances[*count].scale[1] = hy;
+    instances[*count].scale[2] = hz;
+    instances[*count].pad = 0.0f;
+    instances[*count].color[0] = r;
+    instances[*count].color[1] = g;
+    instances[*count].color[2] = b;
+    instances[*count].pad2 = 0.0f;
+    instances[*count].orient[0] = orient[0];
+    instances[*count].orient[1] = orient[1];
+    instances[*count].orient[2] = orient[2];
+    instances[*count].orient[3] = orient[4];
+    instances[*count].orient[4] = orient[5];
+    instances[*count].orient[5] = orient[6];
+    instances[*count].orient[6] = orient[8];
+    instances[*count].orient[7] = orient[9];
+    instances[*count].orient[8] = orient[10];
+    instances[*count].pad3[0] = 0.0f;
+    instances[*count].pad3[1] = 0.0f;
+    instances[*count].pad3[2] = 0.0f;
+    (*count)++;
+}
+static void push_gpd_particle(GpdInstance *instances, uint32_t *count, uint32_t max_count,
+                         float cx, float cy, float cz,
+                         float hx, float hy, float hz,
+                         float r, float g, float b) {
+    if (!instances || *count >= max_count) return;
+    instances[*count].pos[0] = cx;
+    instances[*count].pos[1] = cy;
+    instances[*count].pos[2] = cz;
+    instances[*count].type = 2.0f; // Particle
+    instances[*count].scale[0] = hx;
+    instances[*count].scale[1] = hy;
+    instances[*count].scale[2] = hz;
+    instances[*count].pad = 0.0f;
+    instances[*count].color[0] = r;
+    instances[*count].color[1] = g;
+    instances[*count].color[2] = b;
+    instances[*count].pad2 = 0.0f;
+    (*count)++;
+}
+static void update_gpd_buffers(VkState *s, float dt, FrameSnapshot *snap) {
+    uint32_t count = 0;
+    int y, x;
+    int px = (snap->my_x != -1) ? snap->my_x : 500;
+    int py = (snap->my_y != -1) ? snap->my_y : 500;
+    int vr = snap->vision_radius;
+    bool full = false;
+
+    if (snap->my_x >= 0 && snap->my_y >= 0) {
+        int R = vr + VK_MAP_VISION_MARGIN;
+        if (R < VK_MAP_MIN_RADIUS) R = VK_MAP_MIN_RADIUS;
+        if (R > VK_MAP_MAX_RADIUS) R = VK_MAP_MAX_RADIUS;
+        int need_x0 = snap->my_x - R, need_x1 = snap->my_x + R;
+        int need_y0 = snap->my_y - R, need_y1 = snap->my_y + R;
+        if (need_x0 < 0) need_x0 = 0;
+        if (need_y0 < 0) need_y0 = 0;
+        if (need_x1 >= MAP_WIDTH) need_x1 = MAP_WIDTH - 1;
+        if (need_y1 >= MAP_HEIGHT) need_y1 = MAP_HEIGHT - 1;
+        bool covers = s_map_built && s_map_floor == snap->my_floor &&
+                      s_map_win_x0 <= need_x0 && s_map_win_x1 >= need_x1 &&
+                      s_map_win_y0 <= need_y0 && s_map_win_y1 >= need_y1;
+        
+        if (atomic_load_explicit(&g_map_dirty, memory_order_acquire) || !covers) {
+            int bR = R + VK_MAP_BUILD_MARGIN;
+            int x0 = snap->my_x - bR; if (x0 < 0) x0 = 0;
+            int x1 = snap->my_x + bR; if (x1 >= MAP_WIDTH) x1 = MAP_WIDTH - 1;
+            int y0 = snap->my_y - bR; if (y0 < 0) y0 = 0;
+            int y1 = snap->my_y + bR; if (y1 >= MAP_HEIGHT) y1 = MAP_HEIGHT - 1;
+            count = 0;
+            uint32_t map_capacity_needed = (uint32_t)((x1 - x0 + 1) * (y1 - y0 + 1) * 2u);
+            if (!ensure_map_gpd_capacity(map_capacity_needed)) {
+                fprintf(stderr, "[VK] Map GPD cache allocation failed\n");
+                s_map_gpd_count = 0;
+                s_map_built = false;
+                (void)atomic_exchange_explicit(&g_map_dirty, false, memory_order_acq_rel);
+                return;
+            }
+            for (y = y0; y <= y1 && !full; y++) {
+                for (x = x0; x <= x1 && !full; x++) {
+                    float fx = (float)x;
+                    float fz = (float)y;
+                    VoxelType tile = snap->map[y][x];
+                    if (tile == 0) continue;
+                    
+                    if (tile == VOXEL_WALL || tile == VOXEL_OBSIDIAN || tile == VOXEL_GOLD_VEIN) {
+                        if (tile == VOXEL_OBSIDIAN) push_gpd_box(s_map_gpd_instances, &count, VKD_MAP_INST_MAX, fx, 0.5f, fz, 0.5f, 1.5f, 0.5f, 0.1f, 0.05f, 0.2f);
+                        else if (tile == VOXEL_GOLD_VEIN) push_gpd_box(s_map_gpd_instances, &count, VKD_MAP_INST_MAX, fx, 0.5f, fz, 0.5f, 1.5f, 0.5f, 0.8f, 0.7f, 0.1f);
+                        else push_gpd_box(s_map_gpd_instances, &count, VKD_MAP_INST_MAX, fx, 0.5f, fz, 0.5f, 1.5f, 0.5f, 0.6f, 0.6f, 0.6f);
+                    } else if (tile == VOXEL_FLOOR || tile == VOXEL_COBBLE || tile == VOXEL_WOOD || tile == VOXEL_ICE || tile == VOXEL_SAND || tile == VOXEL_ASH || tile == VOXEL_MUD || tile == VOXEL_MARBLE || tile == VOXEL_GRASS || tile == VOXEL_TRAP) {
+                        float r=0.2f, g=0.2f, b=0.2f;
+                        if (tile == VOXEL_WOOD) { r=0.4f; g=0.3f; b=0.2f; }
+                        if (tile == VOXEL_COBBLE) { r=0.3f; g=0.3f; b=0.3f; }
+                        if (tile == VOXEL_ICE) { r=0.6f; g=0.8f; b=1.0f; }
+                        if (tile == VOXEL_SAND) { r=0.8f; g=0.7f; b=0.4f; }
+                        if (tile == VOXEL_ASH) { r=0.25f; g=0.25f; b=0.25f; }
+                        if (tile == VOXEL_MUD) { r=0.3f; g=0.2f; b=0.1f; }
+                        if (tile == VOXEL_MARBLE) { r=0.9f; g=0.9f; b=0.9f; }
+                        if (tile == VOXEL_GRASS) { r=0.1f; g=0.5f; b=0.1f; }
+                        if (tile == VOXEL_TRAP) { r=0.8f; g=0.2f; b=0.1f; }
+                        push_gpd_box(s_map_gpd_instances, &count, VKD_MAP_INST_MAX, fx, 0.0f, fz, 0.5f, 0.1f, 0.5f, r, g, b);
+                    } else if (tile >= VOXEL_CRYSTAL_BLUE && tile <= VOXEL_CRYSTAL_WHITE) {
+                        float r = 1.0f, g = 1.0f, b = 1.0f;
+                        if (tile == VOXEL_CRYSTAL_BLUE)   { r = 0.3f; g = 0.7f; b = 1.0f; }
+                        if (tile == VOXEL_CRYSTAL_PURPLE)  { r = 0.8f; g = 0.2f; b = 1.0f; }
+                        if (tile == VOXEL_CRYSTAL_RED)     { r = 1.0f; g = 0.1f; b = 0.1f; }
+                        if (tile == VOXEL_CRYSTAL_GREEN)   { r = 0.1f; g = 1.0f; b = 0.2f; }
+                        if (tile == VOXEL_CRYSTAL_YELLOW)  { r = 1.0f; g = 0.9f; b = 0.1f; }
+                        if (tile == VOXEL_CRYSTAL_ORANGE)  { r = 1.0f; g = 0.5f; b = 0.0f; }
+                        if (tile == VOXEL_CRYSTAL_CYAN)    { r = 0.0f; g = 0.9f; b = 1.0f; }
+                        push_gpd_box(s_map_gpd_instances, &count, VKD_MAP_INST_MAX, fx, 0.8f, fz, 0.4f, 0.8f, 0.4f, r, g, b);
+                    } else if (tile == VOXEL_WATER || tile == VOXEL_LAVA) {
+                        if (tile == VOXEL_WATER) push_gpd_box(s_map_gpd_instances, &count, VKD_MAP_INST_MAX, fx, -0.05f, fz, 0.5f, 0.05f, 0.5f, 0.1f, 0.4f, 0.8f);
+                        else push_gpd_box(s_map_gpd_instances, &count, VKD_MAP_INST_MAX, fx, -0.05f, fz, 0.5f, 0.05f, 0.5f, 1.0f, 0.3f, 0.0f);
+                    } else if (tile == VOXEL_DOOR) {
+                        push_gpd_box(s_map_gpd_instances, &count, VKD_MAP_INST_MAX, fx, 0.4f, fz, 0.45f, 0.4f, 0.45f, 0.6f, 0.3f, 0.1f);
+                        push_gpd_box(s_map_gpd_instances, &count, VKD_MAP_INST_MAX, fx, -0.05f, fz, 0.5f, 0.05f, 0.5f, 0.2f, 0.2f, 0.25f);
+                    } else if (tile == VOXEL_STAIRS_DOWN || tile == VOXEL_STAIRS_UP) {
+                        push_gpd_box(s_map_gpd_instances, &count, VKD_MAP_INST_MAX, fx, 0.05f, fz, 0.5f, 0.1f, 0.5f, 0.9f, 0.9f, 0.0f);
+                    } else if (tile == VOXEL_MUSHROOM_GLOW) {
+                        push_gpd_box(s_map_gpd_instances, &count, VKD_MAP_INST_MAX, fx, 0.2f, fz, 0.3f, 0.2f, 0.3f, 0.2f, 1.0f, 0.5f);
+                    }
+                }
+            }
+            s_map_gpd_count = count;
+            s_map_built = true;
+            s_map_floor = snap->my_floor;
+            s_map_win_x0 = x0; s_map_win_y0 = y0;
+            s_map_win_x1 = x1; s_map_win_y1 = y1;
+            (void)atomic_exchange_explicit(&g_map_dirty, false, memory_order_acq_rel);
+        }
+    } else {
+        s_map_built = false;
+        s_map_gpd_count = 0;
+        s_map_floor = -1;
+        s_map_win_x1 = -1;
+        (void)atomic_exchange_explicit(&g_map_dirty, false, memory_order_acq_rel);
+    }
+    count = s_map_gpd_count;
+    VkFrameResources *frame = &s->frames[s->current_frame];
+    if (count > 0 && s_map_gpd_instances && frame->gpd_map_ptr) {
+        memcpy(frame->gpd_map_ptr, s_map_gpd_instances, (size_t)count * sizeof(GpdInstance));
+    }
+    frame->gpd_map_count = count;
+
+    uint32_t dyn_count = 0;
+    uint32_t ori_count = 0;
+    GpdInstance *dyn_ptr = (GpdInstance *)frame->gpd_dyn_ptr;
+    GpdOriented *ori_ptr = (GpdOriented *)frame->gpd_ori_ptr;
+
+    
+    for (int i = 0; i < CLIENT_MAX_ENTITIES; i++) {
+        if (snap->entities[i].active && snap->entities[i].id != snap->my_entity_id) {
+            float tgt_ex = (float)snap->entities[i].x;
+            float tgt_ez = (float)snap->entities[i].y;
+            lerp_update(&g_entity_lerp[i], tgt_ex, tgt_ez, dt);
+            float ex = g_entity_lerp[i].cur_x;
+            float ez = g_entity_lerp[i].cur_z;
+            
+            if (snap->entities[i].floor_id == snap->my_floor) {
+                float er = 0.4f, eg = 0.4f, eb = 1.0f;
+                if (snap->entities[i].is_merchant && snap->entities[i].shop_spec == SHOP_SPEC_BOOKS_MARTIAL) {
+                    er = 0.75f; eg = 0.15f; eb = 0.2f;
+                } else if (snap->entities[i].is_merchant) {
+                    er = 1.0f; eg = 0.8f; eb = 0.0f;
+                } else if (snap->entities[i].is_player) {
+                    er = 0.2f; eg = 0.8f; eb = 0.2f;
+                } else if (snap->entities[i].id < 10) {
+                    er = 1.0f; eg = 0.3f; eb = 0.3f;
+                }
+                
+                if (snap->entities[i].is_player) {
+                    push_gpd_pyramid(dyn_ptr, &dyn_count, VKD_DYN_INST_MAX, ex, 0.4f, ez, 0.35f, 0.5f, 0.35f, er, eg, eb);
+                } else {
+                    push_gpd_box(dyn_ptr, &dyn_count, VKD_DYN_INST_MAX, ex, 0.4f, ez, 0.3f, 0.4f, 0.3f, er, eg, eb);
+                    if (snap->entities[i].is_merchant && snap->entities[i].shop_spec == SHOP_SPEC_BOOKS_MARTIAL) {
+                        float tp[3], to[16];
+                        tome_anim_update(i, snap->entities[i].id, snap->entities[i].floor_id,
+                                         snap->entities[i].x, snap->entities[i].y,
+                                         snap->map[0], dt, tp, to);
+                        push_gpd_oriented(ori_ptr, &ori_count, VKD_ORIENTED_MAX,
+                                          tp[0], tp[1], tp[2],
+                                          0.45f, 0.1f, 0.35f, to,
+                                          0.9f, 0.75f, 0.3f);
+                    }
+                }
+            }
+        } else if (!snap->entities[i].active) {
+            if (g_entity_lerp[i].initialized) {
+                g_entity_lerp[i].initialized = false;
+                tome_anim_reset_slot(i);
+            }
+        }
+    }
+
+    push_gpd_box(dyn_ptr, &dyn_count, VKD_DYN_INST_MAX, (float)px, 0.6f, (float)py, 0.3f, 0.6f, 0.3f, 0.0f, 1.0f, 0.0f);
+
+    pthread_mutex_lock(&g_particles_mutex);
+    for (int i = 0; i < MAX_PARTICLES; i++) {
+        Particle *p = &g_particles[i];
+        if (p->active) {
+            float pr = p->r * p->a;
+            float pg = p->g * p->a;
+            float pb = p->b * p->a;
+            push_gpd_particle(dyn_ptr, &dyn_count, VKD_DYN_INST_MAX, p->x, -p->y, p->z, p->size, p->size, p->size, pr, pg, pb);
+        }
+    }
+    pthread_mutex_unlock(&g_particles_mutex);
+
+    frame->gpd_dyn_count = dyn_count;
+    frame->gpd_ori_count = ori_count;
+    s->vertex_count = 0;
 }
 
 static void draw_frame(VkState *s) {
@@ -1090,7 +1599,11 @@ static void draw_frame(VkState *s) {
      *live here is gone.*/
     particles_update(dt);
 
-    update_vertex_buffer(s, v, dt, &snap);
+    if (s->gpu_driven) {
+        update_gpd_buffers(s, dt, &snap);
+    } else {
+        update_vertex_buffer(s, v, dt, &snap);
+    }
 
     /*2D HUD: Write after 3D vertices*/
     uint32_t hud_start = s->vertex_count;
@@ -1098,6 +1611,11 @@ static void draw_frame(VkState *s) {
     pthread_mutex_lock(&g_state_mutex);
     render_vk_hud(v, &hud_count, s->max_vertices, sw, sh, mvp, px, pz);
     pthread_mutex_unlock(&g_state_mutex);
+    
+    draw_player_names_vk(v, &hud_count, s->max_vertices, sw, sh, mvp, &snap);
+    fct_update(dt);
+    draw_floating_combat_text_vk(v, &hud_count, s->max_vertices, sw, sh);
+
     s->hud_vertex_count = hud_count - hud_start;
 
     // Vertex memory stays persistently mapped; the current frame owns it.
