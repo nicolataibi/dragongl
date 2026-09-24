@@ -4,13 +4,13 @@
 %global toolchain clang
 
 Name:           dragongl
-Version:        2026.09.17.02
+Version:        2026.09.24.01
 Release:        %autorelease
 Summary:        Multi-User Client-Server 3D RPG Engine — OpenGL (GLFW) & Vulkan
 
 License:        GPL-3.0-or-later
 URL:            https://github.com/nicolataibi/dragongl
-Source0:        %{url}/archive/refs/tags/%{version}.tar.gz#/%{name}-%{version}.tar.gz
+Source0:        %{url}/archive/refs/tags/%{version}/%{name}-%{version}.tar.gz
 
 BuildRequires:  cmake
 BuildRequires:  clang
@@ -63,13 +63,11 @@ suite designed to manage and inspect data stored within the JSON files.
 
 
 %prep
-%autosetup -n %{name}-%{version} -p1
-
-
-%cmake
+%autosetup -p1
 
 
 %build
+%cmake
 %cmake_build
 
 
@@ -93,33 +91,21 @@ suite designed to manage and inspect data stored within the JSON files.
 
 
 %files data
-%dir %{_datadir}/%{name}
-%{_datadir}/%{name}/shaders/
-%dir %{_datadir}/%{name}/data
-%{_datadir}/%{name}/data/*.json
+%license LICENSE.txt
+%{_datadir}/%{name}
+%exclude %{_datadir}/%{name}/tools
 
 
 %files doc
+%license LICENSE.txt
 %doc README.md HOWTO.txt
 %doc readme_assets/
 
 
 %files tools
-%{_datadir}/%{name}/tools/analyze_balance.py
-%{_datadir}/%{name}/tools/generate_pdf_map.py
-%{_datadir}/%{name}/tools/web/_core.js
-%{_datadir}/%{name}/tools/web/_design.css
-%{_datadir}/%{name}/tools/web/_editor-shell.html
-%{_datadir}/%{name}/tools/web/_mod-bestiary.js
-%{_datadir}/%{name}/tools/web/_mod-items.js
-%{_datadir}/%{name}/tools/web/_mod-spells.js
-%{_datadir}/%{name}/tools/web/_menu.html
-%{_datadir}/%{name}/tools/web/menu.html
-%{_datadir}/%{name}/tools/web/README.md
-%{_datadir}/%{name}/tools/web/spells.html
-%{_datadir}/%{name}/tools/web/items.html
-%{_datadir}/%{name}/tools/web/build.py
-%{_datadir}/%{name}/tools/web/bestiary.html
+%license LICENSE.txt
+%dir %{_datadir}/%{name}
+%{_datadir}/%{name}/tools
 %{_mandir}/man1/analyze_balance.1*
 %{_mandir}/man1/generate_pdf_map.1*
 
