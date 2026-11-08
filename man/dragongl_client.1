@@ -1,54 +1,85 @@
-.TH DRAGONGL_CLIENT 1 "2026-11-08" "DragonGL 2026.11.08.10" "User Commands"
+.TH DRAGONGL_CLIENT 1 "2026-11-08" "DragonGL 2026.11.08.11" "User Commands"
 .SH NAME
 dragongl_client \- Dragon GL 3D game client
 .SH SYNOPSIS
 .B dragongl_client
-.I backend
-.RI "[ server_ip ]"
-.RI "[ port ]"
+[\fIserver_host\fR [\fIport\fR]]
+.br
+.B dragongl_client
+.BR \-h " | " \-\-help
 .SH DESCRIPTION
 .B dragongl_client
 is the 3D client of the Dragon GL dungeon crawler. It connects to a
-.B dragongl_server , lets the player create or load a character, and renders
-the dungeon in real time with a graphical in-engine HUD (stats, minimap,
-equipment, boss trophies, AR compass).
+.BR dragongl_server ,
+lets the player create or load a character, and renders the dungeon in
+real time with a graphical HUD (stats, minimap, equipment, boss trophies,
+compass).
 
 Unless
-.I server_ip
-is given on the command line, after selecting the backend the client
-interactively prompts for the server host (default: 127.0.0.1), the
-server password, and the player credentials; new players are then asked to
-choose race and class.
+.I server_host
+is given on the command line, the client asks for the server host
+(default 127.0.0.1), then for the server password and the player
+credentials (passwords are read without echo); new players then choose
+race, class and alignment.
 
-The client does not generate a local world at startup: the map is received
-from the server in chunks (MSG_MAP_CHUNK), so starting up is fast even
-before the first tile is known.
+The map is received from the server in chunks: the client generates no
+local world.
+.SS Rendering
+The client renders with Vulkan 1.3 and dynamic rendering. The scene is
+GPU-driven: compute shaders cull the tile and entity instances around the
+player and generate their geometry, and a single indirect draw renders
+it. It needs a GPU whose driver supports Vulkan 1.3 with a queue family
+for graphics, compute and presentation to the window. At start-up the
+client lists the GPUs it found and the one it uses (discrete before
+integrated before software, then the most device memory).
 
+The window opens at 80% of the screen and can be resized freely; the
+swapchain is rebuilt on resize and whenever the driver reports it out of
+date. Closing the window or pressing Escape quits.
+.SS Disconnection
 When the server closes the connection, stops answering (TCP keepalive,
 about 90 s) or sends a message the client cannot decode, the client prints
 the reason and exits. Server and client must speak the same protocol
 version.
 .SH ARGUMENTS
 .TP
-.B gl
-Start with the OpenGL backend (legacy).
-.TP
-.B vk
-Start with the Vulkan backend (modern), featuring dynamic lighting computed
-via SPIR-V shaders.
-.TP
-.I server_ip
-(optional)
+.I server_host
 Host name, IPv4 or IPv6 address of the game server (every address the
-name resolves to is tried, 5 s each). When present, the interactive
-"Server host" prompt is skipped (convenient for remote/SSH sessions).
+name resolves to is tried, 5 s each).
 .TP
 .I port
-(optional)
 TCP port of the game server (default 8080).
+.SH ENVIRONMENT
+.TP
+.B DRAGONGL_WINDOW
+Initial window size as
+.IR width x height ,
+e.g. 1920x1080.
+.TP
+.B DRAGONGL_GPU
+Use this GPU: its index in the start-up list, or part of its name.
+.TP
+.B DRAGONGL_VSYNC
+Set to 0 to present without waiting for vertical sync (mailbox or
+immediate mode, if the driver offers one).
+.TP
+.B DRAGONGL_SHADER_DIR
+Directory of the compiled shaders. By default they are read from
+.I shaders/
+next to the executable, then from
+.IR /usr/share/dragongl/shaders .
+.TP
+.B VK_INSTANCE_LAYERS
+Vulkan layers to enable, colon separated (for example
+.BR VK_LAYER_KHRONOS_validation );
+names the system does not provide are skipped with a warning.
+.SH FILES
+.TP
+.I /usr/share/dragongl/shaders/*.spv
+Compiled shaders.
 .SH SEE ALSO
-.BR dragongl_server (1),
-.BR dragongl-client (1)
+.BR dragongl-client (1),
+.BR dragongl_server (1)
 .SH AUTHOR
 Nicola Taibi <nicola.taibi.1967@gmail.com>
 .SH LICENSE

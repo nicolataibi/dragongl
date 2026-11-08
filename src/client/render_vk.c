@@ -39,7 +39,6 @@
 static VkState vk_state;
 
 #include "client_particles.h"
-#include "render_gl.h"
 
 typedef struct {
     float cur_x, cur_z;
@@ -193,12 +192,6 @@ static void mat4_lookat(float m[16], const float eye[3], const float center[3], 
     m[3*4+3] =  1.0f;
 }
 
-static void push_vertex(VkVertex *v, uint32_t *c, float px, float py, float pz, float r, float g, float b, float nx, float ny, float nz) {
-    v[*c].pos[0] = px; v[*c].pos[1] = py; v[*c].pos[2] = pz;
-    v[*c].color[0] = r; v[*c].color[1] = g; v[*c].color[2] = b; v[*c].color[3] = 1.0f;
-    v[*c].normal[0] = nx; v[*c].normal[1] = ny; v[*c].normal[2] = nz;
-    (*c)++;
-}
 
 static void push_vertex_a(VkVertex *v, uint32_t *c, float px, float py, float r, float g, float b, float a) {
     v[*c].pos[0] = px; v[*c].pos[1] = py; v[*c].pos[2] = 0.0f;
@@ -248,10 +241,9 @@ static void draw_text_vk(VkVertex *v, uint32_t *c, uint32_t max_v,
 /*Updates the minimap and draws it into the HUD vertex buffer*/
 static void draw_minimap_vk(VkVertex *v, uint32_t *c, uint32_t max_v,
                              int px, int py, float ox, float oy, float cell_sz) {
-    /*Safe to use the LIVE g_local_map here (unlike the GL path, which
-     * must pass the snapshot copy): the only caller, render_vk_hud(), is
-     * always invoked while holding g_state_mutex (see render_frame), and
-     * the net thread writes the map under that same lock.*/
+    /*Safe to use the LIVE g_local_map here: the only caller,
+     * render_vk_hud(), runs while holding g_state_mutex (see draw_frame),
+     * and the net thread writes the map under that same lock.*/
     minimap_update(px, py, g_local_map, g_vision_radius);
     int buf_size = MINIMAP_BUF_SIZE;
     for (int by = 0; by < buf_size; by++) {
@@ -277,7 +269,7 @@ static void draw_minimap_vk(VkVertex *v, uint32_t *c, uint32_t max_v,
 
 /*=========================================================================
  * render_vk_hud — Generate 2D HUD vertices in the buffer
- * Mirror of render_gl_hud, adapted for 2D Vulkan vertices.
+ * (minimap, status text, equipment, compass, names, combat text).
  * ========================================================================================*/
 
 static void project_point(const float mvp[16], float x, float y, float z, float sw, float sh, float *sx, float *sy, bool *visible) {
@@ -611,124 +603,12 @@ static void render_vk_hud(VkVertex *v, uint32_t *c, uint32_t max_v, float sw, fl
 
 
 }
-static void push_box(VkVertex *v, uint32_t *c, float cx, float cy, float cz, float hx, float hy, float hz, float r, float g, float b) {
-    float x1 = cx-hx, x2 = cx+hx;
-    float y1 = cy-hy, y2 = cy+hy;
-    float z1 = cz-hz, z2 = cz+hz;
-    
-    /* Top */
-    push_vertex(v,c, x1,y2,z1, r,g,b, 0,1,0); push_vertex(v,c, x2,y2,z1, r,g,b, 0,1,0); push_vertex(v,c, x1,y2,z2, r,g,b, 0,1,0);
-    push_vertex(v,c, x2,y2,z1, r,g,b, 0,1,0); push_vertex(v,c, x2,y2,z2, r,g,b, 0,1,0); push_vertex(v,c, x1,y2,z2, r,g,b, 0,1,0);
-    /* Bottom */
-    push_vertex(v,c, x1,y1,z1, r,g,b, 0,-1,0); push_vertex(v,c, x1,y1,z2, r,g,b, 0,-1,0); push_vertex(v,c, x2,y1,z1, r,g,b, 0,-1,0);
-    push_vertex(v,c, x2,y1,z1, r,g,b, 0,-1,0); push_vertex(v,c, x1,y1,z2, r,g,b, 0,-1,0); push_vertex(v,c, x2,y1,z2, r,g,b, 0,-1,0);
-    /* Front */
-    push_vertex(v,c, x1,y1,z2, r,g,b, 0,0,1); push_vertex(v,c, x2,y1,z2, r,g,b, 0,0,1); push_vertex(v,c, x1,y2,z2, r,g,b, 0,0,1);
-    push_vertex(v,c, x2,y1,z2, r,g,b, 0,0,1); push_vertex(v,c, x2,y2,z2, r,g,b, 0,0,1); push_vertex(v,c, x1,y2,z2, r,g,b, 0,0,1);
-    /* Back */
-    push_vertex(v,c, x1,y1,z1, r,g,b, 0,0,-1); push_vertex(v,c, x1,y2,z1, r,g,b, 0,0,-1); push_vertex(v,c, x2,y1,z1, r,g,b, 0,0,-1);
-    push_vertex(v,c, x2,y1,z1, r,g,b, 0,0,-1); push_vertex(v,c, x1,y2,z1, r,g,b, 0,0,-1); push_vertex(v,c, x2,y2,z1, r,g,b, 0,0,-1);
-    /* Left */
-    push_vertex(v,c, x1,y1,z1, r,g,b, -1,0,0); push_vertex(v,c, x1,y1,z2, r,g,b, -1,0,0); push_vertex(v,c, x1,y2,z1, r,g,b, -1,0,0);
-    push_vertex(v,c, x1,y1,z2, r,g,b, -1,0,0); push_vertex(v,c, x1,y2,z2, r,g,b, -1,0,0); push_vertex(v,c, x1,y2,z1, r,g,b, -1,0,0);
-    /* Right */
-    push_vertex(v,c, x2,y1,z1, r,g,b, 1,0,0); push_vertex(v,c, x2,y2,z1, r,g,b, 1,0,0); push_vertex(v,c, x2,y1,z2, r,g,b, 1,0,0);
-    push_vertex(v,c, x2,y1,z2, r,g,b, 1,0,0); push_vertex(v,c, x2,y2,z1, r,g,b, 1,0,0); push_vertex(v,c, x2,y2,z2, r,g,b, 1,0,0);
-}
-
-
-static void push_pyramid(VkVertex *v, uint32_t *c, float cx, float cy, float cz, float hx, float hy, float hz, float r, float g, float b) {
-    float x1 = cx - hx, x2 = cx + hx;
-    float y1 = cy - hy, y2 = cy + hy;
-    float z1 = cz - hz, z2 = cz + hz;
-
-    // Front (Z2)
-    push_vertex(v, c, cx, y2, cz, r, g, b, 0.0f, 0.5f, 1.0f);
-    push_vertex(v, c, x1, y1, z2, r, g, b, 0.0f, 0.5f, 1.0f);
-    push_vertex(v, c, x2, y1, z2, r, g, b, 0.0f, 0.5f, 1.0f);
-
-    // Right (X2)
-    push_vertex(v, c, cx, y2, cz, r, g, b, 1.0f, 0.5f, 0.0f);
-    push_vertex(v, c, x2, y1, z2, r, g, b, 1.0f, 0.5f, 0.0f);
-    push_vertex(v, c, x2, y1, z1, r, g, b, 1.0f, 0.5f, 0.0f);
-
-    // Back (Z1)
-    push_vertex(v, c, cx, y2, cz, r, g, b, 0.0f, 0.5f, -1.0f);
-    push_vertex(v, c, x2, y1, z1, r, g, b, 0.0f, 0.5f, -1.0f);
-    push_vertex(v, c, x1, y1, z1, r, g, b, 0.0f, 0.5f, -1.0f);
-
-    // Left (X1)
-    push_vertex(v, c, cx, y2, cz, r, g, b, -1.0f, 0.5f, 0.0f);
-    push_vertex(v, c, x1, y1, z1, r, g, b, -1.0f, 0.5f, 0.0f);
-    push_vertex(v, c, x1, y1, z2, r, g, b, -1.0f, 0.5f, 0.0f);
-
-    // Base (Quad - 2 triangles)
-    push_vertex(v, c, x1, y1, z1, r, g, b, 0.0f, -1.0f, 0.0f);
-    push_vertex(v, c, x2, y1, z1, r, g, b, 0.0f, -1.0f, 0.0f);
-    push_vertex(v, c, x1, y1, z2, r, g, b, 0.0f, -1.0f, 0.0f);
-    push_vertex(v, c, x2, y1, z1, r, g, b, 0.0f, -1.0f, 0.0f);
-    push_vertex(v, c, x2, y1, z2, r, g, b, 0.0f, -1.0f, 0.0f);
-    push_vertex(v, c, x1, y1, z2, r, g, b, 0.0f, -1.0f, 0.0f);
-}
-
-/* Box with an explicit orientation matrix (the animated floating tome).
- * Same 36-vertex box as push_box, but every corner and face normal is
- * rotated by the 3x3 part of `orient` (column-major 4x4 rotation, no
- * translation/scale), around the center (cx,cy,cz). */
-static void push_box_oriented(VkVertex *v, uint32_t *c,
-                              float cx, float cy, float cz,
-                              float hx, float hy, float hz,
-                              const float orient[16],
-                              float r, float g, float b) {
-    /* Transform the 8 corners: bit2 = +x, bit1 = +y, bit0 = +z */
-    float X[8], Y[8], Z[8];
-    for (int i = 0; i < 8; i++) {
-        float lx = (i & 4) ?  hx : -hx;
-        float ly = (i & 2) ?  hy : -hy;
-        float lz = (i & 1) ?  hz : -hz;
-        X[i] = cx + orient[0]*lx + orient[4]*ly + orient[8]*lz;
-        Y[i] = cy + orient[1]*lx + orient[5]*ly + orient[9]*lz;
-        Z[i] = cz + orient[2]*lx + orient[6]*ly + orient[10]*lz;
-    }
-    /* Transform the 6 face normals: 0=-x 1=+x 2=-y 3=+y 4=-z 5=+z */
-    const float fn[6][3] = {
-        {-1,0,0}, {1,0,0}, {0,-1,0}, {0,1,0}, {0,0,-1}, {0,0,1}
-    };
-    float NX[6], NY[6], NZ[6];
-    for (int f = 0; f < 6; f++) {
-        NX[f] = orient[0]*fn[f][0] + orient[4]*fn[f][1] + orient[8]*fn[f][2];
-        NY[f] = orient[1]*fn[f][0] + orient[5]*fn[f][1] + orient[9]*fn[f][2];
-        NZ[f] = orient[2]*fn[f][0] + orient[6]*fn[f][1] + orient[10]*fn[f][2];
-    }
-    /* Faces: same corner order as push_box (top, bottom, front, back,
-     * left, right), each as two triangles; index into the corner and
-     * normal arrays. */
-    const int faces[6][7] = {
-        {2,6,3, 6,7,3, 3},
-        {0,1,4, 4,1,5, 2},
-        {1,5,3, 5,7,3, 5},
-        {0,2,4, 4,2,6, 4},
-        {0,1,2, 1,3,2, 0},
-        {4,6,5, 5,6,7, 1},
-    };
-    for (int f = 0; f < 6; f++) {
-        for (int t = 0; t < 6; t += 3) {
-            push_vertex(v, c, X[faces[f][t+0]], Y[faces[f][t+0]], Z[faces[f][t+0]], r, g, b, NX[faces[f][6]], NY[faces[f][6]], NZ[faces[f][6]]);
-            push_vertex(v, c, X[faces[f][t+1]], Y[faces[f][t+1]], Z[faces[f][t+1]], r, g, b, NX[faces[f][6]], NY[faces[f][6]], NZ[faces[f][6]]);
-            push_vertex(v, c, X[faces[f][t+2]], Y[faces[f][t+2]], Z[faces[f][t+2]], r, g, b, NX[faces[f][6]], NY[faces[f][6]], NZ[faces[f][6]]);
-        }
-    }
-}
-
-/*The map mesh is built only for a WINDOW around the player, not the
- * whole 300x300 floor. The fragment shader DISCARDS every fragment
- * further than visionRadius (max 50 in the city), so geometry outside
- * that radius is never visible — yet the old code emitted all ~90 000
- * tiles and redid it on every map chunk, i.e. on EVERY step while
- * exploring: 3M+ vertices (~130 MB of coherent writes) per step, the
- * 100-130 ms CPU stall the player felt as stutter.
+/*Map instances are built only for a WINDOW around the player, not the
+ * whole 300x300 floor: the fragment shader discards every fragment
+ * further than visionRadius (max 50 in the city), and the compute cull
+ * drops whatever lies beyond it.
  *
- * Rebuild policy (simple because it is now cheap):
+ * Rebuild policy:
  *  - skip the rebuild when the built window still covers the player's
  *    required window and no tile data changed (g_map_dirty is set by
  *    the net thread ONLY when a chunk actually differs from
@@ -736,249 +616,17 @@ static void push_box_oriented(VkVertex *v, uint32_t *c,
  *  - otherwise rebuild the window around the current position with a
  *    BUILD_MARGIN, so a rebuild re-happens only after ~MARGIN tiles of
  *    travel (amortized), not on every step.
- * The persistent vertex buffer keeps the map block intact between
- * frames; only the entity/particle tail is rewritten every frame.*/
+ * Each frame slot keeps its copy of the instance list and refreshes it
+ * only when its map generation is stale.*/
 #define VK_MAP_VISION_MARGIN 8   /*fog fade-out slack beyond visionRadius */
 #define VK_MAP_BUILD_MARGIN  16  /*rebuild amortization: tiles of travel  */
 #define VK_MAP_MIN_RADIUS   16
 #define VK_MAP_MAX_RADIUS   56   /*city visionRadius is 50 (50+8 -> 56)   */
 
-static uint32_t s_map_vertex_count = 0;
-/* CPU-side cache for the static map mesh. Each in-flight frame owns a
- * separate GPU vertex buffer, so unchanged map geometry must be copied into
- * the current frame buffer without rebuilding it every frame. */
-static VkVertex *s_map_vertices = NULL;
-static uint32_t s_map_vertex_capacity = 0;
-
-static bool ensure_map_vertex_capacity(uint32_t needed) {
-    if (needed <= s_map_vertex_capacity) return true;
-    uint32_t cap = s_map_vertex_capacity ? s_map_vertex_capacity : 65536u;
-    while (cap < needed) {
-        if (cap > UINT32_MAX / 2u) return false;
-        cap *= 2u;
-    }
-    VkVertex *nv = realloc(s_map_vertices, (size_t)cap * sizeof(*nv));
-    if (!nv) return false;
-    s_map_vertices = nv;
-    s_map_vertex_capacity = cap;
-    return true;
-}
 static bool s_map_built = false;
 static int s_map_floor = -1;
 static int s_map_win_x0 = 0, s_map_win_y0 = 0;
 static int s_map_win_x1 = -1, s_map_win_y1 = -1;
-
-static void update_vertex_buffer(VkState *s, VkVertex *v, float dt, FrameSnapshot *snap) {
-    uint32_t count = 0;
-    int y, x;
-    int px = (snap->my_x != -1) ? snap->my_x : 500;
-    int py = (snap->my_y != -1) ? snap->my_y : 500;
-    int vr = snap->vision_radius;
-    bool full = false;
-
-    if (snap->my_x >= 0 && snap->my_y >= 0) {
-        int R = vr + VK_MAP_VISION_MARGIN;
-        if (R < VK_MAP_MIN_RADIUS) R = VK_MAP_MIN_RADIUS;
-        if (R > VK_MAP_MAX_RADIUS) R = VK_MAP_MAX_RADIUS;
-        int need_x0 = snap->my_x - R, need_x1 = snap->my_x + R;
-        int need_y0 = snap->my_y - R, need_y1 = snap->my_y + R;
-        if (need_x0 < 0) need_x0 = 0;
-        if (need_y0 < 0) need_y0 = 0;
-        if (need_x1 >= MAP_WIDTH) need_x1 = MAP_WIDTH - 1;
-        if (need_y1 >= MAP_HEIGHT) need_y1 = MAP_HEIGHT - 1;
-        bool covers = s_map_built && s_map_floor == snap->my_floor &&
-                      s_map_win_x0 <= need_x0 && s_map_win_x1 >= need_x1 &&
-                      s_map_win_y0 <= need_y0 && s_map_win_y1 >= need_y1;
-        /*Atomic load: the net thread may set the flag (under
-         * g_state_mutex) at any moment; a plain read races with it.*/
-        if (atomic_load_explicit(&g_map_dirty, memory_order_acquire) || !covers) {
-            int bR = R + VK_MAP_BUILD_MARGIN;
-            int x0 = snap->my_x - bR; if (x0 < 0) x0 = 0;
-            int x1 = snap->my_x + bR; if (x1 >= MAP_WIDTH) x1 = MAP_WIDTH - 1;
-            int y0 = snap->my_y - bR; if (y0 < 0) y0 = 0;
-            int y1 = snap->my_y + bR; if (y1 >= MAP_HEIGHT) y1 = MAP_HEIGHT - 1;
-            count = 0;
-            uint32_t map_capacity_needed =
-                (uint32_t)((x1 - x0 + 1) * (y1 - y0 + 1) * 72u);
-            if (!ensure_map_vertex_capacity(map_capacity_needed)) {
-                fprintf(stderr, "[VK] Map vertex cache allocation failed\n");
-                s_map_vertex_count = 0;
-                s_map_built = false;
-                /*Exchange (not store): a set racing with this clear must
-                 * survive, or the mesh would never be rebuilt.*/
-                (void)atomic_exchange_explicit(&g_map_dirty, false, memory_order_acq_rel);
-                return;
-            }
-            for (y = y0; y <= y1 && !full; y++) {
-                for (x = x0; x <= x1 && !full; x++) {
-                    float fx = (float)x;
-                    float fz = (float)y;
-                    VoxelType tile = snap->map[y][x];
-                    if (tile == 0) continue; // optimization
-
-                    if (tile == VOXEL_WALL || tile == VOXEL_OBSIDIAN || tile == VOXEL_GOLD_VEIN) {
-                        if (count + 36 > s->max_vertices) { full = true; break; }
-                        if (tile == VOXEL_OBSIDIAN) push_box(s_map_vertices, &count, fx, 0.5f, fz, 0.5f, 1.5f, 0.5f, 0.1f, 0.05f, 0.2f);
-                        else if (tile == VOXEL_GOLD_VEIN) push_box(s_map_vertices, &count, fx, 0.5f, fz, 0.5f, 1.5f, 0.5f, 0.8f, 0.7f, 0.1f);
-                        else push_box(s_map_vertices, &count, fx, 0.5f, fz, 0.5f, 1.5f, 0.5f, 0.6f, 0.6f, 0.6f);
-                    } else if (tile == VOXEL_FLOOR || tile == VOXEL_COBBLE || tile == VOXEL_WOOD || tile == VOXEL_ICE || tile == VOXEL_SAND || tile == VOXEL_ASH || tile == VOXEL_MUD || tile == VOXEL_MARBLE || tile == VOXEL_GRASS || tile == VOXEL_TRAP) {
-                        if (count + 36 > s->max_vertices) { full = true; break; }
-                        float r=0.2f, g=0.2f, b=0.2f;
-                        if (tile == VOXEL_WOOD) { r=0.4f; g=0.3f; b=0.2f; }
-                        if (tile == VOXEL_COBBLE) { r=0.3f; g=0.3f; b=0.3f; }
-                        if (tile == VOXEL_ICE) { r=0.6f; g=0.8f; b=1.0f; }
-                        if (tile == VOXEL_SAND) { r=0.8f; g=0.7f; b=0.4f; }
-                        if (tile == VOXEL_ASH) { r=0.25f; g=0.25f; b=0.25f; }
-                        if (tile == VOXEL_MUD) { r=0.3f; g=0.2f; b=0.1f; }
-                        if (tile == VOXEL_MARBLE) { r=0.9f; g=0.9f; b=0.9f; }
-                        if (tile == VOXEL_GRASS) { r=0.1f; g=0.5f; b=0.1f; }
-                        if (tile == VOXEL_TRAP) { r=0.8f; g=0.2f; b=0.1f; }
-                        push_box(s_map_vertices, &count, fx, 0.0f, fz, 0.5f, 0.1f, 0.5f, r, g, b);
-                    } else if (tile >= VOXEL_CRYSTAL_BLUE && tile <= VOXEL_CRYSTAL_WHITE) {
-                        if (count + 36 > s->max_vertices) { full = true; break; }
-                        float r = 1.0f, g = 1.0f, b = 1.0f;
-                        if (tile == VOXEL_CRYSTAL_BLUE)   { r = 0.3f; g = 0.7f; b = 1.0f; }
-                        if (tile == VOXEL_CRYSTAL_PURPLE)  { r = 0.8f; g = 0.2f; b = 1.0f; }
-                        if (tile == VOXEL_CRYSTAL_RED)     { r = 1.0f; g = 0.1f; b = 0.1f; }
-                        if (tile == VOXEL_CRYSTAL_GREEN)   { r = 0.1f; g = 1.0f; b = 0.2f; }
-                        if (tile == VOXEL_CRYSTAL_YELLOW)  { r = 1.0f; g = 0.9f; b = 0.1f; }
-                        if (tile == VOXEL_CRYSTAL_ORANGE)  { r = 1.0f; g = 0.5f; b = 0.0f; }
-                        if (tile == VOXEL_CRYSTAL_CYAN)    { r = 0.0f; g = 0.9f; b = 1.0f; }
-                        push_box(s_map_vertices, &count, fx, 0.8f, fz, 0.4f, 0.8f, 0.4f, r, g, b);
-                    } else if (tile == VOXEL_WATER || tile == VOXEL_LAVA) {
-                        if (count + 36 > s->max_vertices) { full = true; break; }
-                        if (tile == VOXEL_WATER) push_box(s_map_vertices, &count, fx, -0.05f, fz, 0.5f, 0.05f, 0.5f, 0.1f, 0.4f, 0.8f);
-                        else push_box(s_map_vertices, &count, fx, -0.05f, fz, 0.5f, 0.05f, 0.5f, 1.0f, 0.3f, 0.0f);
-                    } else if (tile == VOXEL_DOOR) {
-                        if (count + 72 <= s->max_vertices && !full) {
-                            push_box(s_map_vertices, &count, fx, 0.4f, fz, 0.45f, 0.4f, 0.45f, 0.6f, 0.3f, 0.1f);
-                            push_box(s_map_vertices, &count, fx, -0.05f, fz, 0.5f, 0.05f, 0.5f, 0.2f, 0.2f, 0.25f);
-                        }
-                    } else if (tile == VOXEL_STAIRS_DOWN || tile == VOXEL_STAIRS_UP) {
-                        if (count + 36 > s->max_vertices) { full = true; break; }
-                        push_box(s_map_vertices, &count, fx, 0.05f, fz, 0.5f, 0.1f, 0.5f, 0.9f, 0.9f, 0.0f);
-                    } else if (tile == VOXEL_MUSHROOM_GLOW) {
-                        if (count + 36 > s->max_vertices) { full = true; break; }
-                        push_box(s_map_vertices, &count, fx, 0.2f, fz, 0.3f, 0.2f, 0.3f, 0.2f, 1.0f, 0.5f);
-                    }
-                }
-            }
-            s_map_vertex_count = count;
-            s_map_built = true;
-            s_map_floor = snap->my_floor;
-            s_map_win_x0 = x0; s_map_win_y0 = y0;
-            s_map_win_x1 = x1; s_map_win_y1 = y1;
-            (void)atomic_exchange_explicit(&g_map_dirty, false, memory_order_acq_rel);
-        }
-    } else {
-        /*Not in the game yet: no map, and forget the previous floor.*/
-        s_map_built = false;
-        s_map_vertex_count = 0;
-        s_map_floor = -1;
-        s_map_win_x1 = -1;
-        (void)atomic_exchange_explicit(&g_map_dirty, false, memory_order_acq_rel);
-    }
-    count = s_map_vertex_count;
-    if (count > 0 && s_map_vertices) {
-        memcpy(v, s_map_vertices, (size_t)count * sizeof(*v));
-    }
-
-    // Rendering entities with lerp
-    for (int i = 0; i < CLIENT_MAX_ENTITIES; i++) {
-        if (snap->entities[i].active && snap->entities[i].id != snap->my_entity_id) {
-            float tgt_ex = (float)snap->entities[i].x;
-            float tgt_ez = (float)snap->entities[i].y;
-            lerp_update(&g_entity_lerp[i], tgt_ex, tgt_ez, dt);
-            float ex = g_entity_lerp[i].cur_x;
-            float ez = g_entity_lerp[i].cur_z;
-            
-            if (fabs(ex - px) < (float)vr + 1.0f && fabs(ez - py) < (float)vr + 1.0f) {
-                if (count + 36 <= s->max_vertices) {
-                    float er = 0.4f, eg = 0.4f, eb = 1.0f;
-                    if (snap->entities[i].is_merchant &&
-                        snap->entities[i].shop_spec == SHOP_SPEC_BOOKS_MARTIAL) {
-                        er = 0.75f; eg = 0.15f; eb = 0.2f;
-                    }
-                    else if (snap->entities[i].is_merchant) { er = 1.0f; eg = 0.8f; eb = 0.0f; }
-                    else if (snap->entities[i].is_player) { er = 0.2f; eg = 0.8f; eb = 0.2f; }
-                    else if (snap->entities[i].id < 10) { er = 1.0f; eg = 0.3f; eb = 0.3f; }
-                                        if (snap->entities[i].is_player) {
-                        push_pyramid(v, &count, ex, 0.4f, ez, 0.35f, 0.5f, 0.35f, er, eg, eb);
-                    } else {
-                        push_box(v, &count, ex, 0.4f, ez, 0.3f, 0.4f, 0.3f, er, eg, eb);
-                        /* The Archive of a Thousand Battles: the tome
-                         * flies a random trajectory INSIDE the shop
-                         * (bounds measured from the map around the
-                         * merchant) while performing a random rotation
-                         * on itself — shared with the GL backend via
-                         * client_tome.c */
-                        if (snap->entities[i].is_merchant &&
-                            snap->entities[i].shop_spec == SHOP_SPEC_BOOKS_MARTIAL &&
-                            count + 36 <= s->max_vertices) {
-                            float tp[3], to[16];
-                            tome_anim_update(i, snap->entities[i].id, snap->entities[i].floor_id,
-                                             snap->entities[i].x, snap->entities[i].y,
-                                             snap->map[0], dt, tp, to);
-                            push_box_oriented(v, &count,
-                                             tp[0], tp[1], tp[2],
-                                             0.45f, 0.1f, 0.35f, to,
-                                             0.9f, 0.75f, 0.3f);
-                        }
-                    }
-                }
-            }
-        } else if (!snap->entities[i].active) {
-            g_entity_lerp[i].initialized = false;
-            tome_anim_reset_slot(i);
-        }
-    }
-
-    if (count + 36 <= s->max_vertices) {
-        push_box(v, &count, (float)px, 0.6f, (float)py, 0.3f, 0.6f, 0.3f, 0.0f, 1.0f, 0.0f);
-    }
-
-    //Boss Trophies removed as per request.
-
-    //Draw particles. NOTE: the SIMULATION (positions, life, alpha, and
-    //freeing the slots) is NOT done here — it runs in draw_frame() via
-    //particles_update(dt), BEFORE this vertex buffer is filled (A4).
-    //Here we only map the pool into the VBO.
-    /*B1: the net thread may be spawning particles concurrently
-     * (spawn_vfx on MSG_SPELL_VFX) and this pass also WRITES p->a, so
-     * the whole mapping runs under g_particles_mutex (the same mutex
-     * particles_update takes, called just above in draw_frame).*/
-    pthread_mutex_lock(&g_particles_mutex);
-    for (int i = 0; i < MAX_PARTICLES; i++) {
-        if (!g_particles[i].active) continue;
-        Particle *p = &g_particles[i];
-
-        p->a = p->life / p->max_life;
-        
-        // draw particle if space allows
-        if (count + 36 <= s->max_vertices) {
-            // we will draw them as floating boxes relative to (px, py)
-            float fx = p->x;
-            float fz = p->z;
-            float fy = p->y;
-            
-            // To mimic additive blending/fade, we just multiply color by alpha for Vulkan
-            float pr = p->r * p->a;
-            float pg = p->g * p->a;
-            float pb = p->b * p->a;
-            
-            push_box(v, &count, fx, -fy, fz, p->size, p->size, p->size, pr, pg, pb);
-        }
-    }
-    pthread_mutex_unlock(&g_particles_mutex);
-
-    /*No pthread_mutex_unlock here: update_vertex_buffer runs on the
-     * RENDER thread over a private FrameSnapshot — frame_snapshot_acquire
-     * already locked, copied and UNLOCKED the state mutex. The unlock
-     * that used to be here was unmatched: releasing a mutex the calling
-     * thread does not hold is undefined behavior (it can corrupt the
-     * mutex and, with it, every other thread).*/
-    s->vertex_count = count;
-}
 
 static void record_commands(VkState *s, VkFrameResources *frame,
                              float mvp[16], float vision_radius, float px, float pz, float time_val,
@@ -1005,14 +653,39 @@ static void record_commands(VkState *s, VkFrameResources *frame,
     color_barrier.subresourceRange.baseArrayLayer = 0;
     color_barrier.subresourceRange.layerCount = 1;
 
+    /*The depth image is shared by every frame in flight: the barrier also
+     *orders this frame's clear after the previous frame's depth writes
+     *(write-after-write), and moves it out of UNDEFINED (it is cleared at
+     *load, so the old contents never matter).*/
+    VkImageMemoryBarrier2 depth_barrier = {0};
+    depth_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+    depth_barrier.srcStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT |
+                                 VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
+    depth_barrier.srcAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+    depth_barrier.dstStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT |
+                                 VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
+    depth_barrier.dstAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
+                                  VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+    depth_barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    depth_barrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    depth_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    depth_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    depth_barrier.image = s->depth_image;
+    depth_barrier.subresourceRange.aspectMask = s->depth_aspect;
+    depth_barrier.subresourceRange.levelCount = 1;
+    depth_barrier.subresourceRange.layerCount = 1;
+
+    VkImageMemoryBarrier2 attach_barriers[2] = {color_barrier, depth_barrier};
     VkDependencyInfo dep_info = {0};
     dep_info.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-    dep_info.imageMemoryBarrierCount = 1;
-    dep_info.pImageMemoryBarriers = &color_barrier;
+    dep_info.imageMemoryBarrierCount = 2;
+    dep_info.pImageMemoryBarriers = attach_barriers;
 
     vkCmdPipelineBarrier2(frame->command_buffer, &dep_info);
 
-    if (s->gpu_driven) {
+    /*--- GPU-driven scene: reset counters, cull, expand, write the
+     *indirect draw (shaders/gpd_*.comp) ---*/
+    {
         vkCmdFillBuffer(frame->command_buffer, frame->gpd_counts, 0, 16, 0);
 
         VkMemoryBarrier2 fill_barrier = {0};
@@ -1149,6 +822,14 @@ static void record_commands(VkState *s, VkFrameResources *frame,
 
     vkCmdBeginRendering(frame->command_buffer, &renderingInfo);
 
+    /*Viewport and scissor are dynamic state: the pipelines do not depend
+     *on the window size.*/
+    VkViewport viewport = {0.0f, 0.0f, (float)s->swapchain_extent.width,
+                           (float)s->swapchain_extent.height, 0.0f, 1.0f};
+    VkRect2D scissor = {{0, 0}, s->swapchain_extent};
+    vkCmdSetViewport(frame->command_buffer, 0, 1, &viewport);
+    vkCmdSetScissor(frame->command_buffer, 0, 1, &scissor);
+
     /* --- Step 1: 3D Scene --- */
     float push_data[20];
     memcpy(push_data, mvp, sizeof(float) * 16);
@@ -1157,22 +838,11 @@ static void record_commands(VkState *s, VkFrameResources *frame,
     push_data[18] = pz;
     push_data[19] = time_val;
 
-    if (s->gpu_driven) {
-        vkCmdBindPipeline(frame->command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s->gpd_scene_pipeline);
-        vkCmdBindDescriptorSets(frame->command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s->gpd_scene_layout, 0, 1, &frame->gpd_desc_scene, 0, NULL);
-        vkCmdPushConstants(frame->command_buffer, s->gpd_scene_layout,
-                           VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(float) * 20, push_data);
-        vkCmdDrawIndirect(frame->command_buffer, frame->gpd_indirect, 0, 1, 16);
-    } else {
-        vkCmdBindPipeline(frame->command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s->pipeline);
-        vkCmdPushConstants(frame->command_buffer, s->pipeline_layout,
-                           VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(float) * 20, push_data);
-        VkDeviceSize offsets[] = {0};
-        vkCmdBindVertexBuffers(frame->command_buffer, 0, 1, &frame->vertex_buffer, offsets);
-        if (s->vertex_count > 0) {
-            vkCmdDraw(frame->command_buffer, s->vertex_count, 1, 0, 0);
-        }
-    }
+    vkCmdBindPipeline(frame->command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s->gpd_scene_pipeline);
+    vkCmdBindDescriptorSets(frame->command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s->gpd_scene_layout, 0, 1, &frame->gpd_desc_scene, 0, NULL);
+    vkCmdPushConstants(frame->command_buffer, s->gpd_scene_layout,
+                       VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(float) * 20, push_data);
+    vkCmdDrawIndirect(frame->command_buffer, frame->gpd_indirect, 0, 1, 16);
 
     /*--- Step 2: 2D HUD overlay (pipeline without depth test, with blend) ---*/
     if (s->hud_vertex_count > 0 && s->pipeline_hud != VK_NULL_HANDLE) {
@@ -1184,7 +854,7 @@ static void record_commands(VkState *s, VkFrameResources *frame,
         hud_push[16] = 99999.0f; /* disables fog in the fragment shader */
         vkCmdPushConstants(frame->command_buffer, s->pipeline_layout,
                            VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(float) * 17, hud_push);
-        vkCmdDraw(frame->command_buffer, s->hud_vertex_count, 1, s->vertex_count, 0);
+        vkCmdDraw(frame->command_buffer, s->hud_vertex_count, 1, 0, 0);
     }
 
     vkCmdEndRendering(frame->command_buffer);
@@ -1495,42 +1165,62 @@ static void update_gpd_buffers(VkState *s, float dt, FrameSnapshot *snap) {
 
     frame->gpd_dyn_count = dyn_count;
     frame->gpd_ori_count = ori_count;
-    s->vertex_count = 0;
 }
 
+/*Destroy and rebuild the swapchain for the current framebuffer size. A
+ * minimized window (0x0) is waited out here: no swapchain can have a zero
+ * extent. Returns false only when the swapchain cannot be rebuilt.*/
+static bool recreate_swapchain(VkState *s) {
+    int fb_w = 0, fb_h = 0;
+    glfwGetFramebufferSize(s->window, &fb_w, &fb_h);
+    while ((fb_w == 0 || fb_h == 0) && !glfwWindowShouldClose(s->window) && g_running) {
+        glfwWaitEventsTimeout(0.1);
+        glfwGetFramebufferSize(s->window, &fb_w, &fb_h);
+    }
+    if (fb_w == 0 || fb_h == 0)
+        return true; /* closing */
+    s->swapchain_dirty = false;
+    return vk_recreate_swapchain(s, (uint32_t)fb_w, (uint32_t)fb_h);
+}
+
+/*One frame, in the order Vulkan requires:
+ *  1. wait for the fence of this slot's previous use (MAX_FRAMES_IN_FLIGHT
+ *     frames ago): its command buffer, HUD buffer, instance buffers and
+ *     its image-available semaphore are free again;
+ *  2. acquire a swapchain image, signalling the slot's image semaphore
+ *     (OUT_OF_DATE: rebuild the swapchain and skip the frame — the fence
+ *     is still signalled, nothing was submitted);
+ *  3. reset the fence, record, submit (waits on the image semaphore,
+ *     signals the IMAGE's render-finished semaphore and the fence);
+ *  4. present, waiting on that image's semaphore. The render-finished
+ *     semaphore belongs to the swapchain image, not to the frame slot:
+ *     only re-acquiring the same image guarantees its previous present
+ *     has consumed it.
+ *SUBOPTIMAL or OUT_OF_DATE at present time, or a resize reported by
+ *GLFW, rebuild the swapchain before the next frame.*/
 static void draw_frame(VkState *s) {
-    /*Three frames in flight: this frame uses slot `slot`. The only
-     * blocking wait of the frame is below (the fence of the slot's LAST
-     * use, 3 frames ago) — the old code instead waited for the fence of
-     * the frame it had just submitted (vkWaitForFences(UINT64_MAX) at the
-     * end of draw_frame), so the CPU and the GPU never overlapped.*/
     uint32_t slot = s->current_frame;
-    uint32_t next_slot = (slot + 1) % MAX_FRAMES_IN_FLIGHT;
     VkFrameResources *frame = &s->frames[slot];
+
+    vkWaitForFences(s->device, 1, &s->fences[slot], VK_TRUE, UINT64_MAX);
 
     uint32_t imageIndex = 0;
     VkResult acquire_res = vkAcquireNextImageKHR(s->device, s->swapchain, UINT64_MAX,
-                          s->sem_image[slot], VK_NULL_HANDLE, &imageIndex);
+                                                 s->sem_image[slot], VK_NULL_HANDLE, &imageIndex);
     if (acquire_res == VK_ERROR_OUT_OF_DATE_KHR) {
-        /* No image was acquired, so sem_image[slot] was not signalled. */
-        s->current_frame = next_slot;
+        s->swapchain_dirty = true;
         return;
     }
     if (acquire_res != VK_SUCCESS && acquire_res != VK_SUBOPTIMAL_KHR) {
-        /* Never continue with an undefined imageIndex (for example timeout). */
-        s->current_frame = next_slot;
+        fprintf(stderr, "[VK] vkAcquireNextImageKHR failed: %d\n", acquire_res);
+        s->device_lost = true; /* device or surface lost, out of memory: not recoverable */
         return;
     }
+    if (acquire_res == VK_SUBOPTIMAL_KHR)
+        s->swapchain_dirty = true; /* this frame is still presentable */
 
-    /*The GPU must be done with the shared vertex buffer + command
-     * buffer that this slot submitted 3 frames ago. From here on the
-     * fence is UNSIGNALED, so every path that bails out must re-signal
-     * it (see the empty submit below) or the next use of this slot
-     * would wait forever.*/
-    vkWaitForFences(s->device, 1, &s->fences[slot], VK_TRUE, UINT64_MAX);
     vkResetFences(s->device, 1, &s->fences[slot]);
     vkResetCommandBuffer(frame->command_buffer, 0);
-
     s->current_image = imageIndex;
 
     FrameSnapshot snap;
@@ -1567,42 +1257,20 @@ static void draw_frame(VkState *s) {
     if (dt > 0.1f) dt = 0.1f;
     last_time = current_time;
 
-    /*Use persistent mapping (3.4)*/
+    /*The slot's host-visible HUD buffer (persistently mapped).*/
     VkVertex *v = (VkVertex *)frame->mapped_vertex_data;
-    if (!v) {
-        VkSubmitInfo empty = {0};
-        empty.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        vkQueueSubmit(s->graphics_queue, 1, &empty, s->fences[slot]);
-        s->current_frame = next_slot;
-        return;
-    }
 
-    /*A4: advance the particle simulation with this frame's dt. The GL
-     *backend does the same in its render loop (render_gl.c), but the VK
-     *path never did — the comment in update_vertex_buffer claimed the
-     *update was "delegated to the main loop" and there it simply wasn't
-     *called. Result: particles froze in place (alpha stuck at 1.0, no
-     *motion, slots never freed), the 2000-slot pool saturated after a
-     *few seconds of magic (one fireball alone spawns 200), and spawn_vfx
-     *found no free slot again — no VFX at all until the client restarted.
-     *Running it here, right before the VBO is filled from the pool, keeps
-     *both backends on the exact same cadence (once per rendered frame).
-     *Threading: the pool is shared with the net thread (spawn_vfx on
-     *MSG_SPELL_VFX) but is now fully protected — both this call and the
-     *VBO mapping pass below hold g_particles_mutex (B1, see
-     *client_particles.h), so the "tolerated loose race" that used to
-     *live here is gone.*/
+    /*Advance the particle simulation once per rendered frame, right
+     *before the dynamic instances are filled from the pool. The pool is
+     *shared with the net thread (spawn_vfx on MSG_SPELL_VFX) and guarded
+     *by g_particles_mutex (client_particles.h).*/
     particles_update(dt);
 
-    if (s->gpu_driven) {
-        update_gpd_buffers(s, dt, &snap);
-    } else {
-        update_vertex_buffer(s, v, dt, &snap);
-    }
+    update_gpd_buffers(s, dt, &snap);
 
-    /*2D HUD: Write after 3D vertices*/
-    uint32_t hud_start = s->vertex_count;
-    uint32_t hud_count = hud_start;
+    /*2D HUD: the whole host vertex buffer (the 3D scene is generated on
+     *the GPU).*/
+    uint32_t hud_count = 0;
     pthread_mutex_lock(&g_state_mutex);
     render_vk_hud(v, &hud_count, s->max_vertices, sw, sh, mvp, px, pz);
     pthread_mutex_unlock(&g_state_mutex);
@@ -1611,43 +1279,79 @@ static void draw_frame(VkState *s) {
     fct_update(dt);
     draw_floating_combat_text_vk(v, &hud_count, s->max_vertices, sw, sh, mvp, &snap);
 
-    s->hud_vertex_count = hud_count - hud_start;
-
-    // Vertex memory stays persistently mapped; the current frame owns it.
+    s->hud_vertex_count = hud_count;
 
     record_commands(s, frame, mvp, vr, px, pz, (float)current_time, hud_ortho, sw, sh);
 
+    VkSemaphore render_done = s->sem_render[imageIndex];
     VkSubmitInfo submitInfo = {0};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    VkSemaphore waitSems[] = { s->sem_image[slot] };
-    VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+    VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     submitInfo.waitSemaphoreCount = 1;
-    submitInfo.pWaitSemaphores = waitSems;
-    submitInfo.pWaitDstStageMask = waitStages;
+    submitInfo.pWaitSemaphores = &s->sem_image[slot];
+    submitInfo.pWaitDstStageMask = &waitStage;
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &frame->command_buffer;
-    VkSemaphore signalSems[] = { s->sem_render[slot] };
     submitInfo.signalSemaphoreCount = 1;
-    submitInfo.pSignalSemaphores = signalSems;
-    vkQueueSubmit(s->graphics_queue, 1, &submitInfo, s->fences[slot]);
+    submitInfo.pSignalSemaphores = &render_done;
+    VkResult submit_res = vkQueueSubmit(s->graphics_queue, 1, &submitInfo, s->fences[slot]);
+    if (submit_res != VK_SUCCESS) {
+        fprintf(stderr, "[VK] vkQueueSubmit failed: %d\n", submit_res);
+        s->device_lost = true;
+        return;
+    }
+
     VkPresentInfoKHR presentInfo = {0};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
     presentInfo.waitSemaphoreCount = 1;
-    presentInfo.pWaitSemaphores = signalSems;
+    presentInfo.pWaitSemaphores = &render_done;
     presentInfo.swapchainCount = 1;
     presentInfo.pSwapchains = &s->swapchain;
     presentInfo.pImageIndices = &imageIndex;
     VkResult present_res = vkQueuePresentKHR(s->present_queue, &presentInfo);
-    if (present_res != VK_SUCCESS &&
-        present_res != VK_SUBOPTIMAL_KHR &&
-        present_res != VK_ERROR_OUT_OF_DATE_KHR) {
+    if (present_res == VK_ERROR_OUT_OF_DATE_KHR || present_res == VK_SUBOPTIMAL_KHR) {
+        s->swapchain_dirty = true;
+    } else if (present_res != VK_SUCCESS) {
         fprintf(stderr, "[VK] vkQueuePresentKHR failed: %d\n", present_res);
+        s->device_lost = true;
     }
-    /*No vkWaitForFences here: the next time this slot comes around
-     * (3 frames later) the GPU will have signalled its fence long ago,
-     * and the wait happens at the TOP of draw_frame. That is what lets
-     * CPU and GPU pipeline.*/
-    s->current_frame = next_slot;
+    s->current_frame = (slot + 1) % MAX_FRAMES_IN_FLIGHT;
+}
+
+static void framebuffer_size_callback(GLFWwindow *window, int width, int height) {
+    (void)window;
+    (void)width;
+    (void)height;
+    vk_state.swapchain_dirty = true;
+}
+
+/*Initial window size: DRAGONGL_WINDOW=<width>x<height> if set, otherwise
+ *80% of the primary monitor's work area (the part not taken by panels),
+ *never below 800x600. The window is resizable; the swapchain follows.*/
+static void initial_window_size(int *w, int *h) {
+    *w = 1280;
+    *h = 800;
+    const char *env = getenv("DRAGONGL_WINDOW");
+    int ew = 0, eh = 0;
+    if (env && sscanf(env, "%dx%d", &ew, &eh) == 2 && ew >= 320 && eh >= 240 && ew <= 16384 &&
+        eh <= 16384) {
+        *w = ew;
+        *h = eh;
+        return;
+    }
+    GLFWmonitor *mon = glfwGetPrimaryMonitor();
+    if (mon) {
+        int x = 0, y = 0, aw = 0, ah = 0;
+        glfwGetMonitorWorkarea(mon, &x, &y, &aw, &ah);
+        if (aw > 0 && ah > 0) {
+            *w = aw * 4 / 5;
+            *h = ah * 4 / 5;
+        }
+    }
+    if (*w < 800)
+        *w = 800;
+    if (*h < 600)
+        *h = 600;
 }
 
 void render_vk_start(void) {
@@ -1655,48 +1359,51 @@ void render_vk_start(void) {
         printf("GLFW initialization error.\n");
         return;
     }
+    if (!glfwVulkanSupported()) {
+        printf("[VK] No Vulkan loader or driver found (glfwVulkanSupported).\n");
+        glfwTerminate();
+        return;
+    }
 
+    int win_w = 0, win_h = 0;
+    initial_window_size(&win_w, &win_h);
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    vk_state.window = glfwCreateWindow(1920, 1080, "DragonGL - Vulkan 3D", NULL, NULL);
+    glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
+    vk_state.window = glfwCreateWindow(win_w, win_h, "Dragon GL", NULL, NULL);
     if (!vk_state.window) {
         printf("Error creating GLFW window.\n");
         glfwTerminate();
         return;
     }
+    glfwSetWindowSizeLimits(vk_state.window, 640, 480, GLFW_DONT_CARE, GLFW_DONT_CARE);
     glfwSetKeyCallback(vk_state.window, key_callback);
     glfwSetCursorPosCallback(vk_state.window, cursor_callback);
     glfwSetMouseButtonCallback(vk_state.window, mouse_button_callback);
     glfwSetScrollCallback(vk_state.window, scroll_callback);
+    glfwSetFramebufferSizeCallback(vk_state.window, framebuffer_size_callback);
 
     if (!vk_init(&vk_state)) {
+        vk_cleanup(&vk_state);
         glfwDestroyWindow(vk_state.window);
         glfwTerminate();
         return;
     }
 
-    while (!glfwWindowShouldClose(vk_state.window) && g_running) {
+    while (!glfwWindowShouldClose(vk_state.window) && g_running && !vk_state.device_lost) {
         glfwPollEvents();
-
-        /*Resize gesture: Recreate the swapchain if the size has changed*/
-        int fb_w = 0, fb_h = 0;
-        glfwGetFramebufferSize(vk_state.window, &fb_w, &fb_h);
-        if (fb_w > 0 && fb_h > 0 &&
-            ((uint32_t)fb_w != vk_state.swapchain_extent.width ||
-             (uint32_t)fb_h != vk_state.swapchain_extent.height)) {
-            if (!vk_recreate_swapchain(&vk_state, (uint32_t)fb_w, (uint32_t)fb_h)) {
-                break; /*swapchain not recoverable: I exit the loop*/
-            }
-        }
-
+        if (vk_state.swapchain_dirty && !recreate_swapchain(&vk_state))
+            break; /* swapchain not recoverable */
         draw_frame(&vk_state);
     }
+    if (vk_state.device_lost)
+        printf("[VK] Rendering failed (device or window surface lost): closing.\n");
 
     vkDeviceWaitIdle(vk_state.device);
     vk_cleanup(&vk_state);
-    free(s_map_vertices);
-    s_map_vertices = NULL;
-    s_map_vertex_capacity = 0;
-    s_map_vertex_count = 0;
+    free(s_map_gpd_instances);
+    s_map_gpd_instances = NULL;
+    s_map_gpd_capacity = 0;
+    s_map_gpd_count = 0;
     glfwDestroyWindow(vk_state.window);
     glfwTerminate();
 }

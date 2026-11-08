@@ -107,7 +107,7 @@ static void *render_thread(void *arg) {
         for (int i = 0; i < MAX_PARTICLES; i++) {
             Particle *p = &g_particles[i];
             if (!p->active) continue;
-            /*Every field the GL/VK draw passes read:*/
+            /*Every field the draw passes read:*/
             float rx = p->x, ry = p->y, rz = p->z;
             float rr = p->r, rg = p->g, rb = p->b, ra = p->a;
             (void)rx; (void)ry; (void)rz; (void)rr; (void)rg; (void)rb; (void)ra;

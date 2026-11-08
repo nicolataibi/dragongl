@@ -26,7 +26,6 @@
 #include <unistd.h>
 #include "client_state.h"
 #include "net.h"
-#include "render_gl.h"
 #include "render_vk.h"
 #include "protocol.h"
 #include "wire.h"
@@ -86,7 +85,6 @@ pthread_mutex_t g_net_mutex = PTHREAD_MUTEX_INITIALIZER;
 /*See the declaration in client_state.h: atomic because the render,
  * net and CLI threads all read/write it (L1).*/
 atomic_bool g_running = true;
-int g_backend = 0; // 0 = GL, 1 = VK
 
 /*See FrameSnapshot in client_state.h: short lock, then the renderers
  * work on the private copy for the whole frame.*/
@@ -105,7 +103,6 @@ void frame_snapshot_acquire(FrameSnapshot *snap) {
 
 extern void* net_thread_loop(void* arg);
 extern void* cli_thread_loop(void* arg);
-extern void render_gl_start(void);
 
 /*Send one encoded frame. A failed send means the connection is gone:
  * the session ends (the network thread may not notice a dead peer until
@@ -192,6 +189,9 @@ static void read_secret(const char *prompt, char *out, size_t out_len) {
 int main(int argc, char **argv) {
     pthread_t net_thread;
     pthread_t cli_thread;
+    /*Line-buffered even when redirected: the [VK]/[NET] messages reach a
+     *log file as they happen.*/
+    setvbuf(stdout, NULL, _IOLBF, 0);
     /*Writing to a connection the server already closed must fail with
      * EPIPE (detected by the network thread), not kill the client.*/
     signal(SIGPIPE, SIG_IGN);
@@ -203,24 +203,31 @@ int main(int argc, char **argv) {
         for (int x = 0; x < MAP_WIDTH; x++)
             g_local_map[y][x] = VOXEL_ROCK;
 
-    if (argc < 2) {
-        printf("Usage: %s [gl|vk] [server_host] [port]\n"
-               "server_host: a host name, an IPv4 or an IPv6 address (default 127.0.0.1)\n",
+    if (argc > 3 || (argc > 1 && (strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "--help") == 0))) {
+        printf("Usage: %s [server_host [port]]\n"
+               "  server_host  host name, IPv4 or IPv6 address (asked if omitted; default 127.0.0.1)\n"
+               "  port         TCP port (default 8080)\n"
+               "Environment: DRAGONGL_WINDOW=WxH (window size), DRAGONGL_GPU=<index|name>,\n"
+               "             DRAGONGL_VSYNC=0, DRAGONGL_SHADER_DIR=<dir>, VK_INSTANCE_LAYERS\n",
                argv[0]);
-        return 1;
+        return argc > 3 ? 2 : 0;
     }
 
     char server_ip[256] = "127.0.0.1";
     int server_port = 8080;
     bool ip_from_arg = false;
-    if (argc >= 3 && argv[2][0] != '\0') {
-        copy_str(server_ip, argv[2], sizeof(server_ip));
+    if (argc >= 2 && argv[1][0] != '\0') {
+        copy_str(server_ip, argv[1], sizeof(server_ip));
         ip_from_arg = true;
     }
-    if (argc >= 4) {
-        int p = atoi(argv[3]);
-        if (p > 0 && p < 65536)
-            server_port = p;
+    if (argc >= 3) {
+        char *end = NULL;
+        long p = strtol(argv[2], &end, 10);
+        if (!end || *end != '\0' || p <= 0 || p > 65535) {
+            fprintf(stderr, "Invalid port: %s\n", argv[2]);
+            return 2;
+        }
+        server_port = (int)p;
     }
 
     char server_pass[128] = "";
@@ -231,9 +238,9 @@ int main(int argc, char **argv) {
     int class_id = 0;
     char buf[128];
 
-    printf("\n--- DND GL Client ---\n");
+    printf("\n--- Dragon GL Client ---\n");
     if (ip_from_arg) {
-        printf("Server IP: %s (from command line)\n", server_ip);
+        printf("Server host: %s (from command line)\n", server_ip);
     } else {
         printf("Server host [%s]: ", server_ip);
         if (fgets(buf, sizeof(buf), stdin) && buf[0] != '\n') {
@@ -418,26 +425,13 @@ int main(int argc, char **argv) {
     pthread_create(&net_thread, NULL, net_thread_loop, NULL);
     pthread_create(&cli_thread, NULL, cli_thread_loop, NULL);
     
-    if (strcmp(argv[1], "gl") == 0) {
-        printf("Starting OpenGL backend...\n");
-        g_backend = 0;
-        render_gl_start();
-    } else if (strcmp(argv[1], "vk") == 0) {
-        g_backend = 1;
-        render_vk_start();
-        // Loop handled inside render_vk_start until window close
-        g_running = false; // exit after rendering loop finishes
-    } else {
-        printf("Backend unknown. Usage: gl or vk.\n");
-        g_running = false;
-    }
-    
+    /*The window and its render loop; returns when the window is closed,
+     *the session ends (g_running) or Vulkan cannot run.*/
+    render_vk_start();
+    g_running = false;
+
     pthread_join(cli_thread, NULL);
     pthread_join(net_thread, NULL);
-    
     net_close(g_server_sock);
-    /* Cleanup Dungeon */
-     
-    
     return 0;
 }

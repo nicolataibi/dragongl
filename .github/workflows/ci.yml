@@ -35,8 +35,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             clang cmake ninja-build pkg-config \
-            libglfw3-dev libgl1-mesa-dev libglu1-mesa-dev \
-            libvulkan-dev glslc libsodium-dev
+            libglfw3-dev libvulkan-dev glslc libsodium-dev
 
       - name: Configure (Release, warnings are errors)
         run: |
@@ -57,8 +56,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             clang libclang-rt-18-dev cmake ninja-build pkg-config \
-            libglfw3-dev libgl1-mesa-dev libglu1-mesa-dev \
-            libvulkan-dev vulkan-validationlayers glslc python3 \
+            libglfw3-dev libvulkan-dev vulkan-validationlayers glslc python3 \
             mesa-vulkan-drivers
 
       - name: Configure (Release)
@@ -108,6 +106,37 @@ jobs:
 
       - name: Run
         run: ctest --test-dir build-integration --output-on-failure
+
+  client-smoke:
+    name: Client smoke test (Xvfb + lavapipe + validation, ASan/UBSan)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      # The real client renders on a virtual display with Mesa's software
+      # Vulkan driver; any validation message fails the test.
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang libclang-rt-18-dev cmake ninja-build pkg-config \
+            libglfw3-dev libvulkan-dev glslc libsodium-dev \
+            mesa-vulkan-drivers vulkan-validationlayers xvfb python3 python3-xlib
+
+      - name: Configure (Debug + ASan/UBSan)
+        run: |
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=clang \
+            -DCMAKE_C_FLAGS="$SANITIZE_FLAGS" \
+            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Run
+        env:
+          DRAGONGL_CLIENT_TEST_REQUIRE: "1"
+          ASAN_OPTIONS: detect_leaks=0
+        run: python3 tests/client/test_client.py
 
   static-analysis:
     name: Static analysis (cppcheck)

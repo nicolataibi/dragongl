@@ -45,6 +45,7 @@ RUN_UNIT=1
 RUN_INTEG=1
 DO_ANALYZE=0
 DO_STAGE=0
+DO_CLIENT_TEST=0
 SERVER_ONLY=0
 WERROR=0
 USE_GCC=0
@@ -121,6 +122,10 @@ ${C_BOLD}What to run${C_RESET} (default: build + unit tests + integration tests)
   -S, --server-only    build only the dragongl_server target
   -a, --analyze        also run cppcheck (as in CI)
   -x, --stage          also install into build/stage to check the install layout
+  -k, --client-test    also run the client smoke test: real server + real client
+                       under Xvfb, Mesa lavapipe and the Vulkan validation layer
+                       (needs Xvfb, mesa-vulkan-drivers, the validation layer
+                       and python3-xlib)
 
 ${C_BOLD}Build options${C_RESET}
   -c, --clean          remove every build directory first, then rebuild
@@ -172,6 +177,7 @@ handle_short() {
         S) SERVER_ONLY=1 ;;
         a) DO_ANALYZE=1 ;;
         x) DO_STAGE=1 ;;
+        k) DO_CLIENT_TEST=1 ;;
         c) CLEAN=1 ;;
         w) WERROR=1 ;;
         g) USE_GCC=1 ;;
@@ -194,6 +200,7 @@ parse_args() {
             --server-only)    handle_short S ;;
             --analyze)        handle_short a ;;
             --stage)          handle_short x ;;
+            --client-test)    handle_short k ;;
             --clean)          handle_short c ;;
             --werror)         handle_short w ;;
             --gcc)            handle_short g ;;
@@ -231,6 +238,7 @@ parse_args() {
         warn "-u/-i have no effect together with -n"
     fi
     if ((SERVER_ONLY && DO_STAGE)); then die "-S and -x cannot be combined: the install needs every target"; fi
+    if ((SERVER_ONLY && DO_CLIENT_TEST)); then die "-S and -k cannot be combined: the client test needs the client"; fi
     if ((!DO_BUILD && (DO_STAGE || SERVER_ONLY || WERROR || USE_GCC))); then
         warn "-x/-S/-w/-g only affect builds and are ignored with -t"
     fi
@@ -249,6 +257,10 @@ check_tools() {
     fi
     if ((DO_TESTS && RUN_INTEG)); then need python3 "the integration suite needs Python 3"; fi
     if ((DO_ANALYZE)); then need cppcheck "install cppcheck, or drop -a"; fi
+    if ((DO_CLIENT_TEST)); then
+        need python3 "the client test needs Python 3"
+        need Xvfb "install Xvfb (xorg-x11-server-Xvfb / xvfb), or drop -k"
+    fi
 }
 
 generator_for() {
@@ -393,6 +405,16 @@ step_test_integ() {
     run_timed "integration tests" run_ctest "$INTEG_DIR"
 }
 
+step_client_test() {
+    section "Client smoke test (Xvfb + lavapipe + validation layer)"
+    [[ -x $BUILD_DIR/dragongl_client ]] ||
+        die "build/dragongl_client is not built: run ./$SCRIPT_NAME without -t first"
+    run_timed "client test" env DRAGONGL_CLIENT_TEST_REQUIRE=1 \
+        DRAGONGL_CLIENT="$BUILD_DIR/dragongl_client" DRAGONGL_SERVER="$BUILD_DIR/dragongl_server" \
+        ASAN_OPTIONS="${ASAN_OPTIONS:-detect_leaks=0}" \
+        python3 "$ROOT/tests/client/test_client.py"
+}
+
 step_analyze() {
     section "Static analysis (cppcheck)"
     run_timed "cppcheck" cppcheck -q -j "$JOBS" --enable=warning,portability \
@@ -428,6 +450,7 @@ main() {
 
     if ((DO_TESTS && RUN_UNIT)); then step_test_unit; fi
     if ((DO_TESTS && RUN_INTEG)); then step_test_integ; fi
+    if ((DO_CLIENT_TEST)); then step_client_test; fi
     if ((DO_ANALYZE)); then step_analyze; fi
 
     print_summary

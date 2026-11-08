@@ -22,9 +22,9 @@ Passwords: 8-63 printable ASCII characters, no spaces; they are never accepted o
 ## 3. Start the client
 
 ```bash
-./dragongl-client gl                 # OpenGL backend
-./dragongl-client vk                 # Vulkan backend
-./dragongl-client vk 192.168.1.10    # remote server, default port
+./dragongl-client                    # asks for the server host
+./dragongl-client 192.168.1.10       # remote server, default port
+./dragongl-client 2001:db8::10 9000  # IPv6 address and port
 ```
 
 ## 4. Reset the world

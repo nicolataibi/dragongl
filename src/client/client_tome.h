@@ -29,10 +29,10 @@
  * trajectory around its owner while remaining INSIDE the shop room, and
  * performs a RANDOM rotation on itself while it flies.
  *
- * The state lives here (not in render_gl.c / render_vk.c) so BOTH render
- * backends animate the exact same trajectory/rotation: each renderer calls
- * tome_anim_update() once per frame for the merchant's entity slot and then
- * draws the book at the returned position with the returned orientation.
+ * The state lives here, outside the renderer, so it can be unit-tested
+ * (tests/test_tome.c): the renderer calls tome_anim_update() once per frame
+ * for the merchant's entity slot and then draws the book at the returned
+ * position with the returned orientation.
  *
  * Slots are indexed exactly like g_entities[] / g_entity_lerp[] in the
  * renderers. Only the render thread touches this state (never the net

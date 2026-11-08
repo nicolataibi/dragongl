@@ -13,9 +13,8 @@ Dragon GL is written in standard **C11** and is designed to build warning-clean 
 - **Build System:** `cmake` (version 3.16 or higher) and `make` (or `ninja`)
 - **Shader Compiler:** `glslc` (from Google Shaderc / Vulkan SDK) for compiling GLSL to SPIR-V
 - **Graphics & Windowing:**
-  - `glfw3` (GLFW development libraries)
-  - `OpenGL` & `GLU` (Mesa development packages)
-  - `Vulkan` loader and header files
+  - `glfw3` (GLFW development libraries: the window and its Vulkan surface)
+  - `Vulkan` loader and header files (Vulkan 1.3)
 - **System Libraries:** POSIX Threads (`pthread`), Math library (`libm`), PkgConfig (`pkg-config` / `pkgconf`)
 - **Cryptography (server):** `libsodium` (Argon2id password hashing, constant-time comparisons)
 - **Python:** Python 3 (for build verification and developer balance tools)
@@ -29,8 +28,6 @@ sudo dnf install -y \
     glslc \
     pkgconf-pkg-config \
     glfw-devel \
-    mesa-libGL-devel \
-    mesa-libGLU-devel \
     vulkan-loader-devel \
     libsodium-devel \
     python3
@@ -45,8 +42,6 @@ sudo apt-get install -y \
     glslc \
     pkg-config \
     libglfw3-dev \
-    libgl1-mesa-dev \
-    libglu1-mesa-dev \
     libvulkan-dev \
     libsodium-dev \
     python3
@@ -75,6 +70,7 @@ sudo apt-get install -y \
 | `-S` | build only the `dragongl_server` target |
 | `-a` | also run cppcheck, with the same options as CI |
 | `-x` | also install into `build/stage` (prefix `/usr`) to check the install layout |
+| `-k` | also run the client smoke test (`tests/client/test_client.py`): a real server and the real client under Xvfb with Mesa lavapipe and the Vulkan validation layer — login, rendering, window resizes, Escape, server shutdown; any validation message fails. Needs Xvfb, `mesa-vulkan-drivers` (Fedora: `mesa-vulkan-drivers`), the validation layer (`vulkan-validation-layers` / `vulkan-validationlayers`) and `python3-xlib` |
 | `-w` | warnings are errors (as in CI) |
 | `-g` | gcc instead of clang |
 | `-j N` | parallel jobs (default: number of CPUs) |

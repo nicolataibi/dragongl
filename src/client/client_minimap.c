@@ -21,7 +21,7 @@
  * client_minimap.c — Radar Minimap — Implementation
  *
  * Handles progressive "fog of war" and generates a pixel buffer
- * readable by OpenGL/Vulkan renderers to draw radar.
+ * that the renderer draws as the radar.
  *
  * Performance:
  * - Static array explored[][] (MAP_WIDTH × MAP_HEIGHT bool) ~64KB.

@@ -100,10 +100,8 @@ typedef struct {
     int my_entity_id;
     int my_floor;
     int vision_radius;
-    /*B4: the GL loop polled the key-hold movement against the LIVE
-     * g_movement_cooldown (written by the net thread under the lock on
-     * every MSG_STATE) — a cross-thread race. It now polls against the
-     * snapshot copy, like everything else in the frame.*/
+    /*Copied with the rest of the frame: g_movement_cooldown is written
+     * by the net thread under the lock on every MSG_STATE.*/
     float movement_cooldown;
     TileType map[MAP_HEIGHT][MAP_WIDTH];
     Entity entities[CLIENT_MAX_ENTITIES];

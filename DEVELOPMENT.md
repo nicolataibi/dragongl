@@ -6,13 +6,13 @@ This document describes the internal architecture, threading model, subsystems, 
 
 ## 1. Project Architecture
 
-Dragon GL is designed with a clear separation between the server engine, the dual-backend graphics client, and shared game mechanics.
+Dragon GL is designed with a clear separation between the server engine, the Vulkan client, and shared game mechanics.
 
 ```
 dragongl-dev/
 ├── include/           # Public headers (protocol, data structures, rules, voxels)
 ├── src/
-│   ├── client/        # OpenGL & Vulkan frontends, input handling, HUD, sound/VFX
+│   ├── client/        # Vulkan renderer, input handling, HUD, VFX, network thread
 │   ├── server/        # TCP networking, D3ES entity engine, AI, dungeon generator
 │   └── shared/        # d20 rules, cJSON parser, dataset loaders, map primitives
 ├── shaders/           # GLSL vertex, fragment, and GPD compute shaders
@@ -24,28 +24,30 @@ dragongl-dev/
 
 ### Core Executables & Targets:
 - **`dragongl_server`**: Authoritative game server simulating 100 floors, NPC AI, physics, traps, and combat.
-- **`dragongl_client`**: 3D client rendering via OpenGL (GLFW) or Vulkan 1.4 GPU-Driven Dynamic Rendering.
+- **`dragongl_client`**: 3D client, Vulkan 1.3 GPU-driven dynamic rendering (GLFW window).
 - **`dragongl_shaders`**: Custom target invoking `glslc` to produce SPIR-V binaries (`shaders/*.spv`).
 
 ---
 
-## 2. Rendering Pipelines (OpenGL vs. Vulkan)
+## 2. Rendering: Vulkan 1.3, GPU-Driven
 
-Dragon GL implements two independent, visually synchronized rendering backends:
+The client has a single renderer (`src/client/render_vk.c`, `src/client/vk_init.c`): Vulkan 1.3 with dynamic rendering and synchronization2, the only device features it enables.
 
-### A. Vulkan GPU-Driven Dynamic Rendering (GPD)
-The modern renderer (`src/client/render_vk.c`) utilizes Vulkan 1.4 Dynamic Rendering and a Compute-Driven pipeline:
-1. **Lightweight SSBO Push:** The CPU uploads compact instance descriptors (`GpdInstance` and `GpdOriented`) containing position, orientation, and color to mapped Shader Storage Buffer Objects.
-2. **GPU Culling & Expansion:** Dedicated compute shaders (`gpd_cull_map.comp`, `gpd_cull_dyn.comp`, `gpd_expand_*.comp`) run directly on the GPU to perform frustum/distance culling and generate triangle primitives.
-3. **Indirect Execution:** The compute pass writes geometry directly to vertex buffers and atomically populates the draw command (`gpd_final.comp`), dispatched via `vkCmdDrawIndirect`.
-4. **Environment Fallback:** Setting `DRAGONGL_GPD=0` forces Vulkan to use the CPU-side vertex generator for debugging or older GPU hardware.
+1. **Instance upload:** the CPU writes compact instance descriptors (`GpdInstance`, `GpdOriented`: position, scale, colour, orientation) into persistently mapped storage buffers, one set per frame slot. Map tiles are rebuilt only for a window around the player and only when the map changed.
+2. **GPU culling and expansion:** compute shaders (`gpd_cull_map.comp`, `gpd_cull_dyn.comp`, `gpd_expand_*.comp`) drop what lies beyond the vision radius and generate the triangles into a device-local vertex buffer.
+3. **Indirect draw:** `gpd_final.comp` writes the `VkDrawIndirectCommand`; the scene is one `vkCmdDrawIndirect`, the HUD a second draw from a host vertex buffer.
 
-### B. OpenGL GLFW Backend
-The OpenGL backend (`src/client/render_gl.c`) offers maximum compatibility across diverse Linux graphics drivers, generating batched vertex arrays on the CPU and rendering with standard GLSL shaders.
+**Frame loop** (`draw_frame`): wait for the fence of the slot (three frames in flight), acquire an image, reset the fence, record, submit, present. The image-available semaphore and the fence belong to the frame slot; the render-finished semaphore belongs to the swapchain image. A resize (GLFW callback), `VK_ERROR_OUT_OF_DATE_KHR` or `VK_SUBOPTIMAL_KHR` rebuilds the swapchain (with `oldSwapchain`) before the next frame; a minimized window is waited out. Viewport and scissor are dynamic state, so pipelines survive a resize.
 
-### Visual FX & HUD Parity
+**Device selection:** every GPU is listed at start-up with the reason it is unusable, if any (no Vulkan 1.3, no swapchain, no graphics+compute queue that can present to the window). Discrete GPUs win over integrated, virtual and software ones, then the larger device-local memory. `DRAGONGL_GPU=<index|name>` overrides the choice.
+
+**Shaders** are read from `$DRAGONGL_SHADER_DIR`, then `shaders/` next to the executable (`build/shaders`), then `/usr/share/dragongl/shaders`.
+
+**Validation:** `VK_INSTANCE_LAYERS=VK_LAYER_KHRONOS_validation` enables the Khronos layer. `tests/client/test_client.py` runs the real client against a real server under Xvfb with Mesa lavapipe and the validation layer: it fails on any validation message, checks that frames are drawn, resizes the window and quits with Escape (`./build.sh -k`, and in CI).
+
+### Visual FX & HUD
 - **Floating Combat Text (FCT):** 3D world coordinates of damage/healing values are projected onto the 2D HUD viewport using the camera's Model-View-Projection (MVP) matrix.
-- **Particle System:** Both backends consume `MSG_SPELL_VFX` packets to spawn framerate-independent, delta-time animated particles with school-dependent color coding.
+- **Particle System:** `MSG_SPELL_VFX` packets spawn framerate-independent, delta-time animated particles with school-dependent color coding.
 
 ---
 
@@ -75,7 +77,7 @@ The server runs the game on one thread (the `epoll` main loop, fixed 200 ms tick
 
 In the client, rendering and networking execute on separate POSIX threads:
 - **Network Thread:** Manages TCP socket communication, parses incoming binary packets (`MSG_STATE`, `MSG_MAP_CHUNK`, `MSG_SPELL_VFX`), and updates the master state under `g_state_mutex`.
-- **Render Thread:** Executes GLFW event polling and the Vulkan/OpenGL draw loop. To prevent data races, each frame captures a `FrameSnapshot` copy of volatile coordinates and maps.
+- **Render Thread:** Executes GLFW event polling and the Vulkan draw loop. To prevent data races, each frame captures a `FrameSnapshot` copy of volatile coordinates and maps.
 - **VFX & FCT Mutexes:** Dynamic particle arrays and floating combat text use dedicated fine-grained locks (`g_particles_mutex`, `g_fct_mutex`) to allow high-frequency spawns without locking the network loop.
 
 ---
@@ -130,7 +132,7 @@ cmake --build build-integration --parallel $(nproc)
 ctest --test-dir build-integration --output-on-failure
 ```
 
-CI (`.github/workflows/ci.yml`) runs four jobs on every push and pull request: a clang Release build with `-Werror`, the unit tests (Release and ASan/UBSan), the server integration tests under ASan/UBSan, and cppcheck. cppcheck false positives are suppressed inline with `// cppcheck-suppress <id>` and a comment explaining why.
+CI (`.github/workflows/ci.yml`) runs five jobs on every push and pull request: Release builds with clang and gcc and `-Werror`, the unit tests (Release and ASan/UBSan), the server integration tests under ASan/UBSan, the client smoke test under ASan/UBSan (Xvfb, lavapipe, Vulkan validation layer), and cppcheck. cppcheck false positives are suppressed inline with `// cppcheck-suppress <id>` and a comment explaining why.
 
 ### Guidelines for Contributions:
 1. **Warning-Clean Build:** All C code must compile cleanly with `-Wall -Wextra -Wpedantic` using clang.

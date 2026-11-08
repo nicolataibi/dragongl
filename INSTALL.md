@@ -8,14 +8,11 @@ This document describes how to install Dragon GL on Linux systems, either via pr
 
 - **Operating System:** Linux (Fedora 40+, CentOS Stream, RHEL 9+, Ubuntu 22.04+, Debian 12+)
 - **Architecture:** x86_64
-- **Graphics Support:**
-  - **OpenGL:** OpenGL 3.3+ with GLFW support
-  - **Vulkan:** Vulkan 1.3/1.4 dynamic rendering compatible GPU and drivers
+- **Graphics Support (client):** a GPU and driver with Vulkan 1.3 and a queue that does graphics, compute and presentation (any current AMD, Intel or NVIDIA driver; Mesa `lavapipe` works too, slowly, without a GPU). The server needs no graphics stack.
 - **Runtime Dependencies:**
   - Standard C runtime (glibc)
   - GLFW 3.3+ (`glfw`)
-  - Mesa OpenGL (`mesa-libGL`, `mesa-libGLU`)
-  - Vulkan loader (`vulkan-loader`)
+  - Vulkan loader (`vulkan-loader`) and a Vulkan driver (`mesa-vulkan-drivers`, or the vendor's)
   - libsodium (`libsodium`, server)
   - Python 3 (`python3`, required for `dragongl-tools`)
 
@@ -51,8 +48,6 @@ sudo dnf install -y \
     cmake \
     clang \
     compiler-rt \
-    mesa-libGL-devel \
-    mesa-libGLU-devel \
     glfw-devel \
     vulkan-loader-devel \
     glslc \

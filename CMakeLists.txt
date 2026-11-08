@@ -26,10 +26,6 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
 
-# OpenGL policy: cmake_minimum_required(3.16) already sets CMP0072 to
-# NEW (the policy was introduced in 3.9), so the explicit
-# cmake_policy() is redundant — the 3.16 floor is the fix (L4).
-set(OpenGL_GL_PREFERENCE GLVND)
 
 # Definizioni globali
 add_compile_definitions(_DEFAULT_SOURCE)
@@ -61,11 +57,10 @@ endif()
 
 # --- Ricerca Dipendenze ---
 find_package(Threads REQUIRED)
-find_package(OpenGL REQUIRED)
 find_package(Vulkan REQUIRED)
 find_package(PkgConfig REQUIRED)
 
-# GLFW per il client 3D (backend OpenGL e Vulkan)
+# GLFW: window and Vulkan surface of the client
 pkg_check_modules(GLFW REQUIRED glfw3)
 # libsodium: Argon2id password hashing and constant-time comparisons (server)
 pkg_check_modules(SODIUM REQUIRED IMPORTED_TARGET libsodium)
@@ -169,7 +164,6 @@ set(CLIENT_SRCS
     src/client/client_minimap.c
     src/client/client_particles.c
     src/client/client_tome.c
-    src/client/render_gl.c
     src/client/render_vk.c
     src/client/vk_init.c
 )
@@ -180,8 +174,6 @@ add_executable(dragongl_client
 )
 target_link_libraries(dragongl_client
     ${COMMON_LIBS}
-    OpenGL::GL
-    OpenGL::GLU
     Vulkan::Vulkan
     ${GLFW_LIBRARIES}
 )

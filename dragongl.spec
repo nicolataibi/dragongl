@@ -4,9 +4,9 @@
 %global toolchain clang
 
 Name:           dragongl
-Version:        2026.11.08.10
+Version:        2026.11.08.11
 Release:        %autorelease
-Summary:        Multi-User Client-Server 3D RPG Engine — OpenGL (GLFW) & Vulkan
+Summary:        Multi-User Client-Server 3D RPG Engine — Vulkan
 
 License:        GPL-3.0-or-later
 URL:            https://github.com/nicolataibi/dragongl
@@ -15,8 +15,6 @@ Source0:        %{url}/archive/refs/tags/%{version}/%{name}-%{version}.tar.gz
 BuildRequires:  cmake
 BuildRequires:  clang
 BuildRequires:  compiler-rt
-BuildRequires:  pkgconfig(gl)
-BuildRequires:  pkgconfig(glu)
 BuildRequires:  pkgconfig(glfw3)
 BuildRequires:  pkgconfig(vulkan)
 BuildRequires:  glslc
@@ -28,8 +26,8 @@ Requires:       %{name}-data = %{version}-%{release}
 %description
 Dragon GL is a high-performance, 3D multi-user client-server dungeon
 exploration simulator. The engine features a fully functional open Fantasy
-RPG mechanical core and real-time front-ends built on both OpenGL (via GLFW) 
-and Vulkan.
+RPG mechanical core and a real-time 3D client rendered with Vulkan 1.3
+(GPU-driven: culling and mesh generation in compute shaders).
 
 
 %package data

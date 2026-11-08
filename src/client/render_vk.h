@@ -37,15 +37,14 @@ typedef struct {
 } VkVertex;
 
 /* ------------------------------------------------------------------ */
-/* GPU-DRIVEN PATH (GPD): the CPU uploads compact INSTANCE descriptors */
-/* into per-frame SSBOs; a compute pass culls them by vision radius and */
-/* expands the primitive (box/pyramid) into a device-local vertex SSBO; */
-/* a final 1-workgroup dispatch writes the VkDrawIndirectCommand that   */
-/* the scene subpass consumes. The vertex shader reads the generated    */
-/* vertices from storage (no fixed-function vertex input).              */
-/*                                                                      */
-/* Toggle: DRAGONGL_GPD=0 forces the legacy CPU-vertex path (kept as a  */
-/* fallback for devices whose graphics queue lacks COMPUTE).            */
+/* GPU-DRIVEN RENDERING (GPD): the CPU uploads compact INSTANCE         */
+/* descriptors into per-frame SSBOs; a compute pass culls them by       */
+/* vision radius and expands the primitive (box/pyramid) into a         */
+/* device-local vertex SSBO; a final 1-workgroup dispatch writes the    */
+/* VkDrawIndirectCommand that the scene draw consumes. The vertex       */
+/* shader reads the generated vertices from storage (no vertex input).  */
+/* Requires Vulkan 1.3 and a queue family with graphics + compute +     */
+/* presentation (the only path: there is no CPU-vertex fallback).       */
 /* ------------------------------------------------------------------ */
 
 /* MAP_INST_MAX: every floor tile becomes one instance; VOXEL_DOOR emits
@@ -103,12 +102,9 @@ typedef struct {
 } GpdPush;
 
 /* GPU-side per-frame counters (16 B buffer == the GLSL `Counts` block
- * in shaders/gpd_mesh.glsl — keep in sync). The CPU zeroes the whole
- * buffer once per frame, right after the per-slot fence wait. The
- * cull/expand passes and the final indirect writer accumulate into it
- * on the GPU; with DRAGONGL_GPD_DEBUG the render thread also reads it
- * back (previous use of the slot, fence-waited) to cross-check cull vs
- * expand stage by stage. */
+ * in shaders/gpd_mesh.glsl — keep in sync). vkCmdFillBuffer zeroes it at
+ * the start of every frame; the cull/expand passes and the final
+ * indirect writer accumulate into it on the GPU. */
 typedef struct {
     uint32_t verts;   /* total generated vertices (expand passes -> final) */
     uint32_t map_vis; /* visible map instances (cull_map -> expand_map) */
@@ -116,11 +112,19 @@ typedef struct {
 } GpdCounts;
 
 /*
- * Per-frame Vulkan resources.
+ * Per-frame-slot resources. A slot is reused MAX_FRAMES_IN_FLIGHT frames
+ * later, after its fence: until then the GPU may still read them.
  *
- * Command buffers and vertex buffers must not be reused while the GPU may
- * still be executing commands that reference them. Each frame-in-flight
- * therefore owns an independent command buffer and vertex buffer.
+ *   vertex_buffer  : the 2D HUD vertices (host visible, mapped).
+ *   gpd_map_inst   : tile instances of the window around the player
+ *                    (host visible), refreshed when the slot's map
+ *                    generation is stale.
+ *   gpd_dyn_inst   : entities, player, particles (host visible, per frame).
+ *   gpd_oriented   : rotated boxes, the tome (host visible, per frame).
+ *   gpd_map_visible / gpd_dyn_visible : culled index lists (device local).
+ *   gpd_verts      : generated vertices (device local).
+ *   gpd_indirect   : the VkDrawIndirectCommand (device local).
+ *   gpd_counts     : the GpdCounts block (device local, zeroed per frame).
  */
 typedef struct {
     VkCommandBuffer command_buffer;
@@ -128,33 +132,14 @@ typedef struct {
     VkDeviceMemory vertex_memory;
     void *mapped_vertex_data;
 
-    /* --- GPU-driven per-frame ring (same triple-buffered invariant as
-     * the vertex buffer above: the slot is fence-waited at the top of
-     * draw_frame before any CPU write). ---
-     * gpd_map_inst : full-floor tile instances, rewritten only when the
-     *                slot's map generation is stale (map change/floor).
-     * gpd_dyn_inst : entities + player + particles, rewritten each frame.
-     * gpd_oriented : rotated boxes (tome), rewritten each frame.
-     * gpd_verts    : GPU-generated vertices (device-local SSBO).
-     * gpd_indirect : the VkDrawIndirectCommand written by the GPU.
-     * gpd_counter  : atomic vertex counter (CPU resets it to 0, the
-     *                compute dispatches accumulate into it). */
-    /* gpd_map_inst / gpd_dyn_inst / gpd_oriented : instance lists the
-     * CPU fills (host visible, persistent mapping).
-     * gpd_map_visible / gpd_dyn_visible : GPU-culled index lists
-     * (device local, GPU-only).
-     * gpd_verts : GPU-generated vertices (device local).
-     * gpd_indirect : the VkDrawIndirectCommand written by the GPU.
-     * gpd_counts : the 3-GpdCounts buffer (host visible: the CPU resets
-     * it, the GPU accumulates into it). */
     VkBuffer gpd_map_inst; VkDeviceMemory gpd_map_mem; void *gpd_map_ptr;
     VkBuffer gpd_dyn_inst; VkDeviceMemory gpd_dyn_mem; void *gpd_dyn_ptr;
     VkBuffer gpd_oriented; VkDeviceMemory gpd_ori_mem; void *gpd_ori_ptr;
     VkBuffer gpd_map_visible; VkDeviceMemory gpd_mvis_mem;
     VkBuffer gpd_dyn_visible; VkDeviceMemory gpd_dvis_mem;
     VkBuffer gpd_verts;    VkDeviceMemory gpd_vert_mem;
-    VkBuffer gpd_indirect; VkDeviceMemory gpd_ind_mem; void *gpd_ind_ptr;
-    VkBuffer gpd_counts;   VkDeviceMemory gpd_cnt_mem; void *gpd_cnt_ptr;
+    VkBuffer gpd_indirect; VkDeviceMemory gpd_ind_mem;
+    VkBuffer gpd_counts;   VkDeviceMemory gpd_cnt_mem;
     /* One descriptor set per compute/scene pipeline use (7 total),
      * written once at creation — the buffers are stable per slot. */
     VkDescriptorSet gpd_desc_cull_map;
@@ -176,7 +161,7 @@ typedef struct {
     VkSurfaceKHR surface;
     VkPhysicalDevice physical_device;
     VkDevice device;
-    uint32_t graphics_family;
+    uint32_t graphics_family; /* graphics + compute + present */
     VkQueue graphics_queue;
     VkQueue present_queue;
     VkSwapchainKHR swapchain;
@@ -185,18 +170,23 @@ typedef struct {
     uint32_t image_count;
     VkImage *images;
     VkImageView *image_views;
+    /* One render-finished semaphore per swapchain IMAGE (signalled by the
+     * submit, waited by the present of that image). */
+    VkSemaphore *sem_render;
+    VkFormat depth_format;
+    VkImageAspectFlags depth_aspect;
     VkImage depth_image;
     VkDeviceMemory depth_memory;
     VkImageView depth_image_view;
-    VkPipelineLayout pipeline_layout;
-    VkPipeline pipeline;
+    VkPipelineLayout pipeline_layout; /* HUD: 80 B push constants */
     VkPipeline pipeline_hud;
+    VkFormat pipelines_format;        /* colour format the pipelines target */
+    bool swapchain_dirty;             /* resize / OUT_OF_DATE / SUBOPTIMAL */
+    bool device_lost;
 
     VkCommandPool command_pool;
 
-    /* --- GPU-driven path (created once in vk_init, except the scene
-     * pipeline which is size-dependent and follows the swapchain). --- */
-    bool gpu_driven;
+    /* --- GPU-driven scene (created once in vk_init). --- */
     /*
      * Culling and mesh allocation are SEPARATE compute passes (and are
      * developed/tested separately):
@@ -236,22 +226,21 @@ typedef struct {
      */
     VkFrameResources frames[MAX_FRAMES_IN_FLIGHT];
 
-    /*
-     * Synchronization objects associated with each frame slot.
-     */
+    /* Per frame slot: image-available semaphore and in-flight fence. */
     VkSemaphore sem_image[MAX_FRAMES_IN_FLIGHT];
-    VkSemaphore sem_render[MAX_FRAMES_IN_FLIGHT];
     VkFence fences[MAX_FRAMES_IN_FLIGHT];
 
     uint32_t current_frame;
 
-    uint32_t vertex_count;
     uint32_t hud_vertex_count;
     uint32_t max_vertices;
     uint32_t current_image;
 } VkState;
 
+/* Instance, device, swapchain, pipelines, per-slot resources. On false the
+ * state is partial: call vk_cleanup(). */
 bool vk_init(VkState *s);
+/* After a resize or OUT_OF_DATE/SUBOPTIMAL; waits for the device. */
 bool vk_recreate_swapchain(VkState *s, uint32_t width, uint32_t height);
 void vk_cleanup(VkState *s);
 void render_vk_start(void);

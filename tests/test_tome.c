@@ -8,7 +8,7 @@
  *    rotates over time (random self-rotation),
  *  - the "map not loaded yet" fallback and slot reset behave sanely.
  *
- * Pure client-logic test (client_tome.c only — no GL/VK, no server).
+ * Pure client-logic test (client_tome.c only — no renderer, no server).
  * Run via `ctest` (see CMakeLists.txt).
  */
 #include <assert.h>

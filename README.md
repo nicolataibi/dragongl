@@ -4,10 +4,10 @@
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/License-GPL%203.0--or--later-blue.svg)](LICENSE.txt)
 [![Assets: CC BY 4.0](https://img.shields.io/badge/Assets-CC%20BY%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by/4.0/)
 [![Language: C11](https://img.shields.io/badge/Language-C11-blue.svg)](CMakeLists.txt)
-[![Graphics](https://img.shields.io/badge/Graphics-Vulkan%20%7C%20OpenGL-orange.svg)](shaders/)
+[![Graphics](https://img.shields.io/badge/Graphics-Vulkan%201.3-orange.svg)](shaders/)
 [![Platform](https://img.shields.io/badge/Platform-Fedora%20Linux-blue?logo=fedora)](https://copr.fedorainfracloud.org/coprs/nicolataibi/dragongl/)
 
-> **Multi-User Client-Server 3D RPG Engine — OpenGL (GLFW) & Vulkan**
+> **Multi-User Client-Server 3D RPG Engine — Vulkan**
 
 ---
 
@@ -24,7 +24,7 @@
 
 ---
 
-**Dragon GL** is a high-performance, 3D multi-user client-server dungeon exploration simulator and RPG engine. Built from the ground up in modern C11, the engine features a fully functional open Fantasy RPG mechanical core (d20 ruleset) and real-time front-ends built natively on both **OpenGL (via GLFW)** and **Vulkan 1.4 (GPU-Driven dynamic rendering)**.
+**Dragon GL** is a high-performance, 3D multi-user client-server dungeon exploration simulator and RPG engine. Built from the ground up in modern C11, the engine features a fully functional open Fantasy RPG mechanical core (d20 ruleset) and a real-time 3D client built on **Vulkan 1.3 (GPU-driven, dynamic rendering)**.
 
 - **Upstream Website:** [https://github.com/nicolataibi/dragongl](https://github.com/nicolataibi/dragongl)
 - **Fedora COPR Repository:** [https://copr.fedorainfracloud.org/coprs/nicolataibi/dragongl/](https://copr.fedorainfracloud.org/coprs/nicolataibi/dragongl/)
@@ -54,13 +54,10 @@
 
 ## Key Features
 
-### 1. Dual Graphic Backends: OpenGL & Vulkan GPD
-- **Vulkan GPU-Driven Architecture (GPD):** Modern Vulkan 1.4 dynamic rendering pipeline using compute shaders (`gpd_cull_map.comp`, `gpd_cull_dyn.comp`, `gpd_final.comp`) to perform frustum culling, distance culling, dynamic geometry generation, and direct SSBO writing with `vkCmdDrawIndirect`.
-- **Seamless Fallback:** Controlled via the `DRAGONGL_GPD` environment variable:
-  - `DRAGONGL_GPD=1` *(Default)*: Launches Vulkan with the GPU-driven compute pipeline.
-  - `DRAGONGL_GPD=0`: Forces fallback to CPU-driven vertex generation.
-- **OpenGL Frontend:** Traditional CPU-driven OpenGL pipeline using GLFW for maximum compatibility across Linux systems.
-- **Full VFX Parity:** High-resolution particle engine providing identical dynamic visual spell effects (projectiles, radial explosions, auras) across both backends via `MSG_SPELL_VFX`.
+### 1. GPU-Driven Vulkan Renderer
+- **Vulkan 1.3, GPU-driven (GPD):** dynamic rendering, no render passes. Compute shaders (`gpd_cull_map.comp`, `gpd_cull_dyn.comp`, `gpd_expand_*.comp`, `gpd_final.comp`) cull the instances around the player, generate their geometry into a storage buffer and write the indirect draw command; a single `vkCmdDrawIndirect` renders the scene.
+- **Robust presentation:** three frames in flight, one render-finished semaphore per swapchain image, swapchain rebuilt on resize and on `OUT_OF_DATE`/`SUBOPTIMAL`; resizable window (80% of the screen by default); best GPU picked automatically (`DRAGONGL_GPU` to override). Clean under the Khronos validation layer.
+- **Spell VFX:** a particle engine renders the spell effects (projectiles, radial explosions, auras) sent by the server in `MSG_SPELL_VFX`.
 
 ### 2. High-Performance Client-Server Engine
 - **Non-blocking Multiplexing:** Server handles up to 64 concurrent players via a POSIX `poll()` TCP architecture.
@@ -175,20 +172,17 @@ Passwords are never accepted on the command line: they come from files, from `DR
 
 ### 2. Launching the Client (`dragongl-client`)
 
-The client supports both OpenGL and Vulkan renderers:
+The client renders with Vulkan 1.3 (a GPU and driver with Vulkan 1.3 are required):
 
 ```bash
-# OpenGL frontend (GLFW) connecting to local server
-./dragongl-client gl
+# Asks for the server host, then for the credentials
+./dragongl-client
 
-# Vulkan frontend (GPU-driven dynamic rendering)
-./dragongl-client vk
+# Connect to a remote server (host name, IPv4 or IPv6 address)
+./dragongl-client 192.168.1.50 8080
 
-# Connect to a remote server
-./dragongl-client vk 192.168.1.50 8080
-
-# Force Vulkan CPU-driven fallback mode (if GPU compute is unavailable)
-DRAGONGL_GPD=0 ./dragongl-client vk
+# Window size, GPU choice, validation layer
+DRAGONGL_WINDOW=1920x1080 DRAGONGL_GPU=1 VK_INSTANCE_LAYERS=VK_LAYER_KHRONOS_validation ./dragongl-client
 ```
 
 ### 3. Resetting the Game World (`dragongl-reset-world`)
