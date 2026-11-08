@@ -18,6 +18,7 @@
  */
 #include "server_net.h"
 #include "server_internal.h"
+#include "server_conn.h"
 #include "protocol.h"
 #include "map.h"
 #include "game.h"
@@ -28,6 +29,7 @@
 void send_text_to_client(int sock, const char *fmt, ...) {
   MsgHeader h = msg_hdr(MSG_TEXT, (int)sizeof(MsgText));
   MsgText m;
+  memset(&m, 0, sizeof(m)); /*the bytes after the NUL go on the wire too*/
   va_list a;
   va_start(a, fmt);
   vsnprintf(m.text, sizeof(m.text), fmt, a);
@@ -36,44 +38,27 @@ void send_text_to_client(int sock, const char *fmt, ...) {
   net_send_client(sock, &m, sizeof(m));
 }
 
-/*--- Robust client send (L2) -----------------------------------------
- * net_send() gives up after ~1 s of retries (returns false) when the
- * peer's TCP buffer stays full or the connection died. Callers used to
- * ignore that result: the message was simply LOST, and the client sat
- * in a stale state (missing position/HP/combat update) until the next
- * full state — which, for the very message that got dropped, may never
- * come. A client that cannot receive is unusable: drop it on the FIRST
- * failed send. The server is the source of truth, so a reconnect
- * re-sends everything (welcome + full state + map + nearby entities)
- * and nothing is lost.
- *
- * Returns true if the whole payload was queued; false if the client
- * was marked for removal — callers must not rely on further sends to
- * it in the same tick. That is cheap anyway: net_send() fails fast on
- * permanent errors (closed fd, dead peer), so post-drop sends do not
- * stall the loop for the ~1 s retry budget.*/
+/*Queue a message for a client. Sends never block and never disconnect
+ * synchronously: a client whose queue overflows, or whose socket is dead,
+ * is marked and reaped by the main loop (save, "left floor" notice,
+ * close) — see server_conn.h. Returns false if the client is being
+ * dropped; later sends to it in the same tick are discarded.*/
 bool net_send_client(int sock, const void *data, int len) {
-  if (net_send(sock, data, len))
-    return true;
-  for (int i = 0; i < MAX_CLIENTS; i++) {
-    if (g_clients[i].active && g_clients[i].sock == sock) {
-      if (g_clients[i].authenticated)
-        save_player_data(&g_clients[i]);
-      server_log("NET", "send failed: disconnecting client %d ('%s')",
-                 i, g_clients[i].username);
-      /*Same cleanup as the read-side disconnect path in main(): tell
-       * the other players on the floor that this one left (hp<=0
-       * removal), so its entity does not linger on their screens.*/
-      notify_player_left_floor(&g_clients[i], g_clients[i].floor_id);
-      net_close(sock);
-      g_clients[i].sock = -1;
-      g_clients[i].active = false;
-      return false;
-    }
-  }
-  /*Socket not mapped to a live client (already reaped this tick):
-   * nothing to fix up.*/
-  return false;
+  if (len < 0)
+    return false;
+  int slot = conn_slot_for_sock(sock);
+  if (slot < 0)
+    return false;
+  return conn_queue(slot, data, (size_t)len);
+}
+
+void send_auth_fail(int sock, const char *reason) {
+  MsgHeader h = msg_hdr(MSG_AUTH_FAIL, (int)sizeof(MsgAuthFail));
+  MsgAuthFail m;
+  memset(&m, 0, sizeof(m));
+  copy_str(m.reason, reason, sizeof(m.reason));
+  net_send_client(sock, &h, sizeof(h));
+  net_send_client(sock, &m, sizeof(m));
 }
 
 void send_map_chunk(int sock, Map *map, int cx, int cy, int size) {

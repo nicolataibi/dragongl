@@ -58,12 +58,21 @@ class Client:
         self.texts = []      # MSG_TEXT payloads, decoded
         self.auth_fail = []  # MSG_AUTH_FAIL reasons
         self.welcomed = False
+        self.entity_id = None
+        self.position = None  # (x, y) from MSG_WELCOME / own MSG_STATE
         self.closed_by_peer = False
 
     # --- sending ---------------------------------------------------------
     def login(self, username, password, server_pass):
         payload = login_payload(username, password, server_pass)
         self.sock.sendall(header(MSG_LOGIN, len(payload)) + payload)
+
+    def move(self, dx, dy):
+        payload = struct.pack("<4i", self.entity_id or 0, dx, dy, 0)
+        self.sock.sendall(header(MSG_MOVE, MOVE_SIZE) + payload)
+
+    def send_raw(self, data):
+        self.sock.sendall(data)
 
     def command(self, text):
         payload = _cstr(text, TEXT_CMD_SIZE)
@@ -108,6 +117,16 @@ class Client:
                 break
         return None
 
+    def wait_until_closed(self, timeout):
+        """Pump until the server closes the connection; return the elapsed
+        time in seconds, or None if it is still open after `timeout`."""
+        start = time.monotonic()
+        while time.monotonic() - start < timeout:
+            self.pump(0.1)
+            if self.closed_by_peer:
+                return time.monotonic() - start
+        return None
+
     def wait_for_login(self, timeout=10.0):
         start = time.monotonic()
         while time.monotonic() - start < timeout:
@@ -125,6 +144,13 @@ class Client:
             self._buf = self._buf[HEADER.size + length:]
             if msg_type == MSG_WELCOME:
                 self.welcomed = True
+                self.entity_id, x, y = struct.unpack_from("<3i", payload)
+                self.position = (x, y)
+            elif msg_type == MSG_STATE:
+                # MsgState: uint64 gold, then int entity_id, x, y
+                entity_id, x, y = struct.unpack_from("<3i", payload, 8)
+                if entity_id == self.entity_id:
+                    self.position = (x, y)
             elif msg_type == MSG_TEXT:
                 self.texts.append(payload.split(b"\0", 1)[0].decode(errors="replace"))
             elif msg_type == MSG_AUTH_FAIL:

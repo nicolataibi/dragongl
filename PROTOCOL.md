@@ -115,8 +115,12 @@ sequenceDiagram
     participant Server
 
     Client->>Server: TCP Connect (Port 8080)
+    alt Server full, address locked out, too many pending connections
+        Server-->>Client: MSG_AUTH_FAIL (reason string)
+        Server->>Client: TCP Close
+    end
     Client->>Server: MSG_LOGIN (credentials + character roll)
-    alt Invalid Gate Password or Wrong Password
+    alt Invalid Gate Password, Wrong Password or login timeout
         Server-->>Client: MSG_AUTH_FAIL (reason string)
         Server->>Client: TCP Close
     else Valid Authentication
@@ -131,3 +135,17 @@ sequenceDiagram
         Server-->>Client: MSG_ENTITY_UPDATE / MSG_TEXT / MSG_SPELL_VFX
     end
 ```
+
+### Server-side limits
+
+The server never waits on a single connection: input is buffered per client and only complete messages are handled, output is queued and written when the socket accepts it. The limits below are defined in `src/server/server_conn.h`.
+
+| Limit | Value | Effect when exceeded |
+| --- | --- | --- |
+| Time from TCP accept to a successful `MSG_LOGIN` | 10 s | `MSG_AUTH_FAIL` "Login timeout.", connection closed |
+| Unauthenticated connections from one address | 8 | new connection refused with `MSG_AUTH_FAIL` |
+| Failed logins (gate, DM or character password) from one address | 5 within 60 s | address locked out for 60 s; connections refused with `MSG_AUTH_FAIL` |
+| Concurrent clients | 64 (`MAX_CLIENTS`) | `MSG_AUTH_FAIL` "Server full", connection closed |
+| Unsent output queued for one client | 2 MiB | client disconnected (it is not reading) |
+
+Any of the following closes the connection: a header with a wrong `version`, a non-zero `reserved` field, a type a client may not send, a `length` different from the exact payload size of its type, `MSG_MOVE` or `MSG_TEXT_CMD` before login, a second `MSG_LOGIN` on an authenticated session.

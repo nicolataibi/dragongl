@@ -30,7 +30,10 @@ SERVER = os.environ.get("DRAGONGL_SERVER", "")
 DATA = os.environ.get("DRAGONGL_DATA", "")
 SERVER_PASS = "it-server-secret"
 DM_PASS = "it-dm-secret"
-MAX_CLIENTS = 64  # MAX_CLIENTS in src/server/server_entities.h
+MAX_CLIENTS = 64          # MAX_CLIENTS in src/server/server_entities.h
+MAX_PENDING_PER_IP = 8    # src/server/server_conn.h
+LOGIN_TIMEOUT_S = 10      # LOGIN_TIMEOUT_MS in src/server/server_conn.h
+LOGIN_FAIL_LIMIT = 5      # src/server/server_conn.h
 READY_MARK = "Server ready!"
 
 
@@ -113,11 +116,20 @@ class ServerTest(unittest.TestCase):
         shutil.rmtree(cls.root, ignore_errors=True)
 
     def setUp(self):
-        workdir = os.path.join(self.root, self.id().rsplit(".", 1)[-1])
-        shutil.copytree(self.template, workdir)
-        self.server = ServerProcess(workdir, free_port())
+        self.workdir = os.path.join(self.root, self.id().rsplit(".", 1)[-1])
+        shutil.copytree(self.template, self.workdir)
+        self.server = ServerProcess(self.workdir, free_port())
         self.server.wait_ready(timeout=300)
         self.clients = []
+
+    def restart_server(self):
+        """Stop the server gracefully and start it again on the same world."""
+        for c in self.clients:
+            c.close()
+        self.clients = []
+        self.server.stop()
+        self.server = ServerProcess(self.workdir, free_port())
+        self.server.wait_ready(timeout=300)
 
     def tearDown(self):
         for c in self.clients:
@@ -154,7 +166,6 @@ class ServerTest(unittest.TestCase):
         self.assertTrue(c.auth_fail, "no MSG_AUTH_FAIL received")
 
     # --- open defects (expected failures) ------------------------------------
-    @unittest.expectedFailure
     def test_simultaneous_disconnect_keeps_server_alive(self):
         """P0-1: players quitting at the same moment must not kill the
         server (SIGPIPE on a send to an already closed socket)."""
@@ -166,22 +177,23 @@ class ServerTest(unittest.TestCase):
             self.assert_server_alive()
         self.player("survivor")
 
-    @unittest.expectedFailure
     def test_partial_header_does_not_stall_other_players(self):
-        """P0-2: an unauthenticated socket that sends one byte must not
+        """P0-2: unauthenticated sockets that send a partial header must not
         freeze the game loop for everybody else."""
         hero = self.player("hero")
-        slow = self.connect()
+        hostile = [self.connect() for _ in range(MAX_PENDING_PER_IP)]
         time.sleep(0.3)
-        slow.sock.send(b"\x01")
+        for h in hostile:
+            h.sock.send(b"\x01")
         time.sleep(0.05)
         hero.texts.clear()
         hero.command("who")
         latency = hero.wait_for_text("[WHO]", 15)
         self.assertIsNotNone(latency, "no answer to 'who'")
-        self.assertLess(latency, 1.0, "'who' took %.2fs while a slow socket was pending" % latency)
+        self.assertLess(latency, 0.25,
+                        "'who' took %.2fs with %d partial headers pending"
+                        % (latency, len(hostile)))
 
-    @unittest.expectedFailure
     def test_rejected_connections_are_closed(self):
         """P0-3: connections refused because the server is full must be
         closed, not leaked."""
@@ -196,6 +208,98 @@ class ServerTest(unittest.TestCase):
         while time.monotonic() < deadline and open_fds(pid) > baseline:
             time.sleep(0.2)
         self.assertEqual(open_fds(pid), baseline, "file descriptors leaked")
+
+    def test_server_full_is_reported(self):
+        """A connection beyond MAX_CLIENTS gets a reason and is closed."""
+        for i in range(MAX_CLIENTS):
+            self.player("crowd%02d" % i)
+        late = self.connect()
+        self.assertIsNotNone(late.wait_until_closed(5), "connection left open")
+        self.assertTrue(any("full" in r.lower() for r in late.auth_fail), late.auth_fail)
+        self.assert_server_alive()
+
+    def test_idle_connection_times_out(self):
+        """A socket that never logs in is closed after the login timeout."""
+        idle = self.connect()
+        elapsed = idle.wait_until_closed(LOGIN_TIMEOUT_S + 5)
+        self.assertIsNotNone(elapsed, "idle connection never closed")
+        self.assertGreaterEqual(elapsed, LOGIN_TIMEOUT_S - 1)
+        self.assertTrue(any("timeout" in r.lower() for r in idle.auth_fail), idle.auth_fail)
+
+    def test_pending_connections_per_address_are_limited(self):
+        pending = [self.connect() for _ in range(MAX_PENDING_PER_IP)]
+        time.sleep(0.5)
+        extra = self.connect()
+        self.assertIsNotNone(extra.wait_until_closed(3), "extra connection accepted")
+        self.assertTrue(extra.auth_fail, "no reason sent")
+        for p in pending:
+            self.assertFalse(p.closed_by_peer)
+        # A logged-in player does not count as pending.
+        for p in pending:
+            p.close()
+        time.sleep(0.5)
+        self.player("after_pending")
+
+    def test_repeated_failed_logins_lock_out_the_address(self):
+        for _ in range(LOGIN_FAIL_LIMIT):
+            c = self.connect()
+            c.login("guesser", "pw", "wrong-guess")
+            self.assertFalse(c.wait_for_login())
+            c.close()
+        locked = self.connect()
+        locked.login("guesser", "pw", SERVER_PASS)  # even the right password
+        self.assertFalse(locked.wait_for_login())
+        self.assertTrue(any("failed logins" in r for r in locked.auth_fail), locked.auth_fail)
+
+    def test_wrong_character_password_does_not_overwrite_the_save(self):
+        """A rejected login must never save the character it tried."""
+        owner = self.player("owner", password="right")
+        owner.close()
+        time.sleep(1.0)
+        save = os.path.join(self.workdir, "saves", "owner.save")
+        with open(save, "rb") as f:
+            before = f.read()
+        thief = self.connect()
+        thief.login("owner", "wrong", SERVER_PASS)
+        self.assertFalse(thief.wait_for_login())
+        time.sleep(1.0)
+        with open(save, "rb") as f:
+            self.assertEqual(f.read(), before, "save file rewritten by a failed login")
+        self.player("owner", password="right")
+
+    def test_messages_before_login_disconnect(self):
+        rogue = self.connect()
+        rogue.send_raw(dglproto.header(dglproto.MSG_MOVE, dglproto.MOVE_SIZE) + bytes(16))
+        self.assertIsNotNone(rogue.wait_until_closed(3), "MSG_MOVE before login accepted")
+        self.assert_server_alive()
+
+    def test_malformed_header_disconnects_only_the_sender(self):
+        hero = self.player("hero")
+        rogue = self.connect()
+        rogue.send_raw(dglproto.HEADER.pack(99, 1 << 30, 3, 0))
+        self.assertIsNotNone(rogue.wait_until_closed(3), "malformed header accepted")
+        hero.texts.clear()
+        hero.command("who")
+        self.assertIsNotNone(hero.wait_for_text("[WHO]", 5))
+
+    def test_players_are_saved_on_shutdown(self):
+        """SIGTERM must persist the characters online (the autosave runs
+        only once a minute)."""
+        walker = self.player("walker")
+        start = walker.position
+        moved = False
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            walker.move(dx, dy)
+            time.sleep(0.4)
+            walker.pump(0.3)
+            if walker.position != start:
+                moved = True
+                break
+        self.assertTrue(moved, "could not move away from %r" % (start,))
+        here = walker.position
+        self.restart_server()
+        again = self.player("walker")
+        self.assertEqual(again.position, here)
 
     @unittest.expectedFailure
     def test_second_login_of_same_character_is_rejected(self):

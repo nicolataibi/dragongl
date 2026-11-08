@@ -115,12 +115,12 @@ void damage_item(ItemInstance *it, int amt);
 void save_player_data(Client *c);
 int load_player_data(Client *c);
 void send_text_to_client(int sock, const char *fmt, ...);
-/*net_send() wrapper that DROPS the client on the first failed send
- * (save + "left floor" notice + close): a lost message would leave the
- * client in a stale state until a full state that may never come (L2).
- * Returns true if the payload was queued, false if the client was
- * marked for removal.*/
+/*Queue bytes for a client (never blocks, see server_conn.h). Returns
+ * false if the client is being dropped (peer gone, queue overflow): the
+ * main loop reaps it at the end of the iteration.*/
 bool net_send_client(int sock, const void *data, int len);
+/*Queue a MSG_AUTH_FAIL for the client on `sock`.*/
+void send_auth_fail(int sock, const char *reason);
 void send_detailed_state(Client *c);
 void server_log(const char *cat, const char *fmt, ...);
 void broadcast_spell_vfx(int sx, int sy, int tx, int ty, int vfx_type, float r, float g, float b, int floor_id);

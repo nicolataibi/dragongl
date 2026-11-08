@@ -29,10 +29,17 @@ void net_set_nonblocking(int sock);
 bool net_send(int sock, const void *data, int len);
 int net_receive(int sock, void *buffer, int max_len);
 int net_receive_all(int sock, void *buffer, int len);
-/*Read EXACTLY len bytes (no partial reads): blocks with short pauses until
- * len bytes arrive, the peer closes the connection (returns -1) or the
- * retry budget is exhausted (returns -1). Use it for protocol headers so a
- * short recv() can never be mistaken for a complete header.*/
+/*Read EXACTLY len bytes (no partial reads), waiting with short pauses for
+ * up to ~5 s. Returns len on success, or:
+ *   NET_RECV_CLOSED  the peer closed the connection;
+ *   NET_RECV_IDLE    nothing arrived within the retry budget (try again);
+ *   NET_RECV_ERROR   socket error, or the budget ran out after PART of the
+ *                    data was consumed (the stream is no longer in sync).
+ * Use it for protocol headers so a short recv() can never be mistaken for
+ * a complete header.*/
+#define NET_RECV_CLOSED 0
+#define NET_RECV_IDLE (-1)
+#define NET_RECV_ERROR (-2)
 int net_receive_exact(int sock, void *buffer, int len);
 void net_close(int sock);
 

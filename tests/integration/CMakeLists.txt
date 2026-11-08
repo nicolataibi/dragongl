@@ -38,6 +38,7 @@ endif()
 set(DGL_SERVER_SRCS
     ${DGL_ROOT}/src/server/main_server.c
     ${DGL_ROOT}/src/server/server_net.c
+    ${DGL_ROOT}/src/server/server_conn.c
     ${DGL_ROOT}/src/server/ai.c
     ${DGL_ROOT}/src/server/aoe.c
     ${DGL_ROOT}/src/server/combat_log.c

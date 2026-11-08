@@ -117,7 +117,9 @@ bool net_send(int sock, const void *data, int len) {
         return false;
 
     while (total < len && retries < max_retries) {
-        int sent = send(sock, buf + total, len - total, 0);
+        /*MSG_NOSIGNAL: a peer that already closed yields EPIPE instead of
+         * a SIGPIPE that would terminate the process.*/
+        int sent = send(sock, buf + total, len - total, MSG_NOSIGNAL);
         if (sent > 0) {
             total += sent;
             retries = 0;
@@ -142,10 +144,9 @@ int net_receive(int sock, void *buffer, int max_len) {
     return bytes;
 }
 
-/*Read exactly 'len' bytes, retrying on EAGAIN with short pauses.
-   Returns len on success, -1 on peer close or retry exhaustion.
-   Permanent errors (EPIPE, ENOTCONN, EBADF, ...) return -1 at once
-   instead of spinning the whole retry budget (~5 s).*/
+/*Read exactly 'len' bytes, retrying on EAGAIN with short pauses (see
+   net.h for the return values). Permanent errors (EPIPE, ENOTCONN,
+   EBADF, ...) return at once instead of spinning the retry budget.*/
 int net_receive_exact(int sock, void *buffer, int len) {
     int total = 0;
     int retries = 0;
@@ -158,16 +159,20 @@ int net_receive_exact(int sock, void *buffer, int len) {
             total += bytes;
             retries = 0;
         } else if (bytes == 0) {
-            return -1; /* peer closed */
+            return NET_RECV_CLOSED;
         } else {
             if (!net_err_is_transient(errno))
-                return -1;
+                return NET_RECV_ERROR;
             retries++;
             usleep(10000);
         }
     }
 
-    return (total == len) ? total : -1;
+    if (total == len)
+        return total;
+    /*Retry budget exhausted: harmless if nothing arrived (idle stream),
+     * fatal if part of a message was consumed (the stream is desynced).*/
+    return (total == 0) ? NET_RECV_IDLE : NET_RECV_ERROR;
 }
 
 /*Always-NUL-terminated string copy (see net.h).

@@ -107,7 +107,9 @@ Administrators logged in with DM credentials can monitor engine performance dire
 
 ## 6. Testing & CI Standards
 
-The standalone test suite resides in `tests/` and mirrors production compiler flags:
+The quickest loop is `./build.sh` (Release build + both suites) or `./build.sh -dwa` (ASan/UBSan, `-Werror` and cppcheck, close to what CI runs); see `BUILD.md`.
+
+The standalone test suite resides in `tests/` and mirrors production compiler flags. By hand:
 
 ```bash
 # Compile and run unit tests

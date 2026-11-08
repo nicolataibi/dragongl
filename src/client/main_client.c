@@ -17,6 +17,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -151,6 +152,9 @@ void client_log_add(const char *text) {
 int main(int argc, char **argv) {
     pthread_t net_thread;
     pthread_t cli_thread;
+    /*Writing to a connection the server already closed must fail with
+     * EPIPE (detected by the network thread), not kill the client.*/
+    signal(SIGPIPE, SIG_IGN);
     /*The client does NOT generate a world at startup: the old
      * world_init() built all 101 floors + traps (~73 MB, seconds of CPU)
      * only to copy floor 0 into g_local_map. The map arrives from the

@@ -27,6 +27,7 @@
 #include "net.h"
 #include "protocol.h"
 #include "server_net.h"
+#include "server_conn.h"
 #include "rules.h"
 #include "species.h"
 #include "spells.h"
@@ -34,6 +35,7 @@
 #include <ctype.h>
 #include <dirent.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <ifaddrs.h>
 #include <math.h>
 #include <netinet/in.h>
@@ -2563,6 +2565,186 @@ void give_starting_gear(Client *c) {
 /*DRAGONGL_NO_MAIN: the in-process test harness (tests/integration)
  * links every server translation unit and provides its own main().*/
 #ifndef DRAGONGL_NO_MAIN
+
+/*--- Connection management (main loop only) ---------------------------*/
+
+/*Refuse a login: queue the reason, forget any authentication state set
+ * so far — the reaper must NEVER save a character whose password was
+ * wrong — and mark the connection for removal.*/
+static void reject_login(Client *c, int slot, const char *reason,
+                         bool count_failure) {
+  send_auth_fail(c->sock, reason);
+  c->authenticated = false;
+  c->is_dm = false;
+  if (count_failure)
+    ipguard_login_failed(conn_peer_ip(slot), get_time_ms());
+  conn_mark_drop(slot, reason);
+}
+
+static void peer_ip_string(const struct sockaddr_storage *ss, char *out,
+                           size_t out_len) {
+  const void *addr = NULL;
+  if (ss->ss_family == AF_INET)
+    addr = &((const struct sockaddr_in *)ss)->sin_addr;
+  else if (ss->ss_family == AF_INET6)
+    addr = &((const struct sockaddr_in6 *)ss)->sin6_addr;
+  if (!addr || !inet_ntop(ss->ss_family, addr, out, (socklen_t)out_len))
+    copy_str(out, "?", out_len);
+}
+
+static int pending_logins_from(const Client *clients, const char *ip) {
+  int n = 0;
+  for (int i = 0; i < MAX_CLIENTS; i++)
+    if (clients[i].active && !clients[i].authenticated &&
+        strcmp(conn_peer_ip(i), ip) == 0)
+      n++;
+  return n;
+}
+
+/*Accept every queued connection (the listening socket is non-blocking).
+ * A connection that cannot be served — address locked out, too many
+ * pending logins from it, server full — gets a MSG_AUTH_FAIL and is
+ * closed at once: it never occupies a slot or leaks its descriptor.*/
+static void accept_pending_connections(int listen_fd, int epoll_fd,
+                                       Client *clients) {
+  for (;;) {
+    struct sockaddr_storage ss;
+    socklen_t ss_len = sizeof(ss);
+    int cs = accept(listen_fd, (struct sockaddr *)&ss, &ss_len);
+    if (cs >= 0) {
+      net_set_nonblocking(cs);
+      fcntl(cs, F_SETFD, FD_CLOEXEC);
+    }
+    if (cs < 0) {
+      if (errno == EINTR)
+        continue;
+      if (errno != EAGAIN && errno != EWOULDBLOCK)
+        server_log("NET", "accept failed: %s", strerror(errno));
+      return;
+    }
+    char ip[CONN_IP_MAX];
+    peer_ip_string(&ss, ip, sizeof(ip));
+    long long now = get_time_ms();
+
+    const char *refusal = NULL;
+    int slot = -1;
+    if (ipguard_locked(ip, now)) {
+      refusal = "Too many failed logins from your address: try again later.";
+    } else if (pending_logins_from(clients, ip) >= MAX_PENDING_PER_IP) {
+      refusal = "Too many pending connections from your address.";
+    } else {
+      for (int i = 0; i < MAX_CLIENTS; i++) {
+        if (!clients[i].active) {
+          slot = i;
+          break;
+        }
+      }
+      if (slot < 0)
+        refusal = "Server full: try again later.";
+    }
+    if (refusal) {
+      server_log("NET", "Connection from %s refused: %s", ip, refusal);
+      conn_send_auth_fail_now(cs, refusal);
+      close(cs);
+      continue;
+    }
+
+    /*A slot starts from a clean Client: nothing of its previous
+     * occupant (username, trade state, DM flag...) may leak in.*/
+    memset(&clients[slot], 0, sizeof(clients[slot]));
+    clients[slot].sock = cs;
+    clients[slot].active = true;
+    clients[slot].trade_offer_item_idx = -1;
+    clients[slot].pending_trade_merchant_id = -1;
+    conn_open(slot, cs, ip, now);
+    client_seen_reset(slot, -1);
+
+    struct epoll_event client_ev;
+    memset(&client_ev, 0, sizeof(client_ev));
+    client_ev.events = EPOLLIN | EPOLLRDHUP;
+    client_ev.data.u32 = (uint32_t)slot;
+    if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, cs, &client_ev) != 0) {
+      server_log("NET", "epoll_ctl(ADD) failed for %s: %s", ip, strerror(errno));
+      conn_release(slot);
+      clients[slot].active = false;
+      close(cs);
+      continue;
+    }
+    server_log("NET", "Client %d connected from %s", slot, ip);
+  }
+}
+
+/*A connection must log in within LOGIN_TIMEOUT_MS of being accepted.*/
+static void expire_pending_logins(Client *clients) {
+  long long now = get_time_ms();
+  for (int i = 0; i < MAX_CLIENTS; i++) {
+    if (clients[i].active && !clients[i].authenticated && !conn_dropping(i) &&
+        now - conn_opened_ms(i) > LOGIN_TIMEOUT_MS) {
+      send_auth_fail(clients[i].sock, "Login timeout.");
+      conn_mark_drop(i, "login timeout");
+    }
+  }
+}
+
+static void flush_all_clients(Client *clients) {
+  for (int i = 0; i < MAX_CLIENTS; i++)
+    if (clients[i].active && conn_tx_pending(i))
+      conn_flush(i);
+}
+
+/*Remove every connection marked for removal during this iteration. This
+ * is the ONLY place a client slot is closed: saving, the "left floor"
+ * notice and the grid cleanup happen once, in one order, and no send path
+ * ever disconnects a client synchronously.*/
+static void reap_dropped_clients(Client *clients) {
+  for (int i = 0; i < MAX_CLIENTS; i++) {
+    if (!clients[i].active || !conn_dropping(i))
+      continue;
+    Client *c = &clients[i];
+    server_log("NET", "Client %d ('%s', %s) disconnected: %s", i,
+               c->authenticated ? c->username : "-", conn_peer_ip(i),
+               conn_drop_reason(i));
+    if (c->authenticated) {
+      save_player_data(c);
+      if (c->floor_id >= 0 && c->floor_id < MAX_FLOORS && c->x >= 0 &&
+          c->x < MAP_WIDTH && c->y >= 0 && c->y < MAP_HEIGHT) {
+        int *cell = &master_world->floors[c->floor_id].entity_grid[c->y][c->x];
+        if (*cell == c->entity_id)
+          *cell = 0;
+        notify_player_left_floor(c, c->floor_id);
+      }
+    }
+    conn_flush(i); /*best effort: deliver a queued MSG_AUTH_FAIL*/
+    close(c->sock); /*also removes the fd from the epoll set*/
+    conn_release(i);
+    c->sock = -1;
+    c->active = false;
+    c->authenticated = false;
+    c->is_dm = false;
+  }
+}
+
+/*EPOLLOUT only while bytes are waiting: level-triggered EPOLLOUT on an
+ * empty queue would wake the loop continuously.*/
+static void update_write_interest(int epoll_fd, Client *clients) {
+  static bool wants_out[MAX_CLIENTS];
+  for (int i = 0; i < MAX_CLIENTS; i++) {
+    bool want = clients[i].active && conn_tx_pending(i);
+    if (!clients[i].active) {
+      wants_out[i] = false;
+      continue;
+    }
+    if (want == wants_out[i])
+      continue;
+    struct epoll_event ev;
+    memset(&ev, 0, sizeof(ev));
+    ev.events = EPOLLIN | EPOLLRDHUP | (want ? EPOLLOUT : 0u);
+    ev.data.u32 = (uint32_t)i;
+    if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, clients[i].sock, &ev) == 0)
+      wants_out[i] = want;
+  }
+}
+
 int main(int argc, char **argv) {
   setvbuf(stdout, NULL, _IONBF,
           0); // Disable stdout buffering for live log files
@@ -2655,6 +2837,9 @@ int main(int argc, char **argv) {
   sigemptyset(&sa.sa_mask);
   sigaction(SIGINT, &sa, NULL);
   sigaction(SIGTERM, &sa, NULL);
+  /*A write to a socket the peer already closed must fail with EPIPE, not
+   * kill the process (every send also passes MSG_NOSIGNAL).*/
+  signal(SIGPIPE, SIG_IGN);
   int s_sock = net_create_server(server_port);
   if (s_sock < 0) {
     server_log("SYS", "Cannot bind to port %d", server_port);
@@ -2863,63 +3048,28 @@ int main(int argc, char **argv) {
       for (int ev_idx = 0; ev_idx < n_events; ev_idx++) {
         uint32_t id = ep_events[ev_idx].data.u32;
         if (id == MAX_CLIENTS) {
-          int cs = accept(s_sock, NULL, NULL);
-          if (cs >= 0) {
-            net_set_nonblocking(cs);
-            for (int i = 0; i < MAX_CLIENTS; i++)
-              if (!clients[i].active) {
-                clients[i].sock = cs;
-                clients[i].active = true;
-                clients[i].authenticated = false;
-                client_seen_reset(i, -1);
-                server_log("NET", "Client %d connected on socket %d", i, cs);
-                
-                struct epoll_event client_ev;
-                client_ev.events = EPOLLIN;
-                client_ev.data.u32 = i;
-                epoll_ctl(epoll_fd, EPOLL_CTL_ADD, cs, &client_ev);
-                
-                break;
-              }
-          }
+          accept_pending_connections(s_sock, epoll_fd, clients);
         } else {
-          int i = id;
-          if (clients[i].active) {
+          int i = (int)id;
+          if (!clients[i].active || conn_dropping(i))
+            continue;
+          /*Drain the socket, then handle every COMPLETE message already
+           * buffered. Nothing here ever waits for missing bytes: a
+           * partial message simply stays in the buffer until the next
+           * EPOLLIN (see server_conn.h).*/
+          ConnRxStatus rx = conn_read(i);
           MsgHeader hdr;
-          /*net_receive_exact: a single recv() can return a PARTIAL header
-           * (non-blocking socket); the old code would then test hdr.type
-           * on half-received bytes and desync the stream.*/
-          if (net_receive_exact(clients[i].sock, &hdr, sizeof(MsgHeader)) <= 0) {
-            save_player_data(&clients[i]);
-            notify_player_left_floor(&clients[i], clients[i].floor_id);
-            net_close(clients[i].sock);
-            clients[i].active = false;
-            continue;
-          }
-          /*Validate version+type+length BEFORE reading the payload: an
-           * unknown type used to fall through without consuming
-           * hdr.length bytes, silently desyncing that client's whole
-           * stream. Unknown or mismatched => drop the connection. The
-           * version check fails fast between mismatched builds (old
-           * client + new server) instead of parsing garbage.*/
-          bool hdr_ok = (hdr.version == PROTOCOL_VERSION) &&
-                        ((hdr.type == MSG_LOGIN && hdr.length == (int)sizeof(MsgLogin)) ||
-                         (hdr.type == MSG_MOVE && hdr.length == (int)sizeof(MsgMove)) ||
-                         (hdr.type == MSG_TEXT_CMD && hdr.length == (int)sizeof(MsgTextCmd)));
-          if (!hdr_ok) {
-            server_log("NET", "Bad message from client (version %u, type %u, len %d) — disconnect",
-                       hdr.version, hdr.type, hdr.length);
-            net_close(clients[i].sock);
-            clients[i].active = false;
-            continue;
-          }
+          const void *payload = NULL;
+          int got = 0;
+          while (clients[i].active && !conn_dropping(i) &&
+                 (got = conn_next_message(i, &hdr, &payload)) == 1) {
           if (hdr.type == MSG_LOGIN) {
-            MsgLogin ml;
-            if (net_receive_all(clients[i].sock, &ml, sizeof(MsgLogin)) <= 0) {
-              net_close(clients[i].sock);
-              clients[i].active = false;
+            if (clients[i].authenticated) {
+              conn_mark_drop(i, "MSG_LOGIN on an authenticated session");
               continue;
             }
+            MsgLogin ml;
+            memcpy(&ml, payload, sizeof(ml));
             /*Force NUL terminators (M5): username/password/server_pass
              * are fixed-size arrays and a malicious client can send all
              * 32 bytes of each without a terminator. The first uses are
@@ -2932,15 +3082,9 @@ int main(int argc, char **argv) {
 
             //Check Server Password to allow connection
             if (strlen(SERVER_ACCESS_PASSWORD) > 0 && strcmp(ml.server_pass, SERVER_ACCESS_PASSWORD) != 0) {
-                server_log("AUTH", "Server access denied (Wrong Server Password) for IP/Socket %d", clients[i].sock);
-                MsgHeader fail_hdr = msg_hdr(MSG_AUTH_FAIL, (int)sizeof(MsgAuthFail));
-                MsgAuthFail fail_msg;
-                copy_str(fail_msg.reason, "Wrong server password.",
-                         sizeof(fail_msg.reason));
-                net_send(clients[i].sock, &fail_hdr, sizeof(MsgHeader));
-                net_send(clients[i].sock, &fail_msg, sizeof(MsgAuthFail));
-                net_close(clients[i].sock);
-                clients[i].active = false;
+                server_log("AUTH", "Server access denied (wrong server password) from %s",
+                           conn_peer_ip(i));
+                reject_login(&clients[i], i, "Wrong server password.", true);
                 continue;
             }
 
@@ -2949,15 +3093,7 @@ int main(int argc, char **argv) {
             //saves/tombstone_<u>_*.dat): slashes, ".." etc. were path-
             //traversal vectors, so reject anything that doesn't match.
             if (!valid_username(ml.username)) {
-                MsgHeader fail_hdr = msg_hdr(MSG_AUTH_FAIL, (int)sizeof(MsgAuthFail));
-                MsgAuthFail fail_msg;
-                copy_str(fail_msg.reason,
-                         "Invalid username: use 1-16 chars (a-z, A-Z, 0-9, _).",
-                         sizeof(fail_msg.reason));
-                net_send(clients[i].sock, &fail_hdr, sizeof(MsgHeader));
-                net_send(clients[i].sock, &fail_msg, sizeof(MsgAuthFail));
-                net_close(clients[i].sock);
-                clients[i].active = false;
+                reject_login(&clients[i], i, "Invalid username: use 1-16 chars (a-z, A-Z, 0-9, _).", false);
                 continue;
             }
 
@@ -2982,14 +3118,7 @@ int main(int argc, char **argv) {
                 hash_password_kdf(ml.password, dm_salt,
                                   dm_given, sizeof(dm_given));
                 if (strcmp(dm_expected, dm_given) != 0) {
-                    MsgHeader fail_hdr = msg_hdr(MSG_AUTH_FAIL, (int)sizeof(MsgAuthFail));
-                    MsgAuthFail fail_msg;
-                    copy_str(fail_msg.reason, "Invalid DM password.",
-                             sizeof(fail_msg.reason));
-                    net_send(clients[i].sock, &fail_hdr, sizeof(MsgHeader));
-                    net_send(clients[i].sock, &fail_msg, sizeof(MsgAuthFail));
-                    net_close(clients[i].sock);
-                    clients[i].active = false;
+                    reject_login(&clients[i], i, "Invalid DM password.", true);
                     continue;
                 }
                 clients[i].is_dm = true;
@@ -3005,17 +3134,11 @@ int main(int argc, char **argv) {
                 //cases the file stays intact on disk; a -2 character must
                 //be recreated (pre-v1 saves hold an 8-hex FNV-1a digest
                 //that cannot be upgraded to PBKDF2 without the password).
-                MsgHeader fail_hdr = msg_hdr(MSG_AUTH_FAIL, (int)sizeof(MsgAuthFail));
-                MsgAuthFail fail_msg;
-                copy_str(fail_msg.reason,
-                         (load_status == -1)
-                             ? "Incorrect character password."
-                             : "Save file unreadable (old format, wrong version or corrupt).",
-                         sizeof(fail_msg.reason));
-                net_send(clients[i].sock, &fail_hdr, sizeof(MsgHeader));
-                net_send(clients[i].sock, &fail_msg, sizeof(MsgAuthFail));
-                net_close(clients[i].sock);
-                clients[i].active = false;
+                reject_login(&clients[i], i,
+                             (load_status == -1)
+                                 ? "Incorrect character password."
+                                 : "Save file unreadable (old format, wrong version or corrupt).",
+                             load_status == -1);
                 continue;
             }
             if (load_status == 0) {
@@ -3178,15 +3301,16 @@ int main(int argc, char **argv) {
                   clients[i].intel, clients[i].wis, clients[i].cha,
                   clients[i].max_hp);
             }
+            ipguard_login_succeeded(conn_peer_ip(i));
             server_log("AUTH", "'%s' %s", ml.username,
                        (load_status == 1) ? "rientrato" : "new");
-          } else if (hdr.type == MSG_MOVE && clients[i].authenticated) {
-            MsgMove m;
-            if (net_receive_all(clients[i].sock, &m, sizeof(MsgMove)) <= 0) {
-              net_close(clients[i].sock);
-              clients[i].active = false;
+          } else if (hdr.type == MSG_MOVE) {
+            if (!clients[i].authenticated) {
+              conn_mark_drop(i, "MSG_MOVE before login");
               continue;
             }
+            MsgMove m;
+            memcpy(&m, payload, sizeof(m));
 
             /*Position/floor BEFORE the move: the 10 KB map chunk is
              * re-sent only if the view actually moved (M7).*/
@@ -3427,13 +3551,13 @@ int main(int argc, char **argv) {
                              &master_world->floors[clients[i].floor_id].map,
                              clients[i].x, clients[i].y, INITIAL_VIEW_RADIUS);
             }
-          } else if (hdr.type == MSG_TEXT_CMD && clients[i].authenticated) {
-            MsgTextCmd tc;
-            if (net_receive_all(clients[i].sock, &tc, sizeof(MsgTextCmd)) <= 0) {
-              net_close(clients[i].sock);
-              clients[i].active = false;
+          } else if (hdr.type == MSG_TEXT_CMD) {
+            if (!clients[i].authenticated) {
+              conn_mark_drop(i, "MSG_TEXT_CMD before login");
               continue;
             }
+            MsgTextCmd tc;
+            memcpy(&tc, payload, sizeof(tc));
             /*Rate limit text commands exactly like MSG_MOVE: the flag was
              * written but never tested, so a client spamming 'top', 'cast'
              * or 'look' at 10 kHz saturated the server CPU (every 'top'
@@ -3448,10 +3572,20 @@ int main(int argc, char **argv) {
             tc.cmd[sizeof(tc.cmd) - 1] = '\0';
             handle_text_cmd(&clients[i], tc.cmd, npcs);
           }
+          }
+          if (got < 0) {
+            server_log("NET", "Protocol violation from client %d (%s): disconnect",
+                       i, conn_peer_ip(i));
+            conn_mark_drop(i, "protocol violation");
+          } else if (rx == CONN_RX_CLOSED) {
+            conn_mark_drop(i, "connection closed by peer");
+          } else if (rx == CONN_RX_ERROR) {
+            conn_mark_drop(i, "socket error");
+          }
         }
-    }
       }
     }
+    expire_pending_logins(clients);
     /*--- Fixed-step game clock (see the accumulator declaration) ---*/
     long long now_ms = get_time_ms();
     if (last_iter_ms == 0) {
@@ -3466,6 +3600,20 @@ int main(int argc, char **argv) {
       update_world(clients, npcs);
       tick_acc_ms -= TICK_MS;
     }
+    /*Output of this iteration: write what the kernel accepts, remove the
+     * clients marked for removal (their "left floor" notices are queued
+     * for the others), write again, then ask epoll for EPOLLOUT only where
+     * bytes are still waiting.*/
+    flush_all_clients(clients);
+    reap_dropped_clients(clients);
+    flush_all_clients(clients);
+    update_write_interest(epoll_fd, clients);
+  }
+  /*Graceful shutdown: persist every character (the periodic autosave
+   * runs once a minute, so up to 60 s of progress would be lost).*/
+  for (int i = 0; i < MAX_CLIENTS; i++) {
+    if (clients[i].active && clients[i].authenticated)
+      save_player_data(&clients[i]);
   }
   clog_close();
   server_log("SYS", "Server shut down. Log saved.");

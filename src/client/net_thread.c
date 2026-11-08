@@ -55,6 +55,16 @@ static bool valid_msg(MsgType type, int length) {
     }
 }
 
+/*Read a message payload. A payload that does not arrive in full leaves the
+ * stream out of sync, so it ends the session.*/
+static bool recv_payload(void *buf, int len) {
+    if (net_receive_all(g_server_sock, buf, len) == len)
+        return true;
+    fprintf(stderr, "[NET] Connection lost while reading a message.\n");
+    g_running = false;
+    return false;
+}
+
 void* net_thread_loop(void* arg) {
     MsgHeader hdr;
     MsgWelcome msg_wel;
@@ -91,7 +101,7 @@ void* net_thread_loop(void* arg) {
                 break;
             }
             if (hdr.type == MSG_WELCOME) {
-                if (net_receive_all(g_server_sock, &msg_wel, sizeof(MsgWelcome)) > 0) {
+                if (recv_payload(&msg_wel, sizeof(MsgWelcome))) {
                     pthread_mutex_lock(&g_state_mutex);
                     g_my_entity_id = msg_wel.entity_id;
                     g_my_x = msg_wel.x; g_my_y = msg_wel.y;
@@ -107,12 +117,13 @@ void* net_thread_loop(void* arg) {
                     fflush(stdout);
                 }
             } else if (hdr.type == MSG_AUTH_FAIL) {
-                if (net_receive_all(g_server_sock, &msg_fail, sizeof(MsgAuthFail)) > 0) {
+                if (recv_payload(&msg_fail, sizeof(MsgAuthFail))) {
+                    msg_fail.reason[sizeof(msg_fail.reason) - 1] = '\0';
                     printf("\n[NET] Authentication failed: %s\n", msg_fail.reason);
                     g_running = false;
                 }
             } else if (hdr.type == MSG_STATE) {
-                if (net_receive_all(g_server_sock, &msg_state, sizeof(MsgState)) > 0) {
+                if (recv_payload(&msg_state, sizeof(MsgState))) {
                     pthread_mutex_lock(&g_state_mutex);
                     if (last_floor != -1 && last_floor != msg_state.floor_id) {
                         for(int ly=0; ly<MAP_HEIGHT; ly++) {
@@ -253,13 +264,13 @@ void* net_thread_loop(void* arg) {
                  * count and the total length are sanity-checked BEFORE
                  * the malloc, exactly like the map chunk.*/
                 int32_t count = 0;
-                if (net_receive_all(g_server_sock, &count, sizeof(count)) > 0 &&
+                if (recv_payload(&count, sizeof(count)) &&
                     count > 0 && count <= 4096 &&
                     hdr.length == (int)(sizeof(count) + (size_t)count * sizeof(EntityUpdateRec))) {
                     EntityUpdateRec *recs = malloc((size_t)count * sizeof(EntityUpdateRec));
                     if (recs) {
-                        if (net_receive_all(g_server_sock, recs,
-                                            (size_t)count * sizeof(EntityUpdateRec)) > 0) {
+                        if (recv_payload(recs,
+                                            (size_t)count * sizeof(EntityUpdateRec))) {
                             pthread_mutex_lock(&g_state_mutex);
                             for (int k = 0; k < count; k++) {
                                 for (int i = 0; i < CLIENT_MAX_ENTITIES; i++) {
@@ -286,7 +297,7 @@ void* net_thread_loop(void* arg) {
                 }
                 if (!g_running) break;
             } else if (hdr.type == MSG_MAP_CHUNK) {
-                if (net_receive_all(g_server_sock, &msg_chunk, sizeof(MsgMapChunk)) > 0) {
+                if (recv_payload(&msg_chunk, sizeof(MsgMapChunk))) {
                     /*Sanity-check the chunk BEFORE malloc: width/height
                      * come from the server and drive the allocation — an
                      * invalid (or malicious) value could request a huge
@@ -306,7 +317,12 @@ void* net_thread_loop(void* arg) {
                         break;
                     }
                     chunk_buf = malloc(chunk_size);
-                    if (net_receive_all(g_server_sock, chunk_buf, chunk_size) > 0) {
+                    if (!chunk_buf) {
+                        fprintf(stderr, "[NET] Out of memory for a map chunk — disconnecting.\n");
+                        g_running = false;
+                        break;
+                    }
+                    if (recv_payload(chunk_buf, chunk_size)) {
                         pthread_mutex_lock(&g_state_mutex);
                         i = 0;
                         /*Change detection: the server re-sends the
@@ -335,18 +351,19 @@ void* net_thread_loop(void* arg) {
                 }
             } else if (hdr.type == MSG_SPELL_VFX) {
                 MsgSpellVFX msg_vfx;
-                if (net_receive_all(g_server_sock, &msg_vfx, sizeof(MsgSpellVFX)) > 0) {
+                if (recv_payload(&msg_vfx, sizeof(MsgSpellVFX))) {
                     spawn_vfx(msg_vfx.vfx_type, (float)msg_vfx.start_x, (float)msg_vfx.start_y, (float)msg_vfx.target_x, (float)msg_vfx.target_y, msg_vfx.color_r, msg_vfx.color_g, msg_vfx.color_b);
                 }
             } else if (hdr.type == MSG_TEXT) {
-                if (net_receive_all(g_server_sock, &msg_txt, sizeof(MsgText)) > 0) {
+                if (recv_payload(&msg_txt, sizeof(MsgText))) {
+                    msg_txt.text[sizeof(msg_txt.text) - 1] = '\0';
                     client_log_add(msg_txt.text);
                     fct_parse_log(msg_txt.text);
                     printf("\r\033[K%s\n> ", msg_txt.text); fflush(stdout);
                 }
             } else if (hdr.type == MSG_TIME_SYNC) {
                 MsgTimeSync ts;
-                if (net_receive_all(g_server_sock, &ts, sizeof(MsgTimeSync)) > 0) {
+                if (recv_payload(&ts, sizeof(MsgTimeSync))) {
                     pthread_mutex_lock(&g_state_mutex);
                     g_game_h = ts.game_hour;
                     g_game_m = ts.game_min;
@@ -355,7 +372,7 @@ void* net_thread_loop(void* arg) {
                 }
             } else if (hdr.type == MSG_TOMBSTONE_REMOVE) {
                 MsgTombstoneRemove rm_msg;
-                if (net_receive_all(g_server_sock, &rm_msg, sizeof(MsgTombstoneRemove)) > 0) {
+                if (recv_payload(&rm_msg, sizeof(MsgTombstoneRemove))) {
                     pthread_mutex_lock(&g_state_mutex);
                     for (int i = 0; i < CLIENT_MAX_ENTITIES; i++) {
                         if (g_entities[i].active &&
@@ -369,12 +386,14 @@ void* net_thread_loop(void* arg) {
                     pthread_mutex_unlock(&g_state_mutex);
                 }
             }
-        } else if (bytes == 0) {
+        } else if (bytes == NET_RECV_CLOSED) {
             printf("\n[NET] Server disconnected.\n");
             g_running = false;
-        } else {
-            usleep(10000);
+        } else if (bytes == NET_RECV_ERROR) {
+            printf("\n[NET] Connection to the server lost.\n");
+            g_running = false;
         }
+        /*NET_RECV_IDLE: nothing arrived for a while — keep waiting.*/
     }
     return NULL;
 }

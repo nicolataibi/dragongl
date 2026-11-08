@@ -51,7 +51,41 @@ sudo apt-get install -y \
 
 ---
 
-## 2. Standard Build Workflow
+## 2. Quick Dev Loop: `build.sh`
+
+`build.sh` in the repository root wraps every step below: main project, unit suite, server integration suite, cppcheck and an install check. Without options it builds in Release and runs both test suites.
+
+```bash
+./build.sh            # Release build + full test suite (default)
+./build.sh -d         # Debug build + full test suite (ASan/UBSan)
+./build.sh -r         # RelWithDebInfo (profiling)
+./build.sh -s         # MinSizeRel
+./build.sh -t         # tests only (no rebuild)
+./build.sh -c         # clean build (rm -rf build dirs) + rebuild
+./build.sh -n         # build only, skip the test suite
+./build.sh -h         # help
+```
+
+| Option | Effect |
+| --- | --- |
+| `-u` / `-i` | run only the unit suite / only the integration suite |
+| `-S` | build only the `dragongl_server` target |
+| `-a` | also run cppcheck, with the same options as CI |
+| `-x` | also install into `build/stage` (prefix `/usr`) to check the install layout |
+| `-w` | warnings are errors (as in CI) |
+| `-g` | gcc instead of clang |
+| `-j N` | parallel jobs (default: number of CPUs) |
+| `-v` | echo the commands and show the full output |
+
+Options combine: `./build.sh -cn`, `./build.sh -dwa`, `./build.sh -j8 -i`. Conflicting options (two build types, `-t` with `-c`) are rejected. Every option that changes the compiler flags is passed to CMake on each run, so switching between `-d` and a Release build in the same directory never keeps stale sanitizer flags. The script prints a summary with the duration of each step and exits with a non-zero status on the first failure.
+
+Build directories: `build/` (used by `./dragongl-server` and `./dragongl-client`), `build-tests/` (`build-tests-asan/` with `-d`), `build-integration/`. Sanitizer builds with clang need compiler-rt (Fedora: `compiler-rt`, Debian/Ubuntu: `libclang-rt-dev`); `-g` uses gcc instead.
+
+The sections below describe the same steps done by hand.
+
+---
+
+## 3. Manual Build Workflow
 
 ### Step 1: Configure
 Generate build files using an out-of-source directory:
@@ -78,7 +112,7 @@ During the build:
 
 ---
 
-## 3. Running the Test Suite
+## 4. Running the Test Suite
 
 Dragon GL contains an independent, self-contained unit test suite in the `tests/` directory:
 
@@ -119,7 +153,7 @@ Only a C compiler, CMake and Python 3 are required: no graphics stack. Tests tha
 
 ---
 
-## 4. Local RPM Packaging Check
+## 5. Local RPM Packaging Check
 
 To verify Fedora package compliance locally without submitting to COPR:
 

@@ -16,6 +16,7 @@
  */
 
 #include "data_loader.h"
+#include "server_conn.h"
 #include "server_commands.h"
 #include "server_entities.h"
 #include "server_internal.h"
@@ -80,6 +81,7 @@ static Client *make_player(int slot, const char *name) {
     fcntl(sv[1], F_SETFL, fcntl(sv[1], F_GETFL, 0) | O_NONBLOCK);
     c->sock = sv[0];
     g_peer_fd[slot] = sv[1];
+    conn_open(slot, sv[0], "127.0.0.1", 0);
     c->active = true;
     c->authenticated = true;
     c->entity_id = 1000 + slot;
@@ -119,6 +121,7 @@ static void give_item(Client *c, int template_idx) {
 /* Discard whatever the server wrote to this client. */
 static void drain(int slot) {
     char buf[4096];
+    conn_flush(slot);
     while (g_peer_fd[slot] >= 0 && read(g_peer_fd[slot], buf, sizeof(buf)) > 0) {
     }
 }

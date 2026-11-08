@@ -1,3 +1,60 @@
+* Sun Nov 08 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.08.04
+- BUILD: new build.sh, the quick dev loop. Default: Release build of the
+  main project + unit suite + server integration suite. Build types -d
+  (Debug + ASan/UBSan), -r (RelWithDebInfo), -s (MinSizeRel); -t tests only,
+  -n build only, -c clean rebuild, -u / -i one test suite only, -S server
+  target only, -a cppcheck as in CI, -x install into build/stage, -w
+  -Werror, -g gcc, -j N jobs, -v verbose, -h help. Short options combine
+  (-cn, -dwa, -j8), long forms are accepted (--debug, --no-tests, ...),
+  conflicting options are rejected. Compiler and sanitizer flags are passed
+  to CMake on every run, so switching build type in build/ never keeps stale
+  flags; a per-step summary with durations is printed, and the failing step
+  is named on error.
+- DOCS: BUILD.md documents build.sh (new section 2); DEVELOPMENT.md points
+  to it.
+
+* Sun Nov 08 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.08.03
+- SECURITY FIX (server, P0-1): SIGPIPE is ignored and every send uses
+  MSG_NOSIGNAL. Players disconnecting at the same moment no longer kill the
+  server (exit status 141). Same fix in the client.
+- SECURITY FIX (server, P0-2): non-blocking connections. New module
+  src/server/server_conn.c gives every client a receive buffer and a send
+  queue: only complete, validated messages are handled and output is
+  written when the socket accepts it (EPOLLOUT). A partial header no longer
+  freezes the game loop for 5 s, and a slow reader no longer stalls it
+  for 1 s per send.
+- SECURITY FIX (server, P0-3): accepted connections that cannot be served
+  (server full, too many pending logins from the address, address locked
+  out) receive MSG_AUTH_FAIL and are closed instead of leaking their file
+  descriptor. accept() runs until EAGAIN.
+- SECURITY (server): 10 s login timeout; at most 8 unauthenticated
+  connections per address; 5 failed logins within 60 s lock the address
+  out for 60 s; 2 MiB cap on the output queued for one client.
+- SECURITY (server): MSG_MOVE / MSG_TEXT_CMD before login and a second
+  MSG_LOGIN on a live session now close the connection (they used to
+  desync the stream or re-create the player entity).
+- SECURITY FIX (server): MSG_TEXT is zeroed before formatting; the bytes
+  after the string used to carry uninitialized stack memory to the client.
+- BUGFIX (server): one disconnect path. Errors only mark a connection; the
+  main loop reaps it once per iteration (save, entity grid cleanup,
+  "left floor" notice, close). A rejected login clears its authentication
+  state first, so a wrong password can never overwrite the save. A slot is
+  fully cleared when it is reused.
+- BUGFIX (server): characters online are saved on SIGINT/SIGTERM (the
+  autosave runs only once a minute).
+- BUGFIX (client): a server shutdown is detected (the "Server disconnected"
+  branch was unreachable) and a truncated message ends the session instead
+  of desyncing the stream. net_receive_exact() now distinguishes
+  NET_RECV_CLOSED, NET_RECV_IDLE and NET_RECV_ERROR.
+- TESTS: P0-1, P0-2 (now 8 hostile sockets, 'who' under 250 ms) and P0-3 are
+  regular tests; new tests for server full, login timeout, per-address
+  limits, lockout, rejected login not touching the save, messages before
+  login, malformed header, save on shutdown.
+- CI: the unit-test job is skipped with a warning while tests/CMakeLists.txt
+  is not in the repository.
+- DOCS: PROTOCOL.md lists the server-side limits; SECURITY.md describes the
+  denial-of-service protections.
+
 * Sun Nov 08 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.08.02
 - TESTS: new server integration suite in tests/integration (standalone
   CMake project, only compiler + CMake + Python 3 required). test_server.py

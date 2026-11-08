@@ -52,12 +52,20 @@ To protect server resources and player accounts from unauthorized access:
 - **String Sanitization:** Text buffers (`username`, `password`, `cmd`, `text`) are constrained to fixed boundaries (32 to 256 bytes) and guaranteed NUL-terminated upon receipt.
 - **Protocol Version Lock:** Any packet arriving with an unexpected `version` is rejected immediately, disconnecting out-of-date or malformed clients before memory allocation occurs.
 
-### C. Concurrency & Thread Safety
+### C. Denial-of-Service Resistance
+- **Non-blocking server loop:** Each client has a receive buffer and a send queue (`src/server/server_conn.c`). A slow, silent or half-open connection can never stall the game loop for the other players.
+- **Admission control:** Connections that cannot be served (server full, too many pending logins from one address, address locked out) receive `MSG_AUTH_FAIL` and are closed immediately; their descriptors are never leaked.
+- **Login limits:** 10 s to authenticate after connecting; 5 failed logins within 60 s lock the address out for 60 s.
+- **Back-pressure:** A client that lets more than 2 MiB of output pile up is disconnected.
+- **Peer resets:** `SIGPIPE` is ignored and every send uses `MSG_NOSIGNAL`, so a connection closed by the peer is handled as an ordinary disconnect.
+- **Single disconnect path:** A connection with an error is only marked; the main loop removes it once per iteration (save, notify, close). A rejected login clears its authentication state first, so the reaper never saves a character whose password was wrong.
+
+### D. Concurrency & Thread Safety
 Dragon GL separates networking I/O from rendering:
 - **Lock-Free Frame Snapshots:** The client render loop works on an immutable `FrameSnapshot` captured each frame, avoiding dirty reads while the network thread receives map chunks and state updates.
 - **Granular Mutexes:** Shared visualization pools (Floating Combat Text and particle systems) use dedicated mutexes (`g_particles_mutex`, `g_fct_mutex`) to eliminate data races under heavy combat loads.
 
-### D. Compiler Hardening & Fedora Compliance
+### E. Compiler Hardening & Fedora Compliance
 Dragon GL enforces Fedora-standard compiler security flags across all builds:
 - Position Independent Executable (`-fPIE` / `-pie`).
 - Stack smashing protection (`-fstack-protector-strong`).
