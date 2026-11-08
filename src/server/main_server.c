@@ -1644,21 +1644,8 @@ static void apply_player_save(Client *c, const SaveData *sd) {
     c->max_floor_explored = 0;
   if (c->floor_id > c->max_floor_explored)
     c->max_floor_explored = c->floor_id;
-  /* --- Fase 5: Ripristina grimorio --- */
+  /* --- Grimoire --- */
   memcpy(c->known_spells, sd->known_spells, sizeof(sd->known_spells));
-  /* Innate class magic is always known, even on saves created before the
-   * spell existed: force-set the grimoire bits for this character's class. */
-  {
-    uint32_t cls_bit = (1u << (int)c->class_id);
-    for (int si = 0; si < spell_database_size; si++) {
-      if (!spell_database[si].innate)
-        continue;
-      if (!(spell_database[si].class_mask & cls_bit))
-        continue;
-      /*Guarded: si may exceed MAX_SPELL_DB_SIZE on huge datasets*/
-      spell_known_set(c, si);
-    }
-  }
   /*--- Step 6: Reset boss flags ---*/
   c->bosses_defeated = sd->bosses_defeated;
   c->unspent_stat_points = sd->unspent_stat_points;

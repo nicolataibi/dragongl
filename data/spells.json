@@ -12413,7 +12413,6 @@
             "component_s": "1",
             "component_m": "",
             "materials": "",
-            "innate": 1,
             "vfx": {
                 "type": 2,
                 "r": 1.0,
@@ -12437,7 +12436,6 @@
             "component_s": "1",
             "component_m": "",
             "materials": "",
-            "innate": 1,
             "vfx": {
                 "type": 2,
                 "r": 1.0,
@@ -12461,7 +12459,6 @@
             "component_s": "1",
             "component_m": "",
             "materials": "",
-            "innate": 1,
             "vfx": {
                 "type": 2,
                 "r": 1.0,
@@ -12485,7 +12482,6 @@
             "component_s": "1",
             "component_m": "",
             "materials": "",
-            "innate": 1,
             "vfx": {
                 "type": 2,
                 "r": 0.3,
@@ -12509,7 +12505,6 @@
             "component_s": "",
             "component_m": "",
             "materials": "",
-            "innate": 1,
             "vfx": {
                 "type": 2,
                 "r": 0.6,
@@ -12533,7 +12528,6 @@
             "component_s": "1",
             "component_m": "",
             "materials": "",
-            "innate": 1,
             "vfx": {
                 "type": 2,
                 "r": 0.4,
@@ -12557,7 +12551,6 @@
             "component_s": "",
             "component_m": "",
             "materials": "",
-            "innate": 1,
             "vfx": {
                 "type": 2,
                 "r": 1.0,
@@ -12581,7 +12574,6 @@
             "component_s": "1",
             "component_m": "",
             "materials": "",
-            "innate": 1,
             "vfx": {
                 "type": 2,
                 "r": 0.55,
@@ -12605,7 +12597,6 @@
             "component_s": "1",
             "component_m": "",
             "materials": "",
-            "innate": 1,
             "vfx": {
                 "type": 2,
                 "r": 0.7,
@@ -12629,7 +12620,6 @@
             "component_s": "",
             "component_m": "",
             "materials": "",
-            "innate": 1,
             "vfx": {
                 "type": 2,
                 "r": 1.0,
@@ -12653,7 +12643,6 @@
             "component_s": "1",
             "component_m": "",
             "materials": "",
-            "innate": 1,
             "vfx": {
                 "type": 2,
                 "r": 0.9,
@@ -12677,7 +12666,6 @@
             "component_s": "1",
             "component_m": "",
             "materials": "",
-            "innate": 1,
             "vfx": {
                 "type": 2,
                 "r": 0.3,

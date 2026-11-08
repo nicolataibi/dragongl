@@ -98,7 +98,8 @@ add_test(NAME persistence_partial_backpack_roundtrip
 foreach(t trade_offer_revalidated_on_accept trade_moves_item_and_gold
           trade_into_full_backpack_is_cancelled world_roundtrip npcs_roundtrip
           tombstone_and_flags_roundtrip writer_queue login_job_outcomes
-          login_worker_async command_table doors innate_spells
+          login_worker_async command_table command_words doors
+          transit_cantrips_need_a_book
           floor_walk_matches_scan entity_lookup player_move)
     add_test(NAME ${t} COMMAND server_harness ${t} WORKING_DIRECTORY "${DGL_WORK}")
 endforeach()

@@ -547,7 +547,7 @@ bool cmd_cancel(Client *c, const char *cmd, NPC *npcs) {
 
 //--- MESSAGING SYSTEM BETWEEN PLAYERS ---
 
-/*Messaggio privato: msg/tell/whisper <name> <text>*/
+/*Private message: msg/tell/whisper <name> <text>*/
 bool cmd_msg(Client *c, const char *cmd, NPC *npcs) {
   (void)npcs;
   int pfx = 0;
@@ -607,8 +607,8 @@ bool cmd_msg(Client *c, const char *cmd, NPC *npcs) {
   return false;
 }
 
-/*Chat locale: say/shout <text> — sentita dai giocatori dello stesso
-*floor within MSG_LOCAL_RADIUS, barring blocks.*/
+/*Local chat: say/shout <text>, heard by the players of the same floor
+ * within MSG_LOCAL_RADIUS, except those who blocked the speaker.*/
 bool cmd_say(Client *c, const char *cmd, NPC *npcs) {
   (void)npcs;
   int pfx = 0;

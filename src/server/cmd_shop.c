@@ -687,5 +687,6 @@ bool cmd_talk(Client *c, const char *cmd, NPC *npcs) {
       print_merchant_inventory(c, &npcs[i]);
       return true;
     }
-  return false;
+  send_text_to_client(c->sock, "[SYSTEM] There is no merchant within 2 steps.");
+  return true;
 }

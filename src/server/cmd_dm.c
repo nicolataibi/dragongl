@@ -687,8 +687,9 @@ static bool cmd_dm_spawn(Client *c, const char *cmd, NPC *npcs) {
           "[DM] Use: dm_spawn <bestiary_id> <x 0-%d> <y 0-%d>",
           MAP_WIDTH - 1, MAP_HEIGHT - 1);
     }
+    return true;
   }
-  return true;
+  return false; /*usage*/
 }
 
 static bool cmd_dm_goto(Client *c, const char *cmd, NPC *npcs) {
@@ -721,8 +722,9 @@ static bool cmd_dm_goto(Client *c, const char *cmd, NPC *npcs) {
     send_text_to_client(c->sock,
         "[DM] Out of bounds. Use: dm_goto <floor 0-%d> <x 0-%d> <y 0-%d>",
         MAX_FLOORS - 1, MAP_WIDTH - 1, MAP_HEIGHT - 1);
+    return true;
   }
-  return false;
+  return false; /*usage*/
 }
 
 static bool cmd_dm_pdf(Client *c, const char *cmd, NPC *npcs) {
@@ -744,7 +746,14 @@ static bool cmd_dm_mapfloor(Client *c, const char *cmd, NPC *npcs) {
 
 static bool cmd_dm_shop(Client *c, const char *cmd, NPC *npcs) {
   int iid = 0, qty = 1;
-  if (sscanf(cmd + 8, "%d %d", &iid, &qty) >= 1) {
+  if (sscanf(cmd + 8, "%d %d", &iid, &qty) < 1)
+    return false; /*usage*/
+  if (iid < 0 || iid >= item_database_size || qty < 1) {
+    send_text_to_client(c->sock, "[DM] Use: dm_shop <item_id 0-%d> [quantity >= 1]",
+                        item_database_size - 1);
+    return true;
+  }
+  {
     FloorIter walk = floor_iter(npcs, c->floor_id);
     for (int i; (i = floor_iter_next(&walk)) >= 0;) {
       if (npcs[i].archetype == ARCH_MERCHANT) {
@@ -757,6 +766,7 @@ static bool cmd_dm_shop(Client *c, const char *cmd, NPC *npcs) {
       }
     }
   }
+  send_text_to_client(c->sock, "[DM] No merchant within 5 steps.");
   return true;
 }
 
@@ -787,31 +797,43 @@ static bool cmd_dm_place(Client *c, const char *cmd, NPC *npcs) {
           return true;
         }
       }
+      send_text_to_client(c->sock, "[DM] ERROR: No free NPC slots.");
+    } else {
+      send_text_to_client(c->sock,
+          "[DM] Use: dm_place <item_id 0-%d> <x 0-%d> <y 0-%d>",
+          item_database_size - 1, MAP_WIDTH - 1, MAP_HEIGHT - 1);
     }
+    return true;
   }
-  return true;
+  return false; /*usage*/
 }
 
 
 static const CmdEntry DM_COMMANDS[] = {
-    {NULL, "dm_gold ", cmd_dm_gold},
-    {NULL, "dm_level ", cmd_dm_level},
-    {NULL, "dm_find_monster ", cmd_dm_find_monster},
-    {NULL, "dm_find_item ", cmd_dm_find_item},
-    {"dm_telemetry", NULL, cmd_dm_telemetry},
-    {NULL, "dm_spawn_boss", cmd_dm_spawn_boss},
-    {NULL, "dm_boss", cmd_dm_boss},
-    {NULL, "dm_merchant ", cmd_dm_merchant},
-    {NULL, "dm_spawn ", cmd_dm_spawn},
-    {NULL, "dm_goto ", cmd_dm_goto},
-    {NULL, "dm_pdf ", cmd_dm_pdf},
-    {"dm_mapfloor", NULL, cmd_dm_mapfloor},
-    {NULL, "dm_shop ", cmd_dm_shop},
-    {NULL, "dm_place ", cmd_dm_place},
+    {NULL, "dm_gold ", cmd_dm_gold, "dm_gold <amount>"},
+    {NULL, "dm_level ", cmd_dm_level, "dm_level <level>"},
+    {NULL, "dm_find_monster ", cmd_dm_find_monster, "dm_find_monster <name>"},
+    {NULL, "dm_find_item ", cmd_dm_find_item, "dm_find_item <name>"},
+    {"dm_telemetry", NULL, cmd_dm_telemetry, NULL},
+    {"dm_spawn_boss", "dm_spawn_boss ", cmd_dm_spawn_boss, NULL},
+    {"dm_boss", "dm_boss ", cmd_dm_boss, NULL},
+    {NULL, "dm_merchant ", cmd_dm_merchant, "dm_merchant <floor>"},
+    {NULL, "dm_spawn ", cmd_dm_spawn, "dm_spawn <bestiary_id> <x> <y>"},
+    {NULL, "dm_goto ", cmd_dm_goto, "dm_goto <floor> <x> <y>"},
+    {NULL, "dm_pdf ", cmd_dm_pdf, "dm_pdf <floor>"},
+    {"dm_mapfloor", NULL, cmd_dm_mapfloor, NULL},
+    {NULL, "dm_shop ", cmd_dm_shop, "dm_shop <item_id> [quantity]"},
+    {NULL, "dm_place ", cmd_dm_place, "dm_place <item_id> <x> <y>"},
 };
 
 /*Runs a dm_* command; false (not handled) for any other account or
  * command, so the player commands are tried next.*/
+const char *cmd_dm_usage(const char *cmd) {
+  const CmdEntry *e =
+      cmd_table_find_word(DM_COMMANDS, sizeof(DM_COMMANDS) / sizeof(DM_COMMANDS[0]), cmd);
+  return e ? e->usage : NULL;
+}
+
 bool cmd_dm(Client *c, const char *cmd, NPC *npcs) {
   if (!c->is_dm)
     return false;

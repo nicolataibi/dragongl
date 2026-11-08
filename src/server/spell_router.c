@@ -887,7 +887,7 @@ static bool transit_find_dungeon_entry(Floor *fl, int *ox, int *oy) {
 
 /*-----------------------------------------------------------------------------
  * handle_class_transit — surface <-> deepest explored floor.
- * Shared by the 12 innate class cantrips (Ancestral Totem Call, The Last
+ * Shared by the 12 class transit cantrips (Ancestral Totem Call, The Last
  * Refrain, Divine Recall, The Green Path, Warrior's March, Flowing Step,
  * Oathbound Passage, Hunter's Trail, The Back Door, Bloodline Rift,
  * Pact Passage, Arcane Transit).

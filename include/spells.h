@@ -25,10 +25,8 @@
 
 /*Maximum number of spells in the database (used for the known_spells bitfield).
  * Must be >= spell_database_size at runtime: the shipped dataset already
- * contains 551 spells (12 of which are innate class cantrips at indexes
- * 539-550), so 512 was NOT enough and caused out-of-bounds writes on
- * known_spells for every login/study/cast touching a spell >= 512.
- * 1024 covers the current dataset with ample room for expansion.
+ * contains 551 spells (the last 12 are the class transit cantrips), more
+ * than 512. 1024 covers the current dataset with ample room for expansion.
  * The bitfield occupies 1024/64 = 16 uint64_t = 128 bytes per character.
  * Every access to known_spells[] MUST still guard `idx < MAX_SPELL_DB_SIZE`
  * as a defensive measure (see spell_spell_slot_get/set in server_internal).*/
@@ -96,10 +94,6 @@ typedef struct {
      * Bit N corresponds to the Nth value of ClassType (0=Barbarian … 11=Wizard).
      * 0 = no class (magic not available to players).*/
     uint32_t        class_mask;
-    /*Innate class magic: known automatically by every character of a
-     * matching class (no book required to cast, always in the grimoire).
-     * Used for the 12 class transit cantrips.*/
-    bool            innate;
 } SpellTemplate;
 
 extern SpellTemplate*   spell_database;

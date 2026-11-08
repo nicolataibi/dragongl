@@ -140,18 +140,31 @@ bool cmd_cast(Client *c, const char *cmd, NPC *npcs) {
   }
 
   /*-------------------------------------------------------
-   *BOOK REQUIREMENT: Player must own the
-   * book that contains this spell in the inventory to cast it.
-   * Innate class magic (e.g. the 12 transit cantrips) is part of
-   * the character and needs no book.
+   * BOOK REQUIREMENT: the book that holds this spell must be
+   * in the backpack, on the belt or in a hand to cast it, the
+   * class transit cantrips included.
    * -------------------------------------------------------*/
-  if (!sp->innate) {
-    bool has_book = false;
+  bool has_book = false;
 
-    //Check your backpack
-    for (int i = 0; i < c->backpack_count; i++) {
-      if (c->backpack[i].template_idx == -1) continue;
-      ItemTemplate *tmpl = &item_database[c->backpack[i].template_idx];
+  //Check your backpack
+  for (int i = 0; i < c->backpack_count; i++) {
+    if (c->backpack[i].template_idx == -1) continue;
+    ItemTemplate *tmpl = &item_database[c->backpack[i].template_idx];
+    if (tmpl->category == ITEM_BOOK) {
+      for (int k = 0; k < tmpl->book_spell_count; k++) {
+        if (strcasecmp(tmpl->book_spell_names[k], sp->name) == 0) {
+          has_book = true; break;
+        }
+      }
+    }
+    if (has_book) break;
+  }
+
+  //Check your belt
+  if (!has_book) {
+    for (int i = 0; i < 4; i++) {
+      if (c->belt[i].template_idx == -1) continue;
+      ItemTemplate *tmpl = &item_database[c->belt[i].template_idx];
       if (tmpl->category == ITEM_BOOK) {
         for (int k = 0; k < tmpl->book_spell_count; k++) {
           if (strcasecmp(tmpl->book_spell_names[k], sp->name) == 0) {
@@ -161,46 +174,30 @@ bool cmd_cast(Client *c, const char *cmd, NPC *npcs) {
       }
       if (has_book) break;
     }
+  }
 
-    //Check your belt
-    if (!has_book) {
-      for (int i = 0; i < 4; i++) {
-        if (c->belt[i].template_idx == -1) continue;
-        ItemTemplate *tmpl = &item_database[c->belt[i].template_idx];
-        if (tmpl->category == ITEM_BOOK) {
-          for (int k = 0; k < tmpl->book_spell_count; k++) {
-            if (strcasecmp(tmpl->book_spell_names[k], sp->name) == 0) {
-              has_book = true; break;
-            }
-          }
-        }
-        if (has_book) break;
-      }
-    }
-
-    //Check in the hands (equipped)
-    if (!has_book) {
-        ItemInstance* hands[2] = { &c->slot_hand_l, &c->slot_hand_r };
-        for (int i = 0; i < 2; i++) {
-            if (hands[i]->template_idx == -1) continue;
-            ItemTemplate *tmpl = &item_database[hands[i]->template_idx];
-            if (tmpl->category == ITEM_BOOK) {
-              for (int k = 0; k < tmpl->book_spell_count; k++) {
-                if (strcasecmp(tmpl->book_spell_names[k], sp->name) == 0) {
-                  has_book = true; break;
-                }
+  //Check in the hands (equipped)
+  if (!has_book) {
+      ItemInstance* hands[2] = { &c->slot_hand_l, &c->slot_hand_r };
+      for (int i = 0; i < 2; i++) {
+          if (hands[i]->template_idx == -1) continue;
+          ItemTemplate *tmpl = &item_database[hands[i]->template_idx];
+          if (tmpl->category == ITEM_BOOK) {
+            for (int k = 0; k < tmpl->book_spell_count; k++) {
+              if (strcasecmp(tmpl->book_spell_names[k], sp->name) == 0) {
+                has_book = true; break;
               }
             }
-            if (has_book) break;
-        }
-    }
+          }
+          if (has_book) break;
+      }
+  }
 
-    if (!has_book) {
-      send_text_to_client(c->sock,
-          "[MAGIC] You have memorized '%s', but the book containing it is not in your inventory! You have to carry it with you to throw it.",
-          sp->name);
-      return true;
-    }
+  if (!has_book) {
+    send_text_to_client(c->sock,
+        "[MAGIC] You have memorized '%s', but the book containing it is not in your inventory! You have to carry it with you to throw it.",
+        sp->name);
+    return true;
   }
 
 

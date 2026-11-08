@@ -1085,7 +1085,6 @@ static void parse_spell(SpellTemplate *sp, cJSON *spell) {
     cJSON* range = cJSON_GetObjectItem(spell, "range");
     cJSON* desc  = cJSON_GetObjectItem(spell, "description");
     cJSON* classes_node = cJSON_GetObjectItem(spell, "classes");
-    cJSON* innate_node = cJSON_GetObjectItem(spell, "innate");
 
     if (cJSON_IsString(name)) {
         sp->name = strdup(name->valuestring);
@@ -1101,12 +1100,7 @@ static void parse_spell(SpellTemplate *sp, cJSON *spell) {
     sp->dice_count = 0;
     sp->dice_sides = 0;
     sp->has_status_effect = false;
-    sp->innate = false;
 
-    /*After the defaults: innate class magic needs no book and is always known.*/
-    if (innate_node && cJSON_IsNumber(innate_node) && innate_node->valueint != 0) {
-        sp->innate = true;
-    }
 
     if (level) {
         if (cJSON_IsString(level)) {

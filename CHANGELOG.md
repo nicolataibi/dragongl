@@ -1,3 +1,46 @@
+* Sun Nov 08 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.08.14
+- SPELLS: the 12 class transit cantrips are learned from a book and cast
+  only with it, like every other spell. Each class has its own travel
+  tome (Totem of the Ancestors, Songbook of the Last Refrain, Book of
+  Divine Recall, Leaves of the Green Path, Warrior's Marching Orders,
+  Treatise of the Flowing Step, Codex of the Oathbound Passage, Journal
+  of the Hunter's Trail, Notes on the Back Door, Grimoire of the
+  Bloodline Rift, Pact of Passage, Primer of Arcane Transit; 2,000 gp),
+  sold by the book shops of floor 0 and studied in the class temple. The
+  'innate' spell field is gone: from spells.json, the loader, the login
+  (which granted the spells) and cast (which skipped the book check),
+  and from the Data Studio spell editor. The books are appended at the
+  end of items.json, so the item indexes in the saves do not move.
+- COMMANDS: a prefix matches a whole word. Every prefix of the command
+  table ends with a space, so 'trainer', 'prayer', 'useless', 'getaway'
+  and the like are no longer taken for train, pray, use, get. 'pray'
+  alone is the prayer (100 XP for a quarter of the HP), 'pray <book>'
+  the cleric ritual: the ritual used to catch the bare word too.
+- COMMANDS: a command typed without its arguments answers with its usage
+  ('Usage: buy <n|item>', 'Usage: dm_goto <floor> <x> <y>', ...); any
+  other unknown input gets "Unrecognized command". 'talk' far from a
+  merchant says so instead of "Unrecognized command 'talk'". The dm_*
+  usages are shown only to the DM.
+- FIX: 'train con' raised nothing: the code compared the stat with
+  "with" (a translation slip for "con"), so Constitution could only be
+  raised by 'train random'. train takes the abbreviation or the full name
+  of the ability, or random, and nothing else ('train strawberry' used to
+  raise Strength).
+- FIX: dm_shop with an item id outside the item table stored it in the
+  merchant (out-of-bounds read when the shop was listed); it now says
+  which ids are valid, and says when no merchant is within 5 steps.
+  dm_spawn, dm_place and dm_goto without valid arguments show their usage.
+- DOCS: README's package table had the old table appended to it (a
+  broken edit of 2026.11.08.12); the command table documents train,
+  pray, p and the books. DEVELOPMENT.md describes word prefixes and
+  usage lines. Help lines of dm_shop, dm_place and dm_find_* corrected.
+- CODE: the last Italian comments translated.
+- TESTS: the harness checks that every prefix ends with a space, that
+  near-miss words are rejected, the usage answers, train for every
+  ability, pray and p, and that each transit cantrip has exactly one
+  book of its class, sold in the city, learned only in the temple and
+  cast only with the book.
+
 * Sun Nov 08 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.08.13
 - SERVER: text commands are a table. handle_text_cmd() (4,400 lines in
   one function) is now a COMMANDS[] table in server_commands.c, each row

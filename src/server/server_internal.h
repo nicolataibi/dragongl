@@ -122,7 +122,7 @@ void print_merchant_inventory(Client *c, NPC *merchant);
 void update_city_doors(void);
 void check_tile_events(Client *c, NPC *npcs);
 void check_traps(Client *c, NPC *npcs);
-/* Update the character's deepest floor ever reached (innate transit magic).
+/* Update the character's deepest floor ever reached (class transit cantrips).
 * Call it every time a client's floor_id changes.*/
 void client_track_explored_floor(Client *c);
 void broadcast_nearby_entities(Client *c, NPC *npcs);

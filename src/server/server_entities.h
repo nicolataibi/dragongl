@@ -266,7 +266,7 @@ typedef struct {
     int exhaustion_level;                         /*Exhaustion level*/
     int total_kills;                              /* Stats: total kills        */
     int total_steps;                              /* Stats: total steps        */
-    int max_floor_explored;                       /*Deepest plane reached (innate transit)*/
+    int max_floor_explored;                       /*Deepest plane reached (transit cantrips)*/
     /* --- Phase 5: Persistent grimoire --- */
     uint64_t known_spells[KNOWN_SPELLS_WORDS];    /* Bitfield of known spells  */
     /*--- Stage 6: Boss Flags ---*/

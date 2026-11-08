@@ -56,65 +56,102 @@ bool cmd_table_run(const CmdEntry *table, size_t n, Client *c, const char *cmd, 
   return false;
 }
 
+/*True if the first word of cmd (up to a space or its end) equals word[0..len).*/
+static bool first_word_is(const char *cmd, const char *word, size_t len) {
+  return len > 0 && strncmp(cmd, word, len) == 0 && (cmd[len] == '\0' || cmd[len] == ' ');
+}
+
+static bool list_has_word(const char *list, const char *cmd) {
+  if (!list)
+    return false;
+  for (const char *p = list;;) {
+    const char *bar = strchr(p, '|');
+    size_t n = bar ? (size_t)(bar - p) : strlen(p);
+    size_t word = (n > 0 && p[n - 1] == ' ') ? n - 1 : n;
+    if (first_word_is(cmd, p, word))
+      return true;
+    if (!bar)
+      return false;
+    p = bar + 1;
+  }
+}
+
+const CmdEntry *cmd_table_find_word(const CmdEntry *table, size_t n, const char *cmd) {
+  for (size_t i = 0; i < n; i++)
+    if (list_has_word(table[i].names, cmd) || list_has_word(table[i].prefixes, cmd))
+      return &table[i];
+  return NULL;
+}
+
 static const CmdEntry COMMANDS[] = {
-    {"help|?", NULL, cmd_help},
-    {NULL, "train", cmd_train},
-    {"top|leaderboard", NULL, cmd_top},
-    {"event", NULL, cmd_event},
-    {NULL, "invite ", cmd_invite},
-    {"join", NULL, cmd_join},
-    {"leave", NULL, cmd_leave},
-    {"party", NULL, cmd_party},
-    {NULL, "trade ", cmd_trade},
-    {NULL, "offer ", cmd_offer},
-    {"accept", NULL, cmd_accept},
-    {"cancel", NULL, cmd_cancel},
-    {NULL, "msg |tell |whisper ", cmd_msg},
-    {NULL, "say |shout ", cmd_say},
-    {"who", NULL, cmd_who},
-    {NULL, "block ", cmd_block},
-    {NULL, "unblock ", cmd_unblock},
-    {"blocks|blocklist", NULL, cmd_blocks},
-    {NULL, "browse ", cmd_browse},
-    {NULL, NULL, cmd_dm},
-    {"retrieve", NULL, cmd_retrieve},
-    {"list", NULL, cmd_list},
-    {"look|l|lock", "look |lock ", cmd_look},
-    {"fountain", NULL, cmd_fountain},
-    {"statue|crystal", NULL, cmd_statue},
-    {"status|stats", NULL, cmd_stats},
-    {"inventory|i", NULL, cmd_inventory},
-    {NULL, "wear |equip |wield |w ", cmd_wear},
-    {NULL, "remove |unequip |takeoff ", cmd_remove},
-    {NULL, "buy ", cmd_buy},
-    {NULL, "sell ", cmd_sell},
-    {NULL, "haggle ", cmd_haggle},
-    {NULL, "identify", cmd_identify},
-    {"cure", NULL, cmd_cure},
-    {NULL, "belt ", cmd_belt},
-    {NULL, "unbelt", cmd_unbelt},
-    {NULL, "repair", cmd_repair},
-    {"uncurse", NULL, cmd_uncurse},
-    {"rest|R", NULL, cmd_rest},
-    {"save", NULL, cmd_save},
-    {"talk", NULL, cmd_talk},
-    {NULL, "lore", cmd_lore},
-    {NULL, "fill ", cmd_fill},
-    {"q|r|e|z|eat", "use|quaff|q |read|r |eat |e |zap|z |study|pray|awaken|invoke|intone|celebrate|pronounce|practice|drill|rage|sneak|meditate", cmd_use},
-    {"spells", NULL, cmd_spells},
-    {NULL, "cast |c ", cmd_cast},
-    {"pickup", NULL, cmd_pickup},
-    {"g", "get|g ", cmd_get},
-    {NULL, "drop |d ", cmd_drop},
-    {NULL, "throw |v ", cmd_throw},
-    {"search|s", NULL, cmd_search},
-    {"disarm|D", "disarm ", cmd_disarm},
-    {"pray|p", NULL, cmd_pray},
-    {"examine|ex", NULL, cmd_examine},
-    {"tunnel|T", "tunnel |T |t ", cmd_tunnel},
-    {"open|o", "open |o ", cmd_open},
-    {"close|c", "close ", cmd_close}, /*"c <n>" is cast, above*/
+    {"help|?", NULL, cmd_help, NULL},
+    {"train", "train ", cmd_train, "train <str|dex|con|int|wis|cha|random>"},
+    {"top|leaderboard", NULL, cmd_top, NULL},
+    {"event", NULL, cmd_event, NULL},
+    {NULL, "invite ", cmd_invite, "invite <player>"},
+    {"join", NULL, cmd_join, NULL},
+    {"leave", NULL, cmd_leave, NULL},
+    {"party", NULL, cmd_party, NULL},
+    {NULL, "trade ", cmd_trade, "trade <player>"},
+    {NULL, "offer ", cmd_offer, "offer <gold> [backpack item n]"},
+    {"accept", NULL, cmd_accept, NULL},
+    {"cancel", NULL, cmd_cancel, NULL},
+    {NULL, "msg |tell |whisper ", cmd_msg, "msg <player> <text>"},
+    {NULL, "say |shout ", cmd_say, "say <text>"},
+    {"who", NULL, cmd_who, NULL},
+    {NULL, "block ", cmd_block, "block <player>"},
+    {NULL, "unblock ", cmd_unblock, "unblock <player>"},
+    {"blocks|blocklist", NULL, cmd_blocks, NULL},
+    {NULL, "browse ", cmd_browse, "browse <n>"},
+    {NULL, NULL, cmd_dm, NULL},
+    {"retrieve", NULL, cmd_retrieve, NULL},
+    {"list", NULL, cmd_list, NULL},
+    {"look|l|lock", "look |lock ", cmd_look, NULL},
+    {"fountain", NULL, cmd_fountain, NULL},
+    {"statue|crystal", NULL, cmd_statue, NULL},
+    {"status|stats", NULL, cmd_stats, NULL},
+    {"inventory|i", NULL, cmd_inventory, NULL},
+    {NULL, "wear |equip |wield |w ", cmd_wear, "wear <n|item>"},
+    {NULL, "remove |unequip |takeoff ", cmd_remove, "remove <slot|item>"},
+    {NULL, "buy ", cmd_buy, "buy <n|item>"},
+    {NULL, "sell ", cmd_sell, "sell <n|item>"},
+    {NULL, "haggle ", cmd_haggle, "haggle buy|sell <n|item>"},
+    {"identify", "identify ", cmd_identify, NULL},
+    {"cure", NULL, cmd_cure, NULL},
+    {NULL, "belt ", cmd_belt, "belt <n>"},
+    {"unbelt", "unbelt ", cmd_unbelt, NULL},
+    {"repair", "repair ", cmd_repair, NULL},
+    {"uncurse", NULL, cmd_uncurse, NULL},
+    {"rest|R", NULL, cmd_rest, NULL},
+    {"save", NULL, cmd_save, NULL},
+    {"talk", NULL, cmd_talk, NULL},
+    {"lore", "lore ", cmd_lore, NULL},
+    {NULL, "fill ", cmd_fill, "fill <lantern>"},
+    /*'pray' alone is the prayer below; 'pray <book>' is the cleric ritual.*/
+    {"use|quaff|q|read|r|eat|e|zap|z|study|awaken|invoke|intone|celebrate|pronounce|"
+     "practice|drill|rage|sneak|meditate",
+     "use |quaff |q |read |r |eat |e |zap |z |study |pray |awaken |invoke |intone |"
+     "celebrate |pronounce |practice |drill |rage |sneak |meditate ",
+     cmd_use, NULL},
+    {"spells", NULL, cmd_spells, NULL},
+    {NULL, "cast |c ", cmd_cast, "cast <spell> [target]"},
+    {"pickup", NULL, cmd_pickup, NULL},
+    {"get|g", "get |g ", cmd_get, NULL},
+    {NULL, "drop |d ", cmd_drop, "drop <n>"},
+    {NULL, "throw |v ", cmd_throw, "throw <n> [direction]"},
+    {"search|s", NULL, cmd_search, NULL},
+    {"disarm|D", "disarm ", cmd_disarm, NULL},
+    {"pray|p", NULL, cmd_pray, NULL},
+    {"examine|ex", NULL, cmd_examine, NULL},
+    {"tunnel|T", "tunnel |T |t ", cmd_tunnel, NULL},
+    {"open|o", "open |o ", cmd_open, NULL},
+    {"close|c", "close ", cmd_close, NULL}, /*"c <n>" is cast, above*/
 };
+
+const CmdEntry *cmd_commands(size_t *n) {
+  *n = sizeof(COMMANDS) / sizeof(COMMANDS[0]);
+  return COMMANDS;
+}
 
 void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
   if (!c || !cmd)
@@ -122,7 +159,15 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
   if (cmd[0] == '/')
     cmd++; /*"/look" works like "look"*/
   server_log("CMD", "%s: %s", c->username, cmd);
-  if (cmd_table_run(COMMANDS, sizeof(COMMANDS) / sizeof(COMMANDS[0]), c, cmd, npcs))
+  size_t n = sizeof(COMMANDS) / sizeof(COMMANDS[0]);
+  if (cmd_table_run(COMMANDS, n, c, cmd, npcs))
     return;
-  send_text_to_client(c->sock, "[SYSTEM] Unrecognized command '%s' or incorrect syntax. Type 'help' or '?' for the list.", cmd);
+  /*A known command with missing or wrong arguments gets its usage.*/
+  const CmdEntry *e = cmd_table_find_word(COMMANDS, n, cmd);
+  const char *usage = e ? e->usage : (c->is_dm ? cmd_dm_usage(cmd) : NULL);
+  if (usage) {
+    send_text_to_client(c->sock, "[SYSTEM] Usage: %s", usage);
+    return;
+  }
+  send_text_to_client(c->sock, "[SYSTEM] Unrecognized command '%s'. Type 'help' or '?' for the list.", cmd);
 }

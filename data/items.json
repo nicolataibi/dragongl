@@ -9126,6 +9126,210 @@
                 "Unity of Ki"
             ],
             "book_class_mask": 32
+        },
+        {
+            "name": "Totem of the Ancestors",
+            "description": "A travel tome of the Barbarian. It teaches the transit cantrip Ancestral Totem Call, which carries you from the surface to the deepest floor you have reached and back. Learn it in your class temple; keep the book with you to cast it.",
+            "category": "BOOK",
+            "cost": 2000,
+            "weight": 1.0,
+            "max_stack": 1,
+            "ac_base": 0,
+            "ac_bonus": 0,
+            "damage_dice": 0,
+            "damage_sides": 0,
+            "max_durability": 0,
+            "spells": [
+                "Ancestral Totem Call"
+            ],
+            "book_class_mask": 1
+        },
+        {
+            "name": "Songbook of the Last Refrain",
+            "description": "A travel tome of the Bard. It teaches the transit cantrip The Last Refrain, which carries you from the surface to the deepest floor you have reached and back. Learn it in your class temple; keep the book with you to cast it.",
+            "category": "BOOK",
+            "cost": 2000,
+            "weight": 1.0,
+            "max_stack": 1,
+            "ac_base": 0,
+            "ac_bonus": 0,
+            "damage_dice": 0,
+            "damage_sides": 0,
+            "max_durability": 0,
+            "spells": [
+                "The Last Refrain"
+            ],
+            "book_class_mask": 2
+        },
+        {
+            "name": "Book of Divine Recall",
+            "description": "A travel tome of the Cleric. It teaches the transit cantrip Divine Recall, which carries you from the surface to the deepest floor you have reached and back. Learn it in your class temple; keep the book with you to cast it.",
+            "category": "BOOK",
+            "cost": 2000,
+            "weight": 1.0,
+            "max_stack": 1,
+            "ac_base": 0,
+            "ac_bonus": 0,
+            "damage_dice": 0,
+            "damage_sides": 0,
+            "max_durability": 0,
+            "spells": [
+                "Divine Recall"
+            ],
+            "book_class_mask": 4
+        },
+        {
+            "name": "Leaves of the Green Path",
+            "description": "A travel tome of the Druid. It teaches the transit cantrip The Green Path, which carries you from the surface to the deepest floor you have reached and back. Learn it in your class temple; keep the book with you to cast it.",
+            "category": "BOOK",
+            "cost": 2000,
+            "weight": 1.0,
+            "max_stack": 1,
+            "ac_base": 0,
+            "ac_bonus": 0,
+            "damage_dice": 0,
+            "damage_sides": 0,
+            "max_durability": 0,
+            "spells": [
+                "The Green Path"
+            ],
+            "book_class_mask": 8
+        },
+        {
+            "name": "Warrior's Marching Orders",
+            "description": "A travel tome of the Fighter. It teaches the transit cantrip Warrior's March, which carries you from the surface to the deepest floor you have reached and back. Learn it in your class temple; keep the book with you to cast it.",
+            "category": "BOOK",
+            "cost": 2000,
+            "weight": 1.0,
+            "max_stack": 1,
+            "ac_base": 0,
+            "ac_bonus": 0,
+            "damage_dice": 0,
+            "damage_sides": 0,
+            "max_durability": 0,
+            "spells": [
+                "Warrior's March"
+            ],
+            "book_class_mask": 16
+        },
+        {
+            "name": "Treatise of the Flowing Step",
+            "description": "A travel tome of the Monk. It teaches the transit cantrip Flowing Step, which carries you from the surface to the deepest floor you have reached and back. Learn it in your class temple; keep the book with you to cast it.",
+            "category": "BOOK",
+            "cost": 2000,
+            "weight": 1.0,
+            "max_stack": 1,
+            "ac_base": 0,
+            "ac_bonus": 0,
+            "damage_dice": 0,
+            "damage_sides": 0,
+            "max_durability": 0,
+            "spells": [
+                "Flowing Step"
+            ],
+            "book_class_mask": 32
+        },
+        {
+            "name": "Codex of the Oathbound Passage",
+            "description": "A travel tome of the Paladin. It teaches the transit cantrip Oathbound Passage, which carries you from the surface to the deepest floor you have reached and back. Learn it in your class temple; keep the book with you to cast it.",
+            "category": "BOOK",
+            "cost": 2000,
+            "weight": 1.0,
+            "max_stack": 1,
+            "ac_base": 0,
+            "ac_bonus": 0,
+            "damage_dice": 0,
+            "damage_sides": 0,
+            "max_durability": 0,
+            "spells": [
+                "Oathbound Passage"
+            ],
+            "book_class_mask": 64
+        },
+        {
+            "name": "Journal of the Hunter's Trail",
+            "description": "A travel tome of the Ranger. It teaches the transit cantrip Hunter's Trail, which carries you from the surface to the deepest floor you have reached and back. Learn it in your class temple; keep the book with you to cast it.",
+            "category": "BOOK",
+            "cost": 2000,
+            "weight": 1.0,
+            "max_stack": 1,
+            "ac_base": 0,
+            "ac_bonus": 0,
+            "damage_dice": 0,
+            "damage_sides": 0,
+            "max_durability": 0,
+            "spells": [
+                "Hunter's Trail"
+            ],
+            "book_class_mask": 128
+        },
+        {
+            "name": "Notes on the Back Door",
+            "description": "A travel tome of the Rogue. It teaches the transit cantrip The Back Door, which carries you from the surface to the deepest floor you have reached and back. Learn it in your class temple; keep the book with you to cast it.",
+            "category": "BOOK",
+            "cost": 2000,
+            "weight": 1.0,
+            "max_stack": 1,
+            "ac_base": 0,
+            "ac_bonus": 0,
+            "damage_dice": 0,
+            "damage_sides": 0,
+            "max_durability": 0,
+            "spells": [
+                "The Back Door"
+            ],
+            "book_class_mask": 256
+        },
+        {
+            "name": "Grimoire of the Bloodline Rift",
+            "description": "A travel tome of the Sorcerer. It teaches the transit cantrip Bloodline Rift, which carries you from the surface to the deepest floor you have reached and back. Learn it in your class temple; keep the book with you to cast it.",
+            "category": "BOOK",
+            "cost": 2000,
+            "weight": 1.0,
+            "max_stack": 1,
+            "ac_base": 0,
+            "ac_bonus": 0,
+            "damage_dice": 0,
+            "damage_sides": 0,
+            "max_durability": 0,
+            "spells": [
+                "Bloodline Rift"
+            ],
+            "book_class_mask": 512
+        },
+        {
+            "name": "Pact of Passage",
+            "description": "A travel tome of the Warlock. It teaches the transit cantrip Pact Passage, which carries you from the surface to the deepest floor you have reached and back. Learn it in your class temple; keep the book with you to cast it.",
+            "category": "BOOK",
+            "cost": 2000,
+            "weight": 1.0,
+            "max_stack": 1,
+            "ac_base": 0,
+            "ac_bonus": 0,
+            "damage_dice": 0,
+            "damage_sides": 0,
+            "max_durability": 0,
+            "spells": [
+                "Pact Passage"
+            ],
+            "book_class_mask": 1024
+        },
+        {
+            "name": "Primer of Arcane Transit",
+            "description": "A travel tome of the Wizard. It teaches the transit cantrip Arcane Transit, which carries you from the surface to the deepest floor you have reached and back. Learn it in your class temple; keep the book with you to cast it.",
+            "category": "BOOK",
+            "cost": 2000,
+            "weight": 1.0,
+            "max_stack": 1,
+            "ac_base": 0,
+            "ac_bonus": 0,
+            "damage_dice": 0,
+            "damage_sides": 0,
+            "max_durability": 0,
+            "spells": [
+                "Arcane Transit"
+            ],
+            "book_class_mask": 2048
         }
     ]
 }

@@ -809,7 +809,7 @@ static void generate_city(Map *map) {
     map_fill_rect(map, 193, 149, 3, 3, VOXEL_CRYSTAL_WHITE);
     map->data[0][150][189] = VOXEL_DOOR;
 
-    // Tempio dello Stregone (Sud-Est) - Cristallo ROSSO
+    //Sorcerer Temple (South-East) - RED Crystal
     map_fill_rect(map, 176, 176, 11, 11, VOXEL_ROCK);
     map_fill_rect(map, 177, 177, 9, 9, VOXEL_MARBLE);
     map_fill_rect(map, 180, 180, 3, 3, VOXEL_CRYSTAL_RED);

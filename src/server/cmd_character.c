@@ -70,6 +70,7 @@ bool cmd_help(Client *c, const char *cmd, NPC *npcs) {
   send_text_to_client(c->sock, "cast <spell> : Cast a spell from the library (e.g. 'cast Fire Bolt')");
   send_text_to_client(c->sock, "study <n> : Learn magic (Wizard)");
   send_text_to_client(c->sock, "pray <n> : Learn spells (Cleric)");
+  send_text_to_client(c->sock, "p, pray : Sacrifice 100 XP to the gods for a quarter of your HP");
   send_text_to_client(c->sock, "awaken <n> : Learn magic (Druid)");
   send_text_to_client(c->sock, "invoke <n> : Learn magic (Warlock)");
   send_text_to_client(c->sock, "intone <n> : Learn magic (Bard)");
@@ -124,12 +125,12 @@ bool cmd_help(Client *c, const char *cmd, NPC *npcs) {
       send_text_to_client(c->sock, "[DM] --- MASTER COMMANDS ---");
       send_text_to_client(c->sock, "  dm_spawn <id> <x> <y> : Spawn entity/monster");
       send_text_to_client(c->sock, "dm_goto <fl> <x> <y> : Teleport (fl = floor)");
-      send_text_to_client(c->sock, "dm_find_monster <id> : Search for the monster");
-      send_text_to_client(c->sock, "  dm_find_item <id>     : Search for an item");
+      send_text_to_client(c->sock, "dm_find_monster <name> : Search for the monster");
+      send_text_to_client(c->sock, "  dm_find_item <name>   : Search for an item");
       send_text_to_client(c->sock, "dm_pdf <floor> : Generate color PDF of a floor");
       send_text_to_client(c->sock, "dm_mapfloor : Generate color PDF of the current floor");
-      send_text_to_client(c->sock, "dm_shop : Spawns a custom merchant");
-      send_text_to_client(c->sock, "  dm_place <id>         : Place world object (furniture)");
+      send_text_to_client(c->sock, "dm_shop <item_id> [qty] : Add an item to the merchant within 5 steps");
+      send_text_to_client(c->sock, "dm_place <item_id> <x> <y> : Place a treasure chest holding the item");
       send_text_to_client(c->sock, "dm_gold <amt> : Add/remove gold coins");
       send_text_to_client(c->sock, "dm_level <lvl> : Increase level up to lvl (max 20)");
       send_text_to_client(c->sock, "  dm_telemetry          : Show server metrics (RAM/CPU)");
@@ -152,14 +153,23 @@ bool cmd_train(Client *c, const char *cmd, NPC *npcs) {
     send_text_to_client(c->sock, "[SYSTEM] Specify a stat (str, dex, con, int, wis, cha) or 'random'. You have %d points.", c->unspent_stat_points);
     return true;
   }
+    /*The abbreviation or the full name, nothing else.*/
+    static const char *const short_names[6] = {"str", "dex", "con", "int", "wis", "cha"};
+    static const char *const long_names[6] = {"strength", "dexterity", "constitution",
+                                              "intelligence", "wisdom", "charisma"};
+    char word[16] = "";
+    size_t wl = strcspn(stat, " ");
+    /*One word (trailing spaces allowed) that fits; anything else matches nothing.*/
+    if (wl < sizeof(word) && stat[wl + strspn(stat + wl, " ")] == '\0') {
+      memcpy(word, stat, wl);
+      word[wl] = '\0';
+    }
     int chosen = -1; //0=str, 1=dex, 2=con, 3=int, 4=wis, 5=cha
-    if (strncasecmp(stat, "str", 3) == 0) chosen = 0;
-    else if (strncasecmp(stat, "dex", 3) == 0) chosen = 1;
-    else if (strncasecmp(stat, "with", 3) == 0) chosen = 2;
-    else if (strncasecmp(stat, "int", 3) == 0) chosen = 3;
-    else if (strncasecmp(stat, "wis", 3) == 0) chosen = 4;
-    else if (strncasecmp(stat, "cha", 3) == 0) chosen = 5;
-    else if (strncasecmp(stat, "random", 6) == 0) chosen = rand() % 6;
+    for (int k = 0; k < 6; k++)
+      if (strcasecmp(word, short_names[k]) == 0 || strcasecmp(word, long_names[k]) == 0)
+        chosen = k;
+    if (strcasecmp(word, "random") == 0)
+      chosen = rand() % 6;
 
     if (chosen == -1) {
       send_text_to_client(c->sock, "[SYSTEM] Unknown stat. Use str, dex, con, int, wis, cha or random.");

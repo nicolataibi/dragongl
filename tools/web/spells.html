@@ -709,14 +709,12 @@ window.DGL_CFG = (() => {
     stats(rows) {
       const cantrips = rows.filter(r => r.level === 'cantrip').length;
       const rituals = rows.filter(r => r.ritual === '1').length;
-      const innate = rows.filter(r => r.innate).length;
       const avg = (rows.reduce((a, r) => a + lvl(r.level).n, 0) / (rows.length || 1)).toFixed(1);
       return [
         { label: 'Total spells', value: fmtN(rows.length), sub: 'entries in spells.json' },
         { label: 'Cantrips', value: fmtN(cantrips), sub: '0-level known spells' },
         { label: 'Avg level', value: avg, sub: 'numeric level (cantrip = 0)' },
         { label: 'Rituals', value: fmtN(rituals), sub: 'castable as ritual' },
-        { label: 'Innate', value: fmtN(innate), sub: 'class innate magic' },
       ];
     },
 
@@ -736,7 +734,6 @@ window.DGL_CFG = (() => {
           ${badge(lvl(m.level).l, lvl(m.level).c)}
           ${badge(school(m.school).l, school(m.school).c)}
           ${m.ritual === '1' ? `<span title="Ritual casting" style="color:#fbbf24;display:inline-flex">${I.star}</span>` : ''}
-          ${m.innate ? chip('innate', '#fbbf24') : ''}
         </div>
         <div class="kv-grid">
           ${kv('Casting time', esc(m.casting_time || '—'))}
@@ -771,7 +768,6 @@ window.DGL_CFG = (() => {
       { id: 'range', label: 'Range', type: 'text', placeholder: '30 feet' },
       { id: 'duration', label: 'Duration', type: 'text', placeholder: 'Instantaneous' },
       { id: 'ritual', label: 'Ritual', type: 'toggle' },
-      { id: 'innate', label: 'Innate class magic', type: 'toggle' },
       { id: 'component_v', label: 'Verbal (V)', type: 'toggle' },
       { id: 'component_s', label: 'Somatic (S)', type: 'toggle' },
       { id: 'component_m', label: 'Material (M)', type: 'toggle' },
@@ -793,7 +789,7 @@ window.DGL_CFG = (() => {
       o.range = d.range;
       o.duration = d.duration;
       o.ritual = d.ritual ? '1' : '';
-      o.innate = d.innate ? 1 : 0;
+      delete o.innate; /*not a spell field (every spell comes from a book): drop it from old files*/
       o.component_v = d.component_v ? '1' : '';
       o.component_s = d.component_s ? '1' : '';
       o.component_m = d.component_m ? '1' : '';

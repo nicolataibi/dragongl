@@ -95,12 +95,6 @@ The Fedora packaging divides Dragon GL into modular subpackages conforming to th
 
 The artwork in `readme_assets/` (CC BY 4.0, see `readme_assets/LICENSE.md`) stays in the repository: it is not part of the release tarball nor of any package. Service setup: [INSTALL.md](INSTALL.md).
 
---- | :--- | :--- |
-| **`dragongl`** | Arch-dependent | Server binary (`dragongl-server`), Client binary (`dragongl-client`), world reset utility (`dragongl-reset-world`), and man pages. |
-| **`dragongl-data`** | `noarch` | Game datasets (`bestiary.json`, `items.json`, `spells.json`) and compiled Vulkan SPIR-V shaders (`/usr/share/dragongl/`). |
-| **`dragongl-tools`** | `noarch` | Developer and DM tools: balance analyzer (`analyze_balance.py`), map PDF generator (`generate_pdf_map.py`), and the HTML Data Studio suite. |
-| **`dragongl-doc`** | `noarch` | User manuals, technical documents, and documentation image assets (`/usr/share/doc/dragongl/`). |
-
 ---
 
 ## Installation on Fedora Linux (via COPR)
@@ -215,12 +209,14 @@ Dragon GL features a classic NetHack/Angband-style console interface alongside r
 | **Exploration & World**| `look`, `l` | Detailed 8-direction radial scan of entities and terrain |
 | | `examine`, `ex` | Geological scan for mineral and crystal veins |
 | | `tunnel <dir>` | Mine or dig (n, s, e, w, d) with pickaxe/shovel |
-| | `open <dir>`, `close`| Open or close adjacent doors |
+| | `open <dir>`, `close <dir>` | Open or close adjacent doors |
 | | `disarm [salvage]` | Attempt to disarm adjacent traps (or harvest parts) |
 | **Survival & Magic** | `status`, `stats` | View character sheet, modifiers, conditions, AC |
 | | `rest`, `R` | Rest in safe zone (Floor 0) to recover HP and spell slots |
-| | `spells`, `cast <name>`| List and cast memorized spells |
-| | `study <n>`, `pray <n>`| Learn spells inside your class's Floor 0 temple |
+| | `spells`, `cast <name>`| List and cast memorized spells (the book that holds the spell must be with you) |
+| | `study <n>`, `pray <n>`| Learn the spells of book `<n>` inside your class's Floor 0 temple (each class has its own ritual word) |
+| | `pray`, `p` | Sacrifice 100 XP to the gods to recover a quarter of your HP |
+| | `train <stat>` | Spend a level-up point: `str`, `dex`, `con`, `int`, `wis`, `cha` (or the full name), or `random` |
 | **Town & Services** | `talk`, `list` | Speak with merchant and browse goods |
 | | `buy <n>`, `sell <n>`| Purchase or sell wares |
 | | `haggle buy/sell <n>`| Negotiate item prices based on Charisma |
@@ -230,6 +226,8 @@ Dragon GL features a classic NetHack/Angband-style console interface alongside r
 | | `msg <player> <text>`| Private whisper to a player |
 | | `who` | View list of online adventurers and their current floor |
 | | `block <player>` | Block messages and chat from a player |
+
+Spells are learned only from books and cast only with their book at hand. That includes the class transit cantrips, which move you between the surface and the deepest floor you have reached: each class has its own travel tome (for example *Primer of Arcane Transit* for the Wizard), sold by the book shops of floor 0. A command typed without its arguments answers with its usage; anything else that is not a command is reported as unrecognized.
 
 ---
 

@@ -15,7 +15,9 @@
  * TCP peer would.
  */
 
+#include "classes.h"
 #include "data_loader.h"
+#include "items.h"
 #include "spells.h"
 #include "login_worker.h"
 #include "persist.h"
@@ -23,7 +25,9 @@
 #include "server_commands.h"
 #include "server_entities.h"
 #include "server_internal.h"
+#include "server_cmd.h"
 #include "server_move.h"
+#include "server_spawn.h"
 #include "server_world.h"
 #include "writer.h"
 
@@ -645,6 +649,66 @@ static int test_command_table(void) {
     handle_text_cmd(c, "who", g_npcs);
     size_t n = output(0, buf, sizeof(buf));
     CHECK(output_has(buf, n, "[WHO]"), "'who' not reached by the DM");
+    drain(0);
+    handle_text_cmd(c, "dm_goto", g_npcs);
+    n = output(0, buf, sizeof(buf));
+    CHECK(output_has(buf, n, "Usage: dm_goto"), "dm_goto without arguments: no usage");
+    c->is_dm = false;
+    drain(0);
+    handle_text_cmd(c, "dm_goto", g_npcs);
+    n = output(0, buf, sizeof(buf));
+    CHECK(output_has(buf, n, "Unrecognized command"), "dm_goto known to a player");
+    return 0;
+}
+
+static bool answer_has(Client *c, const char *text, const char *needle) {
+    static char buf[1 << 16];
+    drain(0);
+    handle_text_cmd(c, text, g_npcs);
+    size_t n = output(0, buf, sizeof(buf));
+    return output_has(buf, n, needle);
+}
+
+/* Prefixes match whole words; a known command with missing arguments
+ * answers with its usage; train and pray do what help says. */
+static int test_command_words(void) {
+    size_t rows = 0;
+    const CmdEntry *t = cmd_commands(&rows);
+    for (size_t i = 0; i < rows; i++) {
+        const char *p = t[i].prefixes;
+        while (p) {
+            const char *bar = strchr(p, '|');
+            size_t len = bar ? (size_t)(bar - p) : strlen(p);
+            CHECK(len > 0 && p[len - 1] == ' ', "row %zu: prefix without a trailing space", i);
+            p = bar ? bar + 1 : NULL;
+        }
+    }
+    Client *c = make_player(0, "worder");
+    CHECK(c != NULL, "socketpair failed");
+    static const char *const words[] = {"trainer", "prayer", "useless", "getaway", "lorem",
+                                        "repairs", "identifyx", "unbeltx", "studying"};
+    for (size_t k = 0; k < sizeof(words) / sizeof(words[0]); k++)
+        CHECK(answer_has(c, words[k], "Unrecognized command"), "'%s' was accepted", words[k]);
+    CHECK(answer_has(c, "buy", "Usage: buy"), "'buy': no usage");
+    CHECK(answer_has(c, "cast", "Usage: cast"), "'cast': no usage");
+    CHECK(answer_has(c, "talk", "no merchant"), "'talk' far from merchants");
+
+    /* train: every ability, by abbreviation or full name, and nothing else. */
+    c->unspent_stat_points = 3;
+    int con = c->con, wis = c->wis;
+    CHECK(answer_has(c, "train con", "Constitution"), "train con");
+    CHECK(c->con == con + 1 && c->unspent_stat_points == 2, "train con: con %d", c->con);
+    CHECK(answer_has(c, "train Wisdom ", "Wisdom"), "train Wisdom");
+    CHECK(c->wis == wis + 1, "train Wisdom: wis %d", c->wis);
+    CHECK(answer_has(c, "train strawberry", "Unknown stat"), "train strawberry");
+    CHECK(c->unspent_stat_points == 1, "a wrong stat spent a point");
+
+    /* pray: the prayer (pray <book> is the cleric ritual, tested with the books). */
+    c->xp = 150;
+    c->hp = 1;
+    CHECK(answer_has(c, "pray", "You pray hard"), "pray");
+    CHECK(c->xp == 50 && c->hp > 1, "pray: xp %d hp %d", c->xp, c->hp);
+    CHECK(answer_has(c, "p", "The Gods do not respond"), "p without XP");
     return 0;
 }
 
@@ -670,12 +734,100 @@ static int test_doors(void) {
     return 0;
 }
 
-/* The 12 class transit cantrips are innate: known without a book. */
-static int test_innate_spells(void) {
-    int innate = 0;
+static int item_named(const char *name) {
+    for (int i = 0; i < item_database_size; i++)
+        if (strcmp(item_database[i].name, name) == 0)
+            return i;
+    return -1;
+}
+
+static int spell_named(const char *name) {
     for (int i = 0; i < spell_database_size; i++)
-        innate += spell_database[i].innate ? 1 : 0;
-    CHECK(innate == 12, "%d innate spells", innate);
+        if (strcmp(spell_database[i].name, name) == 0)
+            return i;
+    return -1;
+}
+
+/* The class transit cantrips are learned from their book, in the class
+ * temple, and cast only with the book at hand, like every other spell. */
+static int test_transit_cantrips_need_a_book(void) {
+    static const char *const cantrips[] = {
+        "Ancestral Totem Call", "The Last Refrain", "Divine Recall", "The Green Path",
+        "Warrior's March", "Flowing Step", "Oathbound Passage", "Hunter's Trail",
+        "The Back Door", "Bloodline Rift", "Pact Passage", "Arcane Transit"};
+    for (size_t k = 0; k < sizeof(cantrips) / sizeof(cantrips[0]); k++) {
+        int si = spell_named(cantrips[k]);
+        CHECK(si >= 0, "spell '%s' missing", cantrips[k]);
+        int books = 0;
+        for (int i = 0; i < item_database_size; i++) {
+            const ItemTemplate *t = &item_database[i];
+            if (t->category != ITEM_BOOK || !(t->book_class_mask & spell_database[si].class_mask))
+                continue;
+            for (int b = 0; b < t->book_spell_count; b++)
+                books += strcmp(t->book_spell_names[b], cantrips[k]) == 0;
+        }
+        CHECK(books == 1, "'%s' is in %d books of its class", cantrips[k], books);
+    }
+    /* The book shops of the city sell every travel tome. */
+    memset(g_npcs, 0, sizeof(NPC) * MAX_NPCS);
+    int next = 1;
+    spawn_city_merchants(g_npcs, &next);
+    spawn_magic_shops(g_npcs, &next);
+    spawn_martial_archive(g_npcs, &next);
+    for (size_t k = 0; k < sizeof(cantrips) / sizeof(cantrips[0]); k++) {
+        bool sold = false;
+        for (int i = 0; i < MAX_NPCS && !sold; i++) {
+            const NPC *m = &g_npcs[i];
+            if (!m->active || m->archetype != ARCH_MERCHANT)
+                continue;
+            for (int s = 0; s < m->merchant.item_count && !sold; s++) {
+                const ItemTemplate *t = &item_database[m->merchant.item_templates[s]];
+                sold = t->category == ITEM_BOOK && t->book_spell_count == 1 &&
+                       strcmp(t->book_spell_names[0], cantrips[k]) == 0;
+            }
+        }
+        CHECK(sold, "no shop sells the book of '%s'", cantrips[k]);
+    }
+    memset(g_npcs, 0, sizeof(NPC) * MAX_NPCS);
+
+    Client *c = make_player(0, "wayfarer");
+    CHECK(c != NULL, "socketpair failed");
+    c->class_id = CLASS_WIZARD;
+    int si = spell_named("Arcane Transit");
+    int book = item_named("Primer of Arcane Transit");
+    CHECK(book >= 0, "no book for Arcane Transit");
+    CHECK(!spell_known_get(c, si), "known before the book");
+    static char buf[1 << 16];
+
+    /* Learning: only inside the wizard temple on floor 0. */
+    give_item(c, book);
+    cmd(c, "study 1");
+    CHECK(!spell_known_get(c, si), "learned outside the temple");
+    const TempleInfo *tw = NULL;
+    for (int i = 0; i < TEMPLE_COUNT; i++)
+        if (TEMPLES[i].cls == CLASS_WIZARD)
+            tw = &TEMPLES[i];
+    CHECK(tw != NULL, "no wizard temple");
+    c->floor_id = 0;
+    c->x = (tw->x0 + tw->x1) / 2;
+    c->y = (tw->y0 + tw->y1) / 2;
+    cmd(c, "study 1");
+    CHECK(spell_known_get(c, si), "not learned in the temple");
+
+    /* Casting: refused without the book. */
+    c->backpack_count = 0;
+    reset_item(&c->backpack[0]);
+    drain(0);
+    handle_text_cmd(c, "cast Arcane Transit", g_npcs);
+    size_t n = output(0, buf, sizeof(buf));
+    CHECK(output_has(buf, n, "the book containing it is not in your inventory"),
+          "cast without the book was not refused");
+    give_item(c, book);
+    drain(0);
+    handle_text_cmd(c, "cast Arcane Transit", g_npcs);
+    n = output(0, buf, sizeof(buf));
+    CHECK(!output_has(buf, n, "the book containing it is not in your inventory"),
+          "cast with the book was refused");
     return 0;
 }
 
@@ -876,8 +1028,9 @@ static const TestCase k_tests[] = {
     {"login_job_outcomes", test_login_job_outcomes},
     {"login_worker_async", test_login_worker_async},
     {"command_table", test_command_table},
+    {"command_words", test_command_words},
     {"doors", test_doors},
-    {"innate_spells", test_innate_spells},
+    {"transit_cantrips_need_a_book", test_transit_cantrips_need_a_book},
     {"floor_walk_matches_scan", test_floor_walk_matches_scan},
     {"entity_lookup", test_entity_lookup},
     {"player_move", test_player_move},

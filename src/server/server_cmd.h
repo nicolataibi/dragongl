@@ -25,6 +25,8 @@
  * handler, and stops the walk when the handler returns true. A handler that
  * returns false lets the walk go on, so the order of the table is part of
  * the command syntax (for example "c <n>" is cast, "c" alone is close).
+ * When no handler accepts a line, handle_text_cmd() answers with the usage
+ * of the command named by its first word, or says it is not a command.
  */
 #ifndef SERVER_CMD_H
 #define SERVER_CMD_H
@@ -37,13 +39,27 @@ typedef bool (*CmdFn)(Client *c, const char *cmd, NPC *npcs);
 
 typedef struct {
   const char *names;    /*"a|b": the command is exactly one of them, or NULL*/
-  const char *prefixes; /*"a |b": the command starts with one of them, or NULL*/
-  CmdFn run;            /*both NULL: every command reaches the handler*/
+  const char *prefixes; /*"a |b": the command starts with one of them, or NULL;
+                         * every prefix ends with a space, so a prefix never
+                         * matches a longer word ("train " is not "trainer")*/
+  CmdFn run;            /*names and prefixes NULL: every command reaches it*/
+  const char *usage;    /*shown when the first word is this command but no
+                         * handler accepted the line, or NULL*/
 } CmdEntry;
 
 /*Runs the first matching entry whose handler accepts the command; true if
  * one did.*/
 bool cmd_table_run(const CmdEntry *table, size_t n, Client *c, const char *cmd, NPC *npcs);
+
+/*The first entry of the table whose command word is the first word of cmd
+ * (a name, or a prefix without its space), or NULL.*/
+const CmdEntry *cmd_table_find_word(const CmdEntry *table, size_t n, const char *cmd);
+
+/*The player command table (server_commands.c), for the tests.*/
+const CmdEntry *cmd_commands(size_t *n);
+
+/*The usage line of a dm_* command (cmd_dm.c), or NULL.*/
+const char *cmd_dm_usage(const char *cmd);
 
 /*Temples of the class rituals (cmd_world.c): look names them, use checks
  * that a ritual is performed inside the temple of the class.*/
