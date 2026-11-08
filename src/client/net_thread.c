@@ -80,7 +80,7 @@ void* net_thread_loop(void* arg) {
              * must fail fast, not parse garbage for a while.*/
             if (hdr.version != PROTOCOL_VERSION) {
                 fprintf(stderr, "[NET] Protocol error: server speaks protocol version %u, this client expects %u — disconnecting.\n",
-                        hdr.version, PROTOCOL_VERSION);
+                        (unsigned)hdr.version, (unsigned)PROTOCOL_VERSION);
                 g_running = false;
                 break;
             }

@@ -4,17 +4,25 @@ on:
   push:
   pull_request:
 
-# L11: optional Vulkan validation layers. The client enables whatever
-# is listed here (VK_INSTANCE_LAYERS) when the driver provides the
-# layer; it is a no-op in this job (the client is not executed in CI),
-# but any future headless/VM smoke-run job inherits it, and developers
-# get the same behavior locally with the same variable.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Optional Vulkan validation layers: the client enables whatever is listed
+# here (VK_INSTANCE_LAYERS) when the driver provides the layer. Any job
+# that runs the client inherits it; developers get the same behavior
+# locally with the same variable.
 env:
   VK_INSTANCE_LAYERS: VK_LAYER_KHRONOS_validation
+  SANITIZE_FLAGS: -fsanitize=address,undefined -fno-omit-frame-pointer
 
 jobs:
-  build-and-test:
-    runs-on: ubuntu-latest
+  build:
+    name: Build (clang, -Werror)
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -24,43 +32,94 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             clang cmake ninja-build pkg-config \
             libglfw3-dev libgl1-mesa-dev libglu1-mesa-dev \
-            libvulkan-dev vulkan-validationlayers glslc python3 \
-            mesa-vulkan-drivers
+            libvulkan-dev glslc
 
-      - name: Configure (Release)
-        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+      - name: Configure (Release, warnings are errors)
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS=-Werror
 
       - name: Build
         run: cmake --build build
 
-      # The unit-test suite is a standalone CMake project (tests/);
-      # the main project no longer references it.
-      - name: Configure tests (Release)
+  unit-tests:
+    name: Unit tests (Release + ASan/UBSan)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang libclang-rt-18-dev cmake ninja-build pkg-config \
+            libglfw3-dev libgl1-mesa-dev libglu1-mesa-dev \
+            libvulkan-dev vulkan-validationlayers glslc python3 \
+            mesa-vulkan-drivers
+
+      - name: Configure (Release)
         run: cmake -B build-tests -G Ninja -DCMAKE_BUILD_TYPE=Release tests
 
-      - name: Build tests
+      - name: Build
         run: cmake --build build-tests
 
-      - name: Unit tests
+      - name: Run
         run: ctest --test-dir build-tests --output-on-failure
 
       - name: Configure (Debug + ASan/UBSan)
         run: |
-          cmake -B build-asan -G Ninja -DCMAKE_BUILD_TYPE=Debug \
-            -DCMAKE_C_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer" \
-            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
-
-      - name: Build with sanitizers
-        run: cmake --build build-asan
-
-      - name: Configure tests (Debug + ASan/UBSan)
-        run: |
           cmake -B build-tests-asan -G Ninja -DCMAKE_BUILD_TYPE=Debug tests \
-            -DCMAKE_C_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer" \
+            -DCMAKE_C_FLAGS="$SANITIZE_FLAGS" \
             -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
 
-      - name: Build tests with sanitizers
+      - name: Build (ASan/UBSan)
         run: cmake --build build-tests-asan
 
-      - name: Unit tests (ASan/UBSan)
+      - name: Run (ASan/UBSan)
         run: ctest --test-dir build-tests-asan --output-on-failure
+
+  integration-tests:
+    name: Server integration tests (ASan/UBSan)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      # The server needs no graphics stack: compiler, CMake and Python only.
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang libclang-rt-18-dev cmake ninja-build python3
+
+      - name: Configure
+        run: |
+          cmake -B build-integration -G Ninja -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_C_COMPILER=clang tests/integration \
+            -DCMAKE_C_FLAGS="$SANITIZE_FLAGS" \
+            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
+
+      - name: Build
+        run: cmake --build build-integration
+
+      - name: Run
+        run: ctest --test-dir build-integration --output-on-failure
+
+  static-analysis:
+    name: Static analysis (cppcheck)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install cppcheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cppcheck
+
+      # cJSON is vendored third-party code and is not analysed. False
+      # positives are suppressed inline (// cppcheck-suppress) with a
+      # comment that explains why.
+      - name: cppcheck
+        run: |
+          cppcheck -q -j "$(nproc)" --enable=warning,portability \
+            --inline-suppr --error-exitcode=1 \
+            --suppress=missingIncludeSystem \
+            -D_DEFAULT_SOURCE -Iinclude -Isrc/server -Isrc/client \
+            -i src/shared/cJSON.c src

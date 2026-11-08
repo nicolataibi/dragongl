@@ -51,8 +51,10 @@ void perform_attack(Client *c, NPC *t, NPC *npcs) {
     return;
   int ts, td, tc, ti, tw, th;
   get_total_stats(c, &ts, &td, &tc, &ti, &tw, &th);
+  /*Never NULL: one of the two hand slots is always selected.*/
   ItemInstance *weapon =
       (c->slot_hand_r.template_idx != -1) ? &c->slot_hand_r : &c->slot_hand_l;
+  // cppcheck-suppress nullPointerRedundantCheck
   const ItemTemplate *w = (weapon->template_idx != -1)
                               ? &item_database[weapon->template_idx]
                               : NULL;

@@ -101,6 +101,22 @@ ctest --test-dir build-tests --output-on-failure
 - `test_vfx_threads`: Stress-tests multithreaded VFX and Floating Combat Text (FCT) synchronization under heavy load.
 - `gpu_mesh_test`: Verifies Vulkan GPD compute shader geometry expansion.
 
+### Server Integration Tests
+
+`tests/integration/` is a second standalone project. It builds the server with the flags you pass (normally ASan/UBSan) and runs two kinds of tests:
+
+- `server_network` (`test_server.py`): starts a real `dragongl_server` on a free port in a private copy of a generated world and drives it with a protocol-v3 client (`dglproto.py`). The first run generates the world and takes about a minute.
+- `server_harness`: links the server sources without `main()` (`-DDRAGONGL_NO_MAIN`) and calls persistence and trade code directly.
+
+```bash
+cmake -B build-integration -G Ninja tests/integration -DCMAKE_BUILD_TYPE=Debug \
+      -DCMAKE_C_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer"
+cmake --build build-integration --parallel $(nproc)
+ctest --test-dir build-integration --output-on-failure
+```
+
+Only a C compiler, CMake and Python 3 are required: no graphics stack. Tests that reproduce a defect still open are marked `WILL_FAIL` (CTest) or `@unittest.expectedFailure` (Python), tagged with the issue id. A fix turns them into an unexpected success: remove the marker in the same commit.
+
 ---
 
 ## 4. Local RPM Packaging Check

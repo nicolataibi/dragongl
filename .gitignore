@@ -5,7 +5,6 @@ _local_build
 
 # Directory SAVES
 saves/
-tests/
 __pycache__/
 
 # others
@@ -23,6 +22,8 @@ rpmbuild/
 _local_build/
 _srpm_test/
 build-tests/
+build-tests-asan/
+build-integration/
 
 # ignore
 npcs.dat

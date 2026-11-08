@@ -1,3 +1,30 @@
+* Sun Nov 08 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.08.02
+- TESTS: new server integration suite in tests/integration (standalone
+  CMake project, only compiler + CMake + Python 3 required). test_server.py
+  starts a real dragongl_server on a free port in a private copy of a
+  generated world and drives it through dglproto.py, a protocol-v3 client;
+  server_harness links the server sources without main() and tests
+  persistence and trade in-process.
+- TESTS: the open defects found by the technical review are reproduced and
+  marked as expected failures with their id: P0-1 server killed by SIGPIPE
+  when players disconnect together, P0-2 one partial header stalls the game
+  loop for 5 s, P0-3 file descriptors leaked when the server is full,
+  P1-1 full backpack (32/32) emptied on reload, P1-2 same character logged
+  in twice, P1-3 trade offer not revalidated on accept (negative
+  backpack_count, item duplication).
+- BUILD: main() of the server is excluded with -DDRAGONGL_NO_MAIN, used only
+  by the in-process harness.
+- CI: tests/ is no longer git-ignored, so the unit suite runs in CI again.
+  Workflow split into four jobs pinned to ubuntu-24.04: clang Release build
+  with -Werror, unit tests (Release and ASan/UBSan, libclang-rt-18-dev
+  added so sanitizer builds link), server integration tests under
+  ASan/UBSan, cppcheck with --error-exitcode=1.
+- CLEANUP: cppcheck false positives suppressed inline with a justification
+  (boss bitmask shift, weapon slot pointer); leaderboard buffer zeroed;
+  protocol version printed with matching %u arguments in the client.
+- DOCS: BUILD.md and DEVELOPMENT.md describe the integration suite and the
+  CI jobs.
+
 * Sun Nov 08 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.08.01
 - Refactoring.
 

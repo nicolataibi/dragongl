@@ -114,7 +114,15 @@ The standalone test suite resides in `tests/` and mirrors production compiler fl
 cmake -B build-tests tests -DCMAKE_BUILD_TYPE=Debug
 cmake --build build-tests --parallel $(nproc)
 ctest --test-dir build-tests --output-on-failure
+
+# Server integration tests (real server process + in-process harness)
+cmake -B build-integration tests/integration -DCMAKE_BUILD_TYPE=Debug \
+      -DCMAKE_C_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer"
+cmake --build build-integration --parallel $(nproc)
+ctest --test-dir build-integration --output-on-failure
 ```
+
+CI (`.github/workflows/ci.yml`) runs four jobs on every push and pull request: a clang Release build with `-Werror`, the unit tests (Release and ASan/UBSan), the server integration tests under ASan/UBSan, and cppcheck. cppcheck false positives are suppressed inline with `// cppcheck-suppress <id>` and a comment explaining why.
 
 ### Guidelines for Contributions:
 1. **Warning-Clean Build:** All C code must compile cleanly with `-Wall -Wextra -Wpedantic` using clang.

@@ -580,6 +580,7 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
       d = opendir("saves");
       if (d) {
           LeaderboardEntry entries[1000];
+          memset(entries, 0, sizeof(entries));
           int entry_count = 0;
           while ((dir = readdir(d)) != NULL) {
               /*Stop at the capacity of the stack array: with more than

@@ -2142,7 +2142,8 @@ void check_tile_events(Client *c, NPC *npcs) {
       return;
     }
     if (c->floor_id > 0 && c->floor_id % 10 == 0) {
-      int boss_index = (c->floor_id / 10) - 1;
+      int boss_index = (c->floor_id / 10) - 1; /*>= 0: floor_id is a positive multiple of 10*/
+      // cppcheck-suppress [shiftTooManyBits,signConversionCond]
       if (!(c->bosses_defeated & (1u << boss_index))) {
         bool boss_alive = false;
         if (g_npcs) {
@@ -2559,6 +2560,9 @@ void give_starting_gear(Client *c) {
 }
 
 
+/*DRAGONGL_NO_MAIN: the in-process test harness (tests/integration)
+ * links every server translation unit and provides its own main().*/
+#ifndef DRAGONGL_NO_MAIN
 int main(int argc, char **argv) {
   setvbuf(stdout, NULL, _IONBF,
           0); // Disable stdout buffering for live log files
@@ -3467,3 +3471,4 @@ int main(int argc, char **argv) {
   server_log("SYS", "Server shut down. Log saved.");
   return 0;
 }
+#endif /* DRAGONGL_NO_MAIN */
