@@ -284,8 +284,7 @@ void send_text_to_client(int sock, const char* fmt, ...);
 /*--- known_spells bitfield helpers (defensive) ---
  * Every access MUST go through these: they clamp the index to
  * MAX_SPELL_DB_SIZE, so a spell database larger than the bitfield
- * can never read/write out of bounds (the old `si / 64` open coding
- * wrote past known_spells[8] when the dataset passed 512 spells).*/
+ * can never read/write out of bounds.*/
 static inline bool spell_known_get(const Client *c, int idx) {
     if (idx < 0 || idx >= MAX_SPELL_DB_SIZE)
         return false;

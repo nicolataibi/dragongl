@@ -200,8 +200,8 @@ int pathfind_astar(const Map *map,
         return 0;
     }
 
-    /*Stamp-based reset: O(1) instead of the old 2.9 MB memset. A node is
-     * "open"/"closed" for THIS query iff its stamp equals g_query_id.*/
+    /*Stamp-based reset, O(1) per query instead of clearing 2.9 MB: a node
+     * is "open"/"closed" for THIS query iff its stamp equals g_query_id.*/
     g_query_id++;
     if (g_query_id == 0) { /*uint32 overflow: wipe the stamps once*/
         for (int i = 0; i < MAP_HEIGHT * MAP_WIDTH; i++) {
@@ -253,9 +253,7 @@ int pathfind_astar(const Map *map,
              * has more nodes than it can hold: return "no path" so the
              * caller falls back to a SAFE single step. A truncated path
              * would not start at the source, and using its path[1] would
-             * teleport the entity. The old code wrote reverse[path_len]
-             * unconditionally here: with path_len == max_steps that was
-             * a one-element STACK BUFFER OVERFLOW.*/
+             * teleport the entity.*/
             if (path_len >= max_steps) {
                 return 0;
             }

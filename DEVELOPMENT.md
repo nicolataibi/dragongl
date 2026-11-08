@@ -13,7 +13,7 @@ dragongl-dev/
 ├── include/           # Public headers (protocol, data structures, rules, voxels)
 ├── src/
 │   ├── client/        # Vulkan renderer, input handling, HUD, VFX, network thread
-│   ├── server/        # TCP networking, D3ES entity engine, AI, dungeon generator
+│   ├── server/        # Event loop, game tick, movement, command table + handlers, AI, persistence
 │   └── shared/        # d20 rules, cJSON parser, dataset loaders, map primitives
 ├── shaders/           # GLSL vertex, fragment, and GPD compute shaders
 ├── data/              # Read-only JSON datasets (bestiary.json, items.json, spells.json)
@@ -64,6 +64,19 @@ Every floor maintains an `entity_grid` occupancy map. Looking up an entity at co
 
 ### FloorStats Cache
 NPC lifecycle events (`floor_stats_npc_died()`, `floor_stats_npc_spawned()`) update per-floor counters incrementally. Emergency respawn checks read `g_floor_stats[floor_id]` in $O(1)$ time without traversing dormant floors.
+
+### NPC lifecycle, floor walks and entity lookups
+- **`npc_set_active()`** (`server_world.c`) is the only place where an NPC becomes alive or dead: it keeps the floor counters and the per-floor index in step. Set the final fields (floor, template, archetype) first, then activate; never write `n->active` by hand.
+- **Floor walk:** `FloorIter it = floor_iter(npcs, f); for (int i; (i = floor_iter_next(&it)) >= 0;)` visits the active NPCs of floor `f`, in slot order, exactly like a scan of all `MAX_NPCS` slots would (NPCs spawned during the walk included), in O(NPCs on the floor). Use it for every per-floor query instead of a full scan.
+- **Entity id → NPC:** `npc_by_entity_id()` answers in O(1) from a map rebuilt every tick (an NPC spawned since then is found by one scan). Entity ids are unique: `next_id` only grows and is saved with the NPCs.
+
+### Server source layout
+- `main_server.c`: options, start-up, the event loop (`run_server`), message dispatch, logins, traps and tile events, shutdown.
+- `server_move.c`: one step of a player (`MSG_MOVE`): bump into a merchant, loot, a monster or a player, or walk onto the tile.
+- `server_world.c`: the game tick (`update_world`: autosave, global event, player rounds, NPC rounds, density monitor), the floor index and the entity map.
+- Text commands: `server_commands.c` holds the command table and `handle_text_cmd()`; the handlers live in one file per group: `cmd_character.c` (help, train, stats, rest, save), `cmd_social.c` (party, trade, chat, block list, leaderboard), `cmd_shop.c` (merchants), `cmd_items.c` (inventory, use, get, drop, throw), `cmd_magic.c` (spells, cast), `cmd_world.c` (look, search, disarm, examine, tunnel, doors) and `cmd_dm.c` (the `dm_*` commands and their own table).
+
+A new command is one handler `bool cmd_x(Client *c, const char *cmd, NPC *npcs)` (true when it handled the command) and one row of `COMMANDS[]`: exact names and/or prefixes separated by `|`. The table is walked in order and the first match whose handler returns true wins, so a prefix row covers every later row it matches (`"c <n>"` is cast, `"c"` alone is close). The `command_table` test of the harness checks that the commands answer.
 
 ---
 
@@ -138,3 +151,5 @@ CI (`.github/workflows/ci.yml`) runs seven jobs on every push and pull request: 
 1. **Warning-Clean Build:** All C code must compile cleanly with `-Wall -Wextra -Wpedantic` using clang.
 2. **Data Structure Bounds:** Enum-indexed arrays must be sized using `MAX_*` sentinels to guarantee type safety without bitmask overflow.
 3. **Wire and file formats:** a message is changed in one place, its encoder/decoder pair in `src/shared/wire.c` (plus `tests/test_protocol.c`, `tests/integration/dglproto.py` and `PROTOCOL.md`), and every change increments `PROTOCOL_VERSION` in `include/protocol.h`. On-disk formats have their own version numbers in `src/server/persist.h`.
+4. **Function size:** no function longer than 300 lines; split by responsibility (see `update_world`, `check_traps`, the item and spell loaders).
+5. **Comments say why the code is the way it is now.** The history of a change (what was wrong, which defect it fixed) belongs to `CHANGELOG.md`, not to the source.

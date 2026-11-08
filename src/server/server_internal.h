@@ -45,11 +45,8 @@ long long get_time_ms(void);
 #define MAX_TICK_CATCHUP_MS (5LL * TICK_MS)
 
 // Global constants
-/*Population/respawn tuning — SINGLE source of truth (L3). These used
- * to be #defined in BOTH server_internal.h and main_server.c: two
- * sources of truth that were equal "by luck" and would have silently
- * drifted (identical redefinitions are legal C, so no warning). Do not
- * redefine them anywhere else.*/
+/*Population/respawn tuning, defined only here: do not redefine them
+ * anywhere else.*/
 #define RESPAWN_TICKS 120       //~2 min at 6s/tick
 #define DENSITY_CHECK 50        //every N global rounds
 #define DENSITY_MIN_PCT 40      //emergency spawn if < 40% active

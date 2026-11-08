@@ -46,7 +46,15 @@ set(DGL_SERVER_SRCS
     ${DGL_ROOT}/src/server/server_combat.c
     ${DGL_ROOT}/src/server/server_spawn.c
     ${DGL_ROOT}/src/server/server_world.c
+    ${DGL_ROOT}/src/server/server_move.c
     ${DGL_ROOT}/src/server/server_commands.c
+    ${DGL_ROOT}/src/server/cmd_character.c
+    ${DGL_ROOT}/src/server/cmd_social.c
+    ${DGL_ROOT}/src/server/cmd_shop.c
+    ${DGL_ROOT}/src/server/cmd_items.c
+    ${DGL_ROOT}/src/server/cmd_magic.c
+    ${DGL_ROOT}/src/server/cmd_world.c
+    ${DGL_ROOT}/src/server/cmd_dm.c
     ${DGL_ROOT}/src/server/spell_router.c
     ${DGL_ROOT}/src/server/tombstone.c
     ${DGL_ROOT}/src/shared/map.c
@@ -90,7 +98,8 @@ add_test(NAME persistence_partial_backpack_roundtrip
 foreach(t trade_offer_revalidated_on_accept trade_moves_item_and_gold
           trade_into_full_backpack_is_cancelled world_roundtrip npcs_roundtrip
           tombstone_and_flags_roundtrip writer_queue login_job_outcomes
-          login_worker_async)
+          login_worker_async command_table doors innate_spells
+          floor_walk_matches_scan entity_lookup player_move)
     add_test(NAME ${t} COMMAND server_harness ${t} WORKING_DIRECTORY "${DGL_WORK}")
 endforeach()
 

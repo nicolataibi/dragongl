@@ -16,12 +16,15 @@
  */
 
 #include "data_loader.h"
+#include "spells.h"
 #include "login_worker.h"
 #include "persist.h"
 #include "server_conn.h"
 #include "server_commands.h"
 #include "server_entities.h"
 #include "server_internal.h"
+#include "server_move.h"
+#include "server_world.h"
 #include "writer.h"
 
 #include <fcntl.h>
@@ -588,6 +591,271 @@ static int test_login_worker_async(void) {
     return 0;
 }
 
+/* Everything the server wrote to this client since the last call. */
+static size_t output(int slot, char *buf, size_t cap) {
+    size_t n = 0;
+    conn_flush(slot);
+    ssize_t r;
+    while (n + 1 < cap && g_peer_fd[slot] >= 0 &&
+           (r = read(g_peer_fd[slot], buf + n, cap - 1 - n)) > 0)
+        n += (size_t)r;
+    buf[n] = '\0';
+    return n;
+}
+
+static bool output_has(const char *buf, size_t n, const char *needle) {
+    size_t k = strlen(needle);
+    for (size_t i = 0; i + k <= n; i++)
+        if (memcmp(buf + i, needle, k) == 0)
+            return true;
+    return false;
+}
+
+/* --- Command table ---------------------------------------------------- */
+
+/* Every command of the table answers, prefixes match as before, and the
+ * DM commands exist only for the dm account. */
+static int test_command_table(void) {
+    Client *c = make_player(0, "tabler");
+    CHECK(c != NULL, "socketpair failed");
+    static char buf[1 << 16];
+    static const char *const known[] = {"help", "?", "stats", "status", "inventory", "i",
+                                        "spells", "who", "party", "event", "look", "l",
+                                        "/look", "search", "blocks", "save", "rest"};
+    for (size_t k = 0; k < sizeof(known) / sizeof(known[0]); k++) {
+        drain(0);
+        handle_text_cmd(c, known[k], g_npcs);
+        size_t n = output(0, buf, sizeof(buf));
+        CHECK(n > 0, "'%s': no answer", known[k]);
+        CHECK(!output_has(buf, n, "Unrecognized command"), "'%s' not recognized", known[k]);
+    }
+    static const char *const unknown[] = {"xyzzy", "helpme", "dm_gold 100", "", "stat"};
+    for (size_t k = 0; k < sizeof(unknown) / sizeof(unknown[0]); k++) {
+        drain(0);
+        handle_text_cmd(c, unknown[k], g_npcs);
+        size_t n = output(0, buf, sizeof(buf));
+        CHECK(output_has(buf, n, "Unrecognized command"), "'%s' was accepted", unknown[k]);
+    }
+    /* dm_* runs only for the DM, and does not hide the player commands. */
+    uint64_t gold = c->gold;
+    c->is_dm = true;
+    cmd(c, "dm_gold 100");
+    CHECK(c->gold == gold + 100, "dm_gold: gold %llu", (unsigned long long)c->gold);
+    drain(0);
+    handle_text_cmd(c, "who", g_npcs);
+    size_t n = output(0, buf, sizeof(buf));
+    CHECK(output_has(buf, n, "[WHO]"), "'who' not reached by the DM");
+    return 0;
+}
+
+/* "open <dir>" and "close <dir>": the direction used to be unreachable
+ * (only the bare words matched, and they ask for a direction). */
+static int test_doors(void) {
+    Client *c = make_player(0, "doorman");
+    CHECK(c != NULL, "socketpair failed");
+    c->floor_id = 2;
+    c->x = 60;
+    c->y = 60;
+    Map *m = &master_world->floors[2].map;
+    m->data[0][60][61] = VOXEL_DOOR;
+    cmd(c, "open e");
+    CHECK(m->data[0][60][61] == VOXEL_FLOOR, "open e: tile %d", m->data[0][60][61]);
+    cmd(c, "close e");
+    CHECK(m->data[0][60][61] == VOXEL_DOOR, "close e: tile %d", m->data[0][60][61]);
+    cmd(c, "o e");
+    CHECK(m->data[0][60][61] == VOXEL_FLOOR, "o e: tile %d", m->data[0][60][61]);
+    m->data[0][59][60] = VOXEL_FLOOR; /* never a door: stays floor */
+    cmd(c, "close n");
+    CHECK(m->data[0][59][60] == VOXEL_FLOOR, "closed a tile that was never a door");
+    return 0;
+}
+
+/* The 12 class transit cantrips are innate: known without a book. */
+static int test_innate_spells(void) {
+    int innate = 0;
+    for (int i = 0; i < spell_database_size; i++)
+        innate += spell_database[i].innate ? 1 : 0;
+    CHECK(innate == 12, "%d innate spells", innate);
+    return 0;
+}
+
+/* --- Floor walk and entity lookup ---------------------------------------- */
+
+static int scan_floor(int f, int *out) {
+    int n = 0;
+    for (int i = 0; i < MAX_NPCS; i++)
+        if (g_npcs[i].active && g_npcs[i].floor_id == f)
+            out[n++] = i;
+    return n;
+}
+
+static int walk_floor(int f, int *out) {
+    int n = 0;
+    FloorIter it = floor_iter(g_npcs, f);
+    for (int i; (i = floor_iter_next(&it)) >= 0;)
+        out[n++] = i;
+    return n;
+}
+
+static int compare_all_floors(const char *when) {
+    static int a[MAX_NPCS], b[MAX_NPCS];
+    for (int f = -1; f <= MAX_FLOORS; f++) {
+        int na = scan_floor(f, a), nb = walk_floor(f, b);
+        CHECK(na == nb, "%s: floor %d: scan %d NPCs, walk %d", when, f, na, nb);
+        CHECK(memcmp(a, b, (size_t)na * sizeof(int)) == 0, "%s: floor %d: order differs", when, f);
+    }
+    return 0;
+}
+
+static void spawn_at(int slot, int floor_id, int entity_id) {
+    NPC *n = &g_npcs[slot];
+    n->floor_id = floor_id;
+    n->entity_id = entity_id;
+    n->respawn_timer = -1;
+    npc_set_active(n, true);
+}
+
+/* A walk of the per-floor index returns what a scan of every slot returns,
+ * in the same order: after a rebuild, after spawns and deaths since it,
+ * for NPCs spawned during the walk, and for a floor over the index cap. */
+static int test_floor_walk_matches_scan(void) {
+    memset(g_npcs, 0, sizeof(NPC) * MAX_NPCS);
+    srand(7);
+    int next = 1;
+    for (int k = 0; k < 6000; k++) {
+        int s = rand() % MAX_NPCS;
+        if (!g_npcs[s].active)
+            spawn_at(s, rand() % MAX_FLOORS, next++);
+    }
+    if (compare_all_floors("spawned before any rebuild"))
+        return 1;
+    floor_index_rebuild(g_npcs);
+    if (compare_all_floors("after the rebuild"))
+        return 1;
+    for (int k = 0; k < 4000; k++) {
+        int s = rand() % MAX_NPCS;
+        if (g_npcs[s].active && rand() % 2)
+            npc_set_active(&g_npcs[s], false);
+        else if (!g_npcs[s].active)
+            spawn_at(s, rand() % MAX_FLOORS, next++);
+    }
+    if (compare_all_floors("spawns and deaths since the rebuild"))
+        return 1;
+
+    /* Spawned during the walk: a higher slot is met, a lower one is not. */
+    memset(g_npcs, 0, sizeof(NPC) * MAX_NPCS);
+    spawn_at(100, 3, next++);
+    spawn_at(300, 3, next++);
+    floor_index_rebuild(g_npcs);
+    FloorIter it = floor_iter(g_npcs, 3);
+    int first = floor_iter_next(&it);
+    CHECK(first == 100, "first slot %d", first);
+    spawn_at(50, 3, next++);
+    spawn_at(200, 3, next++);
+    int seen[4], n = 0;
+    for (int i; (i = floor_iter_next(&it)) >= 0 && n < 4;)
+        seen[n++] = i;
+    CHECK(n == 2 && seen[0] == 200 && seen[1] == 300, "walk after spawns: %d slots", n);
+
+    /* More NPCs on one floor than the index holds. */
+    memset(g_npcs, 0, sizeof(NPC) * MAX_NPCS);
+    for (int s = 0; s < 5000; s++)
+        spawn_at(s * 7 % MAX_NPCS, 5, next++);
+    if (compare_all_floors("overflowing floor, before the rebuild"))
+        return 1;
+    floor_index_rebuild(g_npcs);
+    if (compare_all_floors("overflowing floor, after the rebuild"))
+        return 1;
+    return 0;
+}
+
+static int test_entity_lookup(void) {
+    memset(g_npcs, 0, sizeof(NPC) * MAX_NPCS);
+    for (int s = 0; s < 3000; s++)
+        spawn_at(s * 13 % MAX_NPCS, s % MAX_FLOORS, 10 + s);
+    floor_index_rebuild(g_npcs);
+    for (int s = 0; s < 3000; s++) {
+        NPC *n = npc_by_entity_id(g_npcs, 10 + s);
+        CHECK(n == &g_npcs[s * 13 % MAX_NPCS], "entity %d not found", 10 + s);
+    }
+    CHECK(npc_by_entity_id(g_npcs, 0) == NULL, "id 0 found");
+    CHECK(npc_by_entity_id(g_npcs, 999999) == NULL, "unknown id found");
+    /* Dead since the rebuild, and a slot reused by another entity. */
+    npc_set_active(&g_npcs[13], false);
+    CHECK(npc_by_entity_id(g_npcs, 11) == NULL, "dead NPC found");
+    spawn_at(13, 0, 777777);
+    CHECK(npc_by_entity_id(g_npcs, 777777) == &g_npcs[13], "fresh NPC not found");
+    CHECK(npc_by_entity_id(g_npcs, 11) == NULL, "old id of a reused slot found");
+    return 0;
+}
+
+/* --- Movement ------------------------------------------------------------- */
+
+static void open_ground(int floor_id, int x0, int y0, int x1, int y1) {
+    for (int y = y0; y <= y1; y++)
+        for (int x = x0; x <= x1; x++)
+            master_world->floors[floor_id].map.data[0][y][x] = VOXEL_FLOOR;
+}
+
+/* A step walks onto open ground, stops at a wall and at a merchant, and
+ * picks up a gold pile on the way. */
+static int test_player_move(void) {
+    memset(g_npcs, 0, sizeof(NPC) * MAX_NPCS);
+    Client *c = make_player(0, "walker");
+    CHECK(c != NULL, "socketpair failed");
+    c->floor_id = 1; /* no city doors, no fountain */
+    c->x = 50;
+    c->y = 50;
+    open_ground(1, 48, 48, 53, 52);
+    Floor *fl = &master_world->floors[1];
+    fl->entity_grid[50][50] = c->entity_id;
+    MsgMove east = {.dx = 1, .dy = 0}, west = {.dx = -5, .dy = 0};
+    static char buf[1 << 16];
+
+    c->last_action_ms = 0;
+    player_move(c, &east, g_test_clients, g_npcs);
+    CHECK(c->x == 51 && c->y == 50, "step east: at %d,%d", c->x, c->y);
+    CHECK(fl->entity_grid[50][50] == 0 && fl->entity_grid[50][51] == c->entity_id,
+          "entity grid not updated");
+    player_move(c, &east, g_test_clients, g_npcs); /* within 200 ms */
+    CHECK(c->x == 51, "rate limit: moved to %d", c->x);
+
+    NPC *gold = &g_npcs[42];
+    gold->archetype = ARCH_GOLD;
+    gold->gold_drop = 25;
+    gold->x = 52;
+    gold->y = 50;
+    spawn_at(42, 1, 5000);
+    fl->entity_grid[50][52] = gold->entity_id;
+    uint64_t before = c->gold;
+    c->last_action_ms = 0;
+    player_move(c, &east, g_test_clients, g_npcs);
+    CHECK(c->gold == before + 25, "gold %llu", (unsigned long long)c->gold);
+    CHECK(!gold->active, "gold pile still there");
+    CHECK(c->x == 52, "picking up gold does not block: at %d", c->x);
+
+    NPC *m = &g_npcs[43];
+    m->archetype = ARCH_MERCHANT;
+    snprintf(m->merchant.shop_name, sizeof(m->merchant.shop_name), "Test Shop");
+    m->x = 53;
+    m->y = 50;
+    spawn_at(43, 1, 5001);
+    fl->entity_grid[50][53] = m->entity_id;
+    drain(0);
+    c->last_action_ms = 0;
+    player_move(c, &east, g_test_clients, g_npcs);
+    size_t n = output(0, buf, sizeof(buf));
+    CHECK(c->x == 52, "walked into the merchant: at %d", c->x);
+    CHECK(output_has(buf, n, "[Test Shop] Welcome!"), "no greeting");
+
+    c->x = 48;
+    fl->entity_grid[50][48] = c->entity_id;
+    c->last_action_ms = 0;
+    player_move(c, &west, g_test_clients, g_npcs); /* dx clamped to -1: rock at 47 */
+    CHECK(c->x == 48, "walked into rock: at %d", c->x);
+    return 0;
+}
+
 /* --- Runner ------------------------------------------------------------ */
 
 typedef struct {
@@ -607,6 +875,12 @@ static const TestCase k_tests[] = {
     {"writer_queue", test_writer_queue},
     {"login_job_outcomes", test_login_job_outcomes},
     {"login_worker_async", test_login_worker_async},
+    {"command_table", test_command_table},
+    {"doors", test_doors},
+    {"innate_spells", test_innate_spells},
+    {"floor_walk_matches_scan", test_floor_walk_matches_scan},
+    {"entity_lookup", test_entity_lookup},
+    {"player_move", test_player_move},
 };
 
 int main(int argc, char **argv) {

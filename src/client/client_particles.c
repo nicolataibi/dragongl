@@ -29,7 +29,7 @@ static inline float randf(void) {
 
 Particle g_particles[MAX_PARTICLES];
 /*See client_particles.h: guards the pool against the net thread, which
- * spawns concurrently (B1).*/
+ * spawns concurrently.*/
 pthread_mutex_t g_particles_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void particles_init(void) {

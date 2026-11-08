@@ -37,10 +37,9 @@ typedef struct {
 
 extern Particle g_particles[MAX_PARTICLES];
 
-/*THREADING (B1): the pool is shared by TWO threads — the NET thread fills
+/*THREADING: the pool is shared by TWO threads — the NET thread fills
  * it (spawn_vfx, called from net_thread.c on MSG_SPELL_VFX) and the RENDER
- * thread drains/reads it (particles_update + the per-backend draw pass). It
- * used to be accessed with no synchronization at all (TSan-flaggable).
+ * thread drains/reads it (particles_update + the draw pass).
  * RULE: every access to g_particles[] — spawn, update OR draw — must hold
  * g_particles_mutex (spawn_vfx/particles_update take it internally; the
  * renderers take it around their draw passes). This mutex is NEVER nested

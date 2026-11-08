@@ -194,7 +194,7 @@ static Client* find_closest_target(NPC* npc, Client* clients, int num_clients) {
 }
 
 /*Keeps entity_grid consistent with an NPC move (same convention as player
- * movement in main_server.c: clear the old cell if we own it, set the new
+ * movement in server_move.c: clear the old cell if we own it, set the new
  * one). The grid is fully rebuilt every round tick by sync_entity_grid();
  * these incremental writes keep it correct for collision checks made
  * WITHIN the same tick, by other NPCs.*/
@@ -216,13 +216,10 @@ static void npc_set_cell(NPC* npc, int x, int y) {
 }
 
 /*Returns true if the cell (x,y) on the NPC's floor is out of bounds or
- * already occupied by a player or by another active NPC.
- * Used to make sure the AI never moves a monster onto an occupied cell:
- * stacking entities would corrupt the entity_grid (collision) and
- * break melee combat.
- * O(1) via the entity_grid: the old version linear-scanned all 50,000
- * NPC slots for every step attempt of every monster (O(50k) per step),
- * which was the dominant CPU cost of the server tick.*/
+ * already occupied by a player or by another active NPC, so the AI never
+ * stacks two entities on one cell (collisions and melee rely on the
+ * entity_grid). O(1) through the entity_grid: this runs for every step
+ * attempt of every monster.*/
 static bool cell_occupied(int x, int y, NPC* npc, Client* clients,
                           int num_clients, NPC* all_npcs) {
     (void)clients;
@@ -298,11 +295,9 @@ AINodeStatus ai_swarm_behavior(NPC* npc, Client* clients, int num_clients, bool 
         // the stale-entry filters below also cover an index up to one
         // tick old).
         int counter = 0;
-        int sw_n = 0;
-        const int *sw_idx = floor_index_for(npc->floor_id, &sw_n);
-        for (int k = 0; k < ((sw_idx != NULL) ? sw_n : MAX_NPCS); k++) {
-            int i = (sw_idx != NULL) ? sw_idx[k] : k;
-            if (all_npcs[i].active && all_npcs[i].floor_id == npc->floor_id && all_npcs[i].archetype == ARCH_SWARM) {
+        FloorIter walk = floor_iter(all_npcs, npc->floor_id);
+        for (int i; (i = floor_iter_next(&walk)) >= 0;) {
+            if (all_npcs[i].archetype == ARCH_SWARM) {
                 int dx = abs(all_npcs[i].x - npc->x);
                 int dy = abs(all_npcs[i].y - npc->y);
                 if (dx <= 1 && dy <= 1 && (dx > 0 || dy > 0)) {
@@ -339,10 +334,8 @@ AINodeStatus ai_swarm_behavior(NPC* npc, Client* clients, int num_clients, bool 
                             NPC* clone = &all_npcs[slot];
                             *clone = *npc; //copy all stats
                             /*The copy also copied active=true: undo it so
-                             *the activation below goes through npc_set_active
-                             *(the single point that updates the O(1) floor
-                             *cache, A2) — a raw struct copy has no chance
-                             *to keep the density counters in sync.*/
+                             * the activation below goes through
+                             * npc_set_active (floor counters and index).*/
                             clone->active = false;
                             /*A truly unique ID: the slot index could
                              * collide with an already-assigned entity_id
@@ -359,10 +352,9 @@ AINodeStatus ai_swarm_behavior(NPC* npc, Client* clients, int num_clients, bool 
                              * spot after dying in different places.*/
                             clone->spawn_x = nx;
                             clone->spawn_y = ny;
-                            /*All fields are final now: activate the clone
-                             *through the helper so the floor cache counts it
-                             *(the old split never did — a drift of one NPC
-                             *per split until the next full rebuild).*/
+                            /*All fields are final: activate the clone
+                             * through npc_set_active so the floor caches
+                             * count it.*/
                             npc_set_active(clone, true);
 
                             broadcast_spell_vfx(npc->x, npc->y, nx, ny, 1, 0.0f, 1.0f, 0.0f, npc->floor_id); // Green explosion
@@ -417,8 +409,7 @@ AINodeStatus ai_mage_behavior(NPC* npc, Client* clients, int num_clients, bool n
         if (npc->spell_slots[1] > 0) {
             send_text_to_client(target->sock, "[DANGER] The Mage casts 'Magic Missile' at you!");
             /*Magic Missile: 3 homing missiles, 1d4+1 force damage each,
-             * always hits (no attack roll, no AC). The old code consumed
-             * the slot but never applied ANY damage.*/
+             * always hits (no attack roll, no AC).*/
             int dmg = 0;
             for (int m = 0; m < 3; m++)
                 dmg += rules_roll_dice(1, 4) + 1;
@@ -491,9 +482,7 @@ AINodeStatus ai_void_crawler_behavior(NPC* npc, Client* clients, int num_clients
             if (rand() % 3 == 0) {
                 perform_attack_npc(npc, target, all_npcs);
             } else {
-                /*Mucus ONLY: the old code also called perform_attack_npc
-                 * at the end of this branch, so the boss double-attacked
-                 * every time it chose the mucus option.*/
+                /*Mucus only: this option replaces the melee attack.*/
                 int save_mod = rules_get_modifier(target->con);
                 bool saved = rules_roll_save(save_mod, 14, false, false, NULL);
                 if (!saved) {

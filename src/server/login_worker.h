@@ -21,8 +21,8 @@
  * Login worker: the slow half of a login, off the game loop.
  *
  * Argon2id is deliberately expensive (tens of milliseconds per hash, see
- * auth.h) and reading a save touches the disk; both used to run inside a
- * game tick. A login is now split in two:
+ * auth.h) and reading a save touches the disk: neither may run inside a
+ * game tick. A login is split in two:
  *
  *   main loop   login_begin: cheap checks (gate password, username
  *               policy, one session per character, DM account enabled),

@@ -23,9 +23,7 @@
 #include <string.h>
 
 /*--- Flush/rotation policy --------------------------------------------
- * The log used to fflush() after EVERY event (one write() syscall per
- * hit/save/death/spell — hundreds per second in a busy dungeon) and
- * never rotated (a single long session produced a 92 MB file). Now:
+ * A busy dungeon logs hundreds of events per second, so:
  *   - the buffer is flushed at most every CLOG_FLUSH_EVERY events OR
  *     every second, whichever comes first (crash loss is bounded by
  *     ~1 s of events, not the whole session);
@@ -51,11 +49,10 @@ static long long clog_now_ms(void) {
     return (long long)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
 }
 
-/*Write a JSON string VALUE (quotes included) with proper escaping (M3):
- * monster names come from bestiary.json, which users extend by design —
- * a name containing " or \ interpolated raw used to corrupt the whole
- * log. Control characters (< 0x20) become \u00XX, so the file is
- * always valid JSON/UTF-8 no matter what the data sets contain.*/
+/*Write a JSON string VALUE (quotes included) with proper escaping:
+ * monster names come from bestiary.json, which users extend by design,
+ * and may contain " or \. Control characters (< 0x20) become \u00XX, so
+ * the file is always valid JSON/UTF-8 whatever the data sets contain.*/
 static void write_json_string(const char *s) {
     const unsigned char *p = (const unsigned char *)(s ? s : "?");
     fputc('"', g_log_file);

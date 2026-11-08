@@ -312,10 +312,9 @@ static void spawn_traps_on_floor(Floor *f) {
 }
 
 void world_init(World* world) {
-    /*NOTE: no srand() here. The RNG is seeded once at process start in
-     * main() (server) so dice stay non-deterministic across reboots even
-     * when a world is loaded from disk (old code seeded only on fresh
-     * generation, leaving the default seed 1 after every reboot).*/
+    /*No srand() here: the server seeds the RNG once at process start, so
+     * dice stay unpredictable across restarts even when a world is loaded
+     * from disk.*/
     for (int i = 0; i < MAX_FLOORS; i++) {
         world->floors[i].id = i;
         VoxelType base = (i == 0) ? VOXEL_GRASS : VOXEL_ROCK;
@@ -742,252 +741,259 @@ static void spawn_veins(Map* map, int floor_id) {
     }
 }
 
+/*Floor 0: the city. The square and its fountain, the class temples, the
+ * ring of 11 shops (the server computes their doors the same way, see
+ * update_city_doors) and the stairs down.*/
+static void generate_city(Map *map) {
+    int cx = MAP_CENTER_X;
+    int cy = MAP_CENTER_Y;
+
+    //General grass background
+    map_fill_rect(map, 0, 0, MAP_WIDTH, MAP_HEIGHT, VOXEL_GRASS);
+
+    //Paths to the cardinal points (leaving the square)
+    map_fill_rect(map, cx - 3, 0, 7, MAP_HEIGHT, VOXEL_MARBLE);
+    map_fill_rect(map, 0, cy - 3, MAP_WIDTH, 7, VOXEL_MARBLE);
+    map_fill_rect(map, cx - 2, 0, 5, MAP_HEIGHT, VOXEL_COBBLE);
+    map_fill_rect(map, 0, cy - 2, MAP_WIDTH, 5, VOXEL_COBBLE);
+
+    //Let's draw a magnificent circular square
+    int R_MARBLE = 36;
+    int R_COBBLE = 34;
+    int R_WATER = 9;
+
+    for (int y = cy - R_MARBLE; y <= cy + R_MARBLE; y++) {
+        for (int x = cx - R_MARBLE; x <= cx + R_MARBLE; x++) {
+            float dx = (float)(x - cx);
+            float dy = (float)(y - cy);
+            float dist = sqrtf(dx*dx + dy*dy);
+
+            if (dist <= R_WATER) {
+                map->data[0][y][x] = VOXEL_WATER; // Fontana centrale
+            } else if (dist <= R_WATER + 2.0f) {
+                map->data[0][y][x] = VOXEL_ICE; //Fountain edge in blue ice
+            } else if (dist <= R_COBBLE) {
+                //Mixed pattern for the square
+                if (((int)dist) % 4 == 0) {
+                    map->data[0][y][x] = VOXEL_MARBLE;
+                } else {
+                    map->data[0][y][x] = VOXEL_COBBLE;
+                }
+            } else if (dist <= R_MARBLE) {
+                map->data[0][y][x] = VOXEL_MARBLE; //External edge of the square
+            }
+        }
+    }
+
+    //Decorations: Crystals at the corners of the fountain
+    map_fill_rect(map, cx - 11, cy - 11, 2, 2, VOXEL_CRYSTAL_BLUE);
+    map_fill_rect(map, cx + 10, cy - 11, 2, 2, VOXEL_CRYSTAL_BLUE);
+    map_fill_rect(map, cx - 11, cy + 10, 2, 2, VOXEL_CRYSTAL_BLUE);
+    map_fill_rect(map, cx + 10, cy + 10, 2, 2, VOXEL_CRYSTAL_BLUE);
+
+    //Temple of the Wizard (North) - BLUE Crystal
+    map_fill_rect(map, 145, 101, 11, 11, VOXEL_ROCK);
+    map_fill_rect(map, 146, 102, 9, 9, VOXEL_MARBLE);
+    map_fill_rect(map, 149, 105, 3, 3, VOXEL_CRYSTAL_BLUE);
+    map->data[0][111][150] = VOXEL_DOOR;
+
+    //Paladin Temple (Northeast) - YELLOW Crystal
+    map_fill_rect(map, 176, 113, 11, 11, VOXEL_ROCK);
+    map_fill_rect(map, 177, 114, 9, 9, VOXEL_MARBLE);
+    map_fill_rect(map, 180, 117, 3, 3, VOXEL_CRYSTAL_YELLOW);
+    map->data[0][123][181] = VOXEL_DOOR;
+
+    //Cleric Temple (East) - WHITE Crystal
+    map_fill_rect(map, 189, 145, 11, 11, VOXEL_ROCK);
+    map_fill_rect(map, 190, 146, 9, 9, VOXEL_MARBLE);
+    map_fill_rect(map, 193, 149, 3, 3, VOXEL_CRYSTAL_WHITE);
+    map->data[0][150][189] = VOXEL_DOOR;
+
+    // Tempio dello Stregone (Sud-Est) - Cristallo ROSSO
+    map_fill_rect(map, 176, 176, 11, 11, VOXEL_ROCK);
+    map_fill_rect(map, 177, 177, 9, 9, VOXEL_MARBLE);
+    map_fill_rect(map, 180, 180, 3, 3, VOXEL_CRYSTAL_RED);
+    map->data[0][181][176] = VOXEL_DOOR;
+
+    //Warlock Temple (South) - PURPLE Crystal
+    map_fill_rect(map, 145, 189, 11, 11, VOXEL_ROCK);
+    map_fill_rect(map, 146, 190, 9, 9, VOXEL_MARBLE);
+    map_fill_rect(map, 149, 193, 3, 3, VOXEL_CRYSTAL_PURPLE);
+    map->data[0][189][150] = VOXEL_DOOR;
+
+    // Bard's Temple (South-West) - ORANGE Crystal
+    map_fill_rect(map, 113, 176, 11, 11, VOXEL_ROCK);
+    map_fill_rect(map, 114, 177, 9, 9, VOXEL_WOOD);
+    map_fill_rect(map, 117, 180, 3, 3, VOXEL_CRYSTAL_ORANGE);
+    map->data[0][181][123] = VOXEL_DOOR;
+
+    // Druid's Temple (West) - GREEN Crystal
+    map_fill_rect(map, 101, 145, 11, 11, VOXEL_ROCK);
+    map_fill_rect(map, 102, 146, 9, 9, VOXEL_GRASS);
+    map_fill_rect(map, 105, 149, 3, 3, VOXEL_CRYSTAL_GREEN);
+    map->data[0][150][111] = VOXEL_DOOR;
+
+    // Ranger's Temple (Northwest) - CYAN Crystal
+    map_fill_rect(map, 113, 113, 11, 11, VOXEL_ROCK);
+    map_fill_rect(map, 114, 114, 9, 9, VOXEL_WOOD);
+    map_fill_rect(map, 117, 117, 3, 3, VOXEL_CRYSTAL_CYAN);
+    map->data[0][118][123] = VOXEL_DOOR;
+
+    // === MARTIAL TEMPLES (Outer Ring, r=78) ===
+    // Positioned on the 4 cardinal directions, outside the magic temples ring (r=44).
+    // Each dojo: 11x11 temple with its class crystal altar.
+    // The dedicated fountain of each class lives on the extra outer
+    // ring defined below (fountains r=97); the statue ring (r=90)
+    // remains the outermost crystal circle of the dojos.
+
+    // Gladiator's Arena (Fighter, North, r=78) - COBBLE Floor, ORANGE Crystal
+    // Centered on the north axis x=150 (temple x145..155), in symmetry
+    // with the other three outer-ring dojos.
+    map_fill_rect(map, 145,  67, 11, 11, VOXEL_ROCK);
+    map_fill_rect(map, 146,  68,  9,  9, VOXEL_COBBLE);
+    map_fill_rect(map, 149,  71,  3,  3, VOXEL_CRYSTAL_ORANGE);
+    map->data[0][77][150] = VOXEL_DOOR; // Door on the south wall (perimeter)
+    // Fighter's Statue (first outer ring, r=90)
+    map_fill_rect(map, 149,  59,  3,  3, VOXEL_CRYSTAL_ORANGE);
+
+    // Fighting Pit (Barbarian, East, r=78) - GRASS floor, RED crystal
+    map_fill_rect(map, 223, 145, 11, 11, VOXEL_ROCK);
+    map_fill_rect(map, 224, 146,  9,  9, VOXEL_GRASS);
+    map_fill_rect(map, 227, 149,  3,  3, VOXEL_CRYSTAL_RED);
+    map->data[0][150][223] = VOXEL_DOOR; // Door on the west wall (perimeter)
+    // Barbarian's Statue (first outer ring, r=90)
+    map_fill_rect(map, 239, 149,  3,  3, VOXEL_CRYSTAL_RED);
+
+    // Den of Shadows (Rogue, South, r=78) - WOOD floor, PURPLE crystal
+    map_fill_rect(map, 145, 223, 11, 11, VOXEL_ROCK);
+    map_fill_rect(map, 146, 224,  9,  9, VOXEL_WOOD);
+    map_fill_rect(map, 149, 227,  3,  3, VOXEL_CRYSTAL_PURPLE);
+    map->data[0][223][150] = VOXEL_DOOR; // Door on the north wall (perimeter)
+    // Rogue's Statue (first outer ring, r=90)
+    map_fill_rect(map, 149, 239,  3,  3, VOXEL_CRYSTAL_PURPLE);
+
+    // Lotus Dojo (Monk, West, r=78) - WOOD floor, WHITE crystal
+    map_fill_rect(map,  67, 145, 11, 11, VOXEL_ROCK);
+    map_fill_rect(map,  68, 146,  9,  9, VOXEL_WOOD);
+    map_fill_rect(map,  71, 149,  3,  3, VOXEL_CRYSTAL_WHITE);
+    map->data[0][150][77] = VOXEL_DOOR; // Door on the east wall (perimeter)
+    // Monk's Statue (first outer ring, r=90)
+    map_fill_rect(map,  59, 149,  3,  3, VOXEL_CRYSTAL_WHITE);
+
+    // === MARTIAL FOUNTAINS (r=97) ===
+    // One extra outer ring, one fountain per cardinal direction,
+    // aligned with the dojos (r=78) and the statue ring (r=90).
+    // Fountain: 5x5 thematic border + 3x3 water.
+    //
+    //   Fighter (N):   fountain (150,53)   ORANGE
+    //   Barbarian (E): fountain (247,150)  RED
+    //   Rogue (S):     fountain (150,247)  PURPLE
+    //   Monk (W):      fountain (53,150)   WHITE
+
+    // Fighter's Fountain (North)
+    map_fill_rect(map, 148,  51,  5,  5, VOXEL_MARBLE);
+    map_fill_rect(map, 149,  52,  3,  3, VOXEL_WATER);
+
+    // Barbarian's Fountain (East)
+    map_fill_rect(map, 245, 148,  5,  5, VOXEL_COBBLE);
+    map_fill_rect(map, 246, 149,  3,  3, VOXEL_WATER);
+
+    // Rogue's Fountain (South)
+    map_fill_rect(map, 148, 245,  5,  5, VOXEL_ASH);
+    map_fill_rect(map, 149, 246,  3,  3, VOXEL_WATER);
+
+    // Monk's Fountain (West)
+    map_fill_rect(map,  51, 148,  5,  5, VOXEL_MARBLE);
+    map_fill_rect(map,  52, 149,  3,  3, VOXEL_WATER);
+
+    // === FOUNTAINS AND STATUES === //
+    // Wizard — fountain (150,91) statue (150,85) OK
+    map_fill_rect(map, 148, 89, 5, 5, VOXEL_MARBLE);
+    map_fill_rect(map, 149, 90, 3, 3, VOXEL_WATER);
+    map_fill_rect(map, 149, 84, 3, 3, VOXEL_CRYSTAL_BLUE);
+
+    // Paladin — fountain (191,108) statue (195,104) OK
+    map_fill_rect(map, 189, 106, 5, 5, VOXEL_COBBLE);
+    map_fill_rect(map, 190, 107, 3, 3, VOXEL_WATER);
+    map_fill_rect(map, 194, 103, 3, 3, VOXEL_CRYSTAL_YELLOW);
+
+    // Cleric — fountain (209,150) statue (215,150) OK
+    map_fill_rect(map, 207, 148, 5, 5, VOXEL_ICE);
+    map_fill_rect(map, 208, 149, 3, 3, VOXEL_WATER);
+    map_fill_rect(map, 214, 149, 3, 3, VOXEL_CRYSTAL_WHITE);
+
+    // Sorcerer — fountain (191,191) statue (195,195) OK
+    map_fill_rect(map, 189, 189, 5, 5, VOXEL_OBSIDIAN);
+    map_fill_rect(map, 190, 190, 3, 3, VOXEL_WATER);
+    map_fill_rect(map, 194, 194, 3, 3, VOXEL_CRYSTAL_RED);
+
+    // Warlock — fountain (150,209) statue (150,215) OK
+    map_fill_rect(map, 148, 207, 5, 5, VOXEL_ASH);
+    map_fill_rect(map, 149, 208, 3, 3, VOXEL_WATER);
+    map_fill_rect(map, 149, 214, 3, 3, VOXEL_CRYSTAL_PURPLE);
+
+    // Bard — fountain (108,191) statue (104,195) OK
+    map_fill_rect(map, 106, 189, 5, 5, VOXEL_WOOD);
+    map_fill_rect(map, 107, 190, 3, 3, VOXEL_WATER);
+    map_fill_rect(map, 103, 194, 3, 3, VOXEL_CRYSTAL_ORANGE);
+
+    // Druid — fountain (91,150) statue (85,150) OK
+    map_fill_rect(map, 89, 148, 5, 5, VOXEL_SAND);
+    map_fill_rect(map, 90, 149, 3, 3, VOXEL_WATER);
+    map_fill_rect(map, 84, 149, 3, 3, VOXEL_CRYSTAL_GREEN);
+
+    // Ranger — fountain (108,108) statue (104,104) OK
+    map_fill_rect(map, 106, 106, 5, 5, VOXEL_GOLD_VEIN);
+    map_fill_rect(map, 107, 107, 3, 3, VOXEL_WATER);
+    map_fill_rect(map, 103, 103, 3, 3, VOXEL_CRYSTAL_CYAN);
+
+
+    //Positioning of the 11 city stores in a circle (radius 26).
+    //Slot i sits at angle i * (360/11) degrees, so the ring stays
+    //perfectly symmetric. Slot 10 is The Archive of a Thousand Battles
+    //(martial bookshop, see spawn_martial_archive in server_spawn.c).
+    int shop_coords[11][2];
+    for (int i = 0; i < 11; i++) {
+        float angle = (i * (360.0f / 11.0f)) * (M_PI / 180.0f);
+        shop_coords[i][0] = cx + (int)(cosf(angle) * 26.0f);
+        shop_coords[i][1] = cy + (int)(sinf(angle) * 26.0f);
+    }
+
+    // Construction of the 11 buildings
+    for (int i = 0; i < 11; i++) {
+        int sx = shop_coords[i][0];
+        int sy = shop_coords[i][1];
+
+        // 9x9 external walls (rocks)
+        map_fill_rect(map, sx - 4, sy - 4, 9, 9, VOXEL_ROCK);
+        //Internal floor 7x7
+        map_fill_rect(map, sx - 3, sy - 3, 7, 7, VOXEL_WOOD);
+        //Merchant's chest (Decorative ash block inside)
+        map_fill_rect(map, sx - 1, sy - 1, 3, 2, VOXEL_ASH);
+
+        //Door looking towards the center (cx, cy)
+        float dx = cx - sx;
+        float dy = cy - sy;
+        if (fabsf(dx) > fabsf(dy)) {
+            if (dx > 0) map->data[0][sy][sx + 4] = VOXEL_DOOR; // Est
+            else        map->data[0][sy][sx - 4] = VOXEL_DOOR; // Ovest
+        } else {
+            if (dy > 0) map->data[0][sy + 4][sx] = VOXEL_DOOR; // Sud
+            else        map->data[0][sy - 4][sx] = VOXEL_DOOR; // Nord
+        }
+    }
+
+    //Central island safe for stairs
+    map_fill_rect(map, cx - 2, cy - 2, 5, 5, VOXEL_MARBLE);
+    map_fill_rect(map, cx - 1, cy - 1, 3, 3, VOXEL_COBBLE);
+
+    //Stairs in the exact center of the map
+    map->data[0][cy][cx] = VOXEL_STAIRS_DOWN;
+}
+
 void generate_procedural_dungeon(Map* map, int floor_id) {
     if (floor_id == 0) {
-        int cx = MAP_CENTER_X;
-        int cy = MAP_CENTER_Y;
-        
-        //General grass background
-        map_fill_rect(map, 0, 0, MAP_WIDTH, MAP_HEIGHT, VOXEL_GRASS);
-
-        //Paths to the cardinal points (leaving the square)
-        map_fill_rect(map, cx - 3, 0, 7, MAP_HEIGHT, VOXEL_MARBLE);
-        map_fill_rect(map, 0, cy - 3, MAP_WIDTH, 7, VOXEL_MARBLE);
-        map_fill_rect(map, cx - 2, 0, 5, MAP_HEIGHT, VOXEL_COBBLE);
-        map_fill_rect(map, 0, cy - 2, MAP_WIDTH, 5, VOXEL_COBBLE);
-
-        //Let's draw a magnificent circular square
-        int R_MARBLE = 36;
-        int R_COBBLE = 34;
-        int R_WATER = 9;
-        
-        for (int y = cy - R_MARBLE; y <= cy + R_MARBLE; y++) {
-            for (int x = cx - R_MARBLE; x <= cx + R_MARBLE; x++) {
-                float dx = (float)(x - cx);
-                float dy = (float)(y - cy);
-                float dist = sqrtf(dx*dx + dy*dy);
-                
-                if (dist <= R_WATER) {
-                    map->data[0][y][x] = VOXEL_WATER; // Fontana centrale
-                } else if (dist <= R_WATER + 2.0f) {
-                    map->data[0][y][x] = VOXEL_ICE; //Fountain edge in blue ice
-                } else if (dist <= R_COBBLE) {
-                    //Mixed pattern for the square
-                    if (((int)dist) % 4 == 0) {
-                        map->data[0][y][x] = VOXEL_MARBLE;
-                    } else {
-                        map->data[0][y][x] = VOXEL_COBBLE;
-                    }
-                } else if (dist <= R_MARBLE) {
-                    map->data[0][y][x] = VOXEL_MARBLE; //External edge of the square
-                }
-            }
-        }
-
-        //Decorations: Crystals at the corners of the fountain
-        map_fill_rect(map, cx - 11, cy - 11, 2, 2, VOXEL_CRYSTAL_BLUE);
-        map_fill_rect(map, cx + 10, cy - 11, 2, 2, VOXEL_CRYSTAL_BLUE);
-        map_fill_rect(map, cx - 11, cy + 10, 2, 2, VOXEL_CRYSTAL_BLUE);
-        map_fill_rect(map, cx + 10, cy + 10, 2, 2, VOXEL_CRYSTAL_BLUE);
-
-        //Temple of the Wizard (North) - BLUE Crystal
-        map_fill_rect(map, 145, 101, 11, 11, VOXEL_ROCK);
-        map_fill_rect(map, 146, 102, 9, 9, VOXEL_MARBLE);
-        map_fill_rect(map, 149, 105, 3, 3, VOXEL_CRYSTAL_BLUE);
-        map->data[0][111][150] = VOXEL_DOOR;
-
-        //Paladin Temple (Northeast) - YELLOW Crystal
-        map_fill_rect(map, 176, 113, 11, 11, VOXEL_ROCK);
-        map_fill_rect(map, 177, 114, 9, 9, VOXEL_MARBLE);
-        map_fill_rect(map, 180, 117, 3, 3, VOXEL_CRYSTAL_YELLOW);
-        map->data[0][123][181] = VOXEL_DOOR;
-
-        //Cleric Temple (East) - WHITE Crystal
-        map_fill_rect(map, 189, 145, 11, 11, VOXEL_ROCK);
-        map_fill_rect(map, 190, 146, 9, 9, VOXEL_MARBLE);
-        map_fill_rect(map, 193, 149, 3, 3, VOXEL_CRYSTAL_WHITE);
-        map->data[0][150][189] = VOXEL_DOOR;
-
-        // Tempio dello Stregone (Sud-Est) - Cristallo ROSSO
-        map_fill_rect(map, 176, 176, 11, 11, VOXEL_ROCK);
-        map_fill_rect(map, 177, 177, 9, 9, VOXEL_MARBLE);
-        map_fill_rect(map, 180, 180, 3, 3, VOXEL_CRYSTAL_RED);
-        map->data[0][181][176] = VOXEL_DOOR;
-
-        //Warlock Temple (South) - PURPLE Crystal
-        map_fill_rect(map, 145, 189, 11, 11, VOXEL_ROCK);
-        map_fill_rect(map, 146, 190, 9, 9, VOXEL_MARBLE);
-        map_fill_rect(map, 149, 193, 3, 3, VOXEL_CRYSTAL_PURPLE);
-        map->data[0][189][150] = VOXEL_DOOR;
-
-        // Bard's Temple (South-West) - ORANGE Crystal
-        map_fill_rect(map, 113, 176, 11, 11, VOXEL_ROCK);
-        map_fill_rect(map, 114, 177, 9, 9, VOXEL_WOOD);
-        map_fill_rect(map, 117, 180, 3, 3, VOXEL_CRYSTAL_ORANGE);
-        map->data[0][181][123] = VOXEL_DOOR;
-
-        // Druid's Temple (West) - GREEN Crystal
-        map_fill_rect(map, 101, 145, 11, 11, VOXEL_ROCK);
-        map_fill_rect(map, 102, 146, 9, 9, VOXEL_GRASS);
-        map_fill_rect(map, 105, 149, 3, 3, VOXEL_CRYSTAL_GREEN);
-        map->data[0][150][111] = VOXEL_DOOR;
-
-        // Ranger's Temple (Northwest) - CYAN Crystal
-        map_fill_rect(map, 113, 113, 11, 11, VOXEL_ROCK);
-        map_fill_rect(map, 114, 114, 9, 9, VOXEL_WOOD);
-        map_fill_rect(map, 117, 117, 3, 3, VOXEL_CRYSTAL_CYAN);
-        map->data[0][118][123] = VOXEL_DOOR;
-
-        // === MARTIAL TEMPLES (Outer Ring, r=78) ===
-        // Positioned on the 4 cardinal directions, outside the magic temples ring (r=44).
-        // Each dojo: 11x11 temple with its class crystal altar.
-        // The dedicated fountain of each class lives on the extra outer
-        // ring defined below (fountains r=97); the statue ring (r=90)
-        // remains the outermost crystal circle of the dojos.
-
-        // Gladiator's Arena (Fighter, North, r=78) - COBBLE Floor, ORANGE Crystal
-        // Centered on the north axis x=150 (temple x145..155), in symmetry
-        // with the other three outer-ring dojos.
-        map_fill_rect(map, 145,  67, 11, 11, VOXEL_ROCK);
-        map_fill_rect(map, 146,  68,  9,  9, VOXEL_COBBLE);
-        map_fill_rect(map, 149,  71,  3,  3, VOXEL_CRYSTAL_ORANGE);
-        map->data[0][77][150] = VOXEL_DOOR; // Door on the south wall (perimeter)
-        // Fighter's Statue (first outer ring, r=90)
-        map_fill_rect(map, 149,  59,  3,  3, VOXEL_CRYSTAL_ORANGE);
-
-        // Fighting Pit (Barbarian, East, r=78) - GRASS floor, RED crystal
-        map_fill_rect(map, 223, 145, 11, 11, VOXEL_ROCK);
-        map_fill_rect(map, 224, 146,  9,  9, VOXEL_GRASS);
-        map_fill_rect(map, 227, 149,  3,  3, VOXEL_CRYSTAL_RED);
-        map->data[0][150][223] = VOXEL_DOOR; // Door on the west wall (perimeter)
-        // Barbarian's Statue (first outer ring, r=90)
-        map_fill_rect(map, 239, 149,  3,  3, VOXEL_CRYSTAL_RED);
-
-        // Den of Shadows (Rogue, South, r=78) - WOOD floor, PURPLE crystal
-        map_fill_rect(map, 145, 223, 11, 11, VOXEL_ROCK);
-        map_fill_rect(map, 146, 224,  9,  9, VOXEL_WOOD);
-        map_fill_rect(map, 149, 227,  3,  3, VOXEL_CRYSTAL_PURPLE);
-        map->data[0][223][150] = VOXEL_DOOR; // Door on the north wall (perimeter)
-        // Rogue's Statue (first outer ring, r=90)
-        map_fill_rect(map, 149, 239,  3,  3, VOXEL_CRYSTAL_PURPLE);
-
-        // Lotus Dojo (Monk, West, r=78) - WOOD floor, WHITE crystal
-        map_fill_rect(map,  67, 145, 11, 11, VOXEL_ROCK);
-        map_fill_rect(map,  68, 146,  9,  9, VOXEL_WOOD);
-        map_fill_rect(map,  71, 149,  3,  3, VOXEL_CRYSTAL_WHITE);
-        map->data[0][150][77] = VOXEL_DOOR; // Door on the east wall (perimeter)
-        // Monk's Statue (first outer ring, r=90)
-        map_fill_rect(map,  59, 149,  3,  3, VOXEL_CRYSTAL_WHITE);
-
-        // === MARTIAL FOUNTAINS (r=97) ===
-        // One extra outer ring, one fountain per cardinal direction,
-        // aligned with the dojos (r=78) and the statue ring (r=90).
-        // Fountain: 5x5 thematic border + 3x3 water.
-        //
-        //   Fighter (N):   fountain (150,53)   ORANGE
-        //   Barbarian (E): fountain (247,150)  RED
-        //   Rogue (S):     fountain (150,247)  PURPLE
-        //   Monk (W):      fountain (53,150)   WHITE
-
-        // Fighter's Fountain (North)
-        map_fill_rect(map, 148,  51,  5,  5, VOXEL_MARBLE);
-        map_fill_rect(map, 149,  52,  3,  3, VOXEL_WATER);
-
-        // Barbarian's Fountain (East)
-        map_fill_rect(map, 245, 148,  5,  5, VOXEL_COBBLE);
-        map_fill_rect(map, 246, 149,  3,  3, VOXEL_WATER);
-
-        // Rogue's Fountain (South)
-        map_fill_rect(map, 148, 245,  5,  5, VOXEL_ASH);
-        map_fill_rect(map, 149, 246,  3,  3, VOXEL_WATER);
-
-        // Monk's Fountain (West)
-        map_fill_rect(map,  51, 148,  5,  5, VOXEL_MARBLE);
-        map_fill_rect(map,  52, 149,  3,  3, VOXEL_WATER);
-
-        // === FOUNTAINS AND STATUES === //
-        // Wizard — fountain (150,91) statue (150,85) OK
-        map_fill_rect(map, 148, 89, 5, 5, VOXEL_MARBLE);
-        map_fill_rect(map, 149, 90, 3, 3, VOXEL_WATER);
-        map_fill_rect(map, 149, 84, 3, 3, VOXEL_CRYSTAL_BLUE);
-
-        // Paladin — fountain (191,108) statue (195,104) OK
-        map_fill_rect(map, 189, 106, 5, 5, VOXEL_COBBLE);
-        map_fill_rect(map, 190, 107, 3, 3, VOXEL_WATER);
-        map_fill_rect(map, 194, 103, 3, 3, VOXEL_CRYSTAL_YELLOW);
-
-        // Cleric — fountain (209,150) statue (215,150) OK
-        map_fill_rect(map, 207, 148, 5, 5, VOXEL_ICE);
-        map_fill_rect(map, 208, 149, 3, 3, VOXEL_WATER);
-        map_fill_rect(map, 214, 149, 3, 3, VOXEL_CRYSTAL_WHITE);
-
-        // Sorcerer — fountain (191,191) statue (195,195) OK
-        map_fill_rect(map, 189, 189, 5, 5, VOXEL_OBSIDIAN);
-        map_fill_rect(map, 190, 190, 3, 3, VOXEL_WATER);
-        map_fill_rect(map, 194, 194, 3, 3, VOXEL_CRYSTAL_RED);
-
-        // Warlock — fountain (150,209) statue (150,215) OK
-        map_fill_rect(map, 148, 207, 5, 5, VOXEL_ASH);
-        map_fill_rect(map, 149, 208, 3, 3, VOXEL_WATER);
-        map_fill_rect(map, 149, 214, 3, 3, VOXEL_CRYSTAL_PURPLE);
-
-        // Bard — fountain (108,191) statue (104,195) OK
-        map_fill_rect(map, 106, 189, 5, 5, VOXEL_WOOD);
-        map_fill_rect(map, 107, 190, 3, 3, VOXEL_WATER);
-        map_fill_rect(map, 103, 194, 3, 3, VOXEL_CRYSTAL_ORANGE);
-
-        // Druid — fountain (91,150) statue (85,150) OK
-        map_fill_rect(map, 89, 148, 5, 5, VOXEL_SAND);
-        map_fill_rect(map, 90, 149, 3, 3, VOXEL_WATER);
-        map_fill_rect(map, 84, 149, 3, 3, VOXEL_CRYSTAL_GREEN);
-
-        // Ranger — fountain (108,108) statue (104,104) OK
-        map_fill_rect(map, 106, 106, 5, 5, VOXEL_GOLD_VEIN);
-        map_fill_rect(map, 107, 107, 3, 3, VOXEL_WATER);
-        map_fill_rect(map, 103, 103, 3, 3, VOXEL_CRYSTAL_CYAN);
-
-
-        //Positioning of the 11 city stores in a circle (radius 26).
-        //Slot i sits at angle i * (360/11) degrees, so the ring stays
-        //perfectly symmetric. Slot 10 is The Archive of a Thousand Battles
-        //(martial bookshop, see spawn_martial_archive in server_spawn.c).
-        int shop_coords[11][2];
-        for (int i = 0; i < 11; i++) {
-            float angle = (i * (360.0f / 11.0f)) * (M_PI / 180.0f);
-            shop_coords[i][0] = cx + (int)(cosf(angle) * 26.0f);
-            shop_coords[i][1] = cy + (int)(sinf(angle) * 26.0f);
-        }
-
-        // Construction of the 11 buildings
-        for (int i = 0; i < 11; i++) {
-            int sx = shop_coords[i][0];
-            int sy = shop_coords[i][1];
-            
-            // 9x9 external walls (rocks)
-            map_fill_rect(map, sx - 4, sy - 4, 9, 9, VOXEL_ROCK);
-            //Internal floor 7x7
-            map_fill_rect(map, sx - 3, sy - 3, 7, 7, VOXEL_WOOD);
-            //Merchant's chest (Decorative ash block inside)
-            map_fill_rect(map, sx - 1, sy - 1, 3, 2, VOXEL_ASH);
-            
-            //Door looking towards the center (cx, cy)
-            float dx = cx - sx;
-            float dy = cy - sy;
-            if (fabsf(dx) > fabsf(dy)) {
-                if (dx > 0) map->data[0][sy][sx + 4] = VOXEL_DOOR; // Est
-                else        map->data[0][sy][sx - 4] = VOXEL_DOOR; // Ovest
-            } else {
-                if (dy > 0) map->data[0][sy + 4][sx] = VOXEL_DOOR; // Sud
-                else        map->data[0][sy - 4][sx] = VOXEL_DOOR; // Nord
-            }
-        }
-
-        //Central island safe for stairs
-        map_fill_rect(map, cx - 2, cy - 2, 5, 5, VOXEL_MARBLE);
-        map_fill_rect(map, cx - 1, cy - 1, 3, 3, VOXEL_COBBLE);
-        
-        //Stairs in the exact center of the map
-        map->data[0][cy][cx] = VOXEL_STAIRS_DOWN;
+        generate_city(map);
         return;
     }
     if (floor_id == 20) { /*... BOSS ...*/ return; }

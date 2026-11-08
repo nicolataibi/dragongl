@@ -174,7 +174,7 @@ static void on_state(const MsgState *s) {
                 slot->floor_id = -1;
             }
         } else {
-            /*FEATURE LIMIT (L5, see CLIENT_MAX_ENTITIES in client_state.h):
+            /*FEATURE LIMIT (see CLIENT_MAX_ENTITIES in client_state.h):
              * with every cache slot in use a new entity is not drawn on
              * this client. The cache is flushed on every floor change.*/
             for (int i = 0; !slot && i < CLIENT_MAX_ENTITIES; i++)

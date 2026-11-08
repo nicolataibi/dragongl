@@ -271,13 +271,10 @@ void broadcast_spell_vfx(int sx, int sy, int tx, int ty, int vfx_type, float r, 
 static uint8_t g_client_seen_entities[MAX_CLIENTS][MAX_NPCS / 8];
 static int     g_client_seen_floor[MAX_CLIENTS]; /*floor+1, 0 = empty*/
 
-/*--- Per-client "seen PLAYERS" bitmap (L9) ---------------------------
- * broadcast_player_state() used to ship a ~1 KB full MsgState to EVERY
- * player on the floor on EVERY step: 60 players on one plane meant
- * ~60 KB per single step, mostly redundant (the client already knows
- * the player's identity — it only needs x/y/hp). Players now ride the
- * SAME compact path as NPCs: a full MsgState the first time a given
- * client sees a given player, then 12-byte EntityUpdateRec records.
+/*--- Per-client "seen PLAYERS" bitmap --------------------------------
+ * Players ride the same compact path as NPCs: a full MsgState (~1 KB) the
+ * first time a client sees a given player, then 12-byte EntityUpdateRec
+ * records with x/y/hp on every step.
  * Player IDs are positive and unique exactly like NPC IDs (the same
  * next_id counter), and the client's MSG_ENTITY_UPDATE handler updates
  * any known id, so no protocol change is needed.
@@ -389,15 +386,10 @@ void broadcast_nearby_entities(Client *c, NPC *npcs) {
   EntityUpdateRec recs[BATCH_ENTITY_CAP];
   int nrec = 0;
 
-  int idx_n = 0;
-  const int *fidx = floor_index_for(c->floor_id, &idx_n);
-  int n_slots = (fidx != NULL) ? idx_n : MAX_NPCS;
-
   /*--- Active NPCs ---*/
-  for (int k = 0; k < n_slots; k++) {
-    int i = (fidx != NULL) ? fidx[k] : k;
+  FloorIter walk = floor_iter(npcs, c->floor_id);
+  for (int i; (i = floor_iter_next(&walk)) >= 0;) {
     const NPC *n = &npcs[i];
-    if (!n->active || n->floor_id != c->floor_id) continue; /*stale index entry*/
     int ddx = n->x - c->x;
     int ddy = n->y - c->y;
     if (ddx * ddx + ddy * ddy > r2) continue;
@@ -412,7 +404,7 @@ void broadcast_nearby_entities(Client *c, NPC *npcs) {
       recs[nrec].entity_id = n->entity_id;
       recs[nrec].x = (int16_t)n->x;
       recs[nrec].y = (int16_t)n->y;
-      recs[nrec].hp = n->hp; /*int32_t: boss HP can exceed int16 (M6)*/
+      recs[nrec].hp = n->hp; /*int32_t: boss HP can exceed int16*/
       nrec++;
     }
   }
@@ -446,9 +438,9 @@ void broadcast_nearby_entities(Client *c, NPC *npcs) {
       tx_send(c->sock);
   }
   
-  /*--- Active Players on the same plane (L9: the same compact path as
-   * NPCs — full state only the first time the client sees them, then
-   * 12-byte records — player IDs are positive and unique like NPC IDs) ---*/
+  /*--- Active Players on the same plane: the same compact path as NPCs
+   * (full state only the first time the client sees them, then 12-byte
+   * records; player IDs are positive and unique like NPC IDs) ---*/
   for (int i = 0; i < MAX_CLIENTS; i++) {
     if (g_clients[i].active && g_clients[i].authenticated && g_clients[i].floor_id == c->floor_id) {
       if (g_clients[i].entity_id == c->entity_id) continue;
@@ -511,10 +503,9 @@ void broadcast_player_state(Client *c) {
   int c_idx = (int)(c - g_clients); /*c is always a g_clients member*/
   if (c_idx < 0 || c_idx >= MAX_CLIENTS)
     return;
-  /*Compact record for receivers that ALREADY know this player (L9).
-   * 22 bytes on the wire (8 header + 2 count + 12 record) instead of
-   * the ~1.5 KB full MsgState the old code sent to every player on
-   * the floor on every step.*/
+  /*Compact record for receivers that already know this player: 22 bytes
+   * on the wire (8 header + 2 count + 12 record) instead of a full
+   * MsgState.*/
   EntityUpdateRec rec;
   rec.entity_id = c->entity_id;
   rec.x = (int16_t)c->x;

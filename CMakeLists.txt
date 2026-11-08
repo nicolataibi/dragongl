@@ -126,7 +126,15 @@ if(DRAGONGL_BUILD_SERVER)
         src/server/server_combat.c
         src/server/server_spawn.c
         src/server/server_world.c
+        src/server/server_move.c
         src/server/server_commands.c
+        src/server/cmd_character.c
+        src/server/cmd_social.c
+        src/server/cmd_shop.c
+        src/server/cmd_items.c
+        src/server/cmd_magic.c
+        src/server/cmd_world.c
+        src/server/cmd_dm.c
         src/server/spell_router.c
         src/server/tombstone.c
         ${SHARED_SRCS}

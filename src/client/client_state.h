@@ -27,9 +27,8 @@
 
 /*Client-side entity cache size.
  * NOTE: the server has its OWN MAX_NPCS (50000) in server_entities.h —
- * same name, different meaning, in a different binary. Renamed here to
- * avoid confusion when reading both codebases.
- * FEATURE LIMIT (documented, L5): the cache holds AT MOST 512 entities.
+ * same name, different meaning, in a different binary.
+ * FEATURE LIMIT: the cache holds AT MOST 512 entities.
  * On a crowded plane, NEW entities that arrive while every slot is in
  * use are silently dropped (they simply never render on this client —
  * no error, no log). The whole cache is flushed on floor change, so
@@ -114,22 +113,15 @@ extern int g_log_count;
 
 extern pthread_mutex_t g_state_mutex;
 extern pthread_mutex_t g_net_mutex;
-/*Shared by THREE threads (render loop, net thread, CLI thread): a plain
- * bool written/read across threads is a data race (it "works" in
- * practice, but -fsanitize=thread flags it). It is therefore an atomic
- * (L1). C11 atomics need no special syntax at the use sites:
- * `while (g_running)` is an atomic load, `g_running = false` an atomic
- * store — the only change is the declaration.*/
+/*Shared by THREE threads (render loop, net thread, CLI thread), hence
+ * atomic: `while (g_running)` is an atomic load, `g_running = false` an
+ * atomic store.*/
 extern atomic_bool g_running;
 
 /*Set by the NET thread (under g_state_mutex, and ONLY when a map chunk
- * actually differs from g_local_map) and read/cleared by the VK render
- * thread to trigger the floor-mesh rebuild. A plain bool written by one
- * thread and cleared by another is a data race — and worse, the
- * unsynchronized clear could swallow a concurrent set (lost update),
- * leaving the mesh stale until the NEXT tile change. Atomic, like
- * g_running (L1); the renderer clears it with atomic_exchange so a set
- * can never be lost.*/
+ * actually differs from g_local_map) and read/cleared by the render
+ * thread to rebuild the floor mesh. Atomic; the renderer clears it with
+ * atomic_exchange so a concurrent set is never lost.*/
 extern atomic_bool g_map_dirty;
 
 void client_send_move(int dx, int dy);

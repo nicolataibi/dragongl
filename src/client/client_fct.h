@@ -65,7 +65,7 @@ typedef struct {
 /*Global array of FCTs — read by renderers*/
 extern FloatingText g_fct[FCT_MAX_ENTRIES];
 
-/*THREADING (B1): the pool is shared by the NET thread (fct_combat_event →
+/*THREADING: the pool is shared by the NET thread (fct_combat_event →
  * fct_spawn, called from net_thread.c on MSG_COMBAT_EVENT) and the RENDER
  * thread (fct_update + draw_floating_combat_text_vk). RULE: every access to
  * g_fct[] — spawn, update OR draw — must hold g_fct_mutex (fct_spawn and

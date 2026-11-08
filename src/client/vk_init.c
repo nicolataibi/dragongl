@@ -250,8 +250,8 @@ static bool vk_create_gpd_init(VkState *s) {
         }
     }
 
-    /*Same PushConstants as the legacy pipelines (mvp, visionRadius,
-     * playerX, playerZ, time).*/
+    /*Same push constants as the HUD pipeline (pipeline_layout): mvp,
+     * visionRadius, playerX, playerZ, time.*/
     memset(&pc_range, 0, sizeof(pc_range));
     pc_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
     pc_range.offset = 0;

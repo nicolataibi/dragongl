@@ -109,9 +109,8 @@ void aoe_apply_damage_to_npc(
         npc->respawn_timer = 120; //RESPAWN_TICKS
         int xp_gained    = npc->template ? npc->template->xp : 10;
         caster->xp       += xp_gained;
-        /*A1: a magical kill is a kill — check the level-up immediately,
-         * exactly like the melee path in server_combat.c (the old code
-         * delayed it until the next melee kill or an unrelated command).*/
+        /*A magical kill is a kill: check the level-up now, like the melee
+         * path in server_combat.c.*/
         check_level_up(caster);
         send_text_to_client(caster->sock, kill_msg,
             npc->template ? npc->template->name : "???",

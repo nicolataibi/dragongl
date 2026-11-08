@@ -37,7 +37,7 @@
 /*Pre-allocated global array — zero-initialized (all inactive)*/
 FloatingText g_fct[FCT_MAX_ENTRIES] = {0};
 /*See client_fct.h: guards the pool against the net thread, which spawns
- * concurrently (B1).*/
+ * concurrently.*/
 pthread_mutex_t g_fct_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 /*----------------------------------------------------------------
@@ -148,9 +148,8 @@ void fct_update(float dt) {
 /* ----------------------------------------------------------------
  * fct_combat_event — Floating text for a MSG_COMBAT_EVENT.
  *
- * The server states what happened (protocol.h, CombatEventKind); the
- * client no longer guesses it from the wording of MSG_TEXT lines, which
- * broke whenever a message was reworded or translated.
+ * The server states what happened (protocol.h, CombatEventKind), so a
+ * reworded or translated MSG_TEXT line never changes the floating text.
  *
  * Coordinates are relative to the player (the renderer centers the world
  * on the player): (0,0) on the player, (0,-1) just in front for the

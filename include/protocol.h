@@ -216,10 +216,10 @@ typedef struct {
     int total_turns;
 } MsgTimeSync;
 
-/*MSG_COMBAT_EVENT: what the floating combat text shows. It used to be
- * guessed by matching the English wording of MSG_TEXT lines; now the
- * server says it. entity_id is the entity the number belongs to (the
- * player, or the monster that was hit), 0 if none.*/
+/*MSG_COMBAT_EVENT: what the floating combat text shows, said by the
+ * server (never guessed from the wording of MSG_TEXT lines). entity_id is
+ * the entity the number belongs to (the player, or the monster that was
+ * hit), 0 if none.*/
 typedef enum {
     COMBAT_EV_DAMAGE_TAKEN = 1, /* the player lost `amount` HP */
     COMBAT_EV_DAMAGE_DEALT = 2, /* the player hit a monster for `amount` */

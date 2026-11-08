@@ -1,3 +1,55 @@
+* Sun Nov 08 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.08.13
+- SERVER: text commands are a table. handle_text_cmd() (4,400 lines in
+  one function) is now a COMMANDS[] table in server_commands.c, each row
+  with its exact names and/or prefixes, and one handler per command in
+  one file per group: cmd_character.c, cmd_social.c, cmd_shop.c,
+  cmd_items.c, cmd_magic.c, cmd_world.c, cmd_dm.c (the dm_* commands
+  have their own table and run only for the dm account). The rows keep
+  the old order and first-match rule, so every command parses as before:
+  the bodies were first moved unchanged (checked token by token) and the
+  match rules compared with the old conditions on about a thousand
+  inputs; the changes below came after.
+- SERVER: MSG_MOVE moved out of main() into server_move.c: player_move()
+  with the rate limit and the conditions, bump_into() (merchant, loot,
+  monster, player), pick_up_loot() (gold, ghost, dropped item, chest) and
+  step_onto() (terrain, shop doors, bleeding, tile events, traps). main()
+  is now option parsing, start-up, run_server() and shutdown_server(),
+  with the message dispatch in handle_message()/serve_client().
+- SERVER: O(1) entity lookup. npc_by_entity_id() reads an id -> slot map
+  rebuilt with the floor index (a fresh spawn is found by one scan); a
+  step into a monster, a merchant or loot no longer scans the 50,000 NPC
+  slots.
+- SERVER: the per-floor NPC index is exact and used everywhere. It is
+  kept sorted and npc_set_active() inserts every NPC that becomes
+  active, so floor_iter()/floor_iter_next() return the same NPCs, in
+  the same order, as a scan of all the slots (spawns during the walk
+  included). The merchant, look, examine, get, retrieve, throw, cast
+  auto-target, dm_boss, dm_merchant and dm_shop lookups, the body-swap
+  trap, the boss check of the stairs, the swarm split, the aggro of an
+  attack and the entity broadcast walk only the NPCs of their floor.
+- SERVER: no function longer than 300 lines (the longest was 4,395).
+  update_world() is split into autosave, global event, player round,
+  trap and crystal respawn, NPC round and density monitor; check_traps()
+  into detection, wall traps, saving throw, damage, world effects and
+  re-arming; the item and spell loaders into one parser per item
+  category and per spell field; the city of floor 0 into
+  generate_city(). Same game data (compared field by field) and same
+  maps for the same seed.
+- FIX: 'open <dir>' and 'close <dir>' (and 'o <dir>') work. Only the bare
+  words matched, and they always answered "Use: open <n|s|e|w>". 'c <n>'
+  stays cast.
+- FIX: the 12 class transit cantrips are innate again (known without a
+  book): the loader set the flag and then reset it with the defaults.
+- CODE: comments describe the current code; the history they told
+  (defect ids, old behaviour) is in this changelog. DEVELOPMENT.md
+  documents the server layout, the command table, npc_set_active, the
+  floor walk and the 300-line rule.
+- TESTS: the harness checks the command table (known and unknown
+  commands, DM commands), the doors, the innate spells, the floor walk
+  against a full scan (after spawns and deaths, during a walk, on a
+  floor over the index cap), the entity lookup and player movement
+  (step, wall, rate limit, gold pick-up, merchant).
+
 * Sun Nov 08 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.08.12
 - BUILD: single version source. CMake reads the 'Version:' line of
   dragongl.spec (YYYY.MM.DD.NN, checked) and generates dragongl_config.h

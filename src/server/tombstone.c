@@ -384,14 +384,9 @@ bool tombstone_pickup(Client *c) {
             return false;
         }
 
-        /*A6 — partial recovery is now SAFE. The old code broke out of the
-         *backpack loop when it was full, printed "Some items cannot be
-         *recovered" — and then DELETED the tombstone anyway, so everything
-         *left behind (rest of the backpack, belt, equipment, gold) vanished
-         *forever. Now: every item that is actually transferred is consumed
-         *from the tombstone, and if ANYTHING is left at the end the
-         *tombstone stays active (re-saved to disk) until the player comes
-         *back with space. Nothing can be lost.*/
+        /*Partial recovery: every item actually transferred is taken from the
+         * tombstone; if ANYTHING is left the tombstone stays active
+         * (saved again) until the player comes back with space.*/
 
         /*Recover gold (zero the tombstone's share: a retry must not pay it
          *twice)*/

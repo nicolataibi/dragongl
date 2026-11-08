@@ -77,14 +77,13 @@ char g_eq_ring[10][32] = {{0}};
 char g_eq_belt[4][32] = {{0}};
 char g_log_lines[MAX_LOG_LINES][256];
 int g_log_count = 0;
-/*NOTE: the old `World g_world` client-side copy (~50 MB) was removed:
- * the client renders g_local_map, which the server fills via
- * MSG_MAP_CHUNK — a full local World was never needed.*/
+/*The client holds no World: it renders g_local_map, which the server
+ * fills with MSG_MAP_CHUNK.*/
 TileType g_local_map[MAP_HEIGHT][MAP_WIDTH];
 pthread_mutex_t g_state_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t g_net_mutex = PTHREAD_MUTEX_INITIALIZER;
 /*See the declaration in client_state.h: atomic because the render,
- * net and CLI threads all read/write it (L1).*/
+ * net and CLI threads all read/write it.*/
 atomic_bool g_running = true;
 
 /*See FrameSnapshot in client_state.h: short lock, then the renderers
@@ -196,10 +195,8 @@ int main(int argc, char **argv) {
     /*Writing to a connection the server already closed must fail with
      * EPIPE (detected by the network thread), not kill the client.*/
     signal(SIGPIPE, SIG_IGN);
-    /*The client does NOT generate a world at startup: the old
-     * world_init() built all 101 floors + traps (~73 MB, seconds of CPU)
-     * only to copy floor 0 into g_local_map. The map arrives from the
-     * server as MSG_MAP_CHUNK packets, so start with solid rock.*/
+    /*The client generates no world: the map arrives from the server as
+     * MSG_MAP_CHUNK packets, so start with solid rock.*/
     for (int y = 0; y < MAP_HEIGHT; y++)
         for (int x = 0; x < MAP_WIDTH; x++)
             g_local_map[y][x] = VOXEL_ROCK;
@@ -263,8 +260,7 @@ int main(int argc, char **argv) {
         sscanf(buf, "%d", &is_new);
     }
     /*final_age/height/weight/social: cosmetic flavour rolls only (the
-     * server never uses them; the ability scores are rolled server-side,
-     * M9).*/
+     * server never uses them; the ability scores are rolled server-side).*/
     int final_age=20, final_height=170, final_weight=70, final_social=50;
     char sex_char = 'M';
 
@@ -330,9 +326,8 @@ int main(int argc, char **argv) {
         g_class_id = class_id;
         g_alignment = alignment;
 
-        /*Ability scores are rolled by the SERVER at login (M9): the old
-        * local 3d6 + reroll loop meant an edited client simply sent
-        * 18/18/18/18/18/18. Only the cosmetic flavour rolls (age, height,
+        /*Ability scores are rolled by the SERVER at login: a client could
+        * send anything. Only the cosmetic flavour rolls (age, height,
         * weight, social status) are local - the server never uses them.
         * The rolled STR/DEX/CON/INT/WIS/CHA arrive in-game as a
         * [CHARACTER] message right after the welcome.*/

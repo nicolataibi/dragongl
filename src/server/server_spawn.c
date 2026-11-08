@@ -734,8 +734,8 @@ void populate_dungeons(NPC *npcs, int *next_id) {
         s->template = NULL; //No template, so it doesn't respawn as a monster
         s->hp = 9999;
         s->max_hp = 9999;
-        /*template==NULL: not counted by the floor cache, but the
-         *activation still goes through the single entry point (A2).*/
+        /*template==NULL: not counted by the floor counters, but the
+         * activation still goes through npc_set_active (floor index).*/
         npc_set_active(s, true);
 
         if (rand() % 4 == 0) {

@@ -73,13 +73,12 @@ _Static_assert((int)BOOKS_MARTIAL == SHOP_SPEC_BOOKS_MARTIAL,
                "SHOP_SPEC_BOOKS_MARTIAL must equal MerchantSpecialization::BOOKS_MARTIAL");
 #include "server_world.h"
 #include "server_commands.h"
+#include "server_move.h"
 #include "spell_router.h"
 
-/*Population/respawn constants (RESPAWN_TICKS, DENSITY_CHECK, DENSITY_MIN_PCT,
- * RESPAWN_TRAPS_TICKS) live in server_internal.h — the SINGLE source of
- * truth. They used to be #defined here AND in server_internal.h: two
- * sources that could silently drift and change game behavior in one
- * translation unit only.*/
+/*Population and respawn constants (RESPAWN_TICKS, DENSITY_CHECK,
+ * DENSITY_MIN_PCT, RESPAWN_TRAPS_TICKS) are defined once, in
+ * server_internal.h.*/
 
 World *master_world = NULL;
 /*See server_internal.h: resolved in main() before any data access.*/
@@ -134,8 +133,7 @@ static bool valid_username(const char *u) {
     return true;
 }
 
-/*Clamp a client-provided stat to the playable range 3..18 (previously
- * an edited client could send str=9999 and keep it).*/
+/*Clamp a client-provided stat to the playable range 3..18.*/
 static int clamp_stat(int v) {
     if (v < 3)
         return 3;
@@ -144,11 +142,9 @@ static int clamp_stat(int v) {
     return v;
 }
 
-/*Seed the RNG ONCE at process start, with kernel entropy when available.
- * The old code seeded only inside world_init() — which is SKIPPED when
- * data/world.dat exists — so after every reboot the server ran on the
- * default seed (1) and every die/loot/aggro sequence was identical
- * until some first event reseeded it.*/
+/*Seed the RNG once at process start, with kernel entropy when available:
+ * a world loaded from disk skips world_init(), and must not replay the
+ * default seed after every restart.*/
 static void seed_game_rng(void) {
     uint32_t seed = 0;
     if (getrandom(&seed, sizeof(seed), 0) != sizeof(seed)) {
@@ -401,6 +397,414 @@ static void find_walkable_near(const Floor *fl, int ax, int ay,
     *oy = ay;
 }
 
+/*Passive perception (10 + WIS modifier) against the detection DC of a
+ * trap within 2 tiles: a found floor trap becomes visible on the map.*/
+static void trap_detect(Client *c, Trap *t, Floor *f) {
+  int passive_perc = 10 + rules_get_modifier(c->wis);
+
+  // DART_WALL detection: player senses the tiny hole in the wall
+  if (t->type == TRAP_DART_WALL && !t->detected) {
+    //Dart fires FROM wall tile (t->x, t->y) into adjacent floor tile
+    int wall_dx[4] = {0, 1, 0, -1};
+    int wall_dy[4] = {-1, 0, 1, 0};
+    int fire_x = t->x + wall_dx[t->wall_dir];
+    int fire_y = t->y + wall_dy[t->wall_dir];
+    // Detect if player is within 2 tiles of the floor-side trigger tile
+    if (abs(c->x - fire_x) <= 2 && abs(c->y - fire_y) <= 2) {
+      if (passive_perc >= t->detection_dc) {
+        t->detected = true;
+        send_text_to_client(
+            c->sock, "[SYSTEM] You notice a tiny hole in the wall..."
+                     "It looks like the launch tube of a dart trap!");
+      }
+    }
+  } else if (!t->detected &&
+             (abs(c->x - t->x) <= 2 && abs(c->y - t->y) <= 2)) {
+    if (passive_perc >= t->detection_dc) {
+      t->detected = true;
+      f->map.data[0][t->y][t->x] = VOXEL_TRAP;
+      send_text_to_client(
+          c->sock, "[SYSTEM] You notice something suspicious on the floor...");
+    }
+  }
+}
+
+/*A dart trap shoots from its wall tile at the floor tile in front of it.*/
+static void trap_dart_wall(Client *c, Trap *t) {
+  int wall_dx[4] = {0, 1, 0, -1};
+  int wall_dy[4] = {-1, 0, 1, 0};
+  int fire_x = t->x + wall_dx[t->wall_dir];
+  int fire_y = t->y + wall_dy[t->wall_dir];
+  static const char *dir_names[4] = {"north", "east", "south", "west"};
+  if (c->x == fire_x && c->y == fire_y) {
+    send_text_to_client(
+        c->sock,
+        "[DANGER] CLACK! A poison dart shoots out of the wall at %s!",
+        dir_names[t->wall_dir]);
+    bool saved = rules_roll_save(rules_get_modifier(c->dex), t->save_dc,
+                                 false, false, NULL);
+    if (saved) {
+      send_text_to_client(c->sock,
+                          "[SYSTEM] You throw yourself to the side! The dart grazes"
+                          " your ear and embeds itself in the wall.");
+    } else {
+      int dmg_pierce = rules_roll_dice(t->damage_dice, t->damage_sides);
+      c->hp -= dmg_pierce;
+      send_text_to_client(
+          c->sock, "[COMBAT] The dart hits you! %d piercing damage.",
+          dmg_pierce);
+      //Secondary WITH save vs poison
+      int poison_dc = t->save_dc - 2;
+      bool saved_poison = rules_roll_save(rules_get_modifier(c->con),
+                                          poison_dc, false, false, NULL);
+      if (!saved_poison && c->effect_count < MAX_EFFECTS_PER_ENTITY) {
+        c->effects[c->effect_count++] = (ActiveEffect){
+            "Poisoned", EVENT_ON_TURN_START, MOD_ADDITIVE, 0, 4, false};
+        send_text_to_client(
+            c->sock,
+            "[STATE] The poison on the dart enters your blood!"
+            "You feel your strength abandon you... (Poisoned for 4 rounds)");
+      } else if (!saved_poison) {
+        send_text_to_client(
+            c->sock,
+            "[STATE] The poison burns, but your constitution holds!");
+      }
+      if (c->hp <= 0) {
+        c->hp = 0;
+        send_text_to_client(
+            c->sock,
+            "[DEATH] The poison reaches your heart. You fell...");
+        clog_death(c->username, "Dardo Avvelenato", c->floor_id);
+        save_bones(c);
+        /*player_respawn_town() also tells the floor the player left
+         * and re-syncs the client.*/
+        player_respawn_town(c);
+      }
+    }
+    t->active = false;
+    t->respawn_timer = RESPAWN_TRAPS_TICKS;
+    t->detected = false;
+  }
+}
+
+/*A spring spear trap strikes the floor tile in front of its wall tile.*/
+static void trap_spring_spear(Client *c, Trap *t) {
+  int wall_dx[4] = {0, 1, 0, -1};
+  int wall_dy[4] = {-1, 0, 1, 0};
+  static const char *dn[4] = {"north", "east", "south", "west"};
+  int fire_x = t->x + wall_dx[t->wall_dir];
+  int fire_y = t->y + wall_dy[t->wall_dir];
+  if (c->x == fire_x && c->y == fire_y) {
+    send_text_to_client(
+        c->sock,
+        "[DANGER] SHHKK! A spring-loaded spear pops out of the wall at %s!",
+        dn[t->wall_dir]);
+    bool sv = rules_roll_save(rules_get_modifier(c->dex), t->save_dc, false,
+                              false, NULL);
+    if (sv) {
+      send_text_to_client(
+          c->sock, "[SYSTEM] Throw yourself to the ground! The spear grazes you!");
+    } else {
+      int dmg = rules_roll_dice(t->damage_dice, t->damage_sides);
+      c->hp -= dmg;
+      send_text_to_client(
+          c->sock, "[COMBAT] The spear pierces you! %d piercing damage.",
+          dmg);
+      if (c->effect_count < MAX_EFFECTS_PER_ENTITY) {
+        c->effects[c->effect_count++] = (ActiveEffect){
+            "Restrained", EVENT_ON_TURN_START, MOD_ADDITIVE, 0, 2, false};
+        send_text_to_client(
+            c->sock, "[STATE] You're stuck on the wall! (Restrained 2r)");
+      }
+      if (c->hp <= 0) {
+        c->hp = 0;
+        send_text_to_client(c->sock,
+                            "[DEATH] Pierced by the spear, you have fallen.");
+        clog_death(c->username, "Spring spear", c->floor_id);
+        save_bones(c);
+        /*As for the dart wall: player_respawn_town() does it all.*/
+        player_respawn_town(c);
+      }
+    }
+    t->active = false;
+    t->respawn_timer = RESPAWN_TRAPS_TICKS;
+    t->detected = false;
+  }
+}
+
+/*The saving throw of the ability the trap targets (none: not saved).*/
+static bool trap_saving_throw(Client *c, const Trap *t) {
+  bool saved = false;
+  if (t->type == TRAP_PIT || t->type == TRAP_SPIKES ||
+      t->type == TRAP_BLADE || t->type == TRAP_WEB ||
+      t->type == TRAP_FALLING_FLOOR || t->type == TRAP_BOULDER ||
+      t->type == TRAP_FLOOD || t->type == TRAP_CEILING_COLLAPSE ||
+      t->type == TRAP_CRYSTAL_BURST) {
+    saved = rules_roll_save(rules_get_modifier(c->dex), t->save_dc, false,
+                            false, NULL);
+  } else if (t->type == TRAP_GAS || t->type == TRAP_POISON_NEEDLE ||
+             t->type == TRAP_LIGHTNING || t->type == TRAP_SILENCE ||
+             t->type == TRAP_DARKNESS ||
+             t->type == TRAP_PARALYZING_SPORES ||
+             t->type == TRAP_SLEEP_GAS || t->type == TRAP_GAS_VEIN ||
+             t->type == TRAP_HUNGER_CURSE) {
+    saved = rules_roll_save(rules_get_modifier(c->con), t->save_dc, false,
+                            false, NULL);
+  } else if (t->type == TRAP_QUICKSAND || t->type == TRAP_CRUSHER_WALL ||
+             t->type == TRAP_STONE_TOMB) {
+    saved = rules_roll_save(rules_get_modifier(c->str), t->save_dc, false,
+                            false, NULL);
+  } else if (t->type == TRAP_CURSE_RUNE ||
+             t->type == TRAP_ILLUSION_MIRROR ||
+             t->type == TRAP_INVERSION_RUNE || t->type == TRAP_FAKE_DOOR) {
+    saved = rules_roll_save(rules_get_modifier(c->wis), t->save_dc, false,
+                            false, NULL);
+  }
+  return saved;
+}
+
+/*Damage of a trap that was not saved, and the condition it inflicts.*/
+static void trap_damage(Client *c, const Trap *t) {
+  int dmg = rules_roll_dice(t->damage_dice, t->damage_sides);
+
+  //Special effects traps
+  if (t->type == TRAP_LIGHTNING) {
+    //Extra damage if in water
+    Floor *fl = &master_world->floors[c->floor_id];
+    if (fl->map.data[0][c->y][c->x] == VOXEL_WATER)
+      dmg *= 2;
+  }
+
+  c->hp -= dmg;
+  send_text_to_client(c->sock, "[COMBAT] Take %d trap damage!",
+                      dmg);
+
+  //Application of environmental conditions and special effects
+  if (c->effect_count < MAX_EFFECTS_PER_ENTITY) {
+    if (t->type == TRAP_POISON_NEEDLE || t->type == TRAP_GAS ||
+        t->type == TRAP_GAS_VEIN) {
+      c->effects[c->effect_count++] = (ActiveEffect){
+          "Poisoned", EVENT_ON_TURN_START, MOD_ADDITIVE, 0, 5, false};
+      send_text_to_client(c->sock, "[STATE] You are poisoned!");
+    } else if (t->type == TRAP_WEB) {
+      c->effects[c->effect_count++] = (ActiveEffect){
+          "Restrained", EVENT_ON_TURN_START, MOD_ADDITIVE, 0, 3, false};
+      send_text_to_client(c->sock,
+                          "[STATE] You are held by the spider web!");
+    } else if (t->type == TRAP_BLADE) {
+      c->effects[c->effect_count++] = (ActiveEffect){
+          "Bleeding", EVENT_ON_TURN_START, MOD_ADDITIVE, 0, 3, false};
+      send_text_to_client(c->sock, "[STATE] You're bleeding!");
+    } else if (t->type == TRAP_SILENCE) {
+      c->effects[c->effect_count++] = (ActiveEffect){
+          "Silenced", EVENT_ON_TURN_START, MOD_ADDITIVE, 0, 2, false};
+      send_text_to_client(c->sock,
+                          "[STATE] You are surrounded by magical silence!");
+    } else if (t->type == TRAP_QUICKSAND) {
+      c->effects[c->effect_count++] = (ActiveEffect){
+          "Prone", EVENT_ON_TURN_START, MOD_ADDITIVE, 0, 1, false};
+      send_text_to_client(c->sock,
+                          "[STATE] You've landed in quicksand!");
+    } else if (t->type == TRAP_DARKNESS) {
+      c->effects[c->effect_count++] = (ActiveEffect){
+          "Blinded", EVENT_ON_TURN_START, MOD_ADDITIVE, 0, 2, false};
+      send_text_to_client(c->sock, "[STATUS] You are blinded by darkness!");
+    } else if (t->type == TRAP_PARALYZING_SPORES) {
+      c->effects[c->effect_count++] = (ActiveEffect){
+          "Paralyzed", EVENT_ON_TURN_START, MOD_ADDITIVE, 0, 2, false};
+      send_text_to_client(
+          c->sock, "[STATUS] The spores paralyze you completely!");
+    } else if (t->type == TRAP_SLEEP_GAS) {
+      c->effects[c->effect_count++] = (ActiveEffect){
+          "Unconscious", EVENT_ON_TURN_START, MOD_ADDITIVE, 0, 3, false};
+      send_text_to_client(c->sock,
+                          "[STATE] The gas makes you lose consciousness...");
+    } else if (t->type == TRAP_ANTIMAGIC_ZONE) {
+      c->effects[c->effect_count++] = (ActiveEffect){
+          "Silenced", EVENT_ON_TURN_START, MOD_ADDITIVE, 0, 5, false};
+      send_text_to_client(
+          c->sock, "[STATUS] The magic leaves you (Silenced for 5 rounds)!");
+    } else if (t->type == TRAP_INVERSION_RUNE) {
+      c->effects[c->effect_count++] = (ActiveEffect){
+          "Confused", EVENT_ON_TURN_START, MOD_ADDITIVE, 0, 3, false};
+      send_text_to_client(
+          c->sock, "[STATE] Your mind becomes dizzyingly confused!");
+    } else if (t->type == TRAP_HUNGER_CURSE) {
+      c->effects[c->effect_count++] = (ActiveEffect){
+          "Bleeding", EVENT_ON_TURN_START, MOD_ADDITIVE, 0, 5, false};
+      send_text_to_client(
+          c->sock,
+          "[STATE] A dark hunger slowly drains your life...");
+    }
+  }
+
+}
+
+/*What a trap does to the world around the player: a collapsing floor,
+ * a flood, a cave-in, a stone tomb, a swap with a nearby monster.*/
+static void trap_world_effect(Client *c, Trap *t, NPC *npcs) {
+  if (t->type == TRAP_FALLING_FLOOR) {
+    send_text_to_client(
+        c->sock, "[DANGER] THE FLOOR COLLAPSES UNDER YOUR FEET!");
+    if (c->floor_id < MAX_FLOORS - 1) {
+      int old_floor = c->floor_id;
+      if (master_world->floors[old_floor].entity_grid[c->y][c->x] == c->entity_id) {
+        master_world->floors[old_floor].entity_grid[c->y][c->x] = 0;
+      }
+      c->floor_id++;
+      notify_player_left_floor(c, old_floor);
+      /*Bounded scatter onto a walkable tile inside the map, even next to
+       * the map edge.*/
+      Floor *nf = &master_world->floors[c->floor_id];
+      int lx = c->x + (rand() % 5) - 2;
+      int ly = c->y + (rand() % 5) - 2;
+      find_walkable_near(nf, lx, ly, &c->x, &c->y);
+      nf->entity_grid[c->y][c->x] = c->entity_id;
+      client_track_explored_floor(c);
+      /*Arrival broadcast AFTER the position is set*/
+      broadcast_player_state(c);
+    }
+  } else if (t->type == TRAP_FLOOD) {
+    send_text_to_client(c->sock, "[DANGER] Water starts gushing out"
+                                 "rivers from hidden valves!");
+    Floor *fl = &master_world->floors[c->floor_id];
+    for (int dy = -3; dy <= 3; dy++) {
+      for (int dx = -3; dx <= 3; dx++) {
+        int nx = c->x + dx;
+        int ny = c->y + dy;
+        if (nx >= 0 && nx < MAP_WIDTH && ny >= 0 && ny < MAP_HEIGHT) {
+          if (fl->map.data[0][ny][nx] == VOXEL_FLOOR)
+            fl->map.data[0][ny][nx] = VOXEL_WATER;
+        }
+      }
+    }
+  } else if (t->type == TRAP_CEILING_COLLAPSE) {
+    send_text_to_client(c->sock, "[DANGER] THE CEILING IS COLLAPSING!");
+    Floor *fl = &master_world->floors[c->floor_id];
+    for (int dy = -2; dy <= 2; dy++) {
+      for (int dx = -2; dx <= 2; dx++) {
+        int nx = c->x + dx;
+        int ny = c->y + dy;
+        if (nx >= 0 && nx < MAP_WIDTH && ny >= 0 && ny < MAP_HEIGHT) {
+          if (fl->map.data[0][ny][nx] == VOXEL_FLOOR &&
+              (rand() % 2 == 0)) {
+            fl->map.data[0][ny][nx] = VOXEL_ROCK;
+          }
+        }
+      }
+    }
+  } else if (t->type == TRAP_STONE_TOMB) {
+    send_text_to_client(c->sock, "[DANGER] Thick stone walls yes"
+                                 "they rise from the ground, trapping you!");
+    Floor *fl = &master_world->floors[c->floor_id];
+    for (int dy = -1; dy <= 1; dy++) {
+      for (int dx = -1; dx <= 1; dx++) {
+        if (dx == 0 && dy == 0)
+          continue;
+        int nx = c->x + dx;
+        int ny = c->y + dy;
+        if (nx >= 0 && nx < MAP_WIDTH && ny >= 0 && ny < MAP_HEIGHT) {
+          fl->map.data[0][ny][nx] = VOXEL_WALL;
+        }
+      }
+    }
+  } else if (t->type == TRAP_SWAP_TELEPORT || t->type == TRAP_BODY_SWAP) {
+    //Find a nearby enemy (within 10 tiles) to trade
+    NPC *target_npc = NULL;
+    FloorIter walk = floor_iter(npcs, c->floor_id);
+    for (int n; (n = floor_iter_next(&walk)) >= 0;) {
+      if (abs(npcs[n].x - c->x) <= 10 && abs(npcs[n].y - c->y) <= 10) {
+        target_npc = &npcs[n];
+        break;
+      }
+    }
+    if (target_npc) {
+      if (t->type == TRAP_SWAP_TELEPORT) {
+        send_text_to_client(
+            c->sock,
+            "[MAGIC] A flash of light! You trade places with a %s!",
+            target_npc->template->name);
+        int tx = c->x;
+        int ty = c->y;
+        /*Keep entity_grid consistent with the swap: collisions read it
+         * before the next grid sync.*/
+        Floor *sfl = &master_world->floors[c->floor_id];
+        if (sfl->entity_grid[ty][tx] == c->entity_id)
+          sfl->entity_grid[ty][tx] = 0;
+        if (sfl->entity_grid[target_npc->y][target_npc->x] == target_npc->entity_id)
+          sfl->entity_grid[target_npc->y][target_npc->x] = 0;
+        c->x = target_npc->x;
+        c->y = target_npc->y;
+        target_npc->x = tx;
+        target_npc->y = ty;
+        sfl->entity_grid[c->y][c->x] = c->entity_id;
+        sfl->entity_grid[target_npc->y][target_npc->x] = target_npc->entity_id;
+      } else {
+        send_text_to_client(c->sock,
+                            "[MAGIC] A dark force envelops you! Exchanges"
+                            "your vitality with a %s!",
+                            target_npc->template->name);
+        int thp = c->hp;
+        c->hp = target_npc->hp;
+        target_npc->hp = thp;
+      }
+    } else {
+      send_text_to_client(c->sock,
+                          "[MAGIC] The trap activates but does not find"
+                          "valid targets nearby.");
+    }
+  }
+}
+
+/*After it fired: teleport traps move the player to a walkable tile and
+ * stay armed, the others disarm until they respawn.*/
+static void trap_after_firing(Client *c, Trap *t, Floor *f) {
+  if (t->type == TRAP_TELEPORT || t->type == TRAP_FAKE_DOOR) {
+    /*Random teleport, but only onto a walkable free tile: never into
+     * rock, onto a staircase or onto an occupied cell.*/
+    Floor *tfl = &master_world->floors[c->floor_id];
+    int anchor_x = 1 + rand() % (MAP_WIDTH - 2);
+    int anchor_y = 1 + rand() % (MAP_HEIGHT - 2);
+    int dest_x = c->x, dest_y = c->y;
+    find_walkable_near(tfl, anchor_x, anchor_y, &dest_x, &dest_y);
+    if (tfl->entity_grid[c->y][c->x] == c->entity_id)
+      tfl->entity_grid[c->y][c->x] = 0;
+    c->x = dest_x;
+    c->y = dest_y;
+    tfl->entity_grid[c->y][c->x] = c->entity_id;
+    send_text_to_client(
+        c->sock,
+        "[MAGIC] Space distorts, you have been teleported!");
+  } else if (t->type != TRAP_ILLUSION_MIRROR &&
+             t->type != TRAP_SWAP_TELEPORT) {
+    t->active = false;
+  }
+  t->respawn_timer = RESPAWN_TRAPS_TICKS;
+  t->detected = false; // Reset detection for next time
+  if (f->map.data[0][t->y][t->x] == VOXEL_TRAP) {
+    f->map.data[0][t->y][t->x] = VOXEL_FLOOR;
+  }
+}
+
+/*A floor trap under the player.*/
+static void trap_fire(Client *c, Trap *t, Floor *f, NPC *npcs) {
+  send_text_to_client(c->sock, "[DANGER] You have activated a trap!");
+  if (trap_saving_throw(c, t)) {
+    send_text_to_client(c->sock, "[SYSTEM] Can you avoid the worst!");
+  } else {
+    trap_damage(c, t);
+    trap_world_effect(c, t, npcs);
+    if (c->hp <= 0) {
+      clog_death(c->username, "Trap", c->floor_id);
+      save_bones(c);
+      player_respawn_town(c);
+      send_text_to_client(c->sock,
+                          "[DEATH] You died from a trap... The Arcane has returned you to town without your equipment!");
+    }
+  }
+  trap_after_firing(c, t, f);
+}
+
 void check_traps(Client *c, NPC *npcs) {
   Floor *f = &master_world->floors[c->floor_id];
   for (int i = 0; i < f->trap_count; i++) {
@@ -408,458 +812,27 @@ void check_traps(Client *c, NPC *npcs) {
     if (!t->active)
       continue;
 
-    // Passive Perception to detect (WIS modifier + 10)
-    int passive_perc = 10 + rules_get_modifier(c->wis);
-
-    // DART_WALL detection: player senses the tiny hole in the wall
-    if (t->type == TRAP_DART_WALL && !t->detected) {
-      //Dart fires FROM wall tile (t->x, t->y) into adjacent floor tile
-      int wall_dx[4] = {0, 1, 0, -1};
-      int wall_dy[4] = {-1, 0, 1, 0};
-      int fire_x = t->x + wall_dx[t->wall_dir];
-      int fire_y = t->y + wall_dy[t->wall_dir];
-      // Detect if player is within 2 tiles of the floor-side trigger tile
-      if (abs(c->x - fire_x) <= 2 && abs(c->y - fire_y) <= 2) {
-        if (passive_perc >= t->detection_dc) {
-          t->detected = true;
-          send_text_to_client(
-              c->sock, "[SYSTEM] You notice a tiny hole in the wall..."
-                       "It looks like the launch tube of a dart trap!");
-        }
-      }
-    } else if (!t->detected &&
-               (abs(c->x - t->x) <= 2 && abs(c->y - t->y) <= 2)) {
-      if (passive_perc >= t->detection_dc) {
-        t->detected = true;
-        f->map.data[0][t->y][t->x] = VOXEL_TRAP;
-        send_text_to_client(
-            c->sock, "[SYSTEM] You notice something suspicious on the floor...");
-      }
-    }
-
-    //--- Trigger: DART_WALL fires when player steps onto the floor tile in
-    // front
+    trap_detect(c, t, f);
+    /*Wall traps fire at the tile in front of them, never under the player.*/
     if (t->type == TRAP_DART_WALL && t->active) {
-      int wall_dx[4] = {0, 1, 0, -1};
-      int wall_dy[4] = {-1, 0, 1, 0};
-      int fire_x = t->x + wall_dx[t->wall_dir];
-      int fire_y = t->y + wall_dy[t->wall_dir];
-      static const char *dir_names[4] = {"north", "east", "south", "west"};
-      if (c->x == fire_x && c->y == fire_y) {
-        send_text_to_client(
-            c->sock,
-            "[DANGER] CLACK! A poison dart shoots out of the wall at %s!",
-            dir_names[t->wall_dir]);
-        bool saved = rules_roll_save(rules_get_modifier(c->dex), t->save_dc,
-                                     false, false, NULL);
-        if (saved) {
-          send_text_to_client(c->sock,
-                              "[SYSTEM] You throw yourself to the side! The dart grazes"
-                              " your ear and embeds itself in the wall.");
-        } else {
-          int dmg_pierce = rules_roll_dice(t->damage_dice, t->damage_sides);
-          c->hp -= dmg_pierce;
-          send_text_to_client(
-              c->sock, "[COMBAT] The dart hits you! %d piercing damage.",
-              dmg_pierce);
-          //Secondary WITH save vs poison
-          int poison_dc = t->save_dc - 2;
-          bool saved_poison = rules_roll_save(rules_get_modifier(c->con),
-                                              poison_dc, false, false, NULL);
-          if (!saved_poison && c->effect_count < MAX_EFFECTS_PER_ENTITY) {
-            c->effects[c->effect_count++] = (ActiveEffect){
-                "Poisoned", EVENT_ON_TURN_START, MOD_ADDITIVE, 0, 4, false};
-            send_text_to_client(
-                c->sock,
-                "[STATE] The poison on the dart enters your blood!"
-                "You feel your strength abandon you... (Poisoned for 4 rounds)");
-          } else if (!saved_poison) {
-            send_text_to_client(
-                c->sock,
-                "[STATE] The poison burns, but your constitution holds!");
-          }
-          if (c->hp <= 0) {
-            c->hp = 0;
-            send_text_to_client(
-                c->sock,
-                "[DEATH] The poison reaches your heart. You fell...");
-            clog_death(c->username, "Dardo Avvelenato", c->floor_id);
-            save_bones(c);
-            /*A3: this death site used to set floor_id/x/y/hp by hand, so
-             *the player was never reported as left-floor (a "ghost" on
-             *other clients' screens) and the client kept showing the
-             *dungeon. player_respawn_town does it all (L2).*/
-            player_respawn_town(c);
-          }
-        }
-        t->active = false;
-        t->respawn_timer = RESPAWN_TRAPS_TICKS;
-        t->detected = false;
-      }
-      continue; //Skip floor-tile trigger below
-    }
-
-    //--- Trigger: SPRING_SPEAR fires when player steps onto floor tile in
-    // front
-    if (t->type == TRAP_SPRING_SPEAR && t->active) {
-      int wall_dx[4] = {0, 1, 0, -1};
-      int wall_dy[4] = {-1, 0, 1, 0};
-      static const char *dn[4] = {"north", "east", "south", "west"};
-      int fire_x = t->x + wall_dx[t->wall_dir];
-      int fire_y = t->y + wall_dy[t->wall_dir];
-      if (c->x == fire_x && c->y == fire_y) {
-        send_text_to_client(
-            c->sock,
-            "[DANGER] SHHKK! A spring-loaded spear pops out of the wall at %s!",
-            dn[t->wall_dir]);
-        bool sv = rules_roll_save(rules_get_modifier(c->dex), t->save_dc, false,
-                                  false, NULL);
-        if (sv) {
-          send_text_to_client(
-              c->sock, "[SYSTEM] Throw yourself to the ground! The spear grazes you!");
-        } else {
-          int dmg = rules_roll_dice(t->damage_dice, t->damage_sides);
-          c->hp -= dmg;
-          send_text_to_client(
-              c->sock, "[COMBAT] The spear pierces you! %d piercing damage.",
-              dmg);
-          if (c->effect_count < MAX_EFFECTS_PER_ENTITY) {
-            c->effects[c->effect_count++] = (ActiveEffect){
-                "Restrained", EVENT_ON_TURN_START, MOD_ADDITIVE, 0, 2, false};
-            send_text_to_client(
-                c->sock, "[STATE] You're stuck on the wall! (Restrained 2r)");
-          }
-          if (c->hp <= 0) {
-            c->hp = 0;
-            send_text_to_client(c->sock,
-                                "[DEATH] Pierced by the spear, you have fallen.");
-            clog_death(c->username, "Spring spear", c->floor_id);
-            save_bones(c);
-            /*A3: same as the dart wall — the manual floor_id/x/y/hp set
-             *skipped notify_player_left_floor() and the client re-sync.
-             *player_respawn_town() does it all (L2).*/
-            player_respawn_town(c);
-          }
-        }
-        t->active = false;
-        t->respawn_timer = RESPAWN_TRAPS_TICKS;
-        t->detected = false;
-      }
+      trap_dart_wall(c, t);
       continue;
     }
-
-    //--- Trigger: floor tile traps (all other types)
-    if (c->x == t->x && c->y == t->y) {
-      send_text_to_client(c->sock, "[DANGER] You have activated a trap!");
-      bool saved = false;
-
-      //Type-specific save logic
-      if (t->type == TRAP_PIT || t->type == TRAP_SPIKES ||
-          t->type == TRAP_BLADE || t->type == TRAP_WEB ||
-          t->type == TRAP_FALLING_FLOOR || t->type == TRAP_BOULDER ||
-          t->type == TRAP_FLOOD || t->type == TRAP_CEILING_COLLAPSE ||
-          t->type == TRAP_CRYSTAL_BURST) {
-        saved = rules_roll_save(rules_get_modifier(c->dex), t->save_dc, false,
-                                false, NULL);
-      } else if (t->type == TRAP_GAS || t->type == TRAP_POISON_NEEDLE ||
-                 t->type == TRAP_LIGHTNING || t->type == TRAP_SILENCE ||
-                 t->type == TRAP_DARKNESS ||
-                 t->type == TRAP_PARALYZING_SPORES ||
-                 t->type == TRAP_SLEEP_GAS || t->type == TRAP_GAS_VEIN ||
-                 t->type == TRAP_HUNGER_CURSE) {
-        saved = rules_roll_save(rules_get_modifier(c->con), t->save_dc, false,
-                                false, NULL);
-      } else if (t->type == TRAP_QUICKSAND || t->type == TRAP_CRUSHER_WALL ||
-                 t->type == TRAP_STONE_TOMB) {
-        saved = rules_roll_save(rules_get_modifier(c->str), t->save_dc, false,
-                                false, NULL);
-      } else if (t->type == TRAP_CURSE_RUNE ||
-                 t->type == TRAP_ILLUSION_MIRROR ||
-                 t->type == TRAP_INVERSION_RUNE || t->type == TRAP_FAKE_DOOR) {
-        saved = rules_roll_save(rules_get_modifier(c->wis), t->save_dc, false,
-                                false, NULL);
-      }
-
-      if (saved) {
-        send_text_to_client(c->sock, "[SYSTEM] Can you avoid the worst!");
-      } else {
-        int dmg = rules_roll_dice(t->damage_dice, t->damage_sides);
-
-        //Special effects traps
-        if (t->type == TRAP_LIGHTNING) {
-          //Extra damage if in water
-          Floor *fl = &master_world->floors[c->floor_id];
-          if (fl->map.data[0][c->y][c->x] == VOXEL_WATER)
-            dmg *= 2;
-        }
-
-        c->hp -= dmg;
-        send_text_to_client(c->sock, "[COMBAT] Take %d trap damage!",
-                            dmg);
-
-        //Application of environmental conditions and special effects
-        if (c->effect_count < MAX_EFFECTS_PER_ENTITY) {
-          if (t->type == TRAP_POISON_NEEDLE || t->type == TRAP_GAS ||
-              t->type == TRAP_GAS_VEIN) {
-            c->effects[c->effect_count++] = (ActiveEffect){
-                "Poisoned", EVENT_ON_TURN_START, MOD_ADDITIVE, 0, 5, false};
-            send_text_to_client(c->sock, "[STATE] You are poisoned!");
-          } else if (t->type == TRAP_WEB) {
-            c->effects[c->effect_count++] = (ActiveEffect){
-                "Restrained", EVENT_ON_TURN_START, MOD_ADDITIVE, 0, 3, false};
-            send_text_to_client(c->sock,
-                                "[STATE] You are held by the spider web!");
-          } else if (t->type == TRAP_BLADE) {
-            c->effects[c->effect_count++] = (ActiveEffect){
-                "Bleeding", EVENT_ON_TURN_START, MOD_ADDITIVE, 0, 3, false};
-            send_text_to_client(c->sock, "[STATE] You're bleeding!");
-          } else if (t->type == TRAP_SILENCE) {
-            c->effects[c->effect_count++] = (ActiveEffect){
-                "Silenced", EVENT_ON_TURN_START, MOD_ADDITIVE, 0, 2, false};
-            send_text_to_client(c->sock,
-                                "[STATE] You are surrounded by magical silence!");
-          } else if (t->type == TRAP_QUICKSAND) {
-            c->effects[c->effect_count++] = (ActiveEffect){
-                "Prone", EVENT_ON_TURN_START, MOD_ADDITIVE, 0, 1, false};
-            send_text_to_client(c->sock,
-                                "[STATE] You've landed in quicksand!");
-          } else if (t->type == TRAP_DARKNESS) {
-            c->effects[c->effect_count++] = (ActiveEffect){
-                "Blinded", EVENT_ON_TURN_START, MOD_ADDITIVE, 0, 2, false};
-            send_text_to_client(c->sock, "[STATUS] You are blinded by darkness!");
-          } else if (t->type == TRAP_PARALYZING_SPORES) {
-            c->effects[c->effect_count++] = (ActiveEffect){
-                "Paralyzed", EVENT_ON_TURN_START, MOD_ADDITIVE, 0, 2, false};
-            send_text_to_client(
-                c->sock, "[STATUS] The spores paralyze you completely!");
-          } else if (t->type == TRAP_SLEEP_GAS) {
-            c->effects[c->effect_count++] = (ActiveEffect){
-                "Unconscious", EVENT_ON_TURN_START, MOD_ADDITIVE, 0, 3, false};
-            send_text_to_client(c->sock,
-                                "[STATE] The gas makes you lose consciousness...");
-          } else if (t->type == TRAP_ANTIMAGIC_ZONE) {
-            c->effects[c->effect_count++] = (ActiveEffect){
-                "Silenced", EVENT_ON_TURN_START, MOD_ADDITIVE, 0, 5, false};
-            send_text_to_client(
-                c->sock, "[STATUS] The magic leaves you (Silenced for 5 rounds)!");
-          } else if (t->type == TRAP_INVERSION_RUNE) {
-            c->effects[c->effect_count++] = (ActiveEffect){
-                "Confused", EVENT_ON_TURN_START, MOD_ADDITIVE, 0, 3, false};
-            send_text_to_client(
-                c->sock, "[STATE] Your mind becomes dizzyingly confused!");
-          } else if (t->type == TRAP_HUNGER_CURSE) {
-            c->effects[c->effect_count++] = (ActiveEffect){
-                "Bleeding", EVENT_ON_TURN_START, MOD_ADDITIVE, 0, 5, false};
-            send_text_to_client(
-                c->sock,
-                "[STATE] A dark hunger slowly drains your life...");
-          }
-        }
-
-        // Voxel effects
-        if (t->type == TRAP_FALLING_FLOOR) {
-          send_text_to_client(
-              c->sock, "[DANGER] THE FLOOR COLLAPSES UNDER YOUR FEET!");
-          if (c->floor_id < MAX_FLOORS - 1) {
-            int old_floor = c->floor_id;
-            if (master_world->floors[old_floor].entity_grid[c->y][c->x] == c->entity_id) {
-              master_world->floors[old_floor].entity_grid[c->y][c->x] = 0;
-            }
-            c->floor_id++;
-            notify_player_left_floor(c, old_floor);
-            /*Bounded scatter + guaranteed in-bounds walkable landing.
-             * The old `c->x += rand()%5 - 2` had NO bounds check: near the
-             * map edge the player could end up at x<0 and the very next
-             * tick read/wrote the map out of bounds.*/
-            Floor *nf = &master_world->floors[c->floor_id];
-            int lx = c->x + (rand() % 5) - 2;
-            int ly = c->y + (rand() % 5) - 2;
-            find_walkable_near(nf, lx, ly, &c->x, &c->y);
-            nf->entity_grid[c->y][c->x] = c->entity_id;
-            client_track_explored_floor(c);
-            /*Arrival broadcast AFTER the position is set*/
-            broadcast_player_state(c);
-          }
-        } else if (t->type == TRAP_FLOOD) {
-          send_text_to_client(c->sock, "[DANGER] Water starts gushing out"
-                                       "rivers from hidden valves!");
-          Floor *fl = &master_world->floors[c->floor_id];
-          for (int dy = -3; dy <= 3; dy++) {
-            for (int dx = -3; dx <= 3; dx++) {
-              int nx = c->x + dx;
-              int ny = c->y + dy;
-              if (nx >= 0 && nx < MAP_WIDTH && ny >= 0 && ny < MAP_HEIGHT) {
-                if (fl->map.data[0][ny][nx] == VOXEL_FLOOR)
-                  fl->map.data[0][ny][nx] = VOXEL_WATER;
-              }
-            }
-          }
-        } else if (t->type == TRAP_CEILING_COLLAPSE) {
-          send_text_to_client(c->sock, "[DANGER] THE CEILING IS COLLAPSING!");
-          Floor *fl = &master_world->floors[c->floor_id];
-          for (int dy = -2; dy <= 2; dy++) {
-            for (int dx = -2; dx <= 2; dx++) {
-              int nx = c->x + dx;
-              int ny = c->y + dy;
-              if (nx >= 0 && nx < MAP_WIDTH && ny >= 0 && ny < MAP_HEIGHT) {
-                if (fl->map.data[0][ny][nx] == VOXEL_FLOOR &&
-                    (rand() % 2 == 0)) {
-                  fl->map.data[0][ny][nx] = VOXEL_ROCK;
-                }
-              }
-            }
-          }
-        } else if (t->type == TRAP_STONE_TOMB) {
-          send_text_to_client(c->sock, "[DANGER] Thick stone walls yes"
-                                       "they rise from the ground, trapping you!");
-          Floor *fl = &master_world->floors[c->floor_id];
-          for (int dy = -1; dy <= 1; dy++) {
-            for (int dx = -1; dx <= 1; dx++) {
-              if (dx == 0 && dy == 0)
-                continue;
-              int nx = c->x + dx;
-              int ny = c->y + dy;
-              if (nx >= 0 && nx < MAP_WIDTH && ny >= 0 && ny < MAP_HEIGHT) {
-                fl->map.data[0][ny][nx] = VOXEL_WALL;
-              }
-            }
-          }
-        } else if (t->type == TRAP_SWAP_TELEPORT || t->type == TRAP_BODY_SWAP) {
-          //Find a nearby enemy (within 10 tiles) to trade
-          NPC *target_npc = NULL;
-          for (int n = 0; n < MAX_NPCS; n++) {
-            if (npcs[n].active && npcs[n].floor_id == c->floor_id) {
-              if (abs(npcs[n].x - c->x) <= 10 && abs(npcs[n].y - c->y) <= 10) {
-                target_npc = &npcs[n];
-                break;
-              }
-            }
-          }
-          if (target_npc) {
-            if (t->type == TRAP_SWAP_TELEPORT) {
-              send_text_to_client(
-                  c->sock,
-                  "[MAGIC] A flash of light! You trade places with a %s!",
-                  target_npc->template->name);
-              int tx = c->x;
-              int ty = c->y;
-              /*Keep entity_grid consistent with the swap (old code left
-               * the player ID on the NPC's old cell and vice versa, so
-               * collisions were corrupted until the next grid sync).*/
-              Floor *sfl = &master_world->floors[c->floor_id];
-              if (sfl->entity_grid[ty][tx] == c->entity_id)
-                sfl->entity_grid[ty][tx] = 0;
-              if (sfl->entity_grid[target_npc->y][target_npc->x] == target_npc->entity_id)
-                sfl->entity_grid[target_npc->y][target_npc->x] = 0;
-              c->x = target_npc->x;
-              c->y = target_npc->y;
-              target_npc->x = tx;
-              target_npc->y = ty;
-              sfl->entity_grid[c->y][c->x] = c->entity_id;
-              sfl->entity_grid[target_npc->y][target_npc->x] = target_npc->entity_id;
-            } else {
-              send_text_to_client(c->sock,
-                                  "[MAGIC] A dark force envelops you! Exchanges"
-                                  "your vitality with a %s!",
-                                  target_npc->template->name);
-              int thp = c->hp;
-              c->hp = target_npc->hp;
-              target_npc->hp = thp;
-            }
-          } else {
-            send_text_to_client(c->sock,
-                                "[MAGIC] The trap activates but does not find"
-                                "valid targets nearby.");
-          }
-        }
-
-        if (c->hp <= 0) {
-          clog_death(c->username, "Trap", c->floor_id);
-          save_bones(c);
-          /*A3: this was the third death site setting floor_id/x/y by hand
-           *instead of using player_respawn_town() (the starvation/poison/
-           *burn/bleed paths and MSG_MOVE all use it). Without it the other
-           *players kept seeing the corpse on the floor until the next sync
-           *and the dead client kept rendering the dungeon.*/
-          player_respawn_town(c);
-          send_text_to_client(c->sock,
-                              "[DEATH] You died from a trap... The Arcane has returned you to town without your equipment!");
-        }
-      }
-      if (t->type == TRAP_TELEPORT || t->type == TRAP_FAKE_DOOR) {
-        /*Random teleport — but ONLY onto a walkable tile: the old
-         * `rand() % MAP_WIDTH` could drop the player inside a rock, on a
-         * staircase (involuntary descent) or onto an occupied cell.*/
-        Floor *tfl = &master_world->floors[c->floor_id];
-        int anchor_x = 1 + rand() % (MAP_WIDTH - 2);
-        int anchor_y = 1 + rand() % (MAP_HEIGHT - 2);
-        int dest_x = c->x, dest_y = c->y;
-        find_walkable_near(tfl, anchor_x, anchor_y, &dest_x, &dest_y);
-        if (tfl->entity_grid[c->y][c->x] == c->entity_id)
-          tfl->entity_grid[c->y][c->x] = 0;
-        c->x = dest_x;
-        c->y = dest_y;
-        tfl->entity_grid[c->y][c->x] = c->entity_id;
-        send_text_to_client(
-            c->sock,
-            "[MAGIC] Space distorts, you have been teleported!");
-      } else if (t->type != TRAP_ILLUSION_MIRROR &&
-                 t->type != TRAP_SWAP_TELEPORT) {
-        t->active = false;
-      }
-      t->respawn_timer = RESPAWN_TRAPS_TICKS;
-      t->detected = false; // Reset detection for next time
-      if (f->map.data[0][t->y][t->x] == VOXEL_TRAP) {
-        f->map.data[0][t->y][t->x] = VOXEL_FLOOR;
-      }
+    if (t->type == TRAP_SPRING_SPEAR && t->active) {
+      trap_spring_spear(c, t);
+      continue;
     }
+    if (c->x == t->x && c->y == t->y)
+      trap_fire(c, t, f, npcs);
   }
 }
 
 /*Opens/closes the city shop doors by day/night.
  *
- * IMPORTANT: the door positions MUST be computed with the same formula as
- * the shop ring built in map.c (generate_procedural_dungeon, floor 0):
- * 11 shops, radius 26, slot i at angle i*(360/11) degrees, door on the
- * dominant axis 4 tiles out from the building center, facing the city
- * center. The old version used 10 hard-coded (±20/±12) coordinates from
- * the obsolete 1000x1000 layout, so the day/night doors were flipping
- * tiles that were NOT doors — while the real shop doors never changed.*/
-static bool is_inside_shop(int x, int y) {
-    int cx = MAP_CENTER_X;
-    int cy = MAP_CENTER_Y;
-    for (int i = 0; i < 11; i++) {
-        float angle = (i * (360.0f / 11.0f)) * (M_PI / 180.0f);
-        int sx = cx + (int)(cosf(angle) * 26.0f);
-        int sy = cy + (int)(sinf(angle) * 26.0f);
-        if (x >= sx - 3 && x <= sx + 3 && y >= sy - 3 && y <= sy + 3) {
-            return true;
-        }
-    }
-    return false;
-}
-
-static bool is_shop_door(int x, int y) {
-    int cx = MAP_CENTER_X;
-    int cy = MAP_CENTER_Y;
-    for (int i = 0; i < 11; i++) {
-        float angle = (i * (360.0f / 11.0f)) * (M_PI / 180.0f);
-        int sx = cx + (int)(cosf(angle) * 26.0f);
-        int sy = cy + (int)(sinf(angle) * 26.0f);
-        int dx = cx - sx, dy = cy - sy;
-        int tx = sx, ty = sy;
-        if (abs(dx) > abs(dy)) {
-            if (dx > 0) tx = sx + 4;
-            else        tx = sx - 4;
-        } else {
-            if (dy > 0) ty = sy + 4;
-            else        ty = sy - 4;
-        }
-        if (x == tx && y == ty) return true;
-    }
-    return false;
-}
-
+ * The door positions MUST follow the formula of the shop ring built in
+ * map.c (generate_city): 11 shops, radius 26, slot i at angle i*(360/11)
+ * degrees, door on the dominant axis 4 tiles out from the building
+ * centre, facing the city centre. server_move.c uses it too.*/
 void update_city_doors(void) {
   int h, m;
   get_game_time(&h, &m);
@@ -1504,10 +1477,8 @@ static void apply_player_save(Client *c, const SaveData *sd) {
     c->floor_id = sd->floor_id;
   }
 
-  /*Position: must be strictly inside the map (the old check only
-   * rejected x/y >= WIDTH/HEIGHT, so a NEGATIVE x or y survived and
-   * produced an OOB write in entity_grid on the first action).
-   * Fallback: town center.*/
+  /*Position: strictly inside the map, negative values included, or the
+   * first action would write outside entity_grid. Fallback: town centre.*/
   c->x = (sd->x >= 0 && sd->x < MAP_WIDTH) ? sd->x : MAP_CENTER_X;
   c->y = (sd->y >= 0 && sd->y < MAP_HEIGHT) ? sd->y : MAP_CENTER_Y;
   if (c->x != sd->x || c->y != sd->y)
@@ -1570,9 +1541,8 @@ static void apply_player_save(Client *c, const SaveData *sd) {
   }
 
   /*Inventory: the item arrays are copied wholesale, but the COUNT must
-   * be in [0, MAX_BACKPACK]. MAX_BACKPACK itself is legal: it is a full
-   * backpack (every pickup checks for space before writing), and treating
-   * it as corrupt used to wipe the whole inventory on the next login.*/
+   * be in [0, MAX_BACKPACK]. MAX_BACKPACK itself is a legal full backpack
+   * (every pickup checks for space before writing).*/
   memcpy(c->backpack, sd->backpack, sizeof(sd->backpack));
   c->backpack_count = sd->backpack_count;
   if (c->backpack_count < 0 || c->backpack_count > MAX_BACKPACK) {
@@ -1782,9 +1752,8 @@ void save_bones(Client* c) {
     if (ghost_slot >= 0) {
         NPC *g = &g_npcs[ghost_slot];
         memset(g, 0, sizeof(NPC));
-        /*active is set at the END of the setup, after the template is
-         *chosen, via npc_set_active: the helper must see the FINAL fields
-         *to update the floor cache correctly (A2).*/
+        /*active is set at the END of the setup, through npc_set_active:
+         * the floor caches need the final fields.*/
         g->is_ghost     = true;
         g->archetype    = ARCH_BOSS;
         g->entity_id    = next_id++;
@@ -1816,10 +1785,8 @@ void save_bones(Client* c) {
         }
         snprintf(g->custom_name, sizeof(g->custom_name), "Ghost of %s", c->username);
         g->gold_drop = 0; /*The gold is in the tombstone, not in the ghost*/
-        /*Activate through the single entry point now that the template is
-         *final (A2): the old code set active=true with no floor-cache
-         *update at all, so every death leaked one "missing" NPC from the
-         *density monitor's view of the floor.*/
+        /*The template is final: activate through npc_set_active, which
+         * keeps the floor caches in step.*/
         npc_set_active(g, true);
         /*Register in the entity_grid*/
         master_world->floors[c->floor_id].entity_grid[c->y][c->x] = g->entity_id;
@@ -1875,9 +1842,7 @@ void check_tile_events(Client *c, NPC *npcs) {
   VoxelType vt = master_world->floors[c->floor_id].map.data[0][c->y][c->x];
   // --- EVENTI AMBIENTALI ---
   if (vt == VOXEL_ICE) {
-    /*Slippery ground: Prone for 1 round.
-     * NOTE: this used to trigger on VOXEL_WATER, so EVERY step in a lake
-     * forced a guaranteed Prone. Only ice is slippery.*/
+    /*Slippery ground (ice, not water): Prone for 1 round.*/
     if (c->effect_count < MAX_EFFECTS_PER_ENTITY) {
       c->effects[c->effect_count] = (ActiveEffect){
           "Prone", EVENT_ON_TURN_START, MOD_ADDITIVE, 0, 1, false};
@@ -1886,11 +1851,8 @@ void check_tile_events(Client *c, NPC *npcs) {
           c->sock, "[DANGER] The ground is slippery! You fell to the ground!");
     }
   } else if (vt == VOXEL_STAIRS_DOWN) {
-    /*Floor boundary: there is no world below the last floor. The old
-     * unguarded c->floor_id++ on MAX_FLOORS-1 read/wrote floors[101]
-     * (heap OOB: crash or silent corruption). TRAP_FALLING_FLOOR already
-     * had this guard — the stairs were the only floor transition missing
-     * it.*/
+    /*Floor boundary: there is no world below the last floor (the
+     * falling floor trap has the same guard).*/
     if (c->floor_id >= MAX_FLOORS - 1) {
       send_text_to_client(c->sock,
           "[SYSTEM] The dungeon ends here: there is no floor below this one.");
@@ -1902,24 +1864,11 @@ void check_tile_events(Client *c, NPC *npcs) {
       if (!(c->bosses_defeated & (1u << boss_index))) {
         bool boss_alive = false;
         if (g_npcs) {
-          /*Per-floor index (falls back to a full scan if the floor
-           * overflowed the index cap).*/
-          int bn = 0;
-          const int *bidx = floor_index_for(c->floor_id, &bn);
-          if (bidx) {
-            for (int k = 0; k < bn; k++) {
-              const NPC *n = &g_npcs[bidx[k]];
-              if (n->active && n->floor_id == c->floor_id && n->archetype == ARCH_BOSS) {
-                boss_alive = true;
-                break;
-              }
-            }
-          } else {
-            for (int i = 0; i < MAX_NPCS; i++) {
-              if (g_npcs[i].active && g_npcs[i].floor_id == c->floor_id && g_npcs[i].archetype == ARCH_BOSS) {
-                boss_alive = true;
-                break;
-              }
+          FloorIter walk = floor_iter(g_npcs, c->floor_id);
+          for (int i; (i = floor_iter_next(&walk)) >= 0;) {
+            if (g_npcs[i].archetype == ARCH_BOSS) {
+              boss_alive = true;
+              break;
             }
           }
         }
@@ -2734,11 +2683,8 @@ static void login_finish(Client *clients, LoginJob *job, NPC *npcs) {
   if (is_dm)
       server_log("AUTH", "DM account authenticated from %s.", conn_peer_ip(i));
   if (load_status == 0) {
-    //New character. Stats are rolled on the SERVER below,
-    //once race/subrace are sanitized: the client-provided
-    //str..cha were the client's own 3d6 roll, i.e. untrusted
-    //(a modified client used to send 18/18/18/18/18/18 and
-    //the server only clamped them). M9.
+    //New character. The stats are rolled on the server below, once
+    //race and subrace are sanitized: the client's values are untrusted.
     clients[i].floor_id = 0;
     clients[i].max_floor_explored = 0;
     clients[i].x = MAP_CENTER_X;
@@ -2775,14 +2721,10 @@ static void login_finish(Client *clients, LoginJob *job, NPC *npcs) {
         (ml->alignment >= 0 && ml->alignment < ALIGN_COUNT)
             ? ml->alignment : 0;
 
-    /*--- Ability scores: rolled HERE, on the server (M9) ---
-     * The client used to roll 3d6 locally (with a reroll
-     * loop) and send the totals; an edited client simply
-     * sent 18 six times. Same formula the client used to
-     * compute: 3d6 per stat + race bonus + subrace bonus,
-     * with the result clamped to the playable range 3..18.
-     * The rolled values are sent back as a [CHARACTER] line
-     * (below) so the player sees them in-game.*/
+    /*--- Ability scores, rolled on the server ---
+     * 3d6 per stat + race bonus + subrace bonus, clamped to the
+     * playable range 3..18. The result is sent back as a
+     * [CHARACTER] line (below) so the player sees it in-game.*/
     {
       const RaceType rt = (RaceType)clients[i].race_id;
       int bonus[6] = {
@@ -2881,8 +2823,7 @@ static void login_finish(Client *clients, LoginJob *job, NPC *npcs) {
         clients[i].sock,
         "[SYSTEM] Welcome, %s! Your adventure begins...",
         clients[i].username);
-    /*The rolled ability summary (M9): the dice were thrown on
-     * the server, this is the player's view of the result.*/
+    /*The player's view of the abilities rolled above.*/
     send_text_to_client(
         clients[i].sock,
         "[CHARACTER] Rolled by the server: STR %d, DEX %d, CON %d, "
@@ -2955,13 +2896,16 @@ static void resolve_data_dir(void) {
   copy_str(g_data_dir, DRAGONGL_PKGDATADIR "/data", sizeof(g_data_dir));
 }
 
-int main(int argc, char **argv) {
-  setvbuf(stdout, NULL, _IONBF,
-          0); // Disable stdout buffering for live log files
-  int server_port = 8080;
-  const char *password_file = NULL;
-  const char *dm_password_file = NULL;
-  const char *state_dir_arg = NULL;
+typedef struct {
+  int port;
+  const char *password_file;
+  const char *dm_password_file;
+  const char *state_dir;
+} ServerOptions;
+
+/*Returns -1 to go on, otherwise the exit status (0 after --help/--version,
+ * 2 on invalid options). --data-dir is stored in g_data_dir.*/
+static int parse_options(int argc, char **argv, ServerOptions *o) {
   for (int i = 1; i < argc; i++) {
     const char *opt = argv[i];
     const char *val = (i + 1 < argc) ? argv[i + 1] : NULL;
@@ -3003,124 +2947,58 @@ int main(int argc, char **argv) {
         fprintf(stderr, "%s: invalid port '%s'\n", argv[0], val);
         return 2;
       }
-      server_port = (int)port;
+      o->port = (int)port;
     } else if (strcmp(opt, "-D") == 0 || strcmp(opt, "--data-dir") == 0) {
       copy_str(g_data_dir, val, sizeof(g_data_dir));
     } else if (strcmp(opt, "-S") == 0 || strcmp(opt, "--state-dir") == 0) {
-      state_dir_arg = val;
+      o->state_dir = val;
     } else if (strcmp(opt, "--password-file") == 0) {
-      password_file = val;
+      o->password_file = val;
     } else {
-      dm_password_file = val;
+      o->dm_password_file = val;
     }
   }
-  if (!auth_init()) {
-    fprintf(stderr, "%s: libsodium initialization failed\n", argv[0]);
-    return 1;
-  }
-  if (!load_server_secrets(password_file, dm_password_file))
-    return 2;
-  {
-    char err[STATE_DIR_MAX + 128];
-    if (!persist_init_state_dir(state_dir_arg, err, sizeof(err))) {
-      fprintf(stderr, "[SYS] State directory: %s\n", err);
-      return 2;
-    }
-  }
-  resolve_data_dir();
-  /*Seed the RNG BEFORE anything else: even when a world is loaded from
-   * disk (world_init skipped), dice must not run on the default seed.*/
-  seed_game_rng();
-  server_log("SYS", "Starting Dragon GL Server...");
-  server_log("SYS", "Data directory (read-only): %s", g_data_dir);
-  server_log("SYS", "State directory: %s", persist_state_dir());
-  {
-    char clog_path[STATE_DIR_MAX + 32];
-    if (state_path(clog_path, sizeof(clog_path), "combat_log.json")) {
-      clog_init(clog_path);
-      server_log("SYS", "Tactical log opened: %s", clog_path);
-    }
-  }
-  /* Ctrl-C / kill: request a graceful shutdown instead of the default
-   * immediate termination (which would leave combat_log.json truncated).*/
+  return -1;
+}
+
+/*SIGINT/SIGTERM request a graceful shutdown (combat_log.json would be
+ * left truncated otherwise); a write to a closed socket fails with EPIPE
+ * instead of killing the process.*/
+static void install_signal_handlers(void) {
   struct sigaction sa;
   memset(&sa, 0, sizeof(sa));
   sa.sa_handler = on_shutdown_signal;
   sigemptyset(&sa.sa_mask);
   sigaction(SIGINT, &sa, NULL);
   sigaction(SIGTERM, &sa, NULL);
-  /*A write to a socket the peer already closed must fail with EPIPE, not
-   * kill the process (every send also passes MSG_NOSIGNAL).*/
   signal(SIGPIPE, SIG_IGN);
-  int s_sock = net_create_server(server_port);
-  if (s_sock < 0) {
-    server_log("SYS", "Cannot bind to port %d", server_port);
-    clog_close();
-    return 1;
-  }
-  server_log("SYS", "Listening on port %d", server_port);
-  net_set_nonblocking(s_sock);
-  int epoll_fd = epoll_create1(EPOLL_CLOEXEC);
-  if (epoll_fd == -1) {
-    server_log("SYS", "Cannot create epoll");
-    return 1;
-  }
-  struct epoll_event ev;
-  ev.events = EPOLLIN;
-  ev.data.u32 = EPOLL_ID_LISTEN;
-  epoll_ctl(epoll_fd, EPOLL_CTL_ADD, s_sock, &ev);
-  
-  struct epoll_event ep_events[MAX_CLIENTS + 2];
-  Client *clients = calloc(MAX_CLIENTS, sizeof(Client));
-  g_clients = clients;
+}
 
-  global_clients = clients;
-  NPC *npcs = calloc(MAX_NPCS, sizeof(NPC));
-  g_npcs = npcs;
-  master_world = malloc(sizeof(World));
-  if (!master_world) {
-    server_log("SYS", "World memory allocation error");
-    clog_close();
-    return 1;
-  }
-
-  game_init();
-
-  {
-    char probe[DATA_DIR_MAX + 32];
-    snprintf(probe, sizeof(probe), "%s/bestiary.json", g_data_dir);
-    if (access(probe, R_OK) != 0) {
-      server_log("SYS", "ERROR: no game data: %s is missing. Use --data-dir <dir> or "
-                 "install the data package.", probe);
-      clog_close();
-      return 2; /*configuration error*/
-    }
+/*Returns 0, or the exit status: 2 without game data, 1 for unreadable data.*/
+static int load_game_data(void) {
+  char probe[DATA_DIR_MAX + 32];
+  snprintf(probe, sizeof(probe), "%s/bestiary.json", g_data_dir);
+  if (access(probe, R_OK) != 0) {
+    server_log("SYS", "ERROR: no game data: %s is missing. Use --data-dir <dir> or "
+               "install the data package.", probe);
+    return 2; /*configuration error*/
   }
   if (!init_data_loaders(g_data_dir)) {
     server_log("SYS", "JSON Error (in %s)", g_data_dir);
-    clog_close();
     return 1;
   }
-  artifacts_load();
-  server_log("SYS", "Unique Artifact System initialized.");
+  return 0;
+}
 
-  /*Leftovers of a write interrupted by a crash (<file>.tmp).*/
-  persist_cleanup_tmp();
-
-  tombstone_load_all();
-  server_log("SYS", "Tombstone System initialized.");
-
-  for (int i = 0; i < MAX_CLIENTS; i++)
-    clients[i].active = false;
+/*world.dat and npcs.dat are a pair: both load, or a new world is generated
+ * and saved (never a partial one). False if the new world cannot be saved.*/
+static bool load_or_generate_world(NPC *npcs) {
   for (int i = 0; i < MAX_NPCS; i++) {
     npcs[i].active = false;
     npcs[i].archetype = ARCH_MELEE;
     npcs[i].effect_count = 0;
     npcs[i].respawn_timer = -1;
   }
-
-  /*world.dat and npcs.dat are a pair: if either is missing or invalid a
-   * fresh world is generated, never a partial one.*/
   char world_path[STATE_DIR_MAX + 32], npcs_path[STATE_DIR_MAX + 32], why[96];
   bool world_ok = false, npcs_ok = false;
   if (state_path(world_path, sizeof(world_path), "world.dat") &&
@@ -3157,440 +3035,181 @@ int main(int argc, char **argv) {
         }
       }
     }
-  } else {
-    /*Start from a clean slate: a half-read npcs.dat may have filled slots.*/
-    memset(npcs, 0, sizeof(NPC) * MAX_NPCS);
-    for (int i = 0; i < MAX_NPCS; i++)
-      npcs[i].respawn_timer = -1;
-    next_id = 1;
-    global_total_turns = 0;
-    server_log("SYS", "Generating a new world in %s ...", persist_state_dir());
-    world_init(master_world);
-    spawn_city_merchants(npcs, &next_id);
-    spawn_magic_shops(npcs, &next_id);
-    spawn_martial_archive(npcs, &next_id);
-    populate_dungeons(npcs, &next_id);
-    if (!save_world_state(npcs)) {
-      server_log("SYS", "ERROR: the new world could not be saved in %s.", persist_state_dir());
-      clog_close();
-      return 1;
-    }
-    server_log("SYS", "New world generated and saved.");
+    return true;
   }
+  /*Start from a clean slate: a half-read npcs.dat may have filled slots.*/
+  memset(npcs, 0, sizeof(NPC) * MAX_NPCS);
+  for (int i = 0; i < MAX_NPCS; i++)
+    npcs[i].respawn_timer = -1;
+  next_id = 1;
+  global_total_turns = 0;
+  server_log("SYS", "Generating a new world in %s ...", persist_state_dir());
+  world_init(master_world);
+  spawn_city_merchants(npcs, &next_id);
+  spawn_magic_shops(npcs, &next_id);
+  spawn_martial_archive(npcs, &next_id);
+  populate_dungeons(npcs, &next_id);
+  if (!save_world_state(npcs)) {
+    server_log("SYS", "ERROR: the new world could not be saved in %s.", persist_state_dir());
+    return false;
+  }
+  server_log("SYS", "New world generated and saved.");
+  return true;
+}
 
-  sync_entity_grid(npcs);
-  floor_stats_rebuild(npcs);
-  floor_index_rebuild(npcs);
-  aoe_init_clouds();
-  spell_router_init();
-  /*From here on saves are written by the writer thread and logins are
-   * checked by the login worker: neither touches the game state.*/
-  writer_start();
-  if (!login_worker_start()) {
-    server_log("SYS", "Cannot start the login worker: %s", strerror(errno));
-    clog_close();
-    return 1;
+static void handle_text_message(Client *clients, int i, const void *payload, uint32_t len,
+                                NPC *npcs) {
+  Client *c = &clients[i];
+  MsgTextCmd tc;
+  if (!wire_get_text_cmd(payload, len, &tc)) {
+    conn_mark_drop(i, "malformed MSG_TEXT_CMD");
+    return;
   }
-  ev.events = EPOLLIN;
-  ev.data.u32 = EPOLL_ID_LOGIN;
-  if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, login_worker_eventfd(), &ev) != 0) {
-    server_log("SYS", "epoll_ctl(login worker) failed: %s", strerror(errno));
-    clog_close();
-    return 1;
+  /*Same rate limit as MSG_MOVE: a client spamming commands must not
+   * saturate the server.*/
+  long long now_ms = get_time_ms();
+  if (now_ms - c->last_action_ms < 200)
+    return; /*at most 5 text commands per second*/
+  c->last_action_ms = now_ms;
+  /*No control characters reach the game: they would travel verbatim to
+   * other players' terminals (ANSI escapes, \r overwriting lines) through
+   * chat and private messages.*/
+  for (char *p = tc.cmd; *p; p++) {
+    unsigned char ch = (unsigned char)*p;
+    if (ch < 0x20 || ch == 0x7F)
+      *p = ' ';
   }
-  server_log("SYS", "Server ready!");
-  /*Fixed-step game clock.
-   * update_world() must run at exactly 1/TICK_MS Hz (5 rounds/s) of REAL
-   * time, whatever the poll loop does: before the fix the simulation ran
-   * once per loop iteration (~200/s when idle, slower under load), so
-   * NPC energy — and therefore the whole game speed — followed the CPU
-   * load instead of the clock. The accumulator runs at most
-   * MAX_TICK_CATCHUP_MS of simulation per loop pass; a stalled system
-   * drops the excess game time instead of fast-forwarding.*/
+  handle_text_cmd(c, tc.cmd, npcs);
+}
+
+/*One complete message of slot i. Anything but MSG_LOGIN needs a login.*/
+static void handle_message(Client *clients, int i, const MsgHeader *hdr, const void *payload,
+                           NPC *npcs) {
+  if (hdr->type == MSG_LOGIN) {
+    handle_login(clients, i, payload, hdr->length);
+  } else if (hdr->type == MSG_MOVE) {
+    if (!clients[i].authenticated) {
+      conn_mark_drop(i, "MSG_MOVE before login");
+      return;
+    }
+    MsgMove m;
+    if (!wire_get_move(payload, hdr->length, &m)) {
+      conn_mark_drop(i, "malformed MSG_MOVE");
+      return;
+    }
+    player_move(&clients[i], &m, clients, npcs);
+  } else if (hdr->type == MSG_TEXT_CMD) {
+    if (!clients[i].authenticated) {
+      conn_mark_drop(i, "MSG_TEXT_CMD before login");
+      return;
+    }
+    handle_text_message(clients, i, payload, hdr->length, npcs);
+  }
+}
+
+/*Socket event of slot i: drain the socket, then handle every COMPLETE
+ * message already buffered. Nothing waits for missing bytes: a partial
+ * message stays in the buffer until the next EPOLLIN (server_conn.h).*/
+static void serve_client(Client *clients, int i, uint32_t ev_mask, NPC *npcs) {
+  if (!clients[i].active || conn_dropping(i))
+    return;
+  /*While its login is being checked a slot reads nothing (its EPOLLIN
+   * interest is off, see update_interest): only a hang-up is acted upon.*/
+  if (clients[i].login_pending) {
+    if (ev_mask & (EPOLLHUP | EPOLLERR | EPOLLRDHUP))
+      conn_mark_drop(i, "connection closed during login");
+    return;
+  }
+  ConnRxStatus rx = conn_read(i);
+  MsgHeader hdr;
+  const void *payload = NULL;
+  int got = 0;
+  /*A MSG_LOGIN hands the slot to the login worker: the messages after it
+   * stay buffered until login_finish() (resume list).*/
+  while (clients[i].active && !conn_dropping(i) && !clients[i].login_pending &&
+         (got = conn_next_message(i, &hdr, &payload)) == 1)
+    handle_message(clients, i, &hdr, payload, npcs);
+  if (got < 0) {
+    server_log("NET", "Protocol violation from client %d (%s): disconnect", i, conn_peer_ip(i));
+    conn_mark_drop(i, "protocol violation");
+  } else if (rx == CONN_RX_CLOSED) {
+    conn_mark_drop(i, "connection closed by peer");
+  } else if (rx == CONN_RX_ERROR) {
+    conn_mark_drop(i, "socket error");
+  }
+}
+
+/*Completed logins. Slots that already have messages buffered are added to
+ * resume[], to be served as if their socket had fired.*/
+static void take_finished_logins(Client *clients, NPC *npcs, int *resume, int *n_resume) {
+  LoginJob *job;
+  while ((job = login_worker_take()) != NULL) {
+    int slot = job->slot;
+    login_finish(clients, job, npcs);
+    login_job_free(job);
+    if (slot >= 0 && slot < MAX_CLIENTS && clients[slot].active &&
+        clients[slot].authenticated && !conn_dropping(slot) && conn_rx_pending(slot) &&
+        *n_resume < MAX_CLIENTS)
+      resume[(*n_resume)++] = slot;
+  }
+}
+
+/*The main loop, until SIGINT/SIGTERM.
+ *
+ * update_world() runs on a fixed-step clock: exactly 1/TICK_MS Hz (5
+ * rounds/s) of real time, whatever the event loop does, so the game speed
+ * never follows the CPU load. A pass runs at most MAX_TICK_CATCHUP_MS of
+ * simulation; a stalled system drops the excess instead of fast-forwarding.
+ * epoll waits half a tick, so input is served within half a round.*/
+static void run_server(int s_sock, int epoll_fd, Client *clients, NPC *npcs) {
+  struct epoll_event ep_events[MAX_CLIENTS + 2];
   long long last_iter_ms = 0;
   long long tick_acc_ms = 0;
   while (!g_shutdown_requested) {
-    /*Timeout = TICK_MS/2 (100 ms). The old 5 ms woke the loop 200 times
-     * per second even with ZERO connected clients, for no gain: the
-     * simulation below runs on a fixed-step accumulator (TICK_MS) that
-     * is driven by real time, so halving the wake rate (100 ms = half a
-     * tick) keeps update_world() exactly as punctual while new
-     * connections and player input are still serviced within half a
-     * game tick.*/
     int n_events = epoll_wait(epoll_fd, ep_events, MAX_CLIENTS + 2, (int)(TICK_MS / 2));
-    /*Slots whose login just completed with messages already buffered:
-     * served after the epoll events, as if their socket had fired.*/
     int resume[MAX_CLIENTS];
     int n_resume = 0;
     if (n_events < 0)
       n_events = 0;
-    {
-      for (int ev_idx = 0; ev_idx < n_events + n_resume; ev_idx++) {
-        uint32_t id = (ev_idx < n_events) ? ep_events[ev_idx].data.u32
-                                          : (uint32_t)resume[ev_idx - n_events];
-        uint32_t ev_mask = (ev_idx < n_events) ? ep_events[ev_idx].events : EPOLLIN;
-        if (id == EPOLL_ID_LISTEN) {
-          accept_pending_connections(s_sock, epoll_fd, clients);
-        } else if (id == EPOLL_ID_LOGIN) {
-          LoginJob *job;
-          while ((job = login_worker_take()) != NULL) {
-            int slot = job->slot;
-            login_finish(clients, job, npcs);
-            login_job_free(job);
-            if (slot >= 0 && slot < MAX_CLIENTS && clients[slot].active &&
-                clients[slot].authenticated && !conn_dropping(slot) &&
-                conn_rx_pending(slot) && n_resume < MAX_CLIENTS)
-              resume[n_resume++] = slot;
-          }
-        } else {
-          int i = (int)id;
-          if (!clients[i].active || conn_dropping(i))
-            continue;
-          /*While its login is being checked a slot reads nothing (its
-           * EPOLLIN interest is off, see update_interest): only a hang-up
-           * is acted upon.*/
-          if (clients[i].login_pending) {
-            if (ev_mask & (EPOLLHUP | EPOLLERR | EPOLLRDHUP))
-              conn_mark_drop(i, "connection closed during login");
-            continue;
-          }
-          /*Drain the socket, then handle every COMPLETE message already
-           * buffered. Nothing here ever waits for missing bytes: a
-           * partial message simply stays in the buffer until the next
-           * EPOLLIN (see server_conn.h).*/
-          ConnRxStatus rx = conn_read(i);
-          MsgHeader hdr;
-          const void *payload = NULL;
-          int got = 0;
-          /*A MSG_LOGIN hands the slot to the login worker: the messages
-           * after it stay buffered until login_finish() (resume list).*/
-          while (clients[i].active && !conn_dropping(i) && !clients[i].login_pending &&
-                 (got = conn_next_message(i, &hdr, &payload)) == 1) {
-          if (hdr.type == MSG_LOGIN) {
-            handle_login(clients, i, payload, hdr.length);
-          } else if (hdr.type == MSG_MOVE) {
-            if (!clients[i].authenticated) {
-              conn_mark_drop(i, "MSG_MOVE before login");
-              continue;
-            }
-            MsgMove m;
-            if (!wire_get_move(payload, hdr.length, &m)) {
-              conn_mark_drop(i, "malformed MSG_MOVE");
-              continue;
-            }
-
-            /*Position/floor BEFORE the move: the 10 KB map chunk is
-             * re-sent only if the view actually moved (M7).*/
-            int old_x = clients[i].x, old_y = clients[i].y;
-            int old_floor = clients[i].floor_id;
-
-            long long now_ms = get_time_ms();
-            if (now_ms - clients[i].last_action_ms < 200) {
-                continue; //Rate limit: max 5 actions per second
-            }
-            clients[i].last_action_ms = now_ms;
-
-            //--- ACTION BLOCK DUE TO CONDITIONS ---
-            if (rules_has_condition_t(clients[i].effects, clients[i].effect_count, COND_PARALYZED) ||
-                rules_has_condition_t(clients[i].effects, clients[i].effect_count, COND_STUNNED) ||
-                rules_has_condition_t(clients[i].effects, clients[i].effect_count, COND_PETRIFIED) ||
-                rules_has_condition_t(clients[i].effects, clients[i].effect_count, COND_FROZEN) ||
-                rules_has_condition_t(clients[i].effects, clients[i].effect_count, COND_UNCONSCIOUS)) {
-              send_text_to_client(
-                  clients[i].sock,
-                  "[SYSTEM] You can't move in this state!");
-              continue;
-            }
-
-            int dx = (m.dx > 0) ? 1 : (m.dx < 0 ? -1 : 0),
-                dy = (m.dy > 0) ? 1 : (m.dy < 0 ? -1 : 0);
-            int nx = clients[i].x + dx, ny = clients[i].y + dy;
-            bool coll = false;
-
-            if (nx >= 0 && nx < MAP_WIDTH && ny >= 0 && ny < MAP_HEIGHT) {
-              Floor *fl = &master_world->floors[clients[i].floor_id];
-              int ent_id = fl->entity_grid[ny][nx];
-
-              if (ent_id > 0) {
-                // Find entity by ID (still O(N) but only if occupied, and we
-                // can optimize this further) For now, check NPCs then Players
-                bool target_found = false;
-                for (int n = 0; n < MAX_NPCS; n++) {
-                  if (npcs[n].active && npcs[n].entity_id == ent_id) {
-                    target_found = true;
-                    if (npcs[n].archetype == ARCH_MERCHANT) {
-                      send_text_to_client(
-                          clients[i].sock,
-                          "[%s] Welcome! Use 'buy <n>', 'sell <n>', 'haggle "
-                          "buy <n>', 'identify' or 'cure'.",
-                          npcs[n].merchant.shop_name);
-                      print_merchant_inventory(&clients[i], &npcs[n]);
-                      coll = true;
-                    } else {
-                       /*--- Management of ghost/spoils (is_ghost) or dropped treasure ---*/
-                       if ((npcs[n].archetype == ARCH_BOSS && npcs[n].is_ghost) ||
-                           npcs[n].archetype == ARCH_TREASURE ||
-                           npcs[n].archetype == ARCH_GOLD) {
-                         if (npcs[n].archetype == ARCH_GOLD && !npcs[n].is_ghost) {
-                           /*Normal pile of gold*/
-                           clients[i].gold += npcs[n].gold_drop;
-                           send_text_to_client(clients[i].sock,
-                               "[SYSTEM] You pick up a stack of %d gold coins!",
-                               npcs[n].gold_drop);
-                           send_combat_event(clients[i].sock, COMBAT_EV_GOLD,
-                                             clients[i].entity_id, npcs[n].gold_drop);
-                           npc_set_active(&npcs[n], false);
-                           npcs[n].respawn_timer = 0;
-                           fl->entity_grid[ny][nx] = 0;
-                           coll = false;
-                           save_player_data(&clients[i]);
-                         } else if (npcs[n].is_ghost) {
-                           /*Player Ghost: Transfer gold + all items*/
-                           bool any = false;
-                           bool full = false;
-                           if (npcs[n].gold_drop > 0) {
-                             clients[i].gold += npcs[n].gold_drop;
-                             npcs[n].gold_drop = 0;
-                             any = true;
-                           }
-                           for (int gi = 0; gi < 30; gi++) {
-                             if (npcs[n].ghost_loot[gi].template_idx >= 0 &&
-                                 npcs[n].ghost_loot[gi].stack_count > 0) {
-                               if (clients[i].backpack_count >= MAX_BACKPACK) {
-                                 full = true;
-                                 break;
-                               }
-                               clients[i].backpack[clients[i].backpack_count++] =
-                                   npcs[n].ghost_loot[gi];
-                               npcs[n].ghost_loot[gi].template_idx = -1;
-                               npcs[n].ghost_loot[gi].stack_count  = 0;
-                               any = true;
-                             }
-                           }
-                           if (full) {
-                             send_text_to_client(clients[i].sock,
-                                 "[SYSTEM] Backpack full! You have only recovered part of the loot.");
-                             coll = true; /*blocks movement*/
-                           } else {
-                             if (any) {
-                               send_text_to_client(clients[i].sock,
-                                   "[SYSTEM] Recover everything you were carrying!");
-                             }
-                             npc_set_active(&npcs[n], false);
-                             npcs[n].respawn_timer = 0;
-                             fl->entity_grid[ny][nx] = 0;
-                             coll = false;
-                           }
-                           save_player_data(&clients[i]);
-                         } else if (npcs[n].ghost_loot[0].stack_count > 0) {
-                           /* Tesoro dropped (singolo item) */
-                           if (clients[i].backpack_count >= MAX_BACKPACK) {
-                             send_text_to_client(clients[i].sock,
-                                 "[SYSTEM] Backpack full! You cannot pick up the item.");
-                             coll = true;
-                           } else {
-                             clients[i].backpack[clients[i].backpack_count++] =
-                                 npcs[n].ghost_loot[0];
-                             send_text_to_client(clients[i].sock,
-                                 "[SYSTEM] You picked up: %s",
-                                 item_database[npcs[n].ghost_loot[0].template_idx].name);
-                             npc_set_active(&npcs[n], false);
-                             npcs[n].respawn_timer = 0;
-                             fl->entity_grid[ny][nx] = 0;
-                             coll = false;
-                             save_player_data(&clients[i]);
-                           }
-                         } else {
-                           /*Chest without ghost_loot: generate random loot*/
-                           send_text_to_client(clients[i].sock,
-                               "[SYSTEM] You open the treasure chest and find"
-                               " something inside...");
-                           drop_loot_from_monster(&clients[i], &npcs[n]);
-                           npc_set_active(&npcs[n], false);
-                           npcs[n].respawn_timer = 100;
-                           fl->entity_grid[ny][nx] = 0;
-                           coll = false;
-                           save_player_data(&clients[i]);
-                         }
-                       } else {
-                         perform_attack(&clients[i], &npcs[n], npcs);
-                         coll = true;
-                       }
-                    }
-                    break;
-                  }
-                }
-                // If not an NPC, check players
-                if (!target_found) {
-                  for (int p = 0; p < MAX_CLIENTS; p++) {
-                    if (clients[p].active && clients[p].authenticated &&
-                        clients[p].entity_id == ent_id) {
-                      send_text_to_client(clients[i].sock,
-                                          "[SOCIAL] You see %s in front of you.",
-                                          clients[p].username);
-                      VoxelType target_vt = fl->map.data[0][ny][nx];
-                      if (target_vt == VOXEL_STAIRS_UP || target_vt == VOXEL_STAIRS_DOWN) {
-                        coll = false;
-                      } else {
-                        coll = true;
-                      }
-                      break;
-                    }
-                  }
-                }
-              }
-            }
-
-            if (!coll) {
-              if (nx >= 0 && nx < MAP_WIDTH && ny >= 0 && ny < MAP_HEIGHT) {
-                VoxelType vt = master_world->floors[clients[i].floor_id]
-                                   .map.data[0][ny][nx];
-                bool can_pass = (vt != VOXEL_WALL && vt != VOXEL_ROCK);
-                
-                if (!can_pass && vt == VOXEL_WALL && clients[i].floor_id == 0) {
-                    if (is_shop_door(nx, ny) && is_inside_shop(old_x, old_y)) {
-                        can_pass = true;
-                    }
-                }
-                
-                if (can_pass) {
-                  //Update grid: leave old tile, enter new
-                  Floor *fl = &master_world->floors[clients[i].floor_id];
-                  if (fl->entity_grid[clients[i].y][clients[i].x] == clients[i].entity_id) {
-                    fl->entity_grid[clients[i].y][clients[i].x] = 0;
-                  }
-
-                  clients[i].x = nx;
-                  clients[i].y = ny;
-                  fl->entity_grid[ny][nx] = clients[i].entity_id;
-
-                  /*A5: the old `global_total_turns++` here (once per player
-                   *move) is GONE. It is a leftover of the pre-epoll design
-                   *where a round advanced per action: with the fixed-step
-                   *clock (2026.09.09) the counter is already incremented
-                   *exactly 5/s in update_world() (server_world.c), so this
-                   *second, per-move increment made day/night, hunger and
-                   *trap respawns (all expressed in rounds) run faster the
-                   *more players walked — up to 64 clients x 5 moves/s.
-                   *The simulation clock must be independent of player input.*/
-
-                  //--- BLOODY MOVEMENT EFFECT ---
-                  if (rules_has_condition_t(clients[i].effects, clients[i].effect_count, COND_BLEEDING)) {
-                    clients[i].hp -= 2;
-                    send_text_to_client(clients[i].sock,
-                                        "[DANGER] Moving reopens your"
-                                        " wounds! You bleed heavily...");
-                    if (clients[i].hp <= 0) {
-                      server_log(
-                          "DEATH",
-                          "%s bled to death during the movement.",
-                          clients[i].username);
-                      save_bones(&clients[i]);
-                      player_respawn_town(&clients[i]);
-                      send_text_to_client(clients[i].sock, "[SYSTEM] You died! The Arcane has returned you to town without your equipment!");
-                    }
-                  }
-
-                  /*A5: `global_total_turns++` USED to be here (see the
-                   *comment at the top of the can_pass block): removed.
-                   *The counter advances exactly 5/s in update_world().*/
-                  update_city_doors();
-                  check_tile_events(&clients[i], npcs);
-                  check_traps(&clients[i], npcs);
-                }
-              }
-            }
-            broadcast_nearby_entities(&clients[i], npcs);
-            send_detailed_state(&clients[i]);
-            broadcast_player_state(&clients[i]);
-            //Send the map chunk around the new location — but ONLY if
-            //x, y or the floor actually changed (M7). Holding a key
-            //against a wall used to re-ship the same 100x100 chunk 5x/s
-            //(~50 KB/s wasted per player, client redrawing the same
-            //map). check_tile_events/check_traps can change the floor
-            //(stairs, teleports), so floor_id is compared too. The state
-            //broadcasts above stay unconditional: a blocked move can
-            //still end a fight (attack sets coll) or leave NPC positions
-            //one tick stale. (The old two server_log("NET", ...) lines
-            //per step spammed the log: up to 64 players * 5 steps/s =
-            //~500 lines/second.)
-            if (clients[i].x != old_x || clients[i].y != old_y ||
-                clients[i].floor_id != old_floor) {
-              send_map_chunk(clients[i].sock,
-                             &master_world->floors[clients[i].floor_id].map,
-                             clients[i].x, clients[i].y, INITIAL_VIEW_RADIUS);
-            }
-          } else if (hdr.type == MSG_TEXT_CMD) {
-            if (!clients[i].authenticated) {
-              conn_mark_drop(i, "MSG_TEXT_CMD before login");
-              continue;
-            }
-            MsgTextCmd tc;
-            if (!wire_get_text_cmd(payload, hdr.length, &tc)) {
-              conn_mark_drop(i, "malformed MSG_TEXT_CMD");
-              continue;
-            }
-            /*Rate limit text commands exactly like MSG_MOVE: the flag was
-             * written but never tested, so a client spamming 'top', 'cast'
-             * or 'look' at 10 kHz saturated the server CPU (every 'top'
-             * opens, reads and qsorts each save file).*/
-            long long now_ms = get_time_ms();
-            if (now_ms - clients[i].last_action_ms < 200) {
-              continue; //Rate limit: max 5 text commands per second
-            }
-            clients[i].last_action_ms = now_ms;
-            /*No control characters reach the game: they would travel
-             * verbatim to other players' terminals (ANSI escapes, \r
-             * overwriting lines) through chat and private messages.*/
-            for (char *p = tc.cmd; *p; p++) {
-              unsigned char ch = (unsigned char)*p;
-              if (ch < 0x20 || ch == 0x7F)
-                *p = ' ';
-            }
-            handle_text_cmd(&clients[i], tc.cmd, npcs);
-          }
-          }
-          if (got < 0) {
-            server_log("NET", "Protocol violation from client %d (%s): disconnect",
-                       i, conn_peer_ip(i));
-            conn_mark_drop(i, "protocol violation");
-          } else if (rx == CONN_RX_CLOSED) {
-            conn_mark_drop(i, "connection closed by peer");
-          } else if (rx == CONN_RX_ERROR) {
-            conn_mark_drop(i, "socket error");
-          }
-        }
-      }
+    for (int ev_idx = 0; ev_idx < n_events + n_resume; ev_idx++) {
+      uint32_t id = (ev_idx < n_events) ? ep_events[ev_idx].data.u32
+                                        : (uint32_t)resume[ev_idx - n_events];
+      uint32_t ev_mask = (ev_idx < n_events) ? ep_events[ev_idx].events : EPOLLIN;
+      if (id == EPOLL_ID_LISTEN)
+        accept_pending_connections(s_sock, epoll_fd, clients);
+      else if (id == EPOLL_ID_LOGIN)
+        take_finished_logins(clients, npcs, resume, &n_resume);
+      else
+        serve_client(clients, (int)id, ev_mask, npcs);
     }
     expire_pending_logins(clients);
-    /*--- Fixed-step game clock (see the accumulator declaration) ---*/
+
     long long now_ms = get_time_ms();
-    if (last_iter_ms == 0) {
+    if (last_iter_ms == 0)
       last_iter_ms = now_ms;
-    }
     tick_acc_ms += now_ms - last_iter_ms;
     last_iter_ms = now_ms;
-    if (tick_acc_ms > MAX_TICK_CATCHUP_MS) {
+    if (tick_acc_ms > MAX_TICK_CATCHUP_MS)
       tick_acc_ms = MAX_TICK_CATCHUP_MS; /*drop the excess, never fast-forward*/
-    }
     while (tick_acc_ms >= TICK_MS) {
       update_world(clients, npcs);
       tick_acc_ms -= TICK_MS;
     }
-    /*Output of this iteration: write what the kernel accepts, remove the
-     * clients marked for removal (their "left floor" notices are queued
-     * for the others), write again, then ask epoll for EPOLLOUT only where
-     * bytes are still waiting.*/
+    /*Write what the kernel accepts, remove the clients marked for removal
+     * (their "left floor" notices are queued for the others), write again,
+     * then ask epoll for EPOLLOUT only where bytes are still waiting.*/
     flush_all_clients(clients);
     reap_dropped_clients(clients);
     flush_all_clients(clients);
     update_interest(epoll_fd, clients);
     pdf_jobs_poll();
   }
-  /*Graceful shutdown: logins still being checked are abandoned, queued
-   * writes reach the disk, then every character, the world and the
-   * artifacts are written synchronously (the periodic autosave runs once
-   * a minute, so up to 60 s of progress would be lost).*/
+}
+
+/*Graceful shutdown: logins still being checked are abandoned, queued
+ * writes reach the disk, then every character, the world and the artifacts
+ * are written synchronously (the autosave runs once a minute).*/
+static void shutdown_server(Client *clients, NPC *npcs) {
   login_worker_stop();
   if (!writer_stop())
     server_log("SYS", "WARNING: some queued saves failed (see above).");
@@ -3603,6 +3222,127 @@ int main(int argc, char **argv) {
   artifacts_save();
   clog_close();
   server_log("SYS", "Server shut down. Log saved.");
+}
+
+/*Listening socket and epoll set, with the listener registered. False if
+ * either cannot be created.*/
+static bool open_listener(int port, int *s_sock, int *epoll_fd) {
+  *s_sock = net_create_server(port);
+  if (*s_sock < 0) {
+    server_log("SYS", "Cannot bind to port %d", port);
+    return false;
+  }
+  server_log("SYS", "Listening on port %d", port);
+  net_set_nonblocking(*s_sock);
+  *epoll_fd = epoll_create1(EPOLL_CLOEXEC);
+  if (*epoll_fd == -1) {
+    server_log("SYS", "Cannot create epoll");
+    return false;
+  }
+  struct epoll_event ev;
+  ev.events = EPOLLIN;
+  ev.data.u32 = EPOLL_ID_LISTEN;
+  epoll_ctl(*epoll_fd, EPOLL_CTL_ADD, *s_sock, &ev);
+  return true;
+}
+
+/*Saves go through the writer thread and logins through the login worker
+ * from here on: neither touches the game state.*/
+static bool start_workers(int epoll_fd) {
+  writer_start();
+  if (!login_worker_start()) {
+    server_log("SYS", "Cannot start the login worker: %s", strerror(errno));
+    return false;
+  }
+  struct epoll_event ev;
+  ev.events = EPOLLIN;
+  ev.data.u32 = EPOLL_ID_LOGIN;
+  if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, login_worker_eventfd(), &ev) != 0) {
+    server_log("SYS", "epoll_ctl(login worker) failed: %s", strerror(errno));
+    return false;
+  }
+  return true;
+}
+
+int main(int argc, char **argv) {
+  setvbuf(stdout, NULL, _IONBF, 0); /*live log files*/
+  ServerOptions opt = {.port = 8080};
+  int status = parse_options(argc, argv, &opt);
+  if (status >= 0)
+    return status;
+  if (!auth_init()) {
+    fprintf(stderr, "%s: libsodium initialization failed\n", argv[0]);
+    return 1;
+  }
+  if (!load_server_secrets(opt.password_file, opt.dm_password_file))
+    return 2;
+  {
+    char err[STATE_DIR_MAX + 128];
+    if (!persist_init_state_dir(opt.state_dir, err, sizeof(err))) {
+      fprintf(stderr, "[SYS] State directory: %s\n", err);
+      return 2;
+    }
+  }
+  resolve_data_dir();
+  /*Before anything else: even a world loaded from disk must not roll its
+   * dice on the default seed.*/
+  seed_game_rng();
+  server_log("SYS", "Starting Dragon GL Server...");
+  server_log("SYS", "Data directory (read-only): %s", g_data_dir);
+  server_log("SYS", "State directory: %s", persist_state_dir());
+  {
+    char clog_path[STATE_DIR_MAX + 32];
+    if (state_path(clog_path, sizeof(clog_path), "combat_log.json")) {
+      clog_init(clog_path);
+      server_log("SYS", "Tactical log opened: %s", clog_path);
+    }
+  }
+  install_signal_handlers();
+  int s_sock = -1, epoll_fd = -1;
+  if (!open_listener(opt.port, &s_sock, &epoll_fd)) {
+    clog_close();
+    return 1;
+  }
+
+  Client *clients = calloc(MAX_CLIENTS, sizeof(Client));
+  g_clients = clients;
+  global_clients = clients;
+  NPC *npcs = calloc(MAX_NPCS, sizeof(NPC));
+  g_npcs = npcs;
+  master_world = malloc(sizeof(World));
+  if (!clients || !npcs || !master_world) {
+    server_log("SYS", "World memory allocation error");
+    clog_close();
+    return 1;
+  }
+  game_init();
+  status = load_game_data();
+  if (status != 0) {
+    clog_close();
+    return status;
+  }
+  artifacts_load();
+  server_log("SYS", "Unique Artifact System initialized.");
+  persist_cleanup_tmp(); /*leftovers of a write interrupted by a crash*/
+  tombstone_load_all();
+  server_log("SYS", "Tombstone System initialized.");
+
+  if (!load_or_generate_world(npcs)) {
+    clog_close();
+    return 1;
+  }
+  sync_entity_grid(npcs);
+  floor_stats_rebuild(npcs);
+  floor_index_rebuild(npcs);
+  aoe_init_clouds();
+  spell_router_init();
+  if (!start_workers(epoll_fd)) {
+    clog_close();
+    return 1;
+  }
+  server_log("SYS", "Server ready!");
+  run_server(s_sock, epoll_fd, clients, npcs);
+  shutdown_server(clients, npcs);
   return 0;
 }
 #endif /* DRAGONGL_NO_MAIN */

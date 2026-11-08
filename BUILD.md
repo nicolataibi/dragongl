@@ -157,7 +157,7 @@ ctest --test-dir build-tests --output-on-failure
 `tests/integration/` is a second standalone project. It builds the server with the flags you pass (normally ASan/UBSan) and runs two kinds of tests:
 
 - `server_network` (`test_server.py`): starts a real `dragongl_server` on a free port in a private copy of a generated world and drives it with a protocol-v4 client (`dglproto.py`). The first run generates the world and takes about a minute.
-- `server_harness`: links the server sources without `main()` (`-DDRAGONGL_NO_MAIN`) and calls persistence and trade code directly.
+- `server_harness`: links the server sources without `main()` (`-DDRAGONGL_NO_MAIN`) and calls the code directly: persistence, trade, the command table, doors, movement, the per-floor NPC walk and the entity lookup.
 
 ```bash
 cmake -B build-integration -G Ninja tests/integration -DCMAKE_BUILD_TYPE=Debug \

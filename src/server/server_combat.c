@@ -123,12 +123,9 @@ void perform_attack(Client *c, NPC *t, NPC *npcs) {
   //Aggro Group: Alert NPCs near the target.
   //Walks the per-floor index (O(entities on the floor)); the stale-entry
   //filters below also cover an index that is up to one tick old.
-  int aggro_n = 0;
-  const int *aggro_idx = floor_index_for(t->floor_id, &aggro_n);
-  for (int k = 0; k < ((aggro_idx != NULL) ? aggro_n : MAX_NPCS); k++) {
-    int i = (aggro_idx != NULL) ? aggro_idx[k] : k;
-    if (&npcs[i] != t && npcs[i].active && npcs[i].archetype != ARCH_MERCHANT &&
-        npcs[i].floor_id == t->floor_id) {
+  FloorIter walk = floor_iter(npcs, t->floor_id);
+  for (int i; (i = floor_iter_next(&walk)) >= 0;) {
+    if (&npcs[i] != t && npcs[i].archetype != ARCH_MERCHANT) {
       int d = abs(npcs[i].x - t->x) + abs(npcs[i].y - t->y);
       if (d <= 5 && npcs[i].ai_ctx.current_target_id == -1) {
         npcs[i].ai_ctx.current_target_id = c->entity_id;
@@ -203,7 +200,7 @@ void perform_attack(Client *c, NPC *t, NPC *npcs) {
       }
     }
     if (t->hp <= 0) {
-      npc_set_active(t, false); /*also updates the O(1) floor cache (A2)*/
+      npc_set_active(t, false); /*also updates the floor caches*/
       t->respawn_timer = RESPAWN_TICKS;
       extern World *master_world;
       master_world->floors[t->floor_id].entity_grid[t->y][t->x] = 0;
@@ -239,10 +236,6 @@ void perform_attack(Client *c, NPC *t, NPC *npcs) {
               send_text_to_client(c->sock, "[EVENT] You destroyed a minion of darkness! Progress: %d/%d", event_progress, event_goal);
           }
       }
-
-      /*The floor-stats update now happens inside npc_set_active(t, false)
-       *above — the separate floor_stats_npc_died() call lived here and is
-       *gone (single point of truth, A2).*/
 
       send_text_to_client(
           c->sock,
@@ -317,12 +310,9 @@ void perform_attack_npc(NPC *n, Client *c, NPC *npcs) {
   }
   //Aggro Group: Alert NPCs close to the attacker (per-floor index, see
   //perform_attack above for the rationale).
-  int aggro_n = 0;
-  const int *aggro_idx = floor_index_for(n->floor_id, &aggro_n);
-  for (int k = 0; k < ((aggro_idx != NULL) ? aggro_n : MAX_NPCS); k++) {
-    int i = (aggro_idx != NULL) ? aggro_idx[k] : k;
-    if (&npcs[i] != n && npcs[i].active && npcs[i].archetype != ARCH_MERCHANT &&
-        npcs[i].floor_id == n->floor_id) {
+  FloorIter walk = floor_iter(npcs, n->floor_id);
+  for (int i; (i = floor_iter_next(&walk)) >= 0;) {
+    if (&npcs[i] != n && npcs[i].archetype != ARCH_MERCHANT) {
       int d = abs(npcs[i].x - n->x) + abs(npcs[i].y - n->y);
       if (d <= 5 && npcs[i].ai_ctx.current_target_id == -1) {
         npcs[i].ai_ctx.current_target_id = c->entity_id;
