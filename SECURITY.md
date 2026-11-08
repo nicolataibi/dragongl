@@ -48,7 +48,7 @@ To protect server resources and player accounts from unauthorized access:
    - Without a DM password the account is disabled.
 4. **Where secrets come from:** a file (`--password-file`, `--dm-password-file`; a warning is printed if it is readable by group/others) or the environment (`DRAGONGL_SERVER_PASSWORD`, `DRAGONGL_DM_PASSWORD`). Command-line passwords are refused, because every local user can read them with `ps`. The server wipes the environment values in place at start-up, so they disappear from `/proc/<pid>/environ`. Server secrets have 8-31 printable ASCII characters without spaces.
 5. **Transport:** the protocol is not encrypted. Passwords travel in clear over TCP: run the server on a trusted LAN, or behind a VPN or TLS tunnel.
-6. **Known limit:** Argon2id runs on the main loop, so each login pauses the game for roughly 50-100 ms. The per-address limits below bound how often this can be triggered.
+6. **Off the game loop:** Argon2id (verification, or hashing for a new character) and the reading of the save run in a login worker thread (`src/server/login_worker.c`); the game keeps ticking while a login is checked. The plaintext password exists only in the worker's job and is wiped after use. While a login is being checked, its character name counts as online, so two connections cannot create or load the same character at once. The per-address limits below still bound how much hashing one address can request.
 
 ### B. Network Framing & Buffer Bounds
 - **Strict Packet Bounds:** All network messages begin with a 12-byte `MsgHeader` containing an explicit `length` field and `PROTOCOL_VERSION`.
@@ -71,8 +71,12 @@ Text commands are stripped of control characters (bytes below 0x20 and 0x7F) bef
 - **Single writer:** the running server holds an `flock` on `server.lock`; a second server on the same directory is refused, and `dragongl-reset-world` refuses to run under a live server.
 - **Untrusted files:** every file is a versioned, CRC-checked container whose fields are read one by one; counts, enums and coordinates are range-checked, and the payload must be consumed exactly. A corrupt or foreign file is refused, never half-loaded: an unreadable save refuses the login and is kept, an unreadable world triggers a new one.
 - **Durable writes:** temporary file, `fsync`, atomic `rename`, `fsync` of the directory; on failure the previous file is kept and the error is logged.
+- **Writer thread:** the game loop only takes the snapshot (in memory); a writer thread performs the disk work (`src/server/writer.c`). A newer snapshot of a file replaces one still waiting in the queue, and a login waits for any pending write of its save before reading it, so a character never comes back older than its last logout. At shutdown the queue is drained, then the final saves are written synchronously.
+- **Child processes:** the DM PDF generator runs in the background (`posix_spawn`, reaped with `waitpid(WNOHANG)`); the script is looked up next to the server binary or in `/usr/share/dragongl/tools`, never in the current directory. Every server descriptor (sockets, epoll, state lock, log) is close-on-exec, so the child inherits none of them.
 
 ### E. Concurrency & Thread Safety
+The server game state belongs to the main loop only. The two server threads (writer, login worker) receive self-contained jobs (an encoded buffer, a copy of the login request) through mutex-protected queues and never touch `Client`, `NPC` or `World`; the login worker reports back through an `eventfd` watched by `epoll`, and a result is applied only if the slot still holds the same connection (generation counter). `server_log()` is thread-safe (`localtime_r`, stream lock).
+
 Dragon GL separates networking I/O from rendering:
 - **Lock-Free Frame Snapshots:** The client render loop works on an immutable `FrameSnapshot` captured each frame, avoiding dirty reads while the network thread receives map chunks and state updates.
 - **Granular Mutexes:** Shared visualization pools (Floating Combat Text and particle systems) use dedicated mutexes (`g_particles_mutex`, `g_fct_mutex`) to eliminate data races under heavy combat loads.

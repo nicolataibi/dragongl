@@ -30,6 +30,8 @@
 #include "server_conn.h"
 #include "auth.h"
 #include "persist.h"
+#include "login_worker.h"
+#include "writer.h"
 #include "rules.h"
 #include "species.h"
 #include "spells.h"
@@ -95,6 +97,11 @@ static Client *global_clients = NULL;
 * path, so clog_close() can write the closing bracket of
 * combat_log.json.*/
 static volatile sig_atomic_t g_shutdown_requested = 0;
+
+/*epoll data.u32 of the descriptors that are not client slots (a client is
+ * identified by its slot index, 0..MAX_CLIENTS-1).*/
+#define EPOLL_ID_LISTEN ((uint32_t)MAX_CLIENTS)
+#define EPOLL_ID_LOGIN ((uint32_t)MAX_CLIENTS + 1)
 static void on_shutdown_signal(int sig) {
     (void)sig;
     g_shutdown_requested = 1;
@@ -257,9 +264,7 @@ static void artifacts_save(void) {
     return;
   for (int i = 0; i < artifact_count; i++)
     flags[i] = artifact_registry[i].already_dropped;
-  if (!persist_write_flags(path, flags, artifact_count))
-    server_log("SAVE", "Failed to save artifacts.dat (%s) — previous state kept.",
-               strerror(errno));
+  persist_write_flags(path, flags, artifact_count); /*failures: logged by the writer*/
 }
 
 // Forward declarations
@@ -314,10 +319,16 @@ void sync_entity_grid(NPC *npcs) {
   }
 }
 
+/*Called from the game loop and from the writer and login threads:
+ * localtime_r instead of the shared static of localtime(), and the stream
+ * lock held across the three writes so lines never interleave.*/
 void server_log(const char *cat, const char *fmt, ...) {
   time_t now = time(NULL);
-  char b[20];
-  strftime(b, 20, "%H:%M:%S", localtime(&now));
+  struct tm tm_now;
+  char b[20] = "--:--:--";
+  if (localtime_r(&now, &tm_now))
+    strftime(b, sizeof(b), "%H:%M:%S", &tm_now);
+  flockfile(stdout);
   printf("[%s] [%-8s] ", b, cat);
   va_list a;
   va_start(a, fmt);
@@ -325,6 +336,7 @@ void server_log(const char *cat, const char *fmt, ...) {
   va_end(a);
   printf("\n");
   fflush(stdout);
+  funlockfile(stdout);
 }
 
 void get_game_time(int *h, int *m) {
@@ -1418,14 +1430,13 @@ void save_player_data(Client *c) {
   memcpy(sd.blocked_players, c->blocked_players,
          sizeof(c->blocked_players));
   sd.blocked_count = c->blocked_count;
-  /*Written field by field (persist.c) into a versioned, CRC-checked
-   * container, atomically: on failure the previous save is kept.*/
-  if (!persist_write_player(p, &sd)) {
-    server_log("SAVE", "Failed to save %s (%s) — previous save kept.",
-               c->username, strerror(errno));
-    return;
-  }
-  server_log("SAVE", "Saved: %s", c->username);
+  /*Encoded here, field by field (persist.c), into a versioned,
+   * CRC-checked container; the writer thread stores it atomically (a
+   * failure keeps the previous save and is logged there).*/
+  bool ok = persist_write_player(p, &sd);
+  auth_wipe(&sd, sizeof(sd));
+  if (ok)
+    server_log("SAVE", "Saved: %s", c->username);
 }
 
 /*Sanitize an ItemInstance loaded from a save file: template_idx must be
@@ -1440,33 +1451,35 @@ static void sanitize_item_instance(ItemInstance *it) {
   }
 }
 
-//Returns 1 if loaded, 0 if not exists, -1 if password incorrect,
-//-2 if the file exists but is unreadable (other format version, corrupt):
-//the login is refused and the file is kept intact.
-int load_player_data(Client *c, const char *password) {
-  if (!c || !password)
-    return 0;
-  char p[STATE_DIR_MAX + 64];
-  if (!state_path(p, sizeof(p), "saves/%s.save", c->username))
-    return -2;
-  SaveData sd;
-  char why[96];
-  BinFileStatus st = persist_read_player(p, &sd, why, sizeof(why));
-  if (st == BINFILE_MISSING)
-    return 0; //New character
-  if (st != BINFILE_OK) {
+/*The log line of a refused login (the worker never logs: the client may
+ * already be gone, and the slot decides what the user is told).*/
+static void log_login_outcome(const LoginJob *job) {
+  switch (job->outcome) {
+  case LOGIN_BAD_PASSWORD:
+    server_log("AUTH", "Incorrect password for: %s", job->ml.username);
+    break;
+  case LOGIN_UNREADABLE:
     /*Never half-loaded, never treated as a new character (the next save
      * would overwrite it): refused, file kept.*/
     server_log("SAVE", "%s.save is unreadable (%s) — login refused (file kept).",
-               c->username, why);
-    return -2;
+               job->ml.username, job->why);
+    break;
+  case LOGIN_BAD_DM:
+    server_log("AUTH", "Invalid DM password from slot %d.", job->slot);
+    break;
+  case LOGIN_SERVER_ERROR:
+    server_log("AUTH", "Password hashing failed for: %s", job->ml.username);
+    break;
+  default:
+    break;
   }
-  if (!auth_verify_password(sd.password_hash, password)) {
-    auth_wipe(&sd, sizeof(sd));
-    server_log("AUTH", "Incorrect password for: %s", c->username);
-    return -1; //Incorrect password
-  }
-  copy_str(c->password_hash, sd.password_hash, sizeof(c->password_hash));
+}
+
+/*Apply a verified save image to the client (login_finish, or
+ * load_player_data below). Everything in it is untrusted input and is
+ * range-checked here.*/
+static void apply_player_save(Client *c, const SaveData *sd) {
+  copy_str(c->password_hash, sd->password_hash, sizeof(c->password_hash));
   //Restore state
   /*--- SANITIZE THE LOADED STATE --------------------------------
    * A save file is untrusted input: saves are written atomically
@@ -1482,69 +1495,69 @@ int load_player_data(Client *c, const char *password) {
   int save_corrupted = 0;
 
   /*Floor: must be in [0, MAX_FLOORS), otherwise force to 0 (surface).*/
-  if (sd.floor_id < 0 || sd.floor_id >= MAX_FLOORS) {
+  if (sd->floor_id < 0 || sd->floor_id >= MAX_FLOORS) {
     c->floor_id = 0;
     save_corrupted = 1;
   } else {
-    c->floor_id = sd.floor_id;
+    c->floor_id = sd->floor_id;
   }
 
   /*Position: must be strictly inside the map (the old check only
    * rejected x/y >= WIDTH/HEIGHT, so a NEGATIVE x or y survived and
    * produced an OOB write in entity_grid on the first action).
    * Fallback: town center.*/
-  c->x = (sd.x >= 0 && sd.x < MAP_WIDTH) ? sd.x : MAP_CENTER_X;
-  c->y = (sd.y >= 0 && sd.y < MAP_HEIGHT) ? sd.y : MAP_CENTER_Y;
-  if (c->x != sd.x || c->y != sd.y)
+  c->x = (sd->x >= 0 && sd->x < MAP_WIDTH) ? sd->x : MAP_CENTER_X;
+  c->y = (sd->y >= 0 && sd->y < MAP_HEIGHT) ? sd->y : MAP_CENTER_Y;
+  if (c->x != sd->x || c->y != sd->y)
     save_corrupted = 1;
 
   /*Identity: out-of-range enums would index the RACES/SUBRACES/CLASSES/
    * ALIGNMENTS tables out of bounds. Same fallbacks as the new-character
    * path.*/
   c->race_id =
-      (sd.race_id >= 0 && sd.race_id < RACE_COUNT) ? sd.race_id : 0;
+      (sd->race_id >= 0 && sd->race_id < RACE_COUNT) ? sd->race_id : 0;
   c->subrace_id =
-      (sd.subrace_id >= -1 && sd.subrace_id < SUBRACE_COUNT)
-          ? sd.subrace_id
+      (sd->subrace_id >= -1 && sd->subrace_id < SUBRACE_COUNT)
+          ? sd->subrace_id
           : -1;
-  c->class_id = (sd.class_id >= 0 && sd.class_id < CLASS_COUNT)
-                    ? sd.class_id
+  c->class_id = (sd->class_id >= 0 && sd->class_id < CLASS_COUNT)
+                    ? sd->class_id
                     : CLASS_BARBARIAN;
   c->alignment =
-      (sd.alignment >= 0 && sd.alignment < ALIGN_COUNT) ? sd.alignment : 0;
+      (sd->alignment >= 0 && sd->alignment < ALIGN_COUNT) ? sd->alignment : 0;
 
   /*Progression: level is capped at 20 (check_level_up / XP table);
    * xp cannot be negative; stats go through the same clamp used on the
    * new-character path.*/
-  c->level = sd.level;
+  c->level = sd->level;
   if (c->level < 1 || c->level > 20) {
     c->level = 1;
     save_corrupted = 1;
   }
-  c->xp = sd.xp;
+  c->xp = sd->xp;
   if (c->xp < 0) {
     c->xp = 0;
     save_corrupted = 1;
   }
-  c->str = clamp_stat(sd.str);
-  c->dex = clamp_stat(sd.dex);
-  c->con = clamp_stat(sd.con);
-  c->intel = clamp_stat(sd.intel);
-  c->wis = clamp_stat(sd.wis);
-  c->cha = clamp_stat(sd.cha);
-  c->gold = sd.gold;
+  c->str = clamp_stat(sd->str);
+  c->dex = clamp_stat(sd->dex);
+  c->con = clamp_stat(sd->con);
+  c->intel = clamp_stat(sd->intel);
+  c->wis = clamp_stat(sd->wis);
+  c->cha = clamp_stat(sd->cha);
+  c->gold = sd->gold;
 
   /*HP: max_hp must be positive; hp must be in [0, max_hp]. A negative
    * hp is a "dead" character that would come back full on the next
    * damage — a free heal via a modified save.*/
-  c->max_hp = sd.max_hp;
+  c->max_hp = sd->max_hp;
   if (c->max_hp <= 0) {
     c->max_hp = 20 + rules_get_modifier(c->con); /*new-character default*/
     if (c->max_hp < 1)
       c->max_hp = 1;
     save_corrupted = 1;
   }
-  c->hp = sd.hp;
+  c->hp = sd->hp;
   if (c->hp < 0) {
     c->hp = 0;
     save_corrupted = 1;
@@ -1558,26 +1571,26 @@ int load_player_data(Client *c, const char *password) {
    * be in [0, MAX_BACKPACK]. MAX_BACKPACK itself is legal: it is a full
    * backpack (every pickup checks for space before writing), and treating
    * it as corrupt used to wipe the whole inventory on the next login.*/
-  memcpy(c->backpack, sd.backpack, sizeof(sd.backpack));
-  c->backpack_count = sd.backpack_count;
+  memcpy(c->backpack, sd->backpack, sizeof(sd->backpack));
+  c->backpack_count = sd->backpack_count;
   if (c->backpack_count < 0 || c->backpack_count > MAX_BACKPACK) {
     c->backpack_count = 0;
     save_corrupted = 1;
   }
-  memcpy(c->belt, sd.belt, sizeof(sd.belt));
-  c->slot_head = sd.s_head;
-  c->slot_neck = sd.s_neck;
-  c->slot_body = sd.s_body;
-  c->slot_back = sd.s_back;
-  c->slot_hand_r = sd.s_hand_r;
-  c->slot_hand_l = sd.s_hand_l;
-  c->slot_hands = sd.s_hands;
-  c->slot_arm_r = sd.s_arm_r;
-  c->slot_arm_l = sd.s_arm_l;
-  c->slot_feet = sd.s_feet;
-  memcpy(c->slot_rings, sd.s_rings, sizeof(sd.s_rings));
-  memcpy(c->spell_slots, sd.spell_slots, sizeof(sd.spell_slots));
-  memcpy(c->spell_slots_max, sd.spell_slots_max, sizeof(sd.spell_slots_max));
+  memcpy(c->belt, sd->belt, sizeof(sd->belt));
+  c->slot_head = sd->s_head;
+  c->slot_neck = sd->s_neck;
+  c->slot_body = sd->s_body;
+  c->slot_back = sd->s_back;
+  c->slot_hand_r = sd->s_hand_r;
+  c->slot_hand_l = sd->s_hand_l;
+  c->slot_hands = sd->s_hands;
+  c->slot_arm_r = sd->s_arm_r;
+  c->slot_arm_l = sd->s_arm_l;
+  c->slot_feet = sd->s_feet;
+  memcpy(c->slot_rings, sd->s_rings, sizeof(sd->s_rings));
+  memcpy(c->spell_slots, sd->spell_slots, sizeof(sd->spell_slots));
+  memcpy(c->spell_slots_max, sd->spell_slots_max, sizeof(sd->spell_slots_max));
   /*Every ItemInstance loaded from disk may carry a hostile template_idx
    * (used later as an item_database[] index): any slot that is neither
    * empty (-1) nor a valid database index is dropped.*/
@@ -1614,12 +1627,12 @@ int load_player_data(Client *c, const char *password) {
    * MAX_CONDITIONS) are transient spell/trap bookkeeping and are
    * dropped by design.*/
   c->effect_count = 0;
-  if (sd.effect_count < 0 || sd.effect_count > MAX_EFFECTS_PER_ENTITY) {
+  if (sd->effect_count < 0 || sd->effect_count > MAX_EFFECTS_PER_ENTITY) {
     c->effect_count = 0;
     save_corrupted = 1;
   } else {
-    for (int i = 0; i < sd.effect_count; i++) {
-      const SavedEffect *se = &sd.effects[i];
+    for (int i = 0; i < sd->effect_count; i++) {
+      const SavedEffect *se = &sd->effects[i];
       if (se->cond < 0 || se->cond >= MAX_CONDITIONS)
         continue; /*not a canonical condition: dropped by design*/
       ActiveEffect *e = &c->effects[c->effect_count];
@@ -1634,33 +1647,33 @@ int load_player_data(Client *c, const char *password) {
       c->effect_count++;
     }
   }
-  c->light_turns_left = sd.light_turns_left;
+  c->light_turns_left = sd->light_turns_left;
   if (c->light_turns_left < 0)
     c->light_turns_left = 0;
-  c->hunger_level     = sd.hunger_level;
+  c->hunger_level     = sd->hunger_level;
   if (c->hunger_level < 0)
     c->hunger_level = 0;
   else if (c->hunger_level > HUNGER_MAX)
     c->hunger_level = HUNGER_MAX;
-  c->exhaustion_level = sd.exhaustion_level;
+  c->exhaustion_level = sd->exhaustion_level;
   if (c->exhaustion_level < 0 || c->exhaustion_level > 6)
     c->exhaustion_level = 0;
-  c->total_kills      = sd.total_kills;
+  c->total_kills      = sd->total_kills;
   if (c->total_kills < 0)
     c->total_kills = 0;
-  c->total_steps      = sd.total_steps;
+  c->total_steps      = sd->total_steps;
   if (c->total_steps < 0)
     c->total_steps = 0;
   /* --- Innate transit magic: restore deepest floor ever reached.
    * Old saves (smaller files) leave the field at zero, which is correct:
    * the character has no recorded descent yet. */
-  c->max_floor_explored = sd.max_floor_explored;
+  c->max_floor_explored = sd->max_floor_explored;
   if (c->max_floor_explored < 0 || c->max_floor_explored >= MAX_FLOORS)
     c->max_floor_explored = 0;
   if (c->floor_id > c->max_floor_explored)
     c->max_floor_explored = c->floor_id;
   /* --- Fase 5: Ripristina grimorio --- */
-  memcpy(c->known_spells, sd.known_spells, sizeof(sd.known_spells));
+  memcpy(c->known_spells, sd->known_spells, sizeof(sd->known_spells));
   /* Innate class magic is always known, even on saves created before the
    * spell existed: force-set the grimoire bits for this character's class. */
   {
@@ -1675,8 +1688,8 @@ int load_player_data(Client *c, const char *password) {
     }
   }
   /*--- Step 6: Reset boss flags ---*/
-  c->bosses_defeated = sd.bosses_defeated;
-  c->unspent_stat_points = sd.unspent_stat_points;
+  c->bosses_defeated = sd->bosses_defeated;
+  c->unspent_stat_points = sd->unspent_stat_points;
   if (c->unspent_stat_points < 0)
     c->unspent_stat_points = 0;
   else if (c->unspent_stat_points > 60) /*max: 19 level-ups * 3 points*/
@@ -1684,10 +1697,10 @@ int load_player_data(Client *c, const char *password) {
   /*--- Messaging: Reset block list ---
 * Older (smaller) saves leave the field at zero,
 * therefore the list is correctly empty.*/
-  if (sd.blocked_count > 0 && sd.blocked_count <= MAX_BLOCKED_PLAYERS) {
-    memcpy(c->blocked_players, sd.blocked_players,
-           sizeof(sd.blocked_players));
-    c->blocked_count = sd.blocked_count;
+  if (sd->blocked_count > 0 && sd->blocked_count <= MAX_BLOCKED_PLAYERS) {
+    memcpy(c->blocked_players, sd->blocked_players,
+           sizeof(sd->blocked_players));
+    c->blocked_count = sd->blocked_count;
   } else {
     c->blocked_count = 0;
   }
@@ -1698,7 +1711,43 @@ int load_player_data(Client *c, const char *password) {
   server_log("SAVE", "Loaded: %s (floor %d, HP %d/%d, gold %lu, effects %d)",
              c->username, c->floor_id, c->hp, c->max_hp,
              (unsigned long)c->gold, c->effect_count);
-  return 1;
+}
+
+/*Synchronous load (tests and tools; a network login goes through the
+ * login worker). Returns 1 if loaded, 0 if the character does not exist,
+ * -1 if the password is incorrect, -2 if the file exists but is unreadable
+ * (other format version, corrupt): the login is refused and the file is
+ * kept intact.*/
+int load_player_data(Client *c, const char *password) {
+  if (!c || !password)
+    return 0;
+  LoginJob *job = calloc(1, sizeof(*job));
+  if (!job)
+    return -2;
+  int rc = -2;
+  copy_str(job->ml.username, c->username, sizeof(job->ml.username));
+  copy_str(job->ml.password, password, sizeof(job->ml.password));
+  if (state_path(job->save_path, sizeof(job->save_path), "saves/%s.save", c->username)) {
+    login_job_run(job);
+    log_login_outcome(job);
+    switch (job->outcome) {
+    case LOGIN_LOADED:
+      apply_player_save(c, &job->sd);
+      rc = 1;
+      break;
+    case LOGIN_NEW:
+      rc = 0;
+      break;
+    case LOGIN_BAD_PASSWORD:
+      rc = -1;
+      break;
+    default:
+      rc = -2;
+      break;
+    }
+  }
+  login_job_free(job);
+  return rc;
 }
 
 void damage_item(ItemInstance *it, int amt) {
@@ -2294,11 +2343,16 @@ static void peer_ip_string(const struct sockaddr_storage *ss, char *out,
     copy_str(out, "?", out_len);
 }
 
+/*In play, or with a login of that name in the login worker.*/
 static bool character_online(const Client *clients, const char *username) {
-  for (int i = 0; i < MAX_CLIENTS; i++)
-    if (clients[i].active && clients[i].authenticated &&
-        strcmp(clients[i].username, username) == 0)
+  for (int i = 0; i < MAX_CLIENTS; i++) {
+    if (!clients[i].active)
+      continue;
+    if (clients[i].authenticated && strcmp(clients[i].username, username) == 0)
       return true;
+    if (clients[i].login_pending && strcmp(clients[i].login_user, username) == 0)
+      return true;
+  }
   return false;
 }
 
@@ -2334,7 +2388,7 @@ static void accept_pending_connections(int listen_fd, int epoll_fd,
     int cs = accept(listen_fd, (struct sockaddr *)&ss, &ss_len);
     if (cs >= 0) {
       net_set_nonblocking(cs);
-      fcntl(cs, F_SETFD, FD_CLOEXEC);
+      fcntl(cs, F_SETFD, FD_CLOEXEC); /*not inherited by the PDF generator*/
       enable_keepalive(cs);
     }
     if (cs < 0) {
@@ -2446,24 +2500,29 @@ static void reap_dropped_clients(Client *clients) {
   }
 }
 
-/*EPOLLOUT only while bytes are waiting: level-triggered EPOLLOUT on an
- * empty queue would wake the loop continuously.*/
-static void update_write_interest(int epoll_fd, Client *clients) {
-  static bool wants_out[MAX_CLIENTS];
+/*Interest set of every slot: EPOLLOUT only while bytes are waiting
+ * (level-triggered EPOLLOUT on an empty queue would wake the loop
+ * continuously), and no EPOLLIN while the slot's login is in the worker
+ * (its unread bytes would wake the loop continuously too).*/
+static void update_interest(int epoll_fd, Client *clients) {
+  static uint32_t current[MAX_CLIENTS];
   for (int i = 0; i < MAX_CLIENTS; i++) {
-    bool want = clients[i].active && conn_tx_pending(i);
     if (!clients[i].active) {
-      wants_out[i] = false;
+      current[i] = 0;
       continue;
     }
-    if (want == wants_out[i])
+    uint32_t want = EPOLLRDHUP | (clients[i].login_pending ? 0u : EPOLLIN) |
+                    (conn_tx_pending(i) ? EPOLLOUT : 0u);
+    if (current[i] == 0)
+      current[i] = EPOLLIN | EPOLLRDHUP; /*as registered by accept*/
+    if (want == current[i])
       continue;
     struct epoll_event ev;
     memset(&ev, 0, sizeof(ev));
-    ev.events = EPOLLIN | EPOLLRDHUP | (want ? EPOLLOUT : 0u);
+    ev.events = want;
     ev.data.u32 = (uint32_t)i;
     if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, clients[i].sock, &ev) == 0)
-      wants_out[i] = want;
+      current[i] = want;
   }
 }
 
@@ -2539,9 +2598,12 @@ static bool load_server_secrets(const char *gate_file, const char *dm_file) {
   return true;
 }
 
-/*MSG_LOGIN: authenticate, then load or create the character and send
- * the initial state. Every refusal goes through reject_login().*/
-static void login_with(Client *clients, int i, MsgLogin *ml, NPC *npcs) {
+static uint64_t g_login_gen;
+
+/*MSG_LOGIN, first half (game loop): the cheap checks, then the Argon2id
+ * work and the save read go to the login worker; login_finish() completes
+ * the login. Every refusal goes through reject_login().*/
+static void login_begin(Client *clients, int i, MsgLogin *ml) {
   /*Force NUL terminators (M5): username/password/server_pass
    * are fixed-size arrays and a malicious client can send all
    * 32 bytes of each without a terminator. The first uses are
@@ -2586,42 +2648,76 @@ static void login_with(Client *clients, int i, MsgLogin *ml, NPC *npcs) {
   }
 
   //--- Dungeon Master: a separate credential. The account exists only if
-  //the server was started with a DM password. ---
-  bool is_dm = false;
-  if (strcmp(ml->username, "dm") == 0) {
-      if (!auth_dm_enabled()) {
-          reject_login(&clients[i], i, "The DM account is disabled on this server.", false);
-          return;
-      }
-      if (!auth_check_dm(ml->password)) {
-          reject_login(&clients[i], i, "Invalid DM password.", true);
-          return;
-      }
-      is_dm = true;
+  //the server was started with a DM password (checked by the worker). ---
+  bool is_dm = (strcmp(ml->username, "dm") == 0);
+  if (is_dm && !auth_dm_enabled()) {
+      reject_login(&clients[i], i, "The DM account is disabled on this server.", false);
+      return;
   }
+
+  LoginJob *job = calloc(1, sizeof(*job));
+  if (!job || !state_path(job->save_path, sizeof(job->save_path), "saves/%s.save",
+                          ml->username)) {
+      free(job);
+      reject_login(&clients[i], i, "Server error while logging in.", false);
+      return;
+  }
+  job->slot = i;
+  job->gen = ++g_login_gen;
+  job->is_dm = is_dm;
+  job->ml = *ml; /*the gate password is already wiped*/
+  clients[i].login_pending = true;
+  clients[i].login_gen = job->gen;
+  copy_str(clients[i].login_user, ml->username, sizeof(clients[i].login_user));
+  login_worker_submit(job);
+}
+
+/*MSG_LOGIN, second half (game loop): the worker's verdict. The slot may
+ * have been dropped (timeout, disconnect) and even reused meanwhile: the
+ * result only applies to the very connection that asked for it.*/
+static void login_finish(Client *clients, LoginJob *job, NPC *npcs) {
+  int i = job->slot;
+  if (i < 0 || i >= MAX_CLIENTS || !clients[i].active || !clients[i].login_pending ||
+      clients[i].login_gen != job->gen || conn_dropping(i))
+    return;
+  clients[i].login_pending = false;
+  clients[i].login_user[0] = '\0';
+  MsgLogin *ml = &job->ml;
+  log_login_outcome(job);
+  switch (job->outcome) {
+  case LOGIN_BAD_DM:
+      reject_login(&clients[i], i, "Invalid DM password.", true);
+      return;
+  case LOGIN_BAD_PASSWORD:
+      reject_login(&clients[i], i, "Incorrect character password.", true);
+      return;
+  case LOGIN_UNREADABLE:
+      //Other format version or CRC mismatch: the file is kept.
+      reject_login(&clients[i], i,
+                   "Save file unreadable (other format version or corrupt).", false);
+      return;
+  case LOGIN_SERVER_ERROR:
+      reject_login(&clients[i], i, "Server error while creating the character.", false);
+      return;
+  case LOGIN_LOADED:
+  case LOGIN_NEW:
+      break;
+  }
+  bool is_dm = job->is_dm;
+  int load_status = (job->outcome == LOGIN_LOADED) ? 1 : 0;
+
 
   //Initialize base fields
   clients[i].entity_id = next_id++;
   copy_str(clients[i].username, ml->username, sizeof(clients[i].username));
   clients[i].effect_count = 0;
 
-  //Load the character (verifies its Argon2id password hash), or create it.
-  int load_status = load_player_data(&clients[i], ml->password);
-  if (load_status == -1 || load_status == -2) {
-      //Wrong personal password (-1), or the save file is unreadable:
-      //other format version or CRC mismatch (-2). The file is kept.
-      reject_login(&clients[i], i,
-                   (load_status == -1)
-                       ? "Incorrect character password."
-                       : "Save file unreadable (other format version or corrupt).",
-                   load_status == -1);
-      return;
-  }
-  if (load_status == 0 && !auth_hash_password(ml->password, clients[i].password_hash)) {
-      reject_login(&clients[i], i, "Server error while creating the character.", false);
-      return;
-  }
-  auth_wipe(ml->password, sizeof(ml->password));
+  //The saved character (its Argon2id hash verified by the worker), or a
+  //new one with the hash the worker computed.
+  if (load_status == 1)
+    apply_player_save(&clients[i], &job->sd);
+  else
+    copy_str(clients[i].password_hash, job->new_hash, sizeof(clients[i].password_hash));
   clients[i].authenticated = true;
   clients[i].is_dm = is_dm;
   if (is_dm)
@@ -2788,18 +2884,22 @@ static void login_with(Client *clients, int i, MsgLogin *ml, NPC *npcs) {
   }
   ipguard_login_succeeded(conn_peer_ip(i));
   server_log("AUTH", "'%s' %s", ml->username,
-             (load_status == 1) ? "rientrato" : "new");
+             (load_status == 1) ? "logged in" : "created");
 }
 
-static void handle_login(Client *clients, int i, const void *payload, NPC *npcs) {
+static void handle_login(Client *clients, int i, const void *payload) {
   if (clients[i].authenticated) {
     conn_mark_drop(i, "MSG_LOGIN on an authenticated session");
     return;
   }
+  if (clients[i].login_pending) {
+    conn_mark_drop(i, "second MSG_LOGIN while the first is being checked");
+    return;
+  }
   MsgLogin ml;
   memcpy(&ml, payload, sizeof(ml));
-  login_with(clients, i, &ml, npcs);
-  auth_wipe(&ml, sizeof(ml)); /*credentials never outlive the login*/
+  login_begin(clients, i, &ml);
+  auth_wipe(&ml, sizeof(ml)); /*the job keeps the only copy, wiped by the worker*/
   conn_wipe_message(i);
 }
 
@@ -2924,18 +3024,18 @@ int main(int argc, char **argv) {
   }
   server_log("SYS", "Listening on port %d", server_port);
   net_set_nonblocking(s_sock);
-  int epoll_fd = epoll_create1(0);
+  int epoll_fd = epoll_create1(EPOLL_CLOEXEC);
   if (epoll_fd == -1) {
     server_log("SYS", "Cannot create epoll");
     return 1;
   }
   struct epoll_event ev;
   ev.events = EPOLLIN;
-  ev.data.u32 = MAX_CLIENTS;
+  ev.data.u32 = EPOLL_ID_LISTEN;
   epoll_ctl(epoll_fd, EPOLL_CTL_ADD, s_sock, &ev);
   
-  struct epoll_event ep_events[MAX_CLIENTS + 1];
-  Client *clients = malloc(sizeof(Client) * MAX_CLIENTS);
+  struct epoll_event ep_events[MAX_CLIENTS + 2];
+  Client *clients = calloc(MAX_CLIENTS, sizeof(Client));
   g_clients = clients;
 
   global_clients = clients;
@@ -3047,6 +3147,21 @@ int main(int argc, char **argv) {
   floor_index_rebuild(npcs);
   aoe_init_clouds();
   spell_router_init();
+  /*From here on saves are written by the writer thread and logins are
+   * checked by the login worker: neither touches the game state.*/
+  writer_start();
+  if (!login_worker_start()) {
+    server_log("SYS", "Cannot start the login worker: %s", strerror(errno));
+    clog_close();
+    return 1;
+  }
+  ev.events = EPOLLIN;
+  ev.data.u32 = EPOLL_ID_LOGIN;
+  if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, login_worker_eventfd(), &ev) != 0) {
+    server_log("SYS", "epoll_ctl(login worker) failed: %s", strerror(errno));
+    clog_close();
+    return 1;
+  }
   server_log("SYS", "Server ready!");
   /*Fixed-step game clock.
    * update_world() must run at exactly 1/TICK_MS Hz (5 rounds/s) of REAL
@@ -3066,16 +3181,43 @@ int main(int argc, char **argv) {
      * tick) keeps update_world() exactly as punctual while new
      * connections and player input are still serviced within half a
      * game tick.*/
-    int n_events = epoll_wait(epoll_fd, ep_events, MAX_CLIENTS + 1, (int)(TICK_MS / 2));
-    if (n_events > 0) {
-      for (int ev_idx = 0; ev_idx < n_events; ev_idx++) {
-        uint32_t id = ep_events[ev_idx].data.u32;
-        if (id == MAX_CLIENTS) {
+    int n_events = epoll_wait(epoll_fd, ep_events, MAX_CLIENTS + 2, (int)(TICK_MS / 2));
+    /*Slots whose login just completed with messages already buffered:
+     * served after the epoll events, as if their socket had fired.*/
+    int resume[MAX_CLIENTS];
+    int n_resume = 0;
+    if (n_events < 0)
+      n_events = 0;
+    {
+      for (int ev_idx = 0; ev_idx < n_events + n_resume; ev_idx++) {
+        uint32_t id = (ev_idx < n_events) ? ep_events[ev_idx].data.u32
+                                          : (uint32_t)resume[ev_idx - n_events];
+        uint32_t ev_mask = (ev_idx < n_events) ? ep_events[ev_idx].events : EPOLLIN;
+        if (id == EPOLL_ID_LISTEN) {
           accept_pending_connections(s_sock, epoll_fd, clients);
+        } else if (id == EPOLL_ID_LOGIN) {
+          LoginJob *job;
+          while ((job = login_worker_take()) != NULL) {
+            int slot = job->slot;
+            login_finish(clients, job, npcs);
+            login_job_free(job);
+            if (slot >= 0 && slot < MAX_CLIENTS && clients[slot].active &&
+                clients[slot].authenticated && !conn_dropping(slot) &&
+                conn_rx_pending(slot) && n_resume < MAX_CLIENTS)
+              resume[n_resume++] = slot;
+          }
         } else {
           int i = (int)id;
           if (!clients[i].active || conn_dropping(i))
             continue;
+          /*While its login is being checked a slot reads nothing (its
+           * EPOLLIN interest is off, see update_interest): only a hang-up
+           * is acted upon.*/
+          if (clients[i].login_pending) {
+            if (ev_mask & (EPOLLHUP | EPOLLERR | EPOLLRDHUP))
+              conn_mark_drop(i, "connection closed during login");
+            continue;
+          }
           /*Drain the socket, then handle every COMPLETE message already
            * buffered. Nothing here ever waits for missing bytes: a
            * partial message simply stays in the buffer until the next
@@ -3084,10 +3226,12 @@ int main(int argc, char **argv) {
           MsgHeader hdr;
           const void *payload = NULL;
           int got = 0;
-          while (clients[i].active && !conn_dropping(i) &&
+          /*A MSG_LOGIN hands the slot to the login worker: the messages
+           * after it stay buffered until login_finish() (resume list).*/
+          while (clients[i].active && !conn_dropping(i) && !clients[i].login_pending &&
                  (got = conn_next_message(i, &hdr, &payload)) == 1) {
           if (hdr.type == MSG_LOGIN) {
-            handle_login(clients, i, payload, npcs);
+            handle_login(clients, i, payload);
           } else if (hdr.type == MSG_MOVE) {
             if (!clients[i].authenticated) {
               conn_mark_drop(i, "MSG_MOVE before login");
@@ -3399,10 +3543,16 @@ int main(int argc, char **argv) {
     flush_all_clients(clients);
     reap_dropped_clients(clients);
     flush_all_clients(clients);
-    update_write_interest(epoll_fd, clients);
+    update_interest(epoll_fd, clients);
+    pdf_jobs_poll();
   }
-  /*Graceful shutdown: persist every character (the periodic autosave
-   * runs once a minute, so up to 60 s of progress would be lost).*/
+  /*Graceful shutdown: logins still being checked are abandoned, queued
+   * writes reach the disk, then every character, the world and the
+   * artifacts are written synchronously (the periodic autosave runs once
+   * a minute, so up to 60 s of progress would be lost).*/
+  login_worker_stop();
+  if (!writer_stop())
+    server_log("SYS", "WARNING: some queued saves failed (see above).");
   for (int i = 0; i < MAX_CLIENTS; i++) {
     if (clients[i].active && clients[i].authenticated)
       save_player_data(&clients[i]);

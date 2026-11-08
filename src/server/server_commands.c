@@ -178,6 +178,98 @@ static int compare_leaderboard(const void *a, const void *b) {
     return eb->xp - ea->xp;
 }
 
+/*--- Leaderboard ('top') ----------------------------------------------
+ * Reading and checking every save file on each 'top' made a plain player
+ * command cost one disk read per character ever created, inside a game
+ * tick. The saved characters are scanned at most once per
+ * LEADERBOARD_RESCAN_S; the characters in play are taken live from
+ * memory, so they are always current.*/
+#define LEADERBOARD_MAX 1000
+#define LEADERBOARD_RESCAN_S 60
+
+static LeaderboardEntry g_board[LEADERBOARD_MAX];
+static int g_board_count;
+static time_t g_board_scanned; /*0 = never*/
+static bool g_board_ok;
+
+static void leaderboard_rescan(void) {
+  g_board_count = 0;
+  g_board_ok = false;
+  char saves_dir[STATE_DIR_MAX + 16];
+  DIR *d = state_path(saves_dir, sizeof(saves_dir), "saves") ? opendir(saves_dir) : NULL;
+  if (!d)
+    return;
+  struct dirent *de;
+  while ((de = readdir(d)) != NULL && g_board_count < LEADERBOARD_MAX) {
+    size_t len = strlen(de->d_name);
+    if (len <= 5 || strcmp(de->d_name + len - 5, ".save") != 0 || len - 5 >= 32)
+      continue;
+    char username[32];
+    memcpy(username, de->d_name, len - 5);
+    username[len - 5] = '\0';
+    if (strcmp(username, "dm") == 0)
+      continue;
+    char filepath[STATE_DIR_MAX + 300];
+    if (snprintf(filepath, sizeof(filepath), "%s/%s", saves_dir, de->d_name) >=
+        (int)sizeof(filepath))
+      continue;
+    /*Only readable saves are listed: a corrupt one (which login would
+     * refuse anyway) would show garbage.*/
+    SaveData sd;
+    if (persist_read_player(filepath, &sd, NULL, 0) != BINFILE_OK)
+      continue;
+    LeaderboardEntry *e = &g_board[g_board_count++];
+    copy_str(e->username, username, sizeof(e->username));
+    e->level = sd.level;
+    e->xp = sd.xp;
+    e->bosses_defeated = sd.bosses_defeated;
+    auth_wipe(&sd, sizeof(sd));
+  }
+  closedir(d);
+  g_board_ok = true;
+}
+
+static void show_leaderboard(Client *c) {
+  time_t now = time(NULL);
+  if (g_board_scanned == 0 || now - g_board_scanned >= LEADERBOARD_RESCAN_S || now < g_board_scanned) {
+    leaderboard_rescan();
+    g_board_scanned = now;
+  }
+  if (!g_board_ok) {
+    send_text_to_client(c->sock, "[ERROR] Unable to read save files.");
+    return;
+  }
+  static LeaderboardEntry entries[LEADERBOARD_MAX + MAX_CLIENTS];
+  int n = g_board_count;
+  memcpy(entries, g_board, sizeof(LeaderboardEntry) * (size_t)n);
+  /*Characters in play: their live values replace the (older) saved ones.*/
+  for (int i = 0; i < MAX_CLIENTS; i++) {
+    const Client *p = &g_clients[i];
+    if (!p->active || !p->authenticated || p->is_dm)
+      continue;
+    LeaderboardEntry *e = NULL;
+    for (int k = 0; k < n; k++)
+      if (strcmp(entries[k].username, p->username) == 0) {
+        e = &entries[k];
+        break;
+      }
+    if (!e)
+      e = &entries[n++];
+    copy_str(e->username, p->username, sizeof(e->username));
+    e->level = p->level;
+    e->xp = p->xp;
+    e->bosses_defeated = p->bosses_defeated;
+  }
+  qsort(entries, (size_t)n, sizeof(LeaderboardEntry), compare_leaderboard);
+  send_text_to_client(c->sock, "=================== LEADERBOARD ===================");
+  for (int i = 0; i < n && i < 10; i++) {
+    int bosses = __builtin_popcount(entries[i].bosses_defeated);
+    send_text_to_client(c->sock, "%d. %s (Level %d) - %d XP - %d Bosses Defeated", i + 1,
+                        entries[i].username, entries[i].level, entries[i].xp, bosses);
+  }
+  send_text_to_client(c->sock, "===================================================");
+}
+
 /* ====================================================================
  * SISTEMA MESSAGGISTICA (msg/tell/whisper, say, who, block/unblock)
  *
@@ -242,7 +334,7 @@ static char *trim_spaces(char *s) {
  * PDF can render every tile with its exact in-game color. The generator
  * still accepts legacy 1-char-per-tile v1 dumps from older binaries. */
 static int dump_floor_v2(const char *path, int floor_id, const Client *c) {
-  FILE *fp = fopen(path, "w");
+  FILE *fp = fopen(path, "we");
   if (!fp) return -1;
   fprintf(fp, "# DragonGL map dump v2\n");
   fprintf(fp, "floor %d\n", floor_id);
@@ -304,20 +396,11 @@ static int resolve_python3(char *out, size_t out_len) {
   return 1;
 }
 
-/* Locates tools/generate_pdf_map.py.
- *
- * The old bare relative path only worked when the server's CWD was the
- * repository root: an installed server (RPM: binary in /usr/bin) would
- * spawn python fine but die with "can't open file" (exit 2), because the
- * script is installed in /usr/share/dragongl/tools. Try, in order: the
- * CWD (development layout), the directory of the server binary and its
- * parent (build/ layout), and the RPM install location. */
+/* Locates tools/generate_pdf_map.py next to the server binary (build tree
+ * or source tree layout) or in the RPM install location. The current
+ * directory is never searched: a server started from an arbitrary (or
+ * attacker-writable) directory must not run a script found there. */
 static int resolve_pdf_script(char *out, size_t out_len) {
-  const char *rel = "tools/generate_pdf_map.py";
-  if (access(rel, R_OK) == 0) {
-    snprintf(out, out_len, "%s", rel);
-    return 0;
-  }
   char exe[4096];
   ssize_t n = readlink("/proc/self/exe", exe, sizeof(exe) - 1);
   if (n > 0) {
@@ -347,61 +430,121 @@ static int resolve_pdf_script(char *out, size_t out_len) {
   return 1;
 }
 
-/* Runs tools/generate_pdf_map.py to turn a floor dump into a color PDF and
- * reports the outcome to the client.
+/*--- DM PDF maps ------------------------------------------------------
+ * tools/generate_pdf_map.py turns a floor dump into a color PDF. It runs
+ * for seconds, so it is spawned in the background: pdf_jobs_poll() (once
+ * per main-loop pass) reaps it with waitpid(WNOHANG) and tells the DM —
+ * if the DM is still connected — how it went.
  *
- * posix_spawn + waitpid instead of system(): the argument vector is clean
- * (no string concatenation, nothing to escape, no shell in between), and
- * the wait status is decoded the same way as before, so failures are
- * reported as the real exit code (e.g. "code 2") instead of the raw
- * 8-bit-shifted status (e.g. 512). Both the interpreter and the script
- * are resolved to real paths before the spawn (see resolve_python3 /
- * resolve_pdf_script): glibc's posix_spawn performs no PATH search, and
- * the script location depends on where the server is installed. */
-static void run_pdf_map_generator(int sock, const char *dump, const char *pdf, int floor_id) {
-  char floor_arg[16];
-  snprintf(floor_arg, sizeof(floor_arg), "%d", floor_id);
+ * posix_spawn instead of system(): a clean argument vector, no shell.
+ * Both the interpreter and the script are resolved to real paths first
+ * (resolve_python3 / resolve_pdf_script): glibc's posix_spawn performs no
+ * PATH search. Every descriptor of the server is close-on-exec, so the
+ * child inherits neither sockets nor the state-directory lock.*/
+#define PDF_JOBS_MAX 2
+
+typedef struct {
+  pid_t pid; /*0 = free*/
+  int floor_id;
+  char dm_user[32];
+  char pdf[STATE_DIR_MAX + 64];
+} PdfJob;
+
+static PdfJob g_pdf_jobs[PDF_JOBS_MAX];
+
+static void pdf_notify(const PdfJob *j, const char *msg) {
+  for (int i = 0; i < MAX_CLIENTS; i++) {
+    const Client *c = &g_clients[i];
+    if (c->active && c->authenticated && c->is_dm && strcmp(c->username, j->dm_user) == 0) {
+      send_text_to_client(c->sock, "%s", msg);
+      return;
+    }
+  }
+}
+
+void pdf_jobs_poll(void) {
+  for (int k = 0; k < PDF_JOBS_MAX; k++) {
+    PdfJob *j = &g_pdf_jobs[k];
+    if (j->pid <= 0)
+      continue;
+    int status = 0;
+    pid_t r = waitpid(j->pid, &status, WNOHANG);
+    if (r == 0 || (r < 0 && errno == EINTR))
+      continue; /*still running*/
+    char msg[STATE_DIR_MAX + 160];
+    if (r < 0)
+      snprintf(msg, sizeof(msg), "[DM] Error generating PDF: lost track of the generator (%s).",
+               strerror(errno));
+    else if (WIFEXITED(status) && WEXITSTATUS(status) == 0)
+      snprintf(msg, sizeof(msg), "[DM] Generated PDF Map: %s (Floor %d)", j->pdf, j->floor_id);
+    else if (WIFEXITED(status))
+      snprintf(msg, sizeof(msg),
+               "[DM] Error generating PDF: generator exited with code %d (see server console for details).",
+               WEXITSTATUS(status));
+    else
+      snprintf(msg, sizeof(msg), "[DM] Error generating PDF: generator killed by signal %d.",
+               WIFSIGNALED(status) ? WTERMSIG(status) : 0);
+    server_log("DM", "%s", msg);
+    pdf_notify(j, msg);
+    memset(j, 0, sizeof(*j));
+  }
+}
+
+/*dm_pdf <floor> / dm_mapfloor: dump the floor, start the generator.*/
+static void dm_pdf_map(Client *c, int floor_id) {
+  PdfJob *slot = NULL;
+  for (int k = 0; k < PDF_JOBS_MAX; k++) {
+    if (g_pdf_jobs[k].pid > 0 && g_pdf_jobs[k].floor_id == floor_id) {
+      /*Its dump file is being read: do not overwrite it.*/
+      send_text_to_client(c->sock, "[DM] The PDF of floor %d is already being generated.",
+                          floor_id);
+      return;
+    }
+    if (g_pdf_jobs[k].pid <= 0 && !slot)
+      slot = &g_pdf_jobs[k];
+  }
+  if (!slot) {
+    send_text_to_client(c->sock,
+                        "[DM] %d PDF maps are already being generated: try again shortly.",
+                        PDF_JOBS_MAX);
+    return;
+  }
+  char dump[STATE_DIR_MAX + 64], pdf[STATE_DIR_MAX + 64];
+  if (!state_path(dump, sizeof(dump), "maps/map_dump_floor_%d.txt", floor_id) ||
+      !state_path(pdf, sizeof(pdf), "maps/map_floor_%d.pdf", floor_id) ||
+      dump_floor_v2(dump, floor_id, c) != 0) {
+    send_text_to_client(c->sock, "[DM] Error writing the map dump in the state directory.");
+    return;
+  }
   char python[4096], script[4096];
   if (resolve_python3(python, sizeof(python)) != 0) {
-    send_text_to_client(sock,
+    send_text_to_client(c->sock,
       "[DM] Error: python3 not found (PATH searched, then /usr/bin, "
       "/usr/local/bin and /bin): install Python 3 or fix the server PATH.");
     return;
   }
   if (resolve_pdf_script(script, sizeof(script)) != 0) {
-    send_text_to_client(sock,
-      "[DM] Error: tools/generate_pdf_map.py not found (searched the CWD, "
-      "the server binary directory and /usr/share/dragongl/tools).");
+    send_text_to_client(c->sock,
+      "[DM] Error: tools/generate_pdf_map.py not found (searched next to the "
+      "server binary and in /usr/share/dragongl/tools).");
     return;
   }
-  char *argv[] = { python, script, (char *)dump, (char *)pdf, floor_arg, NULL };
+  char floor_arg[16];
+  snprintf(floor_arg, sizeof(floor_arg), "%d", floor_id);
+  char *argv[] = { python, script, dump, pdf, floor_arg, NULL };
   pid_t pid;
   int spawn_err = posix_spawn(&pid, python, NULL, NULL, argv, environ);
   if (spawn_err != 0) {
-    send_text_to_client(sock,
-      "[DM] Error: failed to launch PDF generator (%s).", strerror(spawn_err));
+    send_text_to_client(c->sock, "[DM] Error: failed to launch PDF generator (%s).",
+                        strerror(spawn_err));
     return;
   }
-  int status = 0;
-  while (waitpid(pid, &status, 0) == -1) {
-    if (errno != EINTR) {
-      break;
-    }
-  }
-  if (WIFEXITED(status)) {
-    if (WEXITSTATUS(status) == 0) {
-      send_text_to_client(sock, "[DM] Generated PDF Map: %s (Floor %d)", pdf, floor_id);
-    } else {
-      send_text_to_client(sock,
-        "[DM] Error generating PDF: generator exited with code %d (see server console for details).",
-        WEXITSTATUS(status));
-    }
-  } else if (WIFSIGNALED(status)) {
-    send_text_to_client(sock,
-      "[DM] Error generating PDF: generator killed by signal %d.", WTERMSIG(status));
-  } else {
-    send_text_to_client(sock, "[DM] Generated PDF Map: %s (Floor %d)", pdf, floor_id);
-  }
+  slot->pid = pid;
+  slot->floor_id = floor_id;
+  copy_str(slot->dm_user, c->username, sizeof(slot->dm_user));
+  copy_str(slot->pdf, pdf, sizeof(slot->pdf));
+  send_text_to_client(c->sock, "[DM] Generating the PDF of floor %d in the background...",
+                      floor_id);
 }
 
 /*--- Player-to-player trade -----------------------------------------
@@ -566,7 +709,7 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
         send_text_to_client(c->sock, "dm_goto <fl> <x> <y> : Teleport (fl = floor)");
         send_text_to_client(c->sock, "dm_find_monster <id> : Search for the monster");
         send_text_to_client(c->sock, "  dm_find_item <id>     : Search for an item");
-        send_text_to_client(c->sock, "dm_pdf <text> : Generate PDF (Lore/Log)");
+        send_text_to_client(c->sock, "dm_pdf <floor> : Generate color PDF of a floor");
         send_text_to_client(c->sock, "dm_mapfloor : Generate color PDF of the current floor");
         send_text_to_client(c->sock, "dm_shop : Spawns a custom merchant");
         send_text_to_client(c->sock, "  dm_place <id>         : Place world object (furniture)");
@@ -637,58 +780,7 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
 
   //top, leaderboard — Shows player rankings
   if (strcmp(cmd, "top") == 0 || strcmp(cmd, "leaderboard") == 0) {
-      send_text_to_client(c->sock, "[RANKING] Hall of Fame processing in progress...");
-      DIR *d;
-      struct dirent *dir;
-      char saves_dir[STATE_DIR_MAX + 16];
-      d = state_path(saves_dir, sizeof(saves_dir), "saves") ? opendir(saves_dir) : NULL;
-      if (d) {
-          LeaderboardEntry entries[1000];
-          memset(entries, 0, sizeof(entries));
-          int entry_count = 0;
-          while ((dir = readdir(d)) != NULL) {
-              /*Stop at the capacity of the stack array: with more than
-               * 1000 .save files in saves/ the old loop wrote entries[]
-               * out of bounds (canary/return-address overwrite) from the
-               * plain 'top' command.*/
-              if (entry_count >= 1000)
-                  break;
-              size_t name_len = strlen(dir->d_name);
-              if (name_len > 5 && strcmp(dir->d_name + name_len - 5, ".save") == 0) {
-                  char filepath[STATE_DIR_MAX + 300];
-                  if (snprintf(filepath, sizeof(filepath), "%s/%s", saves_dir, dir->d_name) >= (int)sizeof(filepath))
-                      continue;
-                  /*Only readable saves are listed: a corrupt one (which
-                   * login would refuse anyway) would show garbage.*/
-                  SaveData sd;
-                  if (persist_read_player(filepath, &sd, NULL, 0) == BINFILE_OK) {
-                      char username[32];
-                      copy_str(username, dir->d_name, sizeof(username));
-                      char *dot = strrchr(username, '.');
-                      if (dot) *dot = '\0';
-                      if (strcmp(username, "dm") != 0) {
-                          copy_str(entries[entry_count].username, username,
-                                   sizeof(entries[entry_count].username));
-                          entries[entry_count].level = sd.level;
-                          entries[entry_count].xp = sd.xp;
-                          entries[entry_count].bosses_defeated = sd.bosses_defeated;
-                          entry_count++;
-                      }
-                  }
-              }
-          }
-          closedir(d);
-          qsort(entries, entry_count, sizeof(LeaderboardEntry), compare_leaderboard);
-          send_text_to_client(c->sock, "=================== LEADERBOARD ===================");
-          for (int i = 0; i < entry_count && i < 10; i++) {
-              int bosses = __builtin_popcount(entries[i].bosses_defeated);
-              send_text_to_client(c->sock, "%d. %s (Level %d) - %d XP - %d Bosses Defeated", 
-                                  i + 1, entries[i].username, entries[i].level, entries[i].xp, bosses);
-          }
-          send_text_to_client(c->sock, "===================================================");
-      } else {
-          send_text_to_client(c->sock, "[ERROR] Unable to read save files.");
-      }
+      show_leaderboard(c);
       return;
   }
 
@@ -1624,26 +1716,14 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
     }
     if (strncmp(cmd, "dm_pdf ", 7) == 0) {
       int f = 0;
-      if (sscanf(cmd + 7, "%d", &f) == 1 && f >= 0 && f < MAX_FLOORS) {
-        char dump_path[STATE_DIR_MAX + 64], pdf_path[STATE_DIR_MAX + 64];
-        if (state_path(dump_path, sizeof(dump_path), "maps/map_dump_floor_%d.txt", f) &&
-            state_path(pdf_path, sizeof(pdf_path), "maps/map_floor_%d.pdf", f) &&
-            dump_floor_v2(dump_path, f, c) == 0) {
-          run_pdf_map_generator(c->sock, dump_path, pdf_path, f);
-        }
-      }
+      if (sscanf(cmd + 7, "%d", &f) == 1 && f >= 0 && f < MAX_FLOORS)
+        dm_pdf_map(c, f);
+      else
+        send_text_to_client(c->sock, "[DM] Use: dm_pdf <floor 0-%d>", MAX_FLOORS - 1);
       return;
     }
     if (strcmp(cmd, "dm_mapfloor") == 0) {
-      int f = c->floor_id;
-      char dump_path[STATE_DIR_MAX + 64], pdf_path[STATE_DIR_MAX + 64];
-      if (!state_path(dump_path, sizeof(dump_path), "maps/map_dump_floor_%d.txt", f) ||
-          !state_path(pdf_path, sizeof(pdf_path), "maps/map_floor_%d.pdf", f) ||
-          dump_floor_v2(dump_path, f, c) != 0) {
-        send_text_to_client(c->sock, "[DM] Error opening temporary file.");
-        return;
-      }
-      run_pdf_map_generator(c->sock, dump_path, pdf_path, f);
+      dm_pdf_map(c, c->floor_id);
       return;
     }
     if (strncmp(cmd, "dm_shop ", 8) == 0) {

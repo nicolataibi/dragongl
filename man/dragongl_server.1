@@ -1,4 +1,4 @@
-.TH DRAGONGL_SERVER 1 "2026-11-08" "DragonGL 2026.11.08.08" "User Commands"
+.TH DRAGONGL_SERVER 1 "2026-11-08" "DragonGL 2026.11.08.09" "User Commands"
 .SH NAME
 dragongl_server \- Dragon GL master game server
 .SH SYNOPSIS
@@ -135,6 +135,7 @@ Tombstones of dead characters (they expire after 24 hours).
 .TP
 .I maps/
 Floor dumps and PDF maps created by the DM commands dm_pdf and dm_mapfloor.
+The PDF generator runs in the background; the DM is notified when it ends.
 .TP
 .I combat_log.json
 Tactical combat log (rotated to combat_log.json.1).

@@ -163,6 +163,12 @@ typedef struct {
     bool active, authenticated, is_dm;
     char username[32];
     char password_hash[AUTH_HASH_LEN]; /*Argon2id string, see auth.h*/
+    /*A login handed to the login worker (login_worker.h): the slot waits,
+     * reads nothing more from its socket, and holds login_user against a
+     * second session for the same character until login_finish().*/
+    bool login_pending;
+    uint64_t login_gen;
+    char login_user[32];
     RaceType race_id;
     SubraceType subrace_id;
     ClassType class_id;

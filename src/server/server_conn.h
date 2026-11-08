@@ -79,6 +79,9 @@ ConnRxStatus conn_read(int slot);
  * until the next call); 0 = need more bytes; -1 = protocol violation. */
 int conn_next_message(int slot, MsgHeader *hdr, const void **payload);
 
+/* Bytes received but not yet handed out by conn_next_message(). */
+bool conn_rx_pending(int slot);
+
 /* Zero the buffer of the last message handed out (credentials). */
 void conn_wipe_message(int slot);
 

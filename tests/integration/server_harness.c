@@ -16,13 +16,16 @@
  */
 
 #include "data_loader.h"
+#include "login_worker.h"
 #include "persist.h"
 #include "server_conn.h"
 #include "server_commands.h"
 #include "server_entities.h"
 #include "server_internal.h"
+#include "writer.h"
 
 #include <fcntl.h>
+#include <poll.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -408,6 +411,183 @@ static int test_tombstone_and_flags_roundtrip(void) {
     return 0;
 }
 
+/* --- Writer thread (phase 4b) ---------------------------------------- */
+
+static int read_flag0(const char *path, bool *value) {
+    bool f[1] = {false};
+    char why[96];
+    if (persist_read_flags(path, f, 1, why, sizeof(why)) != BINFILE_OK)
+        return -1;
+    *value = f[0];
+    return 0;
+}
+
+static int test_writer_queue(void) {
+    char path[512];
+    CHECK(state_path(path, sizeof(path), "writer_test.dat"), "state path");
+    CHECK(writer_start(), "writer_start");
+
+    /* Many snapshots of one file: queued jobs are replaced, the last one
+     * wins, and writer_wait_for() returns once it is on disk. */
+    for (int i = 0; i < 200; i++) {
+        bool v[1] = {(i % 2) == 1};
+        CHECK(persist_write_flags(path, v, 1), "queue %d", i);
+    }
+    writer_wait_for(path);
+    bool got = false;
+    CHECK(read_flag0(path, &got) == 0 && got, "the last snapshot (true) is not on disk");
+
+    /* Write then unlink: removed. Unlink then write: present. */
+    bool t[1] = {true};
+    CHECK(persist_write_flags(path, t, 1), "write");
+    CHECK(writer_submit_unlink(path), "unlink");
+    writer_wait_for(path);
+    CHECK(access(path, F_OK) != 0, "file still present after a queued unlink");
+    CHECK(writer_submit_unlink(path), "unlink");
+    CHECK(persist_write_flags(path, t, 1), "write");
+    writer_wait_for(path);
+    CHECK(access(path, F_OK) == 0, "file missing after unlink+write");
+
+    /* A save followed at once by a load sees the new contents. */
+    Client *c = make_player(0, "quick");
+    CHECK(c != NULL, "socketpair failed");
+    for (int round = 1; round <= 5; round++) {
+        c->gold = (uint64_t)round * 1000;
+        save_player_data(c);
+        static Client loaded;
+        memset(&loaded, 0, sizeof(loaded));
+        snprintf(loaded.username, sizeof(loaded.username), "quick");
+        CHECK(load_player_data(&loaded, "pw-quick") == 1, "load");
+        CHECK(loaded.gold == c->gold, "round %d: loaded gold %lu, saved %lu", round,
+              (unsigned long)loaded.gold, (unsigned long)c->gold);
+    }
+
+    /* A failing write is counted and keeps the previous file. */
+    unsigned failures = writer_failures();
+    char bad[600];
+    CHECK(state_path(bad, sizeof(bad), "no-such-dir/x.dat"), "state path");
+    CHECK(persist_write_flags(bad, t, 1), "queued");
+    writer_wait_for(bad);
+    CHECK(writer_failures() == failures + 1, "failure not counted");
+
+    CHECK(writer_stop(), "writer_stop reported a failure while draining");
+    /* Stopped: synchronous again, and the result is the write's. */
+    bool f[1] = {false};
+    CHECK(persist_write_flags(path, f, 1), "synchronous write");
+    CHECK(read_flag0(path, &got) == 0 && !got, "synchronous write not on disk");
+    CHECK(!persist_write_flags(bad, t, 1), "synchronous failure not reported");
+    remove(path);
+    return 0;
+}
+
+/* --- Login worker (phase 4b) ---------------------------------------- */
+
+static LoginJob *new_job(const char *user, const char *password) {
+    LoginJob *j = calloc(1, sizeof(*j));
+    if (!j)
+        return NULL;
+    snprintf(j->ml.username, sizeof(j->ml.username), "%s", user);
+    snprintf(j->ml.password, sizeof(j->ml.password), "%s", password);
+    if (!state_path(j->save_path, sizeof(j->save_path), "saves/%s.save", user)) {
+        free(j);
+        return NULL;
+    }
+    return j;
+}
+
+static bool all_zero(const void *p, size_t n) {
+    const unsigned char *b = p;
+    for (size_t i = 0; i < n; i++)
+        if (b[i])
+            return false;
+    return true;
+}
+
+static int test_login_job_outcomes(void) {
+    /* New character: a fresh Argon2id hash of the password. */
+    LoginJob *j = new_job("newbie", "pw-newbie");
+    CHECK(j, "alloc");
+    login_job_run(j);
+    CHECK(j->outcome == LOGIN_NEW, "missing save: outcome %d", j->outcome);
+    CHECK(auth_verify_password(j->new_hash, "pw-newbie"), "new hash does not verify");
+    CHECK(all_zero(j->ml.password, sizeof(j->ml.password)), "password not wiped");
+    login_job_free(j);
+
+    /* Existing character: right and wrong password. */
+    Client *c = make_player(0, "veteran");
+    CHECK(c != NULL, "socketpair failed");
+    c->level = 7;
+    save_player_data(c);
+    j = new_job("veteran", "pw-veteran");
+    login_job_run(j);
+    CHECK(j->outcome == LOGIN_LOADED && j->sd.level == 7, "right password: outcome %d level %d",
+          j->outcome, j->sd.level);
+    login_job_free(j);
+    j = new_job("veteran", "nope");
+    login_job_run(j);
+    CHECK(j->outcome == LOGIN_BAD_PASSWORD, "wrong password: outcome %d", j->outcome);
+    CHECK(all_zero(&j->sd, sizeof(j->sd)), "save image kept after a wrong password");
+    login_job_free(j);
+
+    /* Unreadable save: refused, file untouched. */
+    char path[512];
+    CHECK(state_path(path, sizeof(path), "saves/broken.save"), "state path");
+    FILE *f = fopen(path, "wb");
+    CHECK(f, "create broken save");
+    fputs("garbage", f);
+    fclose(f);
+    j = new_job("broken", "pw");
+    login_job_run(j);
+    CHECK(j->outcome == LOGIN_UNREADABLE && j->why[0], "corrupt save: outcome %d", j->outcome);
+    login_job_free(j);
+    f = fopen(path, "rb");
+    char buf[16] = {0};
+    CHECK(f && fread(buf, 1, sizeof(buf), f) == 7 && memcmp(buf, "garbage", 7) == 0,
+          "corrupt save modified");
+    fclose(f);
+
+    /* DM account without a DM password configured. */
+    j = new_job("dm", "whatever");
+    j->is_dm = true;
+    login_job_run(j);
+    CHECK(j->outcome == LOGIN_BAD_DM, "DM without a DM password: outcome %d", j->outcome);
+    login_job_free(j);
+    return 0;
+}
+
+static int test_login_worker_async(void) {
+    CHECK(login_worker_start(), "login_worker_start");
+    int efd = login_worker_eventfd();
+    CHECK(efd >= 0, "eventfd");
+    CHECK(login_worker_take() == NULL, "result before any job");
+    enum { N = 4 };
+    for (int k = 0; k < N; k++) {
+        char name[16];
+        snprintf(name, sizeof(name), "async%d", k);
+        LoginJob *j = new_job(name, "pw-async");
+        CHECK(j, "alloc");
+        j->slot = k;
+        j->gen = 100 + (uint64_t)k;
+        login_worker_submit(j);
+    }
+    int seen = 0;
+    while (seen < N) {
+        struct pollfd p = {.fd = efd, .events = POLLIN};
+        CHECK(poll(&p, 1, 20000) == 1, "no completion signalled (seen %d)", seen);
+        LoginJob *j;
+        while ((j = login_worker_take()) != NULL) {
+            CHECK(j->gen == 100 + (uint64_t)j->slot, "job/slot mismatch");
+            CHECK(j->outcome == LOGIN_NEW, "outcome %d", j->outcome);
+            login_job_free(j);
+            seen++;
+        }
+    }
+    struct pollfd p = {.fd = efd, .events = POLLIN};
+    CHECK(poll(&p, 1, 0) == 0, "eventfd still readable with an empty queue");
+    login_worker_stop();
+    return 0;
+}
+
 /* --- Runner ------------------------------------------------------------ */
 
 typedef struct {
@@ -424,6 +604,9 @@ static const TestCase k_tests[] = {
     {"world_roundtrip", test_world_roundtrip},
     {"npcs_roundtrip", test_npcs_roundtrip},
     {"tombstone_and_flags_roundtrip", test_tombstone_and_flags_roundtrip},
+    {"writer_queue", test_writer_queue},
+    {"login_job_outcomes", test_login_job_outcomes},
+    {"login_worker_async", test_login_worker_async},
 };
 
 int main(int argc, char **argv) {

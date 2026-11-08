@@ -67,6 +67,12 @@ NPC lifecycle events (`floor_stats_npc_died()`, `floor_stats_npc_spawned()`) upd
 
 ## 4. Threading & Synchronization Model
 
+The server runs the game on one thread (the `epoll` main loop, fixed 200 ms tick) and moves the slow work off it:
+- **Writer thread** (`src/server/writer.c`): saves are encoded in memory by the game loop and written by this thread (write, `fsync`, `rename`). One pending job per file at most: a newer snapshot replaces a queued one. `writer_wait_for(path)` blocks until a file's pending writes are done. Before `writer_start()` and after `writer_stop()` every write is synchronous (startup, shutdown, tests).
+- **Login worker** (`src/server/login_worker.c`): DM password check, save read and Argon2id verify/hash. `login_begin()` submits a job and marks the slot `login_pending`; the worker signals an `eventfd` and `login_finish()` applies the result on the main loop.
+- **Child processes:** the DM PDF generator is spawned and reaped with `waitpid(WNOHANG)` once per loop pass (`pdf_jobs_poll()`).
+- **Leaderboard:** `top` scans the saves at most once a minute and takes the characters online from memory.
+
 In the client, rendering and networking execute on separate POSIX threads:
 - **Network Thread:** Manages TCP socket communication, parses incoming binary packets (`MSG_STATE`, `MSG_MAP_CHUNK`, `MSG_SPELL_VFX`), and updates the master state under `g_state_mutex`.
 - **Render Thread:** Executes GLFW event polling and the Vulkan/OpenGL draw loop. To prevent data races, each frame captures a `FrameSnapshot` copy of volatile coordinates and maps.
@@ -101,7 +107,7 @@ The `tools/web/` directory contains self-contained HTML/JS workbenches for datas
 Administrators logged in with DM credentials can monitor engine performance directly from the in-game console:
 - `dm_telemetry`: Inspect active client count, live NPC population, and tick latency.
 - `dm_boss <floor>`: Query the boss status and loot on a specific floor.
-- `dm_mapfloor` / `dm_pdf <floor>`: Dump color-coded 2D layout PDFs of dungeon levels.
+- `dm_mapfloor` / `dm_pdf <floor>`: Dump color-coded 2D layout PDFs of dungeon levels. The generator runs in the background (at most two at a time, one per floor); the DM is told when the PDF is ready.
 
 ---
 

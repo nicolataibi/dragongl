@@ -19,6 +19,8 @@
 
 #include "persist.h"
 
+#include "writer.h"
+
 #include <dirent.h>
 #include <errno.h>
 #include <stdarg.h>
@@ -304,12 +306,10 @@ static BinFileStatus finish_read(BinReader *r, uint8_t *buf, char *why, size_t w
     return BINFILE_OK;
 }
 
+/* The snapshot is encoded by the calling thread; the disk part goes to
+ * the writer (writer.h), which takes ownership of the buffer. */
 static bool write_and_free(const char *path, uint32_t magic, uint16_t version, BinWriter *w) {
-    bool ok = binfile_write_atomic(path, magic, version, w);
-    int saved = errno;
-    bw_free(w);
-    errno = saved;
-    return ok;
+    return writer_submit(path, magic, version, w);
 }
 
 /* --- Player save --------------------------------------------------------------- */

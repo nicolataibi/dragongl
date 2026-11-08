@@ -130,6 +130,11 @@ ConnRxStatus conn_read(int slot) {
     return CONN_RX_OK;
 }
 
+bool conn_rx_pending(int slot) {
+    Conn *c = slot_conn(slot);
+    return c && c->rx_len > 0;
+}
+
 /* Exact payload size of every message a client may send. */
 static int client_msg_size(MsgType type) {
     switch (type) {

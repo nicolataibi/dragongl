@@ -4407,7 +4407,7 @@ To ensure zero-lag performance while guaranteeing zero-data-loss for players, th
    A player's `.save` data is written to disk *instantly* during critical events (Leveling up, picking up items/gold, buying/selling at shops, or taking the stairs). This ensures that valuable progression is never lost, even if the server crashes a millisecond later.
    
 2. **Asynchronous World Persistence (Voxel & NPCs):**
-   Every **60 seconds** (1 minute), the server performs a global autosave for the environment without interrupting gameplay:
+   Every **60 seconds** (1 minute), the server performs a global autosave for the environment without interrupting gameplay (the snapshot is taken in memory; a writer thread puts it on disk):
    - **`world.dat`** — Snapshot of all 100 dungeon floors. Includes permanent voxel modifications (tunneled walls, open doors, spell terrain).
    - **`npcs.dat`** — State of every NPC: position, HP, respawns.
 

@@ -1,3 +1,50 @@
+* Sun Nov 08 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.08.09
+- PERFORMANCE (server): saves no longer stall the game loop. New writer
+  thread (src/server/writer.c): the loop encodes the snapshot in memory and
+  the thread writes, fsyncs and renames it. A newer snapshot replaces one
+  still queued for the same file, so the queue holds at most one job per
+  file whatever the disk speed. Player saves, the 60 s autosave of
+  world.dat and npcs.dat, tombstones (writes and removals, in order) and
+  artifacts.dat all go through it. At shutdown the queue is drained and the
+  final saves are written synchronously.
+- PERFORMANCE (server): logins no longer stall the game loop. New login
+  worker thread (src/server/login_worker.c) for the DM password check, the
+  save read and Argon2id (verify, or hash for a new character), about
+  50-100 ms per login that used to pause every player. The result comes
+  back through an eventfd in the epoll set and is applied only if the slot
+  still holds the same connection (generation counter). While a login is
+  checked the slot reads nothing more, its name counts as online (two
+  connections can no longer create the same character at once), and the
+  messages sent behind MSG_LOGIN are handled once it succeeds. A login
+  waits for any pending write of its save, so a relogin right after a
+  logout always sees the latest save.
+- PERFORMANCE (server): dm_pdf / dm_mapfloor run the PDF generator in the
+  background (posix_spawn, reaped with waitpid(WNOHANG) once per loop pass)
+  instead of blocking the server until it exits; at most two at a time and
+  one per floor, the DM is notified on completion.
+- PERFORMANCE (server): 'top' scans saves/ at most once a minute instead of
+  reading every save at each call; characters online are taken live from
+  memory (a new character is listed before its first save).
+- SECURITY (server): the PDF generator script is no longer looked up in the
+  current directory (only next to the server binary and in
+  /usr/share/dragongl/tools). The listening socket, the epoll descriptor
+  and the combat log are now close-on-exec like the client sockets and the
+  state lock, so a child process inherits none of them. listen() backlog
+  raised to SOMAXCONN.
+- FIX (server): server_log() is thread-safe (localtime_r and the stdout
+  stream lock); the client table is zero-initialized (calloc).
+- REFACTOR (server): login split into login_begin() / login_finish();
+  load_player_data() kept as the synchronous path (tests) on top of the
+  same job code; save/load error messages logged once, by the writer.
+- TESTS: harness tests writer_queue, login_job_outcomes and
+  login_worker_async; network tests for a relogin right after logout,
+  concurrent creation of one character, the game loop answering during a
+  burst of logins, messages queued behind MSG_LOGIN, a doubled MSG_LOGIN,
+  the leaderboard with characters in play and the background DM PDF.
+- DOCS: SECURITY.md, PROTOCOL.md, DEVELOPMENT.md, LORE.md and
+  dragongl_server(1) describe the server threads and the asynchronous
+  logins, saves and PDF maps.
+
 * Sun Nov 08 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.08.08
 - PERSISTENCE (server): new state directory for everything the server
   writes (world, NPCs, artifacts, characters, tombstones, combat log, DM

@@ -143,6 +143,8 @@ add_executable(dragongl_server
     src/server/server_conn.c
     src/server/auth.c
     src/server/persist.c
+    src/server/writer.c
+    src/server/login_worker.c
     src/server/ai.c
     src/server/aoe.c
     src/server/combat_log.c

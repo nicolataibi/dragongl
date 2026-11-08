@@ -33,7 +33,7 @@ int net_create_server(int port) {
     struct sockaddr_in addr;
     int opt;
     
-    sock = socket(AF_INET, SOCK_STREAM, 0);
+    sock = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
     if (sock < 0) {
         return -1;
     }
@@ -52,7 +52,7 @@ int net_create_server(int port) {
         return -1;
     }
     
-    if (listen(sock, 10) < 0) {
+    if (listen(sock, SOMAXCONN) < 0) {
         close(sock);
         return -1;
     }

@@ -32,6 +32,7 @@
 #include "server_internal.h"
 #include "server.h"
 #include "persist.h"
+#include "writer.h"
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
@@ -75,12 +76,8 @@ void tombstone_save(const Tombstone *t) {
         server_log("TOMB", "ERROR: tombstone path too long for %s", t->owner);
         return;
     }
-    if (!persist_write_tombstone(path, t)) {
-        server_log("TOMB", "ERROR: failed to write the tombstone of %s (%s)", t->owner,
-                   strerror(errno));
-        return;
-    }
-    server_log("TOMB", "Tombstone of %s saved to %s", t->owner, path);
+    if (persist_write_tombstone(path, t)) /*queued: failures are logged by the writer*/
+        server_log("TOMB", "Tombstone of %s saved to %s", t->owner, path);
 }
 
 /*---------------------------------------------------------------
@@ -88,9 +85,10 @@ void tombstone_save(const Tombstone *t) {
  * ---------------------------------------------------------------*/
 static void tombstone_delete_file(const Tombstone *t) {
     char path[STATE_DIR_MAX + 128];
-    if (tombstone_path(t, path, sizeof(path)))
-        remove(path);
-    server_log("TOMB", "Tombstone file of %s removed", t->owner);
+    /*Through the writer: ordered after a write of the same file that may
+     * still be queued, so a recovered tombstone never reappears.*/
+    if (tombstone_path(t, path, sizeof(path)) && writer_submit_unlink(path))
+        server_log("TOMB", "Tombstone file of %s removed", t->owner);
 }
 
 /*---------------------------------------------------------------

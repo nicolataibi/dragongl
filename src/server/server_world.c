@@ -269,8 +269,9 @@ static void broadcast_game_time(Client *clients) {
   }
 }
 
-/*Write world.dat and npcs.dat (in this order) to the state directory.
- * Returns false and logs the reason if either could not be written; the
+/*Snapshot world.dat and npcs.dat (in this order) for the writer thread,
+ * or write them synchronously when it is not running (startup, shutdown).
+ * Returns false if either could not be written (the writer logs why); the
  * previous file is kept in that case.*/
 bool save_world_state(const NPC *npcs) {
   char world_path[STATE_DIR_MAX + 32], npcs_path[STATE_DIR_MAX + 32];
@@ -279,17 +280,8 @@ bool save_world_state(const NPC *npcs) {
     server_log("SAVE", "State directory path too long.");
     return false;
   }
-  if (!persist_write_world(world_path, master_world)) {
-    server_log("SAVE", "Failed to save %s (%s) — previous file kept.", world_path,
-               strerror(errno));
-    return false;
-  }
-  if (!persist_write_npcs(npcs_path, npcs, MAX_NPCS, next_id, global_total_turns)) {
-    server_log("SAVE", "Failed to save %s (%s) — previous file kept.", npcs_path,
-               strerror(errno));
-    return false;
-  }
-  return true;
+  return persist_write_world(world_path, master_world) &&
+         persist_write_npcs(npcs_path, npcs, MAX_NPCS, next_id, global_total_turns);
 }
 
 void update_world(Client *clients, NPC *npcs) {

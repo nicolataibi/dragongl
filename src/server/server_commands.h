@@ -33,4 +33,7 @@
  * @npcs: The array of all NPCs on the server.*/
 void handle_text_cmd(Client *c, const char *cmd, NPC *npcs);
 
+/* Reap finished DM PDF generators and notify the DM (main loop). */
+void pdf_jobs_poll(void);
+
 #endif // SERVER_COMMANDS_H

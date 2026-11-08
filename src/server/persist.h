@@ -83,8 +83,13 @@ bool state_path(char *out, size_t out_len, const char *fmt, ...)
 void persist_cleanup_tmp(void);
 
 /* --- Formats --------------------------------------------------------------- */
-/* Writers return false (errno set) if the file could not be written: the
- * previous file is kept. Readers return a BinFileStatus; `why` receives the
+/* Writers encode the snapshot in memory, in the calling thread, and hand
+ * the buffer to the writer (writer.h): once writer_start() has run, the
+ * write, fsync and rename happen in the writer thread and the call returns
+ * true when the job is queued; before that (startup) or after writer_stop()
+ * (shutdown) they run synchronously and return false (errno set) if the
+ * file could not be written. A failed write keeps the previous file and is
+ * logged by the writer. Readers return a BinFileStatus; `why` receives the
  * reason of a BINFILE_INVALID result. */
 
 bool persist_write_player(const char *path, const SaveData *sd);

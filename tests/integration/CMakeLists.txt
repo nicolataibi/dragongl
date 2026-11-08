@@ -43,6 +43,8 @@ set(DGL_SERVER_SRCS
     ${DGL_ROOT}/src/server/server_conn.c
     ${DGL_ROOT}/src/server/auth.c
     ${DGL_ROOT}/src/server/persist.c
+    ${DGL_ROOT}/src/server/writer.c
+    ${DGL_ROOT}/src/server/login_worker.c
     ${DGL_ROOT}/src/server/ai.c
     ${DGL_ROOT}/src/server/aoe.c
     ${DGL_ROOT}/src/server/combat_log.c
@@ -91,7 +93,8 @@ add_test(NAME persistence_partial_backpack_roundtrip
          WORKING_DIRECTORY "${DGL_WORK}")
 foreach(t trade_offer_revalidated_on_accept trade_moves_item_and_gold
           trade_into_full_backpack_is_cancelled world_roundtrip npcs_roundtrip
-          tombstone_and_flags_roundtrip)
+          tombstone_and_flags_roundtrip writer_queue login_job_outcomes
+          login_worker_async)
     add_test(NAME ${t} COMMAND server_harness ${t} WORKING_DIRECTORY "${DGL_WORK}")
 endforeach()
 

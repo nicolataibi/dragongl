@@ -361,7 +361,8 @@ class ServerTest(unittest.TestCase):
         for secret in (SERVER_PASS, DM_PASS):
             self.assertNotIn(secret.encode(), cmdline)
             self.assertNotIn(secret.encode(), environ)
-        log = open(self.server.log_path, errors="replace").read()
+        with open(self.server.log_path, errors="replace") as f:
+            log = f.read()
         self.assertNotIn(SERVER_PASS, log)
         self.assertNotIn("RNG seeded", log)
 
@@ -454,7 +455,8 @@ class ServerTest(unittest.TestCase):
             f.seek(4096)
             f.write(bytes([byte[0] ^ 0xFF]))
         self.restart_server()
-        log = open(self.server.log_path, errors="replace").read()
+        with open(self.server.log_path, errors="replace") as f:
+            log = f.read()
         self.assertIn("checksum mismatch", log)
         self.assertIn("New world generated and saved", log)
 
@@ -491,6 +493,132 @@ class ServerTest(unittest.TestCase):
         time.sleep(1.0)
         self.player("twin")
 
+
+    # --- work off the game loop (phase 4b) -------------------------------------
+    def login_retrying(self, name, password="pw", tries=40):
+        """Log in, retrying while the previous session is still being
+        released (the reaper runs once per loop pass)."""
+        for _ in range(tries):
+            c = self.connect()
+            c.login(name, password, SERVER_PASS)
+            if c.wait_for_login():
+                return c
+            if not any("already online" in r for r in c.auth_fail):
+                self.fail("login of %r failed: %r" % (name, c.auth_fail))
+            time.sleep(0.05)
+        self.fail("%r still online after %d tries" % (name, tries))
+
+    def test_relogin_right_after_logout_sees_the_latest_save(self):
+        """The logout save is written by the writer thread; the next login
+        of the same character must wait for it, never read the old file."""
+        walker = self.player("courier")
+        start = walker.position
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            walker.move(dx, dy)
+            time.sleep(0.25)
+            walker.pump(0.2)
+            if walker.position != start:
+                break
+        self.assertNotEqual(walker.position, start, "could not move")
+        here = walker.position
+        walker.close()
+        again = self.login_retrying("courier")
+        self.assertEqual(again.position, here)
+
+    def test_concurrent_logins_of_a_new_character(self):
+        """Two connections creating the same new character at once: the
+        second is refused while the first is in the login worker."""
+        a, b = self.connect(), self.connect()
+        a.login("racer", "pw", SERVER_PASS)
+        b.login("racer", "pw", SERVER_PASS)
+        results = [a.wait_for_login(), b.wait_for_login()]
+        self.assertEqual(results.count(True), 1, (a.auth_fail, b.auth_fail))
+        loser = b if results[0] else a
+        self.assertTrue(any("already online" in r for r in loser.auth_fail), loser.auth_fail)
+
+    def test_game_loop_answers_while_logins_are_hashed(self):
+        """Argon2id runs in the login worker: a burst of logins must not
+        freeze the players already in the game."""
+        hero = self.player("watcher")
+        time.sleep(0.3)  # past the per-action rate limit of the login
+        newcomers = []
+        start = time.monotonic()
+        for k in range(6):
+            c = self.connect()
+            c.login("burst%d" % k, "pw-burst", SERVER_PASS)
+            newcomers.append(c)
+        hero.texts.clear()
+        hero.command("who")
+        answered = hero.wait_for_text("[WHO]", 10)
+        self.assertIsNotNone(answered, "no answer to 'who'")
+        answered_at = time.monotonic() - start
+        for c in newcomers:
+            self.assertTrue(c.wait_for_login(20), c.auth_fail)
+        all_in = time.monotonic() - start
+        if all_in < 0.3:
+            self.skipTest("hashing too fast here (%.2f s) to tell the difference" % all_in)
+        self.assertLess(answered_at, all_in * 0.7,
+                        "'who' answered after %.2f s, logins done after %.2f s"
+                        % (answered_at, all_in))
+
+    def test_second_login_message_disconnects(self):
+        """Two MSG_LOGIN back to back: the second waits behind the first,
+        then arrives on an authenticated session and drops it."""
+        c = self.connect()
+        payload = dglproto.login_payload("doubled", "pw", SERVER_PASS)
+        frame = dglproto.header(dglproto.MSG_LOGIN, len(payload)) + payload
+        c.send_raw(frame + frame)
+        self.assertIsNotNone(c.wait_until_closed(10), "second MSG_LOGIN accepted")
+        self.login_retrying("doubled")
+
+    def test_messages_queued_behind_the_login_are_served(self):
+        """A command sent right after MSG_LOGIN (before MSG_WELCOME) waits
+        for the login to complete and is then executed."""
+        c = self.connect()
+        payload = dglproto.login_payload("eager", "pw", SERVER_PASS)
+        cmd = dglproto._cstr("who", dglproto.TEXT_CMD_SIZE)
+        c.send_raw(dglproto.header(dglproto.MSG_LOGIN, len(payload)) + payload +
+                   dglproto.header(dglproto.MSG_TEXT_CMD, len(cmd)) + cmd)
+        self.assertTrue(c.wait_for_login(), c.auth_fail)
+        self.assertIsNotNone(c.wait_for_text("[WHO]", 5), c.texts[-5:])
+
+    def test_leaderboard_lists_characters_in_play(self):
+        """'top' reads the saves at most once a minute; the characters
+        online are taken live (a new one has no save yet)."""
+        self.player("veteran").close()
+        time.sleep(0.5)
+        fresh = self.player("rookie")
+        fresh.command("top")
+        self.assertIsNotNone(fresh.wait_for_text("rookie (Level 1)", 5), fresh.texts[-12:])
+        self.assertTrue(any("veteran" in t for t in fresh.texts), fresh.texts[-12:])
+
+    def test_dm_pdf_runs_in_the_background(self):
+        dm = self.player("dm", password=DM_PASS)
+        time.sleep(0.3)
+        dm.command("dm_pdf 0")
+        first = None
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline and first is None:
+            dm.pump(0.1)
+            first = next((t for t in dm.texts if t.startswith("[DM]")), None)
+        self.assertIsNotNone(first, "no answer to dm_pdf")
+        if "not found" in first:
+            self.skipTest(first)
+        self.assertIn("background", first)
+        time.sleep(0.3)
+        dm.command("dm_pdf 0")  # same floor: refused while running (or restarted)
+        time.sleep(0.3)
+        dm.command("who")
+        self.assertIsNotNone(dm.wait_for_text("[WHO]", 5), "game loop blocked by the generator")
+        done = None
+        deadline = time.monotonic() + 120
+        while time.monotonic() < deadline and done is None:
+            dm.pump(0.2)
+            done = next((t for t in dm.texts
+                         if "Generated PDF Map" in t or "Error generating PDF" in t), None)
+        self.assertIsNotNone(done, "no completion notice")
+        if "Generated PDF Map" in done:
+            self.assertTrue(os.path.exists(self.state("maps", "map_floor_0.pdf")))
 
 if __name__ == "__main__":
     unittest.main()

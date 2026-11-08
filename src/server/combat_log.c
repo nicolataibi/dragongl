@@ -99,7 +99,7 @@ static void clog_maybe_flush_and_rotate(void) {
         char old[CLOG_PATH_MAX + 8];
         snprintf(old, sizeof(old), "%s.1", g_log_path);
         rename(g_log_path, old); /*overwrites the previous rotation*/
-        g_log_file = fopen(g_log_path, "w");
+        g_log_file = fopen(g_log_path, "we");
         if (g_log_file) {
             g_file_entries = 0;
             fprintf(g_log_file, "[\n");
@@ -123,7 +123,7 @@ void clog_init(const char* filepath) {
     if (g_log_file) {
         fclose(g_log_file);
     }
-    g_log_file = fopen(filepath, "w");
+    g_log_file = fopen(filepath, "we");
     if (!g_log_file) {
         g_log_path[0] = '\0';
         return;
