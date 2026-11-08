@@ -1,0 +1,8 @@
+# Files left out of the release tarball (git archive, GitHub's tag
+# archives, Source0 of dragongl.spec). The packages do not install them:
+# readme_assets/ holds ~500 MB of artwork used by the README on GitHub
+# (CC BY 4.0, see readme_assets/LICENSE.md); the CI configuration is of no
+# use outside the repository.
+readme_assets/   export-ignore
+.github/         export-ignore
+.gitattributes   export-ignore

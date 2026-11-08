@@ -25,6 +25,7 @@
 #include "gen.h"
 #include "items.h"
 #include "net.h"
+#include "dragongl_config.h"
 #include "protocol.h"
 #include "wire.h"
 #include "server_net.h"
@@ -82,7 +83,7 @@ _Static_assert((int)BOOKS_MARTIAL == SHOP_SPEC_BOOKS_MARTIAL,
 
 World *master_world = NULL;
 /*See server_internal.h: resolved in main() before any data access.*/
-char g_data_dir[DATA_DIR_MAX] = "data";
+char g_data_dir[DATA_DIR_MAX] = "";
 int global_total_turns = 0;
 int active_event_type = 0;
 int event_floor_id = 1;
@@ -2546,8 +2547,9 @@ static void print_server_usage(const char *argv0) {
          "Options:\n"
          "  -P, --port <port>          TCP port to listen on (default: 8080)\n"
          "  -D, --data-dir <dir>       Read-only game data (JSON datasets).\n"
-         "                             Default: ./data if present, else\n"
-         "                             /usr/share/dragongl/data (RPM).\n"
+         "                             Default: $DRAGONGL_DATA_DIR, else the\n"
+         "                             data/ of the source tree (build tree),\n"
+         "                             else " DRAGONGL_PKGDATADIR "/data\n"
          "  -S, --state-dir <dir>      Everything the server writes: world,\n"
          "                             NPCs, saves, logs, DM maps. Default:\n"
          "                             $DRAGONGL_STATE_DIR, else\n"
@@ -2556,6 +2558,7 @@ static void print_server_usage(const char *argv0) {
          "      --password-file <f>    Read the server access password from f\n"
          "      --dm-password-file <f> Read the Dungeon Master password from f\n"
          "  -h, --help                 Show this help\n"
+         "  -V, --version              Show the version\n"
          "\n"
          "Passwords are never accepted on the command line. Without a file the\n"
          "server reads DRAGONGL_SERVER_PASSWORD (required) and DRAGONGL_DM_PASSWORD\n"
@@ -2914,6 +2917,44 @@ static void handle_login(Client *clients, int i, const void *payload, uint32_t l
   conn_wipe_message(i);
 }
 
+static bool has_bestiary(const char *dir) {
+  char probe[DATA_DIR_MAX + 32];
+  return snprintf(probe, sizeof(probe), "%s/bestiary.json", dir) < (int)sizeof(probe) &&
+         access(probe, R_OK) == 0;
+}
+
+/*Data directory (read-only JSON). In order: --data-dir (taken as given),
+ * $DRAGONGL_DATA_DIR, the data/ of the source tree when the binary runs
+ * from a build directory (<exe>/../data), the installed
+ * DRAGONGL_PKGDATADIR/data. The current directory is not searched.*/
+static void resolve_data_dir(void) {
+  if (g_data_dir[0])
+    return;
+  const char *env = getenv("DRAGONGL_DATA_DIR");
+  if (env && env[0]) {
+    copy_str(g_data_dir, env, sizeof(g_data_dir));
+    return;
+  }
+  char exe[4096];
+  ssize_t n = readlink("/proc/self/exe", exe, sizeof(exe) - 1);
+  if (n > 0) {
+    exe[n] = '\0';
+    char *slash = strrchr(exe, '/');
+    if (slash) {
+      *slash = '\0';
+      char cand[sizeof(exe) + 16];
+      snprintf(cand, sizeof(cand), "%s/../data", exe);
+      char real[4096];
+      if (strlen(cand) < sizeof(real) && realpath(cand, real) && has_bestiary(real) &&
+          strlen(real) < sizeof(g_data_dir)) {
+        copy_str(g_data_dir, real, sizeof(g_data_dir));
+        return;
+      }
+    }
+  }
+  copy_str(g_data_dir, DRAGONGL_PKGDATADIR "/data", sizeof(g_data_dir));
+}
+
 int main(int argc, char **argv) {
   setvbuf(stdout, NULL, _IONBF,
           0); // Disable stdout buffering for live log files
@@ -2926,6 +2967,10 @@ int main(int argc, char **argv) {
     const char *val = (i + 1 < argc) ? argv[i + 1] : NULL;
     if (strcmp(opt, "-h") == 0 || strcmp(opt, "--help") == 0) {
       print_server_usage(argv[0]);
+      return 0;
+    }
+    if (strcmp(opt, "-V") == 0 || strcmp(opt, "--version") == 0) {
+      printf("dragongl_server %s\n", DRAGONGL_VERSION);
       return 0;
     }
     if (strcmp(opt, "-p") == 0 || strcmp(opt, "--password") == 0 ||
@@ -2982,27 +3027,7 @@ int main(int argc, char **argv) {
       return 2;
     }
   }
-  /*Resolve the data directory (see server_internal.h).
-   * 1. explicit --data-dir (trusted as-is)
-   * 2. local ./data (development layout)
-   * 3. /usr/share/dragongl/data (RPM: the server is installed in
-   *    /usr/bin but the JSON data live in the data subpackage)*/
-  {
-    bool explicit_dir = (strlen(g_data_dir) > 0 &&
-                         strcmp(g_data_dir, "data") != 0);
-    if (!explicit_dir) {
-      char probe[DATA_DIR_MAX + 32];
-      struct stat st;
-      snprintf(probe, sizeof(probe), "%s/bestiary.json", g_data_dir);
-      if (stat(probe, &st) != 0) {
-        const char *sys_dir = "/usr/share/dragongl/data";
-        snprintf(probe, sizeof(probe), "%s/bestiary.json", sys_dir);
-        if (stat(probe, &st) == 0) {
-          copy_str(g_data_dir, sys_dir, sizeof(g_data_dir));
-        }
-      }
-    }
-  }
+  resolve_data_dir();
   /*Seed the RNG BEFORE anything else: even when a world is loaded from
    * disk (world_init skipped), dice must not run on the default seed.*/
   seed_game_rng();
@@ -3065,10 +3090,10 @@ int main(int argc, char **argv) {
     char probe[DATA_DIR_MAX + 32];
     snprintf(probe, sizeof(probe), "%s/bestiary.json", g_data_dir);
     if (access(probe, R_OK) != 0) {
-      server_log("SYS", "ERROR: data directory not found or missing bestiary.json (%s).\n"
-                 "Use --data-dir <dir>.", probe);
+      server_log("SYS", "ERROR: no game data: %s is missing. Use --data-dir <dir> or "
+                 "install the data package.", probe);
       clog_close();
-      return 1;
+      return 2; /*configuration error*/
     }
   }
   if (!init_data_loaders(g_data_dir)) {

@@ -138,6 +138,63 @@ jobs:
           ASAN_OPTIONS: detect_leaks=0
         run: python3 tests/client/test_client.py
 
+  server-only:
+    name: Server-only build (no graphics stack)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      # A headless server host: no Vulkan, GLFW or glslc installed.
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang cmake ninja-build pkg-config libsodium-dev
+
+      - name: Configure (DRAGONGL_BUILD_CLIENT=OFF)
+        run: |
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS=-Werror \
+            -DDRAGONGL_BUILD_CLIENT=OFF -DCMAKE_INSTALL_PREFIX=/usr
+
+      - name: Build and install
+        run: |
+          cmake --build build
+          DESTDIR="$PWD/stage" cmake --install build
+          ./stage/usr/bin/dragongl_server --version
+
+  rpm:
+    name: RPM build and rpmlint (Fedora)
+    runs-on: ubuntu-24.04
+    container: fedora:latest
+    steps:
+      - name: Install packaging tools
+        run: dnf -y install git rpm-build rpmlint 'dnf-command(builddep)'
+
+      - uses: actions/checkout@v4
+
+      # %autorelease and %autochangelog are expanded by rpmautospec on
+      # COPR/Koji from the git history; here they are replaced by fixed
+      # values so the build exercises the spec and the real Fedora macros.
+      - name: Source tarball and spec
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          version=$(sed -n 's/^Version:[[:space:]]*//p' dragongl.spec)
+          mkdir -p ~/rpmbuild/SOURCES ~/rpmbuild/SPECS
+          git archive --format=tar.gz --prefix="dragongl-$version/" \
+            -o ~/rpmbuild/SOURCES/"dragongl-$version.tar.gz" HEAD
+          sed -e 's/^Release:.*/Release:        1%{?dist}/' \
+              -e "s/^%autochangelog\$/* $(LC_ALL=C date '+%a %b %d %Y') CI <ci@localhost> - $version-1\\n- CI build/" \
+              dragongl.spec > ~/rpmbuild/SPECS/dragongl.spec
+
+      - name: Build dependencies
+        run: dnf -y builddep ~/rpmbuild/SPECS/dragongl.spec
+
+      - name: rpmbuild (includes %check)
+        run: rpmbuild -ba ~/rpmbuild/SPECS/dragongl.spec
+
+      - name: rpmlint
+        run: rpmlint -r dragongl.rpmlintrc ~/rpmbuild/RPMS/*/*.rpm ~/rpmbuild/SRPMS/*.rpm
+
   static-analysis:
     name: Static analysis (cppcheck)
     runs-on: ubuntu-24.04
@@ -149,13 +206,20 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends cppcheck
 
+      # The version has one source (dragongl.spec); CHANGELOG.md must agree.
+      - name: Release consistency
+        run: python3 tools/check_release.py
+
       # cJSON is vendored third-party code and is not analysed. False
       # positives are suppressed inline (// cppcheck-suppress) with a
-      # comment that explains why.
+      # comment that explains why. The tree is not configured, so the
+      # macros of the generated dragongl_config.h are given here.
       - name: cppcheck
         run: |
           cppcheck -q -j "$(nproc)" --enable=warning,portability \
             --inline-suppr --error-exitcode=1 \
             --suppress=missingIncludeSystem \
-            -D_DEFAULT_SOURCE -Iinclude -Isrc/server -Isrc/client \
+            -D_DEFAULT_SOURCE -DDRAGONGL_VERSION='"0"' \
+            -DDRAGONGL_PKGDATADIR='"/usr/share/dragongl"' \
+            -Iinclude -Isrc/server -Isrc/client \
             -i src/shared/cJSON.c src

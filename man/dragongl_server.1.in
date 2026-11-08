@@ -1,4 +1,4 @@
-.TH DRAGONGL_SERVER 1 "2026-11-08" "DragonGL 2026.11.08.11" "User Commands"
+.TH DRAGONGL_SERVER 1 "@DRAGONGL_RELEASE_DATE@" "Dragon GL @DRAGONGL_VERSION@" "User Commands"
 .SH NAME
 dragongl_server \- Dragon GL master game server
 .SH SYNOPSIS
@@ -14,6 +14,7 @@ dragongl_server \- Dragon GL master game server
 .RB [ \-\-dm\-password\-file
 .IR file ]
 .RB [ \-h | \-\-help ]
+.RB [ \-V | \-\-version ]
 .SH DESCRIPTION
 .B dragongl_server
 is the authoritative server of the Dragon GL client/server dungeon crawler.
@@ -60,12 +61,15 @@ TCP port to listen on (default 8080).
 .BR \-D ", " \-\-data\-dir " \fIdir\fR"
 Read-only directory of the JSON datasets (bestiary, items, spells). The
 server never writes there. When not given, the server uses
-.I ./data
-if it contains
-.IR bestiary.json ,
-otherwise
-.I /usr/share/dragongl/data
-(RPM install).
+.BR DRAGONGL_DATA_DIR ,
+else the
+.I data/
+directory of the source tree when the binary runs from a build directory
+inside it (it must contain
+.IR bestiary.json ),
+else
+.I @DRAGONGL_PKGDATADIR@/data
+(installed). The current directory is never searched.
 .TP
 .BR \-S ", " \-\-state\-dir " \fIdir\fR"
 Directory for everything the server writes (see
@@ -89,12 +93,20 @@ Read the Dungeon Master password from the first line of
 .TP
 .BR \-h ", " \-\-help
 Show a short help message and exit.
+.TP
+.BR \-V ", " \-\-version
+Print the version and exit.
 .SH ENVIRONMENT
 .TP
 .B DRAGONGL_SERVER_PASSWORD
 Server access password, used when
 .B \-\-password\-file
 is not given. Required.
+.TP
+.B DRAGONGL_DATA_DIR
+Data directory, used when
+.B \-\-data\-dir
+is not given.
 .TP
 .B DRAGONGL_STATE_DIR
 State directory, used when
@@ -111,9 +123,12 @@ account is disabled.
 .B 0
 on a normal shutdown (SIGINT/SIGTERM: characters online are saved first),
 .B 1
-on a start-up error (port in use, data not found),
+on a start-up error (port in use, invalid game data, the new world cannot
+be saved),
 .B 2
-on invalid options or a missing or invalid password.
+on a configuration error: invalid options, a missing or invalid password,
+a state directory that cannot be used or is locked by another server, no
+game data. The systemd unit does not restart the server after status 2.
 .SH FILES
 All paths are relative to the state directory. Binary files use a
 portable format: fields are stored one by one in little-endian order, in
@@ -142,6 +157,24 @@ Tactical combat log (rotated to combat_log.json.1).
 .TP
 .I server.lock
 Locked by the running server.
+.SH SYSTEMD SERVICE
+The package installs
+.BR dragongl-server.service ,
+which runs the server under a transient unprivileged user
+.RB ( DynamicUser= )
+with the state directory
+.I /var/lib/dragongl
+and a strict sandbox. Its environment file
+.I @DRAGONGL_SYSCONFDIR@/dragongl/dragongl-server.conf
+(mode 0600) sets
+.BR DRAGONGL_SERVER_PASSWORD ,
+.B DRAGONGL_DM_PASSWORD
+and
+.B DRAGONGL_SERVER_ARGS
+(extra options). Start it with
+.BR "systemctl enable \-\-now dragongl-server" ;
+stop it before running
+.BR "dragongl-reset-world \-S /var/lib/dragongl" .
 .SH SEE ALSO
 .BR dragongl_client (1),
 .BR dragongl-server (1),

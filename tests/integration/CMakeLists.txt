@@ -10,7 +10,7 @@
 #
 # Two kinds of tests are registered:
 #   * network tests (test_server.py): a real dragongl_server process is
-#     started on a free port and driven by a protocol-v3 client;
+#     started on a free port and driven by a protocol client (dglproto.py);
 #   * in-process tests (server_harness): the server translation units are
 #     linked without main() and exercised directly (persistence, trade).
 #
@@ -19,23 +19,17 @@
 # defect turns them into an "unexpected success": remove the marker in the
 # same commit as the fix.
 cmake_minimum_required(VERSION 3.16)
-project(DragonGLIntegration LANGUAGES C)
+include("${CMAKE_CURRENT_LIST_DIR}/../../cmake/DragonGL.cmake")
+project(DragonGLIntegration VERSION ${DRAGONGL_VERSION} LANGUAGES C)
 
-set(CMAKE_C_STANDARD 11)
-set(CMAKE_C_STANDARD_REQUIRED ON)
-set(CMAKE_C_EXTENSIONS OFF)
-
-get_filename_component(DGL_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
+dragongl_compile_settings()
+set(DGL_ROOT "${DRAGONGL_ROOT}")
+dragongl_generate_config("${CMAKE_CURRENT_BINARY_DIR}/generated")
 
 find_package(Threads REQUIRED)
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(SODIUM REQUIRED IMPORTED_TARGET libsodium)
-
-add_compile_definitions(_DEFAULT_SOURCE)
-if(NOT MSVC)
-    add_compile_options(-Wall -Wextra -Wpedantic)
-endif()
 
 set(DGL_SERVER_SRCS
     ${DGL_ROOT}/src/server/main_server.c
@@ -64,7 +58,8 @@ set(DGL_SERVER_SRCS
     ${DGL_ROOT}/src/shared/binio.c
     ${DGL_ROOT}/src/shared/wire.c
 )
-set(DGL_INCLUDES ${DGL_ROOT}/include ${DGL_ROOT}/src/server ${DGL_ROOT}/src/client)
+set(DGL_INCLUDES ${DGL_ROOT}/include ${DGL_ROOT}/src/server ${DGL_ROOT}/src/client
+    "${CMAKE_CURRENT_BINARY_DIR}/generated")
 
 # --- The real server, built with the flags of this project (sanitizers) ---
 add_executable(dragongl_server_it ${DGL_SERVER_SRCS})

@@ -18,6 +18,7 @@
  */
 
 #include "render_vk.h"
+#include "dragongl_config.h"
 #include "client_state.h"
 #include "client_particles.h"
 #include "client_minimap.h"
@@ -73,7 +74,7 @@ static bool vk_create_buffer(VkState *s, VkDeviceSize size, VkBufferUsageFlags u
 /*Read a SPIR-V file of shaders/ (name like "shader.frag.spv"). Searched:
  *  1. $DRAGONGL_SHADER_DIR, if set;
  *  2. <directory of the executable>/shaders (build tree: build/shaders);
- *  3. /usr/share/dragongl/shaders (RPM install).
+ *  3. DRAGONGL_PKGDATADIR/shaders (installed: /usr/share/dragongl/shaders).
  *The current directory is not searched: what the client runs must not
  *depend on where it was started from.*/
 static VkShaderModule vk_load_shader(VkState *s, const char *name) {
@@ -92,7 +93,7 @@ static VkShaderModule vk_load_shader(VkState *s, const char *name) {
             snprintf(dirs[n_dirs++], sizeof(dirs[0]), "%.4000s/shaders", exe);
         }
     }
-    snprintf(dirs[n_dirs++], sizeof(dirs[0]), "/usr/share/dragongl/shaders");
+    snprintf(dirs[n_dirs++], sizeof(dirs[0]), "%s/shaders", DRAGONGL_PKGDATADIR);
 
     FILE *f = NULL;
     char path[sizeof(dirs[0]) + 64];
@@ -102,7 +103,7 @@ static VkShaderModule vk_load_shader(VkState *s, const char *name) {
     }
     if (!f) {
         printf("[VK] Shader %s not found (DRAGONGL_SHADER_DIR, next to the executable, "
-               "/usr/share/dragongl/shaders).\n", name);
+               DRAGONGL_PKGDATADIR "/shaders).\n", name);
         return VK_NULL_HANDLE;
     }
     VkShaderModule mod = VK_NULL_HANDLE;

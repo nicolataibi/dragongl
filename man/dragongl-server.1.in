@@ -1,4 +1,4 @@
-.TH DRAGONGL-SERVER 1 "2026-11-08" "DragonGL 2026.11.08.11" "User Commands"
+.TH DRAGONGL-SERVER 1 "@DRAGONGL_RELEASE_DATE@" "Dragon GL @DRAGONGL_VERSION@" "User Commands"
 .SH NAME
 dragongl-server \- Dragon GL server launcher script
 .SH SYNOPSIS
@@ -20,13 +20,12 @@ starts the Dragon GL game server
 .BR dragongl_server (1).
 It runs the binary installed next to it, or
 .I build/dragongl_server
-in a development tree. In a development tree it first changes to the
-project root (where
+in a development tree. There the server finds the
 .I data/
-lives) and, unless a state directory is given, keeps the server state in
-the git-ignored
+directory of the source tree by itself, and unless a state directory is
+given the launcher keeps the server state in the git-ignored
 .I state/
-directory there.
+directory of the project root.
 .PP
 Before starting the server it prints diagnostic information about the host
 (operating system, uptime and load, memory, disk space, network

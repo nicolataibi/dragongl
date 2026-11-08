@@ -1,0 +1,10 @@
+# rpmlint filters for dragongl.spec: every entry is intended.
+
+# Holds the service passwords: root-only on purpose.
+addFilter(r"dragongl-server\.\S+: E: non-readable /etc/dragongl/dragongl-server\.conf 600")
+# Subpackages are kept in lockstep (Fedora packaging guidelines).
+addFilter(r"W: requires-on-release dragongl-data = ")
+# Data and documentation have their own package.
+addFilter(r"dragongl-data\.noarch: W: no-documentation")
+# Words the dictionary does not know.
+addFilter(r"E: spelling-error \('(Vulkan|shaders|changelog|unprivileged|DynamicUser)'")

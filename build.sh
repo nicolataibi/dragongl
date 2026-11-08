@@ -119,7 +119,8 @@ ${C_BOLD}What to run${C_RESET} (default: build + unit tests + integration tests)
   -n, --no-tests       build only, skip the test suite
   -u, --unit-only      run only the unit suite (tests/)
   -i, --integ-only     run only the server integration suite (tests/integration)
-  -S, --server-only    build only the dragongl_server target
+  -S, --server-only    build only the server (configured without the client:
+                       no Vulkan, GLFW or glslc needed)
   -a, --analyze        also run cppcheck (as in CI)
   -x, --stage          also install into build/stage to check the install layout
   -k, --client-test    also run the client smoke test: real server + real client
@@ -346,27 +347,30 @@ step_build_main() {
     if ((SERVER_ONLY)); then what+=", server only"; fi
     section "Main project — $what"
     mkdir -p "$BUILD_DIR"
-    run_timed "configure main" configure "$BUILD_DIR" "$ROOT"
-    if ((SERVER_ONLY)); then
-        run_timed "build dragongl_server" build_dir "$BUILD_DIR" --target dragongl_server
-    else
-        run_timed "build main" build_dir "$BUILD_DIR"
-    fi
+    # -S configures without the client: no Vulkan, GLFW or glslc needed.
+    local client=ON
+    if ((SERVER_ONLY)); then client=OFF; fi
+    run_timed "configure main" configure "$BUILD_DIR" "$ROOT" -DDRAGONGL_BUILD_CLIENT=$client
+    run_timed "build main" build_dir "$BUILD_DIR"
 }
 
 install_stage() {
+    # The configured prefix, not --prefix: the binaries, the unit and the
+    # man pages carry the paths fixed at configure time.
     rm -rf -- "$STAGE_DIR"
     if ((VERBOSE)); then
-        DESTDIR="$STAGE_DIR" cmake --install "$BUILD_DIR" --prefix /usr
+        DESTDIR="$STAGE_DIR" cmake --install "$BUILD_DIR"
     else
-        DESTDIR="$STAGE_DIR" cmake --install "$BUILD_DIR" --prefix /usr >/dev/null
+        DESTDIR="$STAGE_DIR" cmake --install "$BUILD_DIR" >/dev/null
     fi
 }
 
 step_stage() {
-    section "Install layout (build/stage, prefix /usr)"
+    local prefix
+    prefix=$(sed -n 's/^CMAKE_INSTALL_PREFIX:PATH=//p' "$BUILD_DIR/CMakeCache.txt")
+    section "Install layout (build/stage, prefix ${prefix:-?})"
     run_timed "install to stage" install_stage
-    info "$(find "$STAGE_DIR" -type f | wc -l) files under ${STAGE_DIR#"$ROOT"/}/usr"
+    info "$(find "$STAGE_DIR" -type f | wc -l) files under ${STAGE_DIR#"$ROOT"/}${prefix}"
 }
 
 unit_dir() { if ((SANITIZE)); then printf '%s' "$UNIT_ASAN_DIR"; else printf '%s' "$UNIT_DIR"; fi; }
@@ -419,7 +423,8 @@ step_analyze() {
     section "Static analysis (cppcheck)"
     run_timed "cppcheck" cppcheck -q -j "$JOBS" --enable=warning,portability \
         --inline-suppr --error-exitcode=1 --suppress=missingIncludeSystem \
-        -D_DEFAULT_SOURCE -I"$ROOT/include" -I"$ROOT/src/server" -I"$ROOT/src/client" \
+        -D_DEFAULT_SOURCE -DDRAGONGL_VERSION='"0"' -DDRAGONGL_PKGDATADIR='"/usr/share/dragongl"' \
+        -I"$ROOT/include" -I"$ROOT/src/server" -I"$ROOT/src/client" \
         -i "$ROOT/src/shared/cJSON.c" "$ROOT/src"
 }
 

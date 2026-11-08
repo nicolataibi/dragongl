@@ -1,3 +1,61 @@
+* Sun Nov 08 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.08.12
+- BUILD: single version source. CMake reads the 'Version:' line of
+  dragongl.spec (YYYY.MM.DD.NN, checked) and generates dragongl_config.h
+  (DRAGONGL_VERSION, DRAGONGL_PKGDATADIR) and the man pages from
+  man/*.1.in, so binaries, man pages and package always carry the same
+  version and date. Both binaries accept -V/--version.
+- BUILD: distribution-friendly flags in cmake/DragonGL.cmake, shared by the
+  main, unit-test and integration projects. CMake's own optimisation level
+  instead of a forced -O3; DRAGONGL_HARDENING (default ON: PIE,
+  -fstack-protector-strong, -D_FORTIFY_SOURCE=2 outside Debug and only if
+  the flags do not set it already, full RELRO), turned off by the RPM whose
+  %optflags do the same. New options DRAGONGL_BUILD_SERVER,
+  DRAGONGL_BUILD_CLIENT (server-only builds need neither Vulkan, GLFW nor
+  glslc), DRAGONGL_INSTALL_SYSTEMD_UNIT and DRAGONGL_SYSTEMD_UNITDIR. The
+  install follows GNUInstallDirs, with the configuration under
+  CMAKE_INSTALL_FULL_SYSCONFDIR (/etc, never /usr/etc). build.sh -S now
+  configures a server-only build; build.sh -x stages with the configured
+  prefix (paths are fixed at configure time, so --prefix /usr at install
+  time gave a mixed layout).
+- SERVER: data directory found without looking at the current directory:
+  --data-dir, $DRAGONGL_DATA_DIR, data/ of the source tree when the binary
+  runs from a build directory inside it, then <datadir>/dragongl/data of
+  the install prefix. Without data the server exits with status 2 and says
+  how to fix it. The DM PDF generator and the client shaders are looked up
+  under the install prefix instead of a hard-coded /usr/share. The
+  development launcher no longer changes directory.
+- PACKAGING: systemd unit dragongl-server.service (DynamicUser, state in
+  /var/lib/dragongl with mode 0700, no restart after a configuration error,
+  full sandbox: 'systemd-analyze security' exposure 1.2) and its
+  environment file /etc/dragongl/dragongl-server.conf (root-only, 0600,
+  %config(noreplace)) for the passwords and extra options.
+- PACKAGING: dragongl.spec split by role. dragongl is the client and its
+  shaders (Recommends mesa-vulkan-drivers); the new dragongl-server holds
+  the server, launchers, unit and configuration and requires dragongl-data;
+  dragongl-data, dragongl-tools and dragongl-doc are noarch. A player
+  machine no longer installs the server and libsodium, a server no longer
+  installs Vulkan and GLFW. Existing server hosts must install
+  dragongl-server. License is GPL-3.0-or-later only: the CC BY 4.0 artwork
+  of readme_assets/ (notice in readme_assets/LICENSE.md) is kept out of
+  the tarball by .gitattributes export-ignore (with .github/), which
+  shrinks the source archive from more than 500 MB to about 1.3 MB.
+  Dropped the unused compiler-rt build requirement. %check runs the
+  release check and the unit suite. dragongl.rpmlintrc documents the
+  remaining expected rpmlint findings.
+- TOOLS: tools/check_release.py checks that the spec version, the newest
+  CHANGELOG entry and its date agree, that every entry header is well
+  formed with the right weekday, and that dates never go forward and no
+  version repeats. Fixed the two headers it found wrong (Thu Sep 24 and
+  Wed Sep 16 2026).
+- CI: three more checks, seven jobs in all: a server-only build without
+  any graphics package (configure, build, install, --version), the RPM
+  build with rpmlint in a Fedora container, and the release check in the
+  static-analysis job.
+- DOCS: INSTALL, README, BUILD, DEVELOPMENT, LORE and the man pages
+  describe the package split, the systemd service, the CMake options and
+  the new data directory order. BUILD.md no longer refers to the missing
+  local_check.sh script and lists the protocol as v4.
+
 * Sun Nov 08 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.08.11
 - CLIENT: single renderer, Vulkan 1.3 GPU-driven. Removed the OpenGL
   backend (render_gl.c/.h) and the Vulkan CPU-vertex path (DRAGONGL_GPD=0,
@@ -384,7 +442,7 @@
 * Sun Nov 08 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.08.01
 - Refactoring.
 
-* Thu Sep 17 2026 nicolataibi <nicola.taibi.1967@gmail.com> - 2026.09.24.01
+* Thu Sep 24 2026 nicolataibi <nicola.taibi.1967@gmail.com> - 2026.09.24.01
 - dragongl.spec updates.
 
 * Thu Sep 17 2026 nicolataibi <nicola.taibi.1967@gmail.com> - 2026.09.17.02
@@ -414,7 +472,7 @@
   (update_vertex_buffer) has been preserved as a fully functional fallback, which
   can be dynamically selected by setting the DRAGONGL_GPD=0 environment variable.
 
-* Thu Sep 16 2026 nicolataibi <nicola.taibi.1967@gmail.com> - 2026.09.16.01
+* Wed Sep 16 2026 nicolataibi <nicola.taibi.1967@gmail.com> - 2026.09.16.01
 - BUGFIX (client, threading): fixed the data races on the shared VFX and
   FCT pools (B1). spawn_vfx() and fct_parse_log() run on the NET thread
   (MSG_SPELL_VFX / MSG_TEXT) while particles_update()/fct_update() and

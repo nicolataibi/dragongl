@@ -1,4 +1,4 @@
-.TH DRAGONGL-RESET-WORLD 1 "2026-11-08" "DragonGL 2026.11.08.11" "User Commands"
+.TH DRAGONGL-RESET-WORLD 1 "@DRAGONGL_RELEASE_DATE@" "Dragon GL @DRAGONGL_VERSION@" "User Commands"
 .SH NAME
 dragongl-reset-world \- reset the Dragon GL world state
 .SH SYNOPSIS

@@ -26,15 +26,38 @@ Pre-built RPM packages are available through Fedora COPR.
 # 1. Enable the COPR repository
 sudo dnf copr enable nicolataibi/dragongl
 
-# 2. Install all Dragon GL packages (client, server, data, tools, documentation)
-sudo dnf install dragongl dragongl-data dragongl-tools dragongl-doc
+# 2a. Player machine: the client
+sudo dnf install dragongl
+
+# 2b. Server host: the server, its data and tools
+sudo dnf install dragongl-server dragongl-tools
 ```
 
 ### Installed Package Components:
-- **`dragongl`**: Client and server executables (`dragongl-server`, `dragongl-client`, `dragongl-reset-world`), symlinks, and man pages.
-- **`dragongl-data`**: Core game databases (`bestiary.json`, `items.json`, `spells.json`) and compiled SPIR-V shaders located in `/usr/share/dragongl/`.
-- **`dragongl-tools`**: Analysis utilities (`analyze_balance.py`, `generate_pdf_map.py`) and the Web Data Studio located in `/usr/share/dragongl/tools/`.
-- **`dragongl-doc`**: Offline manual, guides, and documentation assets in `/usr/share/doc/dragongl/`.
+- **`dragongl`**: the Vulkan client (`dragongl_client`, launcher `dragongl-client`), its SPIR-V shaders in `/usr/share/dragongl/shaders/` and its man pages.
+- **`dragongl-server`**: the server (`dragongl_server`, launchers `dragongl-server` and `dragongl-reset-world`), the world generator, the systemd unit `dragongl-server.service` and its configuration `/etc/dragongl/dragongl-server.conf`.
+- **`dragongl-data`**: the game datasets (`bestiary.json`, `items.json`, `spells.json`) in `/usr/share/dragongl/data/`, required by the server.
+- **`dragongl-tools`**: analysis utilities (`analyze_balance.py`, `generate_pdf_map.py`, used by the DM `dm_pdf` command) and the Web Data Studio in `/usr/share/dragongl/tools/`.
+- **`dragongl-doc`**: the manuals in `/usr/share/doc/dragongl/`.
+
+A player machine needs only `dragongl`; a server host needs only `dragongl-server` (it pulls in `dragongl-data` and recommends `dragongl-tools`).
+
+### Running the Server as a Service
+
+`dragongl-server` installs a systemd unit. It runs the server under a transient unprivileged user (`DynamicUser=`) with the state directory `/var/lib/dragongl` (mode 0700) and a strict sandbox:
+
+```bash
+# 1. Set the passwords (the file is root-only, mode 0600)
+sudoedit /etc/dragongl/dragongl-server.conf
+
+# 2. Start the service now and at boot
+sudo systemctl enable --now dragongl-server
+
+# 3. Follow the log
+journalctl -u dragongl-server -f
+```
+
+The configuration file holds `DRAGONGL_SERVER_PASSWORD`, `DRAGONGL_DM_PASSWORD` (empty: the `dm` account is disabled) and `DRAGONGL_SERVER_ARGS` (extra options, for example `--port 9000`). Without a server password the service exits with status 2 and is not restarted. To start a new world, stop the service first: `sudo systemctl stop dragongl-server && sudo dragongl-reset-world -S /var/lib/dragongl`.
 
 ---
 
@@ -47,7 +70,6 @@ If you prefer building and installing from source:
 sudo dnf install -y \
     cmake \
     clang \
-    compiler-rt \
     glfw-devel \
     vulkan-loader-devel \
     glslc \
@@ -67,18 +89,23 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local
 # Compile in parallel
 cmake --build build --parallel $(nproc)
 
-# Install binaries, data, shaders, and man pages
+# Install binaries, data, shaders, man pages and the systemd unit
 sudo cmake --install build
 ```
+
+A server-only host needs neither Vulkan nor GLFW: configure with `-DDRAGONGL_BUILD_CLIENT=OFF` (and drop `glfw-devel`, `vulkan-loader-devel` and `glslc`). The build options are listed in [BUILD.md](BUILD.md). With a prefix other than `/usr` the unit goes to `<prefix>/lib/systemd/system`; pass `-DDRAGONGL_SYSTEMD_UNITDIR=/etc/systemd/system` to put it where systemd reads it, or `-DDRAGONGL_INSTALL_SYSTEMD_UNIT=OFF` to skip it.
 
 ---
 
 ## 4. Runtime File Locations & Data Resolution
 
-Dragon GL resolves its assets automatically at runtime:
-1. **Explicit flag:** If the `--data-dir /path/to/data` argument is passed to `dragongl-server`, that directory is prioritized.
-2. **Local development:** `./data` relative to the current working directory.
-3. **System install:** `/usr/share/dragongl/data` (when installed from RPM or system prefix).
+The server finds its read-only game data in this order (the current directory is never searched):
+1. `--data-dir <dir>` (or `-D`);
+2. `$DRAGONGL_DATA_DIR`;
+3. `data/` of the source tree, when the binary runs from a build directory inside it (`build/dragongl_server`);
+4. `<datadir>/dragongl/data` of the install prefix (`/usr/share/dragongl/data` for the RPM).
+
+Without data the server exits with status 2. The client finds its shaders the same way: `$DRAGONGL_SHADER_DIR`, then `shaders/` next to the binary (build tree), then `<datadir>/dragongl/shaders`.
 
 Everything the server writes lives in its **state directory**, never in the data directory or next to the package files: `world.dat`, `npcs.dat`, `artifacts.dat`, `saves/` (characters and tombstones), `maps/` (DM maps), `combat_log.json`. It is chosen in this order:
 
@@ -86,7 +113,7 @@ Everything the server writes lives in its **state directory**, never in the data
 2. `$DRAGONGL_STATE_DIR`;
 3. `$XDG_STATE_HOME/dragongl`, else `~/.local/state/dragongl`.
 
-The `dragongl-server` launcher of a development tree uses `state/` in the project root. The directory is created with mode 0700 and locked by the running server. `dragongl-reset-world` deletes its content to start a new world.
+The `dragongl-server` launcher of a development tree uses `state/` in the project root; the systemd service uses `/var/lib/dragongl`. The directory is created with mode 0700 and locked by the running server. `dragongl-reset-world` deletes its content to start a new world.
 
 ---
 
@@ -95,6 +122,10 @@ The `dragongl-server` launcher of a development tree uses `state/` in the projec
 After installation, verify that the binaries are properly installed and accessible:
 
 ```bash
+# Versions (the same on both binaries)
+dragongl_client --version
+dragongl_server --version
+
 # Verify client launcher
 dragongl-client --help
 

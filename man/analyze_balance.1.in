@@ -1,4 +1,4 @@
-.TH ANALYZE_BALANCE 1 "August 2026" "Dragon GL 2026.05.26.01" "User Commands"
+.TH ANALYZE_BALANCE 1 "@DRAGONGL_RELEASE_DATE@" "Dragon GL @DRAGONGL_VERSION@" "User Commands"
 .SH NAME
 analyze_balance.py \- Dragon GL Combat Log Analyzer
 .SH SYNOPSIS

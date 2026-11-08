@@ -33,7 +33,9 @@ Options:
   --password-file <file>     server access password (first line of the file)
   --dm-password-file <file>  Dungeon Master password (optional)
   -P, --port <port>          TCP port (default: 8080)
-  -D, --data-dir <dir>       read-only game data (default: ./data, else /usr/share/dragongl/data)
+  -D, --data-dir <dir>       read-only game data (default: $DRAGONGL_DATA_DIR,
+                             else data/ of the source tree, else
+                             /usr/share/dragongl/data)
   -S, --state-dir <dir>      world, saves and logs (default: state/ in a development
                              tree, otherwise $XDG_STATE_HOME/dragongl or
                              ~/.local/state/dragongl)
@@ -87,9 +89,8 @@ if [[ -x $HERE/dragongl_server ]]; then
     BIN="$HERE/dragongl_server"
 elif [[ -x $HERE/build/dragongl_server ]]; then
     BIN="$HERE/build/dragongl_server"
-    # Development tree: data/ is relative to the project root, and the
-    # state (world, saves, logs) stays in the git-ignored state/ next to it.
-    cd -- "$HERE"
+    # Development tree: the server finds data/ next to build/ by itself;
+    # the state (world, saves, logs) stays in the git-ignored state/.
     if ((!HAVE_STATE_DIR)) && [[ -z ${DRAGONGL_STATE_DIR:-} ]]; then
         ARGS+=(--state-dir "$HERE/state")
     fi

@@ -1177,7 +1177,7 @@ cd ..
 ./dragongl-server --password-file server.pw    # gate password from a file (chmod 600)
 ./dragongl-server --dm-password-file dm.pw     # enables the DM account
 ./dragongl-server --port 9000                  # TCP port (default: 8080)
-./dragongl-server --data-dir /path/to/data     # read-only JSON (default: ./data, else /usr/share/dragongl/data)
+./dragongl-server --data-dir /path/to/data     # read-only JSON (default: data/ of the source tree, else /usr/share/dragongl/data)
 ./dragongl-server --state-dir /path/to/state   # world, saves, logs (default: state/ in a development tree)
 ```
 **Run the Client:**
@@ -1185,7 +1185,7 @@ cd ..
 ./dragongl-client                        # asks for the server host
 ./dragongl-client 192.168.1.10 9000      # [server_host] [port]
 ```
-The server resolves its data directory in this order: an explicit `--data-dir`, then `./data` (development layout), then `/usr/share/dragongl/data` (RPM install).
+The server resolves its data directory in this order: an explicit `--data-dir`, then `$DRAGONGL_DATA_DIR`, then `data/` of the source tree when the binary runs from `build/`, then `/usr/share/dragongl/data` (installed).
 
 ### 3. Vulkan Renderer & In-Engine HUD
 

@@ -25,6 +25,7 @@
  * interaction (buy, sell, wear), spells (cast, spells) and DM commands.*/
 
 #include "server_commands.h"
+#include "dragongl_config.h"
 #include "persist.h"
 #include "server_internal.h"
 #include "server_combat.h"
@@ -397,7 +398,7 @@ static int resolve_python3(char *out, size_t out_len) {
 }
 
 /* Locates tools/generate_pdf_map.py next to the server binary (build tree
- * or source tree layout) or in the RPM install location. The current
+ * or source tree layout) or in the installed DRAGONGL_PKGDATADIR/tools. The current
  * directory is never searched: a server started from an arbitrary (or
  * attacker-writable) directory must not run a script found there. */
 static int resolve_pdf_script(char *out, size_t out_len) {
@@ -422,7 +423,7 @@ static int resolve_pdf_script(char *out, size_t out_len) {
       }
     }
   }
-  const char *installed = "/usr/share/dragongl/tools/generate_pdf_map.py";
+  const char *installed = DRAGONGL_PKGDATADIR "/tools/generate_pdf_map.py";
   if (access(installed, R_OK) == 0) {
     snprintf(out, out_len, "%s", installed);
     return 0;
@@ -526,7 +527,7 @@ static void dm_pdf_map(Client *c, int floor_id) {
   if (resolve_pdf_script(script, sizeof(script)) != 0) {
     send_text_to_client(c->sock,
       "[DM] Error: tools/generate_pdf_map.py not found (searched next to the "
-      "server binary and in /usr/share/dragongl/tools).");
+      "server binary and in " DRAGONGL_PKGDATADIR "/tools).");
     return;
   }
   char floor_arg[16];

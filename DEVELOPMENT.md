@@ -132,7 +132,7 @@ cmake --build build-integration --parallel $(nproc)
 ctest --test-dir build-integration --output-on-failure
 ```
 
-CI (`.github/workflows/ci.yml`) runs five jobs on every push and pull request: Release builds with clang and gcc and `-Werror`, the unit tests (Release and ASan/UBSan), the server integration tests under ASan/UBSan, the client smoke test under ASan/UBSan (Xvfb, lavapipe, Vulkan validation layer), and cppcheck. cppcheck false positives are suppressed inline with `// cppcheck-suppress <id>` and a comment explaining why.
+CI (`.github/workflows/ci.yml`) runs seven jobs on every push and pull request: Release builds with clang and gcc and `-Werror`, the unit tests (Release and ASan/UBSan), the server integration tests under ASan/UBSan, the client smoke test under ASan/UBSan (Xvfb, lavapipe, Vulkan validation layer), a server-only build without any graphics package, the RPM build with rpmlint in a Fedora container, and static analysis (cppcheck and `tools/check_release.py`). cppcheck false positives are suppressed inline with `// cppcheck-suppress <id>` and a comment explaining why.
 
 ### Guidelines for Contributions:
 1. **Warning-Clean Build:** All C code must compile cleanly with `-Wall -Wextra -Wpedantic` using clang.

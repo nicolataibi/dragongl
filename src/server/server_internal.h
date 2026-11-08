@@ -71,8 +71,8 @@ extern Client *g_clients;
 extern NPC *g_npcs;
 extern int global_total_turns;
 extern int next_id;
-/*Read-only directory of the JSON datasets. Resolved at start: --data-dir
- * argument > local ./data > /usr/share/dragongl/data (RPM install).
+/*Read-only directory of the JSON datasets. Resolved at start: --data-dir,
+ * $DRAGONGL_DATA_DIR, <exe>/../data (build tree), DRAGONGL_PKGDATADIR/data.
  * Everything the server writes lives in the state directory (persist.h).*/
 #define DATA_DIR_MAX 256
 extern char g_data_dir[DATA_DIR_MAX];

@@ -24,7 +24,6 @@ Dragon GL is written in standard **C11** and is designed to build warning-clean 
 sudo dnf install -y \
     cmake \
     clang \
-    compiler-rt \
     glslc \
     pkgconf-pkg-config \
     glfw-devel \
@@ -67,9 +66,9 @@ sudo apt-get install -y \
 | Option | Effect |
 | --- | --- |
 | `-u` / `-i` | run only the unit suite / only the integration suite |
-| `-S` | build only the `dragongl_server` target |
+| `-S` | server only: configures with `-DDRAGONGL_BUILD_CLIENT=OFF`, so neither Vulkan, GLFW nor glslc is needed |
 | `-a` | also run cppcheck, with the same options as CI |
-| `-x` | also install into `build/stage` (prefix `/usr`) to check the install layout |
+| `-x` | also install into `build/stage` (`DESTDIR`, with the configured prefix: `/usr/local` unless `CMAKE_INSTALL_PREFIX` is set) to check the install layout |
 | `-k` | also run the client smoke test (`tests/client/test_client.py`): a real server and the real client under Xvfb with Mesa lavapipe and the Vulkan validation layer — login, rendering, window resizes, Escape, server shutdown; any validation message fails. Needs Xvfb, `mesa-vulkan-drivers` (Fedora: `mesa-vulkan-drivers`), the validation layer (`vulkan-validation-layers` / `vulkan-validationlayers`) and `python3-xlib` |
 | `-w` | warnings are errors (as in CI) |
 | `-g` | gcc instead of clang |
@@ -78,7 +77,7 @@ sudo apt-get install -y \
 
 Options combine: `./build.sh -cn`, `./build.sh -dwa`, `./build.sh -j8 -i`. Conflicting options (two build types, `-t` with `-c`) are rejected. Every option that changes the compiler flags is passed to CMake on each run, so switching between `-d` and a Release build in the same directory never keeps stale sanitizer flags. The script prints a summary with the duration of each step and exits with a non-zero status on the first failure.
 
-Build directories: `build/` (used by `./dragongl-server` and `./dragongl-client`), `build-tests/` (`build-tests-asan/` with `-d`), `build-integration/`. Sanitizer builds with clang need compiler-rt (Fedora: `compiler-rt`, Debian/Ubuntu: `libclang-rt-dev`); `-g` uses gcc instead.
+Build directories: `build/` (used by `./dragongl-server` and `./dragongl-client`), `build-tests/` (`build-tests-asan/` with `-d`), `build-integration/`. Sanitizer builds (`-d`) with clang need compiler-rt (Fedora: `compiler-rt`, Debian/Ubuntu: `libclang-rt-dev`); `-g` uses gcc instead. Release builds do not need it.
 
 The sections below describe the same steps done by hand.
 
@@ -94,9 +93,20 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release
 ```
 
 **Build Configuration Options:**
-- `-DCMAKE_BUILD_TYPE=Release`: Full optimizations (`-O3 -D_FORTIFY_SOURCE=2`) and security hardening.
-- `-DCMAKE_BUILD_TYPE=Debug`: Debug symbols (`-g -O0`) without stripping.
-- `-DDRAGONGL_USE_CLANG=ON` *(Default)*: Automatically defaults to `clang` if no compiler is explicitly set in `$CC` or `-DCMAKE_C_COMPILER`. Set to `OFF` to follow generic system toolchain defaults.
+
+| Option | Default | Effect |
+| --- | --- | --- |
+| `CMAKE_BUILD_TYPE` | `Release` | `Release`, `RelWithDebInfo`, `MinSizeRel` or `Debug`. The optimisation level is CMake's (`-O3` for Release); `CMAKE_C_FLAGS` from the environment or a distribution (`%optflags`) are kept. |
+| `DRAGONGL_USE_CLANG` | `ON` | Pick `clang` when neither `$CC` nor `CMAKE_C_COMPILER` is set. `OFF`: the toolchain decides. |
+| `DRAGONGL_BUILD_SERVER` | `ON` | Build the server, the world generator and the launchers; needs libsodium. |
+| `DRAGONGL_BUILD_CLIENT` | `ON` | Build the Vulkan client and its shaders; needs Vulkan, GLFW and glslc. |
+| `DRAGONGL_HARDENING` | `ON` | PIE, `-fstack-protector-strong`, `-D_FORTIFY_SOURCE=2` (not in Debug, nor when the flags already set it) and full RELRO. Distribution builds turn it off: their own flags do the same. |
+| `DRAGONGL_INSTALL_SYSTEMD_UNIT` | `ON` | Install `dragongl-server.service` (server builds only). |
+| `DRAGONGL_SYSTEMD_UNITDIR` | `lib/systemd/system` | Unit directory, relative to the prefix or absolute. |
+
+Warnings are always `-Wall -Wextra -Wpedantic -Wformat -Wformat-security`; `./build.sh -w` adds `-Werror`.
+
+**Version:** the single source of the version is the `Version:` line of `dragongl.spec` (`YYYY.MM.DD.NN`). CMake reads it at configure time and generates `generated/dragongl_config.h` (`DRAGONGL_VERSION`, `DRAGONGL_PKGDATADIR`) and the man pages from `man/*.1.in`; editing the spec re-runs the configuration. Both binaries print it with `--version`. `tools/check_release.py` checks that the spec, the newest `CHANGELOG.md` entry and its date agree (run in CI and in the RPM `%check`).
 
 ### Step 2: Compile
 Build all executables and compile shaders in parallel:
@@ -107,7 +117,15 @@ cmake --build build --parallel $(nproc)
 
 During the build:
 1. `glslc` compiles all vertex, fragment, and GPD compute shaders (`shaders/*.comp`, `*.vert`, `*.frag`) into binary SPIR-V files inside `build/shaders/`.
-2. The server (`build/dragongl_server`) and client (`build/dragongl_client`) executables are linked against their respective backends.
+2. The server (`build/dragongl_server`) and client (`build/dragongl_client`) executables are linked.
+
+### Step 3: Install (optional)
+
+```bash
+DESTDIR=/tmp/stage cmake --install build   # or: sudo cmake --install build
+```
+
+The layout is `bin/`, `share/dragongl/{data,shaders,tools}`, `share/man/man1`, the unit in `DRAGONGL_SYSTEMD_UNITDIR` and `/etc/dragongl/dragongl-server.conf` (mode 0600; under `<prefix>/etc` for a prefix other than `/usr`). The installed binaries look for their data and shaders under `<prefix>/share/dragongl`.
 
 ---
 
@@ -128,7 +146,7 @@ ctest --test-dir build-tests --output-on-failure
 
 ### Included Tests:
 - `test_rules`: Verifies d20 polyhedral dice math, ability checks, and advantage/disadvantage mechanics.
-- `test_protocol`: Validates network packet packing, header structures, and `PROTOCOL_VERSION 3` negotiation.
+- `test_protocol`: Validates network packet packing, header structures, and `PROTOCOL_VERSION` 4 checks.
 - `test_pathfinding`: Validates A* navigation and collision routines across dungeon grids.
 - `test_tome`: Verifies grimoire parsing and spell level progression requirements.
 - `test_vfx_threads`: Stress-tests multithreaded VFX and Floating Combat Text (FCT) synchronization under heavy load.
@@ -138,7 +156,7 @@ ctest --test-dir build-tests --output-on-failure
 
 `tests/integration/` is a second standalone project. It builds the server with the flags you pass (normally ASan/UBSan) and runs two kinds of tests:
 
-- `server_network` (`test_server.py`): starts a real `dragongl_server` on a free port in a private copy of a generated world and drives it with a protocol-v3 client (`dglproto.py`). The first run generates the world and takes about a minute.
+- `server_network` (`test_server.py`): starts a real `dragongl_server` on a free port in a private copy of a generated world and drives it with a protocol-v4 client (`dglproto.py`). The first run generates the world and takes about a minute.
 - `server_harness`: links the server sources without `main()` (`-DDRAGONGL_NO_MAIN`) and calls persistence and trade code directly.
 
 ```bash
@@ -154,10 +172,15 @@ Only a C compiler, CMake and Python 3 are required: no graphics stack. Tests tha
 
 ## 5. Local RPM Packaging Check
 
-To verify Fedora package compliance locally without submitting to COPR:
+The spec builds every package and runs `tools/check_release.py` plus the unit suite in `%check`. CI does the same in a Fedora container (job `rpm`). By hand, on Fedora:
 
 ```bash
-./local_check.sh
+sudo dnf install -y rpm-build rpmlint dnf-plugins-core && sudo dnf builddep -y dragongl.spec
+mkdir -p ~/rpmbuild/SOURCES
+git archive --prefix=dragongl-$(rpmspec -q --qf '%{version}' --srpm dragongl.spec)/ \
+    -o ~/rpmbuild/SOURCES/dragongl-$(rpmspec -q --qf '%{version}' --srpm dragongl.spec).tar.gz HEAD
+rpmbuild -ba dragongl.spec
+rpmlint -r dragongl.rpmlintrc ~/rpmbuild/RPMS/*/dragongl*.rpm ~/rpmbuild/SRPMS/dragongl*.rpm
 ```
 
-This creates an isolated local build tree (`_local_build`), packages the source tarball, executes `rpmbuild`, and runs `rpmlint` against the generated RPMs.
+The spec uses `%autorelease` and `%autochangelog` (as COPR builds do from git); outside an rpmautospec setup, replace them with a plain `Release:` and `%changelog` as the CI job does. `.gitattributes` keeps `readme_assets/` and `.github/` out of `git archive`.

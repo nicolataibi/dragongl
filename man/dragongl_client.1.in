@@ -1,4 +1,4 @@
-.TH DRAGONGL_CLIENT 1 "2026-11-08" "DragonGL 2026.11.08.11" "User Commands"
+.TH DRAGONGL_CLIENT 1 "@DRAGONGL_RELEASE_DATE@" "Dragon GL @DRAGONGL_VERSION@" "User Commands"
 .SH NAME
 dragongl_client \- Dragon GL 3D game client
 .SH SYNOPSIS
@@ -6,7 +6,7 @@ dragongl_client \- Dragon GL 3D game client
 [\fIserver_host\fR [\fIport\fR]]
 .br
 .B dragongl_client
-.BR \-h " | " \-\-help
+.BR \-h " | " \-\-help " | " \-V " | " \-\-version
 .SH DESCRIPTION
 .B dragongl_client
 is the 3D client of the Dragon GL dungeon crawler. It connects to a
@@ -66,8 +66,8 @@ immediate mode, if the driver offers one).
 .B DRAGONGL_SHADER_DIR
 Directory of the compiled shaders. By default they are read from
 .I shaders/
-next to the executable, then from
-.IR /usr/share/dragongl/shaders .
+next to the executable (build tree), then from
+.IR @DRAGONGL_PKGDATADIR@/shaders .
 .TP
 .B VK_INSTANCE_LAYERS
 Vulkan layers to enable, colon separated (for example
@@ -75,7 +75,7 @@ Vulkan layers to enable, colon separated (for example
 names the system does not provide are skipped with a warning.
 .SH FILES
 .TP
-.I /usr/share/dragongl/shaders/*.spv
+.I @DRAGONGL_PKGDATADIR@/shaders/*.spv
 Compiled shaders.
 .SH SEE ALSO
 .BR dragongl-client (1),

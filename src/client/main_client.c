@@ -27,6 +27,7 @@
 #include "client_state.h"
 #include "net.h"
 #include "render_vk.h"
+#include "dragongl_config.h"
 #include "protocol.h"
 #include "wire.h"
 #include "rules.h"
@@ -203,8 +204,12 @@ int main(int argc, char **argv) {
         for (int x = 0; x < MAP_WIDTH; x++)
             g_local_map[y][x] = VOXEL_ROCK;
 
+    if (argc == 2 && (strcmp(argv[1], "-V") == 0 || strcmp(argv[1], "--version") == 0)) {
+        printf("dragongl_client %s\n", DRAGONGL_VERSION);
+        return 0;
+    }
     if (argc > 3 || (argc > 1 && (strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "--help") == 0))) {
-        printf("Usage: %s [server_host [port]]\n"
+        printf("Usage: %s [server_host [port]] | -h | -V\n"
                "  server_host  host name, IPv4 or IPv6 address (asked if omitted; default 127.0.0.1)\n"
                "  port         TCP port (default 8080)\n"
                "Environment: DRAGONGL_WINDOW=WxH (window size), DRAGONGL_GPU=<index|name>,\n"

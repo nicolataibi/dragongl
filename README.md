@@ -87,6 +87,15 @@ The Fedora packaging divides Dragon GL into modular subpackages conforming to th
 
 | Package | Architecture | Contents |
 | :--- | :--- | :--- |
+| **`dragongl`** | Arch-dependent | Vulkan client (`dragongl-client`), its SPIR-V shaders (`/usr/share/dragongl/shaders/`) and man pages. |
+| **`dragongl-server`** | Arch-dependent | Server (`dragongl-server`), world reset utility (`dragongl-reset-world`), world generator, systemd unit `dragongl-server.service` and `/etc/dragongl/dragongl-server.conf`. |
+| **`dragongl-data`** | `noarch` | Game datasets (`bestiary.json`, `items.json`, `spells.json`) in `/usr/share/dragongl/data/`. |
+| **`dragongl-tools`** | `noarch` | DM and developer tools: balance analyzer (`analyze_balance.py`), map PDF generator (`generate_pdf_map.py`), and the HTML Data Studio suite. |
+| **`dragongl-doc`** | `noarch` | User manuals and technical documents (`/usr/share/doc/dragongl/`). |
+
+The artwork in `readme_assets/` (CC BY 4.0, see `readme_assets/LICENSE.md`) stays in the repository: it is not part of the release tarball nor of any package. Service setup: [INSTALL.md](INSTALL.md).
+
+--- | :--- | :--- |
 | **`dragongl`** | Arch-dependent | Server binary (`dragongl-server`), Client binary (`dragongl-client`), world reset utility (`dragongl-reset-world`), and man pages. |
 | **`dragongl-data`** | `noarch` | Game datasets (`bestiary.json`, `items.json`, `spells.json`) and compiled Vulkan SPIR-V shaders (`/usr/share/dragongl/`). |
 | **`dragongl-tools`** | `noarch` | Developer and DM tools: balance analyzer (`analyze_balance.py`), map PDF generator (`generate_pdf_map.py`), and the HTML Data Studio suite. |
@@ -102,8 +111,9 @@ Pre-built RPM packages for Fedora are available through Fedora COPR:
 # 1. Enable the COPR repository
 sudo dnf copr enable nicolataibi/dragongl
 
-# 2. Install Dragon GL packages
-sudo dnf install dragongl dragongl-data dragongl-tools dragongl-doc
+# 2. Client, or server host (pulls in dragongl-data)
+sudo dnf install dragongl
+sudo dnf install dragongl-server dragongl-tools
 ```
 
 ---
@@ -118,13 +128,11 @@ Install the required compiler, build tools, and graphics development headers:
 sudo dnf install -y \
     cmake \
     clang \
-    compiler-rt \
-    mesa-libGL-devel \
-    mesa-libGLU-devel \
     glfw-devel \
     vulkan-loader-devel \
     glslc \
     pkgconf-pkg-config \
+    libsodium-devel \
     python3
 ```
 
@@ -133,19 +141,15 @@ sudo dnf install -y \
 Dragon GL uses standard CMake out-of-source builds with clang:
 
 ```bash
-# Clone or enter the project directory
-cd dragongl-dev
+# Release build of client and server, then both test suites
+./build.sh
 
-# Create and enter build directory
-mkdir -p build && cd build
-
-# Configure and compile
-cmake .. -DCMAKE_BUILD_TYPE=Release
-cmake --build . --parallel $(nproc)
-
-# Return to project root
-cd ..
+# The same by hand
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel $(nproc)
 ```
+
+`./build.sh -S` builds the server only (no Vulkan or GLFW needed); all switches and CMake options are in [BUILD.md](BUILD.md).
 
 ---
 
@@ -163,12 +167,12 @@ The server manages world state, NPC AI, combat resolution, and multiplayer synch
 ./dragongl-server --password-file server.pw --dm-password-file dm.pw --port 8080
 
 # Explicit data directory path
-./dragongl-server --password-file server.pw --data-dir ./data
+./dragongl-server --password-file server.pw --data-dir /path/to/data
 ```
 
 Passwords are never accepted on the command line: they come from files, from `DRAGONGL_SERVER_PASSWORD` / `DRAGONGL_DM_PASSWORD`, or from the interactive prompt. Each one has 8-63 printable ASCII characters without spaces. Without a DM password the `dm` account is disabled.
 
-*Data directory resolution order:* `--data-dir` argument -> `./data` (local development) -> `/usr/share/dragongl/data` (system RPM install).
+*Data directory resolution order:* `--data-dir` argument -> `$DRAGONGL_DATA_DIR` -> `data/` of the source tree (binary in `build/`) -> `/usr/share/dragongl/data` (installed). The current directory is never searched. On an RPM install the server usually runs as the `dragongl-server` systemd service ([INSTALL.md](INSTALL.md)).
 
 ### 2. Launching the Client (`dragongl-client`)
 

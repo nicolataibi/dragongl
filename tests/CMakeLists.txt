@@ -16,48 +16,17 @@
 # =========================================================================
 
 cmake_minimum_required(VERSION 3.16)
-# Same compiler policy as the main CMakeLists.txt (L4): clang by default,
-# but NEVER overriding an explicit user choice.
+# Same compiler policy as the main CMakeLists.txt: clang by default, but
+# never overriding an explicit choice (-DCMAKE_C_COMPILER or $CC).
 option(DRAGONGL_USE_CLANG "Default to clang as the C compiler (overridable)" ON)
 if(DRAGONGL_USE_CLANG AND NOT DEFINED CMAKE_C_COMPILER AND NOT DEFINED ENV{CC})
     set(CMAKE_C_COMPILER clang)
 endif()
-project(DragonGLTests VERSION 2026.09.11.01 LANGUAGES C)
+include("${CMAKE_CURRENT_LIST_DIR}/../cmake/DragonGL.cmake")
+project(DragonGLTests VERSION ${DRAGONGL_VERSION} LANGUAGES C)
 
-# Same standard/extension policy as the main CMakeLists.txt: C11, no
-# GNU extensions.
-set(CMAKE_C_STANDARD 11)
-set(CMAKE_C_STANDARD_REQUIRED ON)
-set(CMAKE_C_EXTENSIONS OFF)
-
-# Default to Release build if not specified
-if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE Release)
-endif()
-
-# Global definitions (same as the main project)
-add_compile_definitions(_DEFAULT_SOURCE)
-
-# Warning flags (mirror the non-MSVC branch of the main CMakeLists.txt)
-if(MSVC)
-    add_compile_options(/W4)
-else()
-    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-    add_compile_options(-fPIE)
-    add_link_options(-pie)
-
-    add_compile_options(-Wall -Wextra -Wpedantic -fstack-protector-strong -Wformat -Wformat-security)
-
-    if(CMAKE_BUILD_TYPE STREQUAL "Release")
-        add_compile_options(-O3)
-        # _FORTIFY_SOURCE needs optimization (L4, same as the main project)
-        add_compile_options(-D_FORTIFY_SOURCE=2)
-    elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
-        add_compile_options(-O0 -g)
-    endif()
-
-    add_link_options(-Wl,-z,relro,-z,now)
-endif()
+# Same flags as the main project (cmake/DragonGL.cmake).
+dragongl_compile_settings()
 
 # Project roots (this file is tests/CMakeLists.txt)
 set(DG_ROOT   "${CMAKE_CURRENT_SOURCE_DIR}/..")
@@ -111,6 +80,8 @@ if(Vulkan_FOUND)
     target_link_libraries(test_gpu_mesh Vulkan::Vulkan m)
     set_source_files_properties(gpu_mesh_test.c PROPERTIES
         COMPILE_FLAGS "-ffp-contract=off")
-    add_test(NAME gpu_mesh COMMAND test_gpu_mesh ${DG_ROOT}/build/shaders)
+    set(DRAGONGL_TEST_SHADER_DIR "${DG_ROOT}/build/shaders" CACHE PATH
+        "Compiled shaders for the gpu_mesh test (skipped if absent)")
+    add_test(NAME gpu_mesh COMMAND test_gpu_mesh ${DRAGONGL_TEST_SHADER_DIR})
     set_tests_properties(gpu_mesh PROPERTIES SKIP_RETURN_CODE 77)
 endif()

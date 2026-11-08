@@ -1,4 +1,4 @@
-.TH GENERATE_PDF_MAP 1 "September 2026" "Dragon GL" "Dragon GL DM Tools"
+.TH GENERATE_PDF_MAP 1 "@DRAGONGL_RELEASE_DATE@" "Dragon GL @DRAGONGL_VERSION@" "Dragon GL DM Tools"
 .SH NAME
 generate_pdf_map \- render a Dragon GL floor dump as a faithful color PDF map
 .SH SYNOPSIS
