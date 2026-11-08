@@ -4,7 +4,7 @@
 %global toolchain clang
 
 Name:           dragongl
-Version:        2026.11.08.14
+Version:        2026.11.08.15
 Release:        %autorelease
 Summary:        Multi-user 3D dungeon RPG: Vulkan client
 
@@ -28,7 +28,7 @@ Recommends:     mesa-vulkan-drivers
 
 %description
 Dragon GL is a multi-user client-server dungeon exploration RPG with a
-d20-style rules engine, 100 procedurally generated floors and a real-time
+d20-style rules engine, 100 randomly generated floors and a real-time
 3D client. This package contains the client, rendered with Vulkan 1.3
 (GPU-driven: culling and mesh generation run in compute shaders).
 The game server is in the %{name}-server package.
@@ -46,7 +46,7 @@ The authoritative Dragon GL game server: world simulation, NPC AI, combat,
 persistence of characters and world. It needs no graphics stack. A systemd
 unit (dragongl-server.service, disabled by default) runs it as an
 unprivileged dynamic user with its state in /var/lib/dragongl; passwords
-go in /etc/dragongl/dragongl-server.conf.
+go in its configuration file in /etc/dragongl.
 
 
 %package data

@@ -167,8 +167,10 @@ jobs:
     runs-on: ubuntu-24.04
     container: fedora:latest
     steps:
+      # glibc-langpack-en: the en_US.UTF-8 locale of the runner environment
+      # (rpm's shells warn without it, and rpmlint spell-checks in en_US).
       - name: Install packaging tools
-        run: dnf -y install git rpm-build rpmlint 'dnf-command(builddep)'
+        run: dnf -y install git rpm-build rpmlint glibc-langpack-en 'dnf-command(builddep)'
 
       - uses: actions/checkout@v4
 

@@ -1,3 +1,12 @@
+* Sun Nov 08 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.08.15
+- PACKAGING: rpmlint passes on Fedora. The descriptions no longer use
+  words the Fedora en_US dictionary rejects ('procedurally', and 'conf'
+  from the configuration path), and the rpmlintrc filter for
+  requires-on-release is gone: Fedora's rpmlint does not emit that
+  warning, and an unused filter is itself an error.
+- CI: the RPM job installs glibc-langpack-en, so the en_US.UTF-8 locale
+  of the runner exists (no setlocale warnings from rpm's shells).
+
 * Sun Nov 08 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.08.14
 - SPELLS: the 12 class transit cantrips are learned from a book and cast
   only with it, like every other spell. Each class has its own travel
