@@ -1,4 +1,4 @@
-.TH DRAGONGL-SERVER 1 "2026-11-08" "DragonGL 2026.11.08.07" "User Commands"
+.TH DRAGONGL-SERVER 1 "2026-11-08" "DragonGL 2026.11.08.08" "User Commands"
 .SH NAME
 dragongl-server \- Dragon GL server launcher script
 .SH SYNOPSIS
@@ -11,6 +11,8 @@ dragongl-server \- Dragon GL server launcher script
 .IR port ]
 .RB [ \-D | \-\-data\-dir
 .IR dir ]
+.RB [ \-S | \-\-state\-dir
+.IR dir ]
 .RB [ \-h | \-\-help ]
 .SH DESCRIPTION
 .B dragongl-server
@@ -18,12 +20,13 @@ starts the Dragon GL game server
 .BR dragongl_server (1).
 It runs the binary installed next to it, or
 .I build/dragongl_server
-in a development tree (in that case it first changes to the project root,
-where
+in a development tree. In a development tree it first changes to the
+project root (where
 .I data/
-and
-.I saves/
-live).
+lives) and, unless a state directory is given, keeps the server state in
+the git-ignored
+.I state/
+directory there.
 .PP
 Before starting the server it prints diagnostic information about the host
 (operating system, uptime and load, memory, disk space, network
@@ -59,6 +62,10 @@ TCP port to listen on (default 8080).
 .TP
 .BR \-D ", " \-\-data\-dir " \fIdir\fR"
 Data directory (see
+.BR dragongl_server (1)).
+.TP
+.BR \-S ", " \-\-state\-dir " \fIdir\fR"
+State directory: world, NPCs, characters, logs (see
 .BR dragongl_server (1)).
 .TP
 .BR \-h ", " \-\-help

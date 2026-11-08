@@ -26,7 +26,9 @@ and prints a detailed statistical report for game balance analysis.
 Usage:
     python3 tools/analyze_balance.py [path/to/combat_log.json]
 
-Default path: ./combat_log.json
+Default: combat_log.json in the server state directory, searched as the
+server resolves it: $DRAGONGL_STATE_DIR, ./state (development tree),
+$XDG_STATE_HOME/dragongl, ~/.local/state/dragongl; finally ./combat_log.json.
 """
 
 import json
@@ -187,8 +189,25 @@ def analyze_deaths(events):
         print(f"  {killer:<25} {kills:>6}")
 
 
+def default_log_path():
+    """combat_log.json of the server state directory (see dragongl_server(1))."""
+    candidates = []
+    if os.environ.get("DRAGONGL_STATE_DIR"):
+        candidates.append(os.environ["DRAGONGL_STATE_DIR"])
+    candidates.append("state")
+    if os.environ.get("XDG_STATE_HOME", "").startswith("/"):
+        candidates.append(os.path.join(os.environ["XDG_STATE_HOME"], "dragongl"))
+    if os.environ.get("HOME", "").startswith("/"):
+        candidates.append(os.path.join(os.environ["HOME"], ".local", "state", "dragongl"))
+    for directory in candidates:
+        path = os.path.join(directory, "combat_log.json")
+        if os.path.isfile(path):
+            return path
+    return "combat_log.json"
+
+
 def main():
-    filepath = sys.argv[1] if len(sys.argv) > 1 else "combat_log.json"
+    filepath = sys.argv[1] if len(sys.argv) > 1 else default_log_path()
     print(f"\nDragon GL — Combat Balance Analyzer")
     print(f"Reading: {filepath}\n")
     events = load_log(filepath)

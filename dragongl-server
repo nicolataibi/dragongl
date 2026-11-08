@@ -33,7 +33,10 @@ Options:
   --password-file <file>     server access password (first line of the file)
   --dm-password-file <file>  Dungeon Master password (optional)
   -P, --port <port>          TCP port (default: 8080)
-  -D, --data-dir <dir>       data directory (default: ./data, else /usr/share/dragongl/data)
+  -D, --data-dir <dir>       read-only game data (default: ./data, else /usr/share/dragongl/data)
+  -S, --state-dir <dir>      world, saves and logs (default: state/ in a development
+                             tree, otherwise $XDG_STATE_HOME/dragongl or
+                             ~/.local/state/dragongl)
   -h, --help                 show this help
 
 Without --password-file the launcher uses DRAGONGL_SERVER_PASSWORD, or asks
@@ -53,12 +56,14 @@ die() { printf '\n[ERROR] %s\n' "$*" >&2; exit 1; }
 ARGS=()
 HAVE_GATE_FILE=0
 HAVE_DM_FILE=0
+HAVE_STATE_DIR=0
 while (($#)); do
     case $1 in
-        --password-file|--dm-password-file|-P|--port|-D|--data-dir)
+        --password-file|--dm-password-file|-P|--port|-D|--data-dir|-S|--state-dir)
             (($# > 1)) || die "$1 needs a value"
             [[ $1 == --password-file ]] && HAVE_GATE_FILE=1
             [[ $1 == --dm-password-file ]] && HAVE_DM_FILE=1
+            [[ $1 == -S || $1 == --state-dir ]] && HAVE_STATE_DIR=1
             ARGS+=("$1" "$2")
             shift 2
             ;;
@@ -82,8 +87,12 @@ if [[ -x $HERE/dragongl_server ]]; then
     BIN="$HERE/dragongl_server"
 elif [[ -x $HERE/build/dragongl_server ]]; then
     BIN="$HERE/build/dragongl_server"
-    # Development tree: data/ and saves/ are relative to the project root.
+    # Development tree: data/ is relative to the project root, and the
+    # state (world, saves, logs) stays in the git-ignored state/ next to it.
     cd -- "$HERE"
+    if ((!HAVE_STATE_DIR)) && [[ -z ${DRAGONGL_STATE_DIR:-} ]]; then
+        ARGS+=(--state-dir "$HERE/state")
+    fi
 else
     die "dragongl_server not found next to ${0##*/} or in build/. Build it with: ./build.sh -n"
 fi

@@ -1,3 +1,46 @@
+* Sun Nov 08 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.08.08
+- PERSISTENCE (server): new state directory for everything the server
+  writes (world, NPCs, artifacts, characters, tombstones, combat log, DM
+  maps). Chosen by -S/--state-dir, $DRAGONGL_STATE_DIR,
+  $XDG_STATE_HOME/dragongl or ~/.local/state/dragongl; created with mode
+  0700 and locked with flock (a second server on it is refused). The data
+  directory is now read-only: installed from RPM, the server used to write
+  world.dat into /usr/share/dragongl/data, fail silently and generate a
+  new world at every start.
+- PERSISTENCE (server): portable on-disk formats. New include/binio.h /
+  src/shared/binio.c (little-endian field writer/reader and a container
+  with magic, version, length and CRC-32) and src/server/persist.c, which
+  serializes saves, world.dat, npcs.dat, tombstones and artifacts.dat field
+  by field. No raw struct and no pointer reaches the disk any more; counts,
+  enums and coordinates are validated on load and the payload must be
+  consumed exactly. NPC ghost loot is stored sparsely: npcs.dat goes from
+  ~130 MB to ~11 MB.
+- PERSISTENCE (server): every write reports its result. world/NPC save
+  failures are logged with the reason, a new world that cannot be saved
+  stops the server, and the log no longer claims "saved" when it was not.
+  Writes fsync the directory after the rename. The world, the NPCs and the
+  artifacts are also saved at shutdown.
+- FORMATS: save v3, world v4, npcs/tombstone/artifacts v1. Older files are
+  refused (an unreadable world means a new one): run dragongl-reset-world.
+- CLEANUP: removed the legacy bones_*.dat reader (no code wrote those files
+  any more), the single-file tombstone_load(), the old-name tombstone
+  cleanup, the raw-struct world_save()/world_load() of map.c and the
+  atomic_write_* / cleanup_stale_tmp_files helpers.
+- LAUNCHERS: dragongl-server accepts -S/--state-dir and keeps a development
+  tree's state in the git-ignored state/. dragongl-reset-world rewritten: it
+  resolves the state directory like the server, refuses a directory
+  without saves/ and refuses to run while the server holds the lock;
+  -y/--yes skips the confirmation.
+- TOOLS: analyze_balance.py finds combat_log.json in the state directory.
+- TESTS: round trips of world.dat, npcs.dat, tombstones and artifact flags
+  (with corruption detection); network tests for the state layout, the
+  read-only data directory, an unusable state directory, a second server
+  on the same state, a corrupt world (new world generated) and a corrupt
+  save (login refused, file kept).
+- DOCS: dragongl_server(1), dragongl-server(1), dragongl-reset-world(1),
+  INSTALL.md, SECURITY.md, README.md, DEVELOPMENT.md and LORE.md describe
+  the state directory and the formats.
+
 * Sun Nov 08 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.08.07
 - SECURITY (server): no default credentials. The server does not start
   without a server access password, and the DM account exists only when a

@@ -1,4 +1,4 @@
-.TH DRAGONGL_SERVER 1 "2026-11-08" "DragonGL 2026.11.08.07" "User Commands"
+.TH DRAGONGL_SERVER 1 "2026-11-08" "DragonGL 2026.11.08.08" "User Commands"
 .SH NAME
 dragongl_server \- Dragon GL master game server
 .SH SYNOPSIS
@@ -6,6 +6,8 @@ dragongl_server \- Dragon GL master game server
 .RB [ \-P | \-\-port
 .IR port ]
 .RB [ \-D | \-\-data\-dir
+.IR dir ]
+.RB [ \-S | \-\-state\-dir
 .IR dir ]
 .RB [ \-\-password\-file
 .IR file ]
@@ -56,15 +58,25 @@ server on a trusted LAN, or behind a VPN or TLS tunnel.
 TCP port to listen on (default 8080).
 .TP
 .BR \-D ", " \-\-data\-dir " \fIdir\fR"
-Directory holding the JSON datasets and the world state files
-(world.dat, npcs.dat, artifacts.dat).
-When not given, the server uses
+Read-only directory of the JSON datasets (bestiary, items, spells). The
+server never writes there. When not given, the server uses
 .I ./data
 if it contains
 .IR bestiary.json ,
 otherwise
 .I /usr/share/dragongl/data
 (RPM install).
+.TP
+.BR \-S ", " \-\-state\-dir " \fIdir\fR"
+Directory for everything the server writes (see
+.BR FILES ).
+It is created with mode 0700 if missing, and locked: a second server on
+the same directory is refused. Default:
+.BR DRAGONGL_STATE_DIR ,
+else
+.IR $XDG_STATE_HOME/dragongl ,
+else
+.IR ~/.local/state/dragongl .
 .TP
 .BI \-\-password\-file " file"
 Read the server access password from the first line of
@@ -84,6 +96,11 @@ Server access password, used when
 .B \-\-password\-file
 is not given. Required.
 .TP
+.B DRAGONGL_STATE_DIR
+State directory, used when
+.B \-\-state\-dir
+is not given.
+.TP
 .B DRAGONGL_DM_PASSWORD
 Dungeon Master password, used when
 .B \-\-dm\-password\-file
@@ -98,18 +115,32 @@ on a start-up error (port in use, data not found),
 .B 2
 on invalid options or a missing or invalid password.
 .SH FILES
+All paths are relative to the state directory. Binary files use a
+portable format: fields are stored one by one in little-endian order, in
+a container with a magic number, a format version and a CRC-32; a file of
+another version or a corrupt file is never half-loaded.
+.TP
+.IR world.dat ", " npcs.dat
+World and NPCs. They are a pair: if either is missing or unreadable the
+server generates a new world. Saved every minute and at shutdown.
+.TP
+.I artifacts.dat
+Unique artifacts that already dropped.
+.TP
+.I saves/<user>.save
+Characters. An unreadable save refuses the login and is kept untouched.
+.TP
+.I saves/tombstone_*.dat
+Tombstones of dead characters (they expire after 24 hours).
+.TP
+.I maps/
+Floor dumps and PDF maps created by the DM commands dm_pdf and dm_mapfloor.
 .TP
 .I combat_log.json
-Tactical combat log, written in the working directory.
+Tactical combat log (rotated to combat_log.json.1).
 .TP
-.IR saves/ "directory"
-Player save files (*.save) and tombstones (tombstone_*.dat).
-.TP
-.IR data/ "directory"
-World persistence files (world.dat, artifacts.dat, npcs.dat).
-world.dat carries a magic/version/CRC32 header (1 byte per tile, the
-volatile entity grid is not persisted); a missing or invalid file is
-never half-loaded \(em the server generates a fresh world instead.
+.I server.lock
+Locked by the running server.
 .SH SEE ALSO
 .BR dragongl_client (1),
 .BR dragongl-server (1),

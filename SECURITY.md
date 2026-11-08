@@ -66,12 +66,18 @@ Text commands are stripped of control characters (bytes below 0x20 and 0x7F) bef
 - **One session per character:** a second login of a character already online is refused, so two sessions can never save the same character independently (item duplication). TCP keepalive releases the character of a client that vanished without closing the connection within about 90 s.
 - **Single disconnect path:** A connection with an error is only marked; the main loop removes it once per iteration (save, notify, close). A rejected login clears its authentication state first, so the reaper never saves a character whose password was wrong.
 
-### D. Concurrency & Thread Safety
+### D. Persistent State
+- **Separate state directory:** the server writes only to its state directory (`--state-dir`, `$DRAGONGL_STATE_DIR`, `$XDG_STATE_HOME/dragongl`, `~/.local/state/dragongl`), created with mode 0700; the JSON data directory is only read. Files are created with mode 0600.
+- **Single writer:** the running server holds an `flock` on `server.lock`; a second server on the same directory is refused, and `dragongl-reset-world` refuses to run under a live server.
+- **Untrusted files:** every file is a versioned, CRC-checked container whose fields are read one by one; counts, enums and coordinates are range-checked, and the payload must be consumed exactly. A corrupt or foreign file is refused, never half-loaded: an unreadable save refuses the login and is kept, an unreadable world triggers a new one.
+- **Durable writes:** temporary file, `fsync`, atomic `rename`, `fsync` of the directory; on failure the previous file is kept and the error is logged.
+
+### E. Concurrency & Thread Safety
 Dragon GL separates networking I/O from rendering:
 - **Lock-Free Frame Snapshots:** The client render loop works on an immutable `FrameSnapshot` captured each frame, avoiding dirty reads while the network thread receives map chunks and state updates.
 - **Granular Mutexes:** Shared visualization pools (Floating Combat Text and particle systems) use dedicated mutexes (`g_particles_mutex`, `g_fct_mutex`) to eliminate data races under heavy combat loads.
 
-### E. Compiler Hardening & Fedora Compliance
+### F. Compiler Hardening & Fedora Compliance
 Dragon GL enforces Fedora-standard compiler security flags across all builds:
 - Position Independent Executable (`-fPIE` / `-pie`).
 - Stack smashing protection (`-fstack-protector-strong`).

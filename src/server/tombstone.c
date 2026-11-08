@@ -26,11 +26,12 @@
  * - Contains all of his inventory, equipment and gold
  * - Can be inspected with 'look' or 'list'
  * - Can ONLY be recovered by the owner player with 'pickup'
- * - It is saved to disk in saves/tombstone_<owner>.dat
+ * - It is saved to disk in <state>/saves/tombstone_<owner>_<time>_<x>_<y>.dat
  * - It is loaded when the server starts*/
 
 #include "server_internal.h"
 #include "server.h"
+#include "persist.h"
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
@@ -57,95 +58,38 @@ bool tombstone_is_expired(const Tombstone *t) {
     return hours_diff > TOMBSTONE_EXPIRE_HOURS;
 }
 
+/* <state>/saves/tombstone_<owner>_<time>_<x>_<y>.dat */
+static bool tombstone_path(const Tombstone *t, char *out, size_t out_len) {
+    return state_path(out, out_len, "saves/tombstone_%s_%lld_%d_%d.dat", t->owner,
+                      (long long)t->death_time, t->x, t->y);
+}
+
 /*---------------------------------------------------------------
- * tombstone_save
- * Save a single tombstone to disk.
- * File: saves/tombstone_<owner>.dat
+ * tombstone_save: write one tombstone to the state directory.
  * ---------------------------------------------------------------*/
 void tombstone_save(const Tombstone *t) {
-    if (!t || !t->active) {
+    if (!t || !t->active)
+        return;
+    char path[STATE_DIR_MAX + 128];
+    if (!tombstone_path(t, path, sizeof(path))) {
+        server_log("TOMB", "ERROR: tombstone path too long for %s", t->owner);
         return;
     }
-    
-    //Creating the directory securely
-    struct stat st = {0};
-    if (stat("saves", &st) == -1) {
-        if (mkdir("saves", 0755) != 0) {
-            server_log("TOMB", "ERROR: failed to create saves/ directory (%s)", strerror(errno));
-            return;
-        }
-    }
-    
-    char path[256];
-    snprintf(path, sizeof(path), "saves/tombstone_%s_%ld_%d_%d.dat", t->owner, (long)t->death_time, t->x, t->y);
-    /*Atomic: a crash mid-write must not leave a half-written
-     * tombstone (the loader would skip it, but the loot would also be
-     * unreachable until expiry).*/
-    char tmp[320];
-    FILE *f = atomic_write_begin(path, tmp, sizeof(tmp));
-    if (!f) {
-        server_log("TOMB", "ERROR: failed to open %s", path);
+    if (!persist_write_tombstone(path, t)) {
+        server_log("TOMB", "ERROR: failed to write the tombstone of %s (%s)", t->owner,
+                   strerror(errno));
         return;
     }
-    
-    size_t written = fwrite(t, sizeof(Tombstone), 1, f);
-    if (!atomic_write_end(f, path, tmp, written == 1)) {
-        server_log("TOMB", "ERROR: failed to write %s's tombstone entirely", t->owner);
-        return;
-    }
-    
     server_log("TOMB", "Tombstone of %s saved to %s", t->owner, path);
 }
 
 /*---------------------------------------------------------------
- * tombstone_load
-* Load a single tombstone from disk.
- * Returns true if loading succeeded, false otherwise.
- * ---------------------------------------------------------------*/
-bool tombstone_load(const char *owner, Tombstone *out_tombstone) {
-    if (!owner || !out_tombstone) {
-        return false;
-    }
-    
-    char path[128];
-    snprintf(path, sizeof(path), "saves/tombstone_%s.dat", owner);
-    
-    FILE *f = fopen(path, "rb");
-    if (!f) {
-        return false;
-    }
-    
-    size_t read_bytes = fread(out_tombstone, 1, sizeof(Tombstone), f);
-    fclose(f);
-    
-    if (read_bytes != sizeof(Tombstone)) {
-        server_log("TOMB", "Corrupted tombstone file: %s", path);
-        return false;
-    }
-    
-    /* Check if the tombstone has expired */
-    if (tombstone_is_expired(out_tombstone)) {
-        remove(path);
-        server_log("TOMB", "Expired tombstone deleted: %s", path);
-        return false;
-    }
-    
-    return true;
-}
-
-
-
-/*---------------------------------------------------------------
- * tombstone_delete_file
-* Removes a tombstone's disk file (after recovery).
+ * tombstone_delete_file: remove a tombstone's file (after recovery).
  * ---------------------------------------------------------------*/
 static void tombstone_delete_file(const Tombstone *t) {
-    char path[256];
-    snprintf(path, sizeof(path), "saves/tombstone_%s_%ld_%d_%d.dat", t->owner, (long)t->death_time, t->x, t->y);
-    remove(path);
-    /*Backwards compatibility for old saves*/
-    snprintf(path, sizeof(path), "saves/tombstone_%s.dat", t->owner);
-    remove(path);
+    char path[STATE_DIR_MAX + 128];
+    if (tombstone_path(t, path, sizeof(path)))
+        remove(path);
     server_log("TOMB", "Tombstone file of %s removed", t->owner);
 }
 
@@ -160,8 +104,10 @@ void tombstone_load_all(void) {
         g_tombstones[i].active = false;
     }
 
-    /*Reads all saved tombstones from the saves/ directory*/
-    DIR *dir = opendir("saves");
+    char dir_path[STATE_DIR_MAX + 16];
+    if (!state_path(dir_path, sizeof(dir_path), "saves"))
+        return;
+    DIR *dir = opendir(dir_path);
     if (!dir) {
         return;
     }
@@ -171,19 +117,13 @@ void tombstone_load_all(void) {
         if (strncmp(entry->d_name, "tombstone_", 10) != 0) {
             continue;
         }
-        char path[300];
-        if (snprintf(path, sizeof(path), "saves/%s", entry->d_name) >= (int)sizeof(path))
+        char path[STATE_DIR_MAX + 300];
+        if (snprintf(path, sizeof(path), "%s/%s", dir_path, entry->d_name) >= (int)sizeof(path))
             continue;
-        FILE *f = fopen(path, "rb");
-        if (!f) {
-            continue;
-        }
         Tombstone tmp;
-        memset(&tmp, 0, sizeof(Tombstone));
-        size_t read_bytes = fread(&tmp, 1, sizeof(Tombstone), f);
-        fclose(f);
-        if (read_bytes != sizeof(Tombstone)) {
-            server_log("TOMB", "Corrupted tombstone file: %s (skip)", path);
+        char why[96];
+        if (persist_read_tombstone(path, &tmp, why, sizeof(why)) != BINFILE_OK) {
+            server_log("TOMB", "Unreadable tombstone file: %s (%s, skip)", path, why);
             continue;
         }
         

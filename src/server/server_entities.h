@@ -237,24 +237,8 @@ typedef struct {
     int is_persistent;   /*0/1 (bool) */
 } SavedEffect;
 
-/*Save-file header (M1): the old format was a bare SaveData fwrite —
- * the ONLY load-side defense was "fread != sizeof -> refuse", so a
- * same-size layout change was silently misinterpreted. Now every
- * .save starts with magic + version + a CRC-32 (IEEE) of the SaveData
- * payload: wrong generation => magic/version mismatch, bit rot or
- * tampering => CRC mismatch; the file is kept intact and the login is
- * refused with a clear reason.*/
-#define SAVE_MAGIC   0x44474C53u /* 'D''G''L''S' */
-/*v2: Argon2id password string (libsodium crypto_pwhash_str).*/
-#define SAVE_VERSION 2
-
-typedef struct {
-    uint32_t magic;    /*SAVE_MAGIC */
-    uint32_t version;  /*SAVE_VERSION */
-    uint32_t crc32;    /*CRC-32 (IEEE) of the SaveData payload */
-    uint32_t reserved; /*0, for future expansion */
-} SaveHeader;
-
+/*In-memory image of a character save. It is NEVER written as a raw
+ * struct: persist_write_player() serializes it field by field.*/
 typedef struct {
     char password_hash[AUTH_HASH_LEN]; /*Argon2id string, NUL-terminated */
     int x, y, floor_id;

@@ -33,6 +33,8 @@
  */
 
 #include "server_world.h"
+#include "persist.h"
+#include <errno.h>
 #include "server_internal.h"
 #include "ai.h"
 #include "aoe.h"
@@ -267,6 +269,29 @@ static void broadcast_game_time(Client *clients) {
   }
 }
 
+/*Write world.dat and npcs.dat (in this order) to the state directory.
+ * Returns false and logs the reason if either could not be written; the
+ * previous file is kept in that case.*/
+bool save_world_state(const NPC *npcs) {
+  char world_path[STATE_DIR_MAX + 32], npcs_path[STATE_DIR_MAX + 32];
+  if (!state_path(world_path, sizeof(world_path), "world.dat") ||
+      !state_path(npcs_path, sizeof(npcs_path), "npcs.dat")) {
+    server_log("SAVE", "State directory path too long.");
+    return false;
+  }
+  if (!persist_write_world(world_path, master_world)) {
+    server_log("SAVE", "Failed to save %s (%s) — previous file kept.", world_path,
+               strerror(errno));
+    return false;
+  }
+  if (!persist_write_npcs(npcs_path, npcs, MAX_NPCS, next_id, global_total_turns)) {
+    server_log("SAVE", "Failed to save %s (%s) — previous file kept.", npcs_path,
+               strerror(errno));
+    return false;
+  }
+  return true;
+}
+
 void update_world(Client *clients, NPC *npcs) {
   static long long last_tick_ms = 0;
   static time_t last_autosave = 0;
@@ -290,41 +315,9 @@ void update_world(Client *clients, NPC *npcs) {
       }
     }
     
-    /* --- Phase 3: Save Full State (Persistent Voxels and NPCs) --- */
     if (master_world) {
-      char world_path[DATA_DIR_MAX + 32], npcs_path[DATA_DIR_MAX + 32];
-      snprintf(world_path, sizeof(world_path), "%s/world.dat", g_data_dir);
-      snprintf(npcs_path, sizeof(npcs_path), "%s/npcs.dat", g_data_dir);
-      world_save(master_world, world_path);
-      /*Atomic write (see atomic_write_begin): a crash mid-autosave must
-       * not leave a truncated npcs.dat that the next boot would treat
-       * as "world/NPCs inconsistent -> fresh world" (total state loss).*/
-      char tmp[DATA_DIR_MAX + 64];
-      FILE *fn = atomic_write_begin(npcs_path, tmp, sizeof(tmp));
-      if (fn) {
-        /*Compact format: [magic:uint32][count:int][NPC * count][next_id:int][turns:int]
-         * Replaces the old format that always wrote 50,000 slots.*/
-        const uint32_t magic = NPCS_FILE_MAGIC;
-        int used = 0;
-        bool ok = true;
-        for (int ni = 0; ni < MAX_NPCS; ni++) {
-          if (npcs[ni].template != NULL || npcs[ni].active) {
-            used++;
-          }
-        }
-        ok = ok && (fwrite(&magic, sizeof(uint32_t), 1, fn) == 1);
-        ok = ok && (fwrite(&used, sizeof(int), 1, fn) == 1);
-        for (int ni = 0; ni < MAX_NPCS; ni++) {
-          if (npcs[ni].template != NULL || npcs[ni].active) {
-            ok = ok && (fwrite(&npcs[ni], sizeof(NPC), 1, fn) == 1);
-          }
-        }
-        ok = ok && (fwrite(&next_id, sizeof(int), 1, fn) == 1);
-        ok = ok && (fwrite(&global_total_turns, sizeof(int), 1, fn) == 1);
-        if (!atomic_write_end(fn, npcs_path, tmp, ok))
-          server_log("SYS", "WARNING: autosave of npcs.dat failed — previous file kept.");
-      }
-      server_log("SYS", "Auto-save: %d players, world and %d NPCs.", saved_count, MAX_NPCS);
+      if (save_world_state(npcs))
+        server_log("SYS", "Auto-save: %d players, world and NPCs.", saved_count);
     }
   }
 

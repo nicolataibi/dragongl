@@ -25,7 +25,6 @@
  *   - City merchants (floor 0)
  *   - Magic shops (floor 0 and deep floors)
  *   - Dungeon population (floors 1..MAX_FLOORS)
- *   - Ghost/Bones from bones_*.dat files
  *   - Treasures and wandering merchants
  *
  * Global dependencies (defined in main_server.c):
@@ -586,52 +585,6 @@ void populate_dungeons(NPC *npcs, int *next_id) {
 
   //--- POPULATION OF FLOORS ---
   for (int f = 1; f < MAX_FLOORS; f++) {
-
-    // --- GHOST/BONES SYSTEM ---
-    char fname[128];
-    snprintf(fname, sizeof(fname), "data/bones_%d.dat", f);
-    FILE *bfile = fopen(fname, "rb");
-    if (bfile) {
-      BonesData b;
-      if (fread(&b, sizeof(BonesData), 1, bfile) == 1) {
-        if (npc_idx < MAX_NPCS) {
-          NPC *g = &npcs[npc_idx++];
-          /*active is set at the END of this block (after the template is
-           *chosen) through npc_set_active: the helper must see the FINAL
-           *fields to update the floor cache correctly (A2).*/
-          g->archetype = ARCH_BOSS;
-          g->entity_id = (*next_id)++;
-          g->floor_id = f;
-          g->x = b.x;
-          g->y = b.y;
-          g->spawn_x = b.x;
-          g->spawn_y = b.y;
-          g->template = &bestiary_data[0];
-          //Look for a Ghost/Wraith/Spirit template in the bestiary
-          for (int i = 0; i < bestiary_size; i++) {
-            if (strcasestr(bestiary_data[i].name, "Ghost") ||
-                strcasestr(bestiary_data[i].name, "Wraith") ||
-                strcasestr(bestiary_data[i].name, "Spirit")) {
-              g->template = &bestiary_data[i];
-              break;
-            }
-          }
-          g->hp = 250;
-          g->max_hp = 250;
-          g->is_ghost = true;
-          copy_str(g->custom_name, b.name, sizeof(g->custom_name));
-          for (int i = 0; i < 30; i++) {
-            g->ghost_loot[i].template_idx = b.items[i];
-            g->ghost_loot[i].stack_count = b.amounts[i];
-          }
-          ai_init_npc(g, g->template->name, g->floor_id);
-          npc_set_active(g, true);
-        }
-      }
-      fclose(bfile);
-      remove(fname); //Removed: Spawns only once
-    }
-
 
     //--- MONSTER SELECTION filtered by floor_min/floor_max ---
     //Builds a pool of monsters suited to this floor

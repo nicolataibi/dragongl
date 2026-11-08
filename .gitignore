@@ -3,7 +3,8 @@ build/
 _build/
 _local_build
 
-# Directory SAVES
+# Server state (world, saves, logs) of a development tree
+/state/
 saves/
 __pycache__/
 

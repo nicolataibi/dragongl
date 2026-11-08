@@ -29,6 +29,7 @@
 #include "server_net.h"
 #include "server_conn.h"
 #include "auth.h"
+#include "persist.h"
 #include "rules.h"
 #include "species.h"
 #include "spells.h"
@@ -134,74 +135,6 @@ static int clamp_stat(int v) {
     return v;
 }
 
-/*Create saves/ without forking (system("mkdir -p") was one fork+exec per
- * save; stat()+mkdir() is the same thing tombstone.c already does).*/
-static void ensure_saves_dir(void) {
-    struct stat st;
-    if (stat("saves", &st) == -1) {
-        if (mkdir("saves", 0755) == -1 && errno != EEXIST) {
-            server_log("SAVE", "ERROR: cannot create saves/ (%s)", strerror(errno));
-        }
-    }
-}
-
-/*--- Atomic file write helpers -------------------------------------
- * All persistent state (.save, npcs.dat, artifacts.dat, tombstones)
- * is written to a temp file in the SAME directory as the target,
- * fsync'ed, then rename()'d over the target name: rename is atomic on
- * the same filesystem, so a crash mid-write can never leave a
- * truncated file that a later load would half-read. On any error the
- * temp file is removed and the last good file is left untouched. */
-
-/*Open <path>.<pid>.tmp for writing. On success returns the stream and
- * fills tmp with the temp name (pass the same string to
- * atomic_write_end); on failure returns NULL.*/
-FILE *atomic_write_begin(const char *path, char *tmp, size_t tmp_size) {
-  if (!path || !tmp || tmp_size == 0)
-    return NULL;
-  if (strlen(path) + 16 > tmp_size) /*room for ".<pid>.tmp" + NUL*/
-    return NULL;
-  snprintf(tmp, tmp_size, "%s.%d.tmp", path, (int)getpid());
-  return fopen(tmp, "wb");
-}
-
-/*Finish an atomic write: fflush + fsync + close, then rename over the
- * target — but only if ok and every step succeeded. On failure the
- * temp file is removed and false is returned; the existing target is
- * never touched.*/
-bool atomic_write_end(FILE *f, const char *path, const char *tmp, bool ok) {
-  if (f)
-    ok = ok && fflush(f) == 0 && fsync(fileno(f)) == 0 && fclose(f) == 0;
-  if (ok && tmp && path && rename(tmp, path) == 0)
-    return true;
-  if (tmp && tmp[0])
-    remove(tmp);
-  return false;
-}
-
-/*Remove leftover *.tmp files from a previous crashed run. While the
- * server is alive no .tmp file can exist (single-threaded main loop),
- * so anything found at startup is stale; this also keeps old
- * <user>.save.<pid>.tmp files out of the directory scans (the 'top'
- * leaderboard matches on ".save", tombstone_load_all on "tombstone_").*/
-void cleanup_stale_tmp_files(const char *dir) {
-  if (!dir)
-    return;
-  DIR *d = opendir(dir);
-  if (!d)
-    return;
-  struct dirent *e;
-  while ((e = readdir(d)) != NULL) {
-    size_t n = strlen(e->d_name);
-    if (n > 4 && strcmp(e->d_name + n - 4, ".tmp") == 0) {
-      char p[512];
-      if (snprintf(p, sizeof(p), "%s/%s", dir, e->d_name) < (int)sizeof(p))
-        remove(p);
-    }
-  }
-  closedir(d);
-}
-
 /*Seed the RNG ONCE at process start, with kernel entropy when available.
  * The old code seeded only inside world_init() — which is SKIPPED when
  * data/world.dat exists — so after every reboot the server ran on the
@@ -300,37 +233,33 @@ static ArtifactDef artifact_registry[MAX_ARTIFACTS] = {
 static int artifact_count = 58;
 
 static void artifacts_load(void) {
-    char path[DATA_DIR_MAX + 32];
-    snprintf(path, sizeof(path), "%s/artifacts.dat", g_data_dir);
-    FILE *f = fopen(path, "rb");
-    if (!f)
-        return;
-    for (int i = 0; i < artifact_count; i++) {
-        bool dropped;
-        if (fread(&dropped, sizeof(bool), 1, f) == 1)
-            artifact_registry[i].already_dropped = dropped;
-    }
-    fclose(f);
-    printf("[ARTIFACT] Artifact state loaded.\n");
+  char path[STATE_DIR_MAX + 32];
+  bool flags[MAX_ARTIFACTS] = {false};
+  char why[96];
+  if (!state_path(path, sizeof(path), "artifacts.dat"))
+    return;
+  BinFileStatus st = persist_read_flags(path, flags, artifact_count, why, sizeof(why));
+  if (st == BINFILE_INVALID) {
+    server_log("SYS", "WARNING: artifacts.dat unreadable (%s): every unique artifact is available again.",
+               why);
+    return;
+  }
+  if (st == BINFILE_OK) {
+    for (int i = 0; i < artifact_count; i++)
+      artifact_registry[i].already_dropped = flags[i];
+  }
 }
 
 static void artifacts_save(void) {
-    char path[DATA_DIR_MAX + 32];
-    snprintf(path, sizeof(path), "%s/artifacts.dat", g_data_dir);
-    /*Atomic: a crash mid-write must not truncate the artifact state.
-     * The per-field fwrites are byte-identical to a single buffer, so
-     * the format is unchanged.*/
-    char tmp[DATA_DIR_MAX + 64];
-    FILE *f = atomic_write_begin(path, tmp, sizeof(tmp));
-    if (!f)
-        return;
-    bool ok = true;
-    for (int i = 0; i < artifact_count; i++) {
-        ok = ok &&
-             (fwrite(&artifact_registry[i].already_dropped, sizeof(bool), 1, f) == 1);
-    }
-    if (!atomic_write_end(f, path, tmp, ok))
-        server_log("SAVE", "Failed to save artifacts.dat — previous state kept.");
+  char path[STATE_DIR_MAX + 32];
+  bool flags[MAX_ARTIFACTS];
+  if (!state_path(path, sizeof(path), "artifacts.dat"))
+    return;
+  for (int i = 0; i < artifact_count; i++)
+    flags[i] = artifact_registry[i].already_dropped;
+  if (!persist_write_flags(path, flags, artifact_count))
+    server_log("SAVE", "Failed to save artifacts.dat (%s) — previous state kept.",
+               strerror(errno));
 }
 
 // Forward declarations
@@ -1413,18 +1342,8 @@ int get_player_ac(Client *c) {
 void save_player_data(Client *c) {
   if (!c || !c->authenticated)
     return;
-  //Create the saves/ directory if it does not exist (no fork+exec)
-  ensure_saves_dir();
-  char p[64];
-  snprintf(p, 64, "saves/%s.save", c->username);
-  /*Atomic save (see atomic_write_begin): a crash or kill mid-write can
-   * no longer leave a truncated .save on disk that the next login would
-   * half-load; on any write error the temp file is deleted and the last
-   * good save is kept. The temp name reuses the validated username (no
-   * path escaping possible).*/
-  char tp[96];
-  FILE *f = atomic_write_begin(p, tp, sizeof(tp));
-  if (!f)
+  char p[STATE_DIR_MAX + 64];
+  if (!state_path(p, sizeof(p), "saves/%s.save", c->username))
     return;
   SaveData sd;
   memset(&sd, 0, sizeof(sd));
@@ -1499,19 +1418,11 @@ void save_player_data(Client *c) {
   memcpy(sd.blocked_players, c->blocked_players,
          sizeof(c->blocked_players));
   sd.blocked_count = c->blocked_count;
-  /*Versioned header: magic + version + CRC-32 over the payload, so a
-   * same-size layout change (version) or bit rot/tampering (CRC) is
-   * caught at load instead of being silently misinterpreted.*/
-  SaveHeader sh;
-  sh.magic    = SAVE_MAGIC;
-  sh.version  = SAVE_VERSION;
-  sh.crc32    = crc32_data(&sd, sizeof(sd));
-  sh.reserved = 0;
-  if (!atomic_write_end(f, p, tp,
-          fwrite(&sh, sizeof(sh), 1, f) == 1 &&
-          fwrite(&sd, sizeof(sd), 1, f) == 1)) {
-    server_log("SAVE", "Failed to save %s — previous save kept.",
-               c->username);
+  /*Written field by field (persist.c) into a versioned, CRC-checked
+   * container, atomically: on failure the previous save is kept.*/
+  if (!persist_write_player(p, &sd)) {
+    server_log("SAVE", "Failed to save %s (%s) — previous save kept.",
+               c->username, strerror(errno));
     return;
   }
   server_log("SAVE", "Saved: %s", c->username);
@@ -1530,43 +1441,26 @@ static void sanitize_item_instance(ItemInstance *it) {
 }
 
 //Returns 1 if loaded, 0 if not exists, -1 if password incorrect,
-//-2 if the file exists but is unreadable (old format, wrong version,
-//or CRC mismatch): the login is refused and the file is kept intact.
+//-2 if the file exists but is unreadable (other format version, corrupt):
+//the login is refused and the file is kept intact.
 int load_player_data(Client *c, const char *password) {
   if (!c || !password)
     return 0;
-  char p[64];
-  snprintf(p, 64, "saves/%s.save", c->username);
-  FILE *f = fopen(p, "rb");
-  if (!f)
-    return 0; //New character
-  /*Versioned header (M1): magic + version + CRC over the payload.
-   * Files without it (pre-v1 saves) or with a different version are
-   * NOT half-loaded and NOT treated as new characters — that would
-   * let the next save silently overwrite them. Refuse; file kept.*/
-  SaveHeader sh;
-  if (fread(&sh, 1, sizeof(sh), f) != sizeof(sh) || sh.magic != SAVE_MAGIC) {
-    fclose(f);
-    server_log("SAVE", "%s.save has no valid v1 header (old format or corrupt) — login refused (file kept).",
-               c->username);
+  char p[STATE_DIR_MAX + 64];
+  if (!state_path(p, sizeof(p), "saves/%s.save", c->username))
     return -2;
-  }
-  if (sh.version != SAVE_VERSION) {
-    fclose(f);
-    server_log("SAVE", "%s.save has unsupported format version %u (expected %d) — login refused (file kept).",
-               c->username, sh.version, SAVE_VERSION);
-    return -2;
-  }
   SaveData sd;
-  memset(&sd, 0, sizeof(SaveData));
-  if (fread(&sd, 1, sizeof(sd), f) != sizeof(sd) ||
-      crc32_data(&sd, sizeof(sd)) != sh.crc32) {
-    fclose(f);
-    server_log("SAVE", "%s.save has an unsupported size or a CRC mismatch — login refused (file kept).",
-               c->username);
+  char why[96];
+  BinFileStatus st = persist_read_player(p, &sd, why, sizeof(why));
+  if (st == BINFILE_MISSING)
+    return 0; //New character
+  if (st != BINFILE_OK) {
+    /*Never half-loaded, never treated as a new character (the next save
+     * would overwrite it): refused, file kept.*/
+    server_log("SAVE", "%s.save is unreadable (%s) — login refused (file kept).",
+               c->username, why);
     return -2;
   }
-  fclose(f);
   if (!auth_verify_password(sd.password_hash, password)) {
     auth_wipe(&sd, sizeof(sd));
     server_log("AUTH", "Incorrect password for: %s", c->username);
@@ -2577,9 +2471,14 @@ static void print_server_usage(const char *argv0) {
   printf("Usage: %s [options]\n"
          "Options:\n"
          "  -P, --port <port>          TCP port to listen on (default: 8080)\n"
-         "  -D, --data-dir <dir>       Data directory (JSON + world.dat).\n"
+         "  -D, --data-dir <dir>       Read-only game data (JSON datasets).\n"
          "                             Default: ./data if present, else\n"
          "                             /usr/share/dragongl/data (RPM).\n"
+         "  -S, --state-dir <dir>      Everything the server writes: world,\n"
+         "                             NPCs, saves, logs, DM maps. Default:\n"
+         "                             $DRAGONGL_STATE_DIR, else\n"
+         "                             $XDG_STATE_HOME/dragongl, else\n"
+         "                             ~/.local/state/dragongl\n"
          "      --password-file <f>    Read the server access password from f\n"
          "      --dm-password-file <f> Read the Dungeon Master password from f\n"
          "  -h, --help                 Show this help\n"
@@ -2910,6 +2809,7 @@ int main(int argc, char **argv) {
   int server_port = 8080;
   const char *password_file = NULL;
   const char *dm_password_file = NULL;
+  const char *state_dir_arg = NULL;
   for (int i = 1; i < argc; i++) {
     const char *opt = argv[i];
     const char *val = (i + 1 < argc) ? argv[i + 1] : NULL;
@@ -2928,6 +2828,7 @@ int main(int argc, char **argv) {
     }
     bool takes_value = strcmp(opt, "-P") == 0 || strcmp(opt, "--port") == 0 ||
                        strcmp(opt, "-D") == 0 || strcmp(opt, "--data-dir") == 0 ||
+                       strcmp(opt, "-S") == 0 || strcmp(opt, "--state-dir") == 0 ||
                        strcmp(opt, "--password-file") == 0 ||
                        strcmp(opt, "--dm-password-file") == 0;
     if (!takes_value) {
@@ -2949,6 +2850,8 @@ int main(int argc, char **argv) {
       server_port = (int)port;
     } else if (strcmp(opt, "-D") == 0 || strcmp(opt, "--data-dir") == 0) {
       copy_str(g_data_dir, val, sizeof(g_data_dir));
+    } else if (strcmp(opt, "-S") == 0 || strcmp(opt, "--state-dir") == 0) {
+      state_dir_arg = val;
     } else if (strcmp(opt, "--password-file") == 0) {
       password_file = val;
     } else {
@@ -2961,6 +2864,13 @@ int main(int argc, char **argv) {
   }
   if (!load_server_secrets(password_file, dm_password_file))
     return 2;
+  {
+    char err[STATE_DIR_MAX + 128];
+    if (!persist_init_state_dir(state_dir_arg, err, sizeof(err))) {
+      fprintf(stderr, "[SYS] State directory: %s\n", err);
+      return 2;
+    }
+  }
   /*Resolve the data directory (see server_internal.h).
    * 1. explicit --data-dir (trusted as-is)
    * 2. local ./data (development layout)
@@ -2986,8 +2896,15 @@ int main(int argc, char **argv) {
    * disk (world_init skipped), dice must not run on the default seed.*/
   seed_game_rng();
   server_log("SYS", "Starting Dragon GL Server...");
-  clog_init("combat_log.json");
-  server_log("SYS", "Tactical log opened: combat_log.json");
+  server_log("SYS", "Data directory (read-only): %s", g_data_dir);
+  server_log("SYS", "State directory: %s", persist_state_dir());
+  {
+    char clog_path[STATE_DIR_MAX + 32];
+    if (state_path(clog_path, sizeof(clog_path), "combat_log.json")) {
+      clog_init(clog_path);
+      server_log("SYS", "Tactical log opened: %s", clog_path);
+    }
+  }
   /* Ctrl-C / kill: request a graceful shutdown instead of the default
    * immediate termination (which would leave combat_log.json truncated).*/
   struct sigaction sa;
@@ -3051,12 +2968,8 @@ int main(int argc, char **argv) {
   artifacts_load();
   server_log("SYS", "Unique Artifact System initialized.");
 
-  /*Remove temp files left by a crashed previous run (see
-   * cleanup_stale_tmp_files): no .tmp can exist while the server is
-   * alive, and a stale <user>.save.<pid>.tmp would otherwise show up
-   * in the 'top' leaderboard scan.*/
-  cleanup_stale_tmp_files("saves");
-  cleanup_stale_tmp_files(g_data_dir);
+  /*Leftovers of a write interrupted by a crash (<file>.tmp).*/
+  persist_cleanup_tmp();
 
   tombstone_load_all();
   server_log("SYS", "Tombstone System initialized.");
@@ -3070,67 +2983,32 @@ int main(int argc, char **argv) {
     npcs[i].respawn_timer = -1;
   }
 
-  char world_path[DATA_DIR_MAX + 32], npcs_path[DATA_DIR_MAX + 32];
-  snprintf(world_path, sizeof(world_path), "%s/world.dat", g_data_dir);
-  snprintf(npcs_path, sizeof(npcs_path), "%s/npcs.dat", g_data_dir);
-
-  /*npcs.dat format (single, versioned):
-   *   [magic:uint32 NPCS_FILE_MAGIC][count:int][NPC x count][next_id:int][turns:int]
-   * A missing/invalid file is NOT loaded "best effort": world and NPC
-   * state are a pair, so any inconsistency means a fresh world is
-   * generated (the old "read the whole 50k-slot array" fallback was
-   * undefined behavior as soon as the NPC struct changed size).*/
-  bool world_ok = world_load(master_world, world_path);
-  bool npcs_ok = false;
-  if (world_ok) {
-    server_log("SYS", "World loaded from %s", world_path);
-    FILE *fn = fopen(npcs_path, "rb");
-    if (fn) {
-      uint32_t file_magic = 0;
-      if (fread(&file_magic, sizeof(uint32_t), 1, fn) == 1 &&
-          file_magic == NPCS_FILE_MAGIC) {
-        int used = 0;
-        if (fread(&used, sizeof(int), 1, fn) == 1 &&
-            used >= 0 && used <= MAX_NPCS) {
-          for (int ni = 0; ni < used; ni++) {
-            NPC tmp;
-            if (fread(&tmp, sizeof(NPC), 1, fn) == 1) {
-              /*Find a free slot and insert*/
-              for (int si = 0; si < MAX_NPCS; si++) {
-                if (!npcs[si].active && npcs[si].template == NULL) {
-                  npcs[si] = tmp;
-                  break;
-                }
-              }
-            }
-          }
-          if (fread(&next_id, sizeof(int), 1, fn) == 1 &&
-              fread(&global_total_turns, sizeof(int), 1, fn) == 1) {
-            npcs_ok = true;
-          }
-        }
-      }
-      fclose(fn);
-    }
-    if (npcs_ok) {
-      server_log("SYS", "NPCs loaded from %s", npcs_path);
-    } else {
-      server_log("SYS", "WARNING: %s missing or invalid — a fresh world will be generated.", npcs_path);
+  /*world.dat and npcs.dat are a pair: if either is missing or invalid a
+   * fresh world is generated, never a partial one.*/
+  char world_path[STATE_DIR_MAX + 32], npcs_path[STATE_DIR_MAX + 32], why[96];
+  bool world_ok = false, npcs_ok = false;
+  if (state_path(world_path, sizeof(world_path), "world.dat") &&
+      state_path(npcs_path, sizeof(npcs_path), "npcs.dat")) {
+    BinFileStatus st = persist_read_world(world_path, master_world, why, sizeof(why));
+    world_ok = (st == BINFILE_OK);
+    if (st == BINFILE_INVALID)
+      server_log("SYS", "WARNING: %s unreadable (%s).", world_path, why);
+    if (world_ok) {
+      int loaded = 0;
+      st = persist_read_npcs(npcs_path, npcs, MAX_NPCS, &next_id, &global_total_turns,
+                             &loaded, why, sizeof(why));
+      npcs_ok = (st == BINFILE_OK);
+      if (npcs_ok)
+        server_log("SYS", "World and %d NPCs loaded from %s.", loaded, persist_state_dir());
+      else if (st == BINFILE_INVALID)
+        server_log("SYS", "WARNING: %s unreadable (%s).", npcs_path, why);
     }
   }
 
   if (world_ok && npcs_ok) {
+    /*Re-bind what is not stored: the template pointer (from template_idx)
+     * and the behavior derived from the archetype.*/
     for (int i = 0; i < MAX_NPCS; i++) {
-      /*Reset the dangling state that cannot be serialized: the AI
-       * behavior pointer AND the active effects. ActiveEffect.name is
-       * a pointer into the SAVING process's memory — after a raw fread
-       * it dangles, and the first rules_has_condition() on the next
-       * tick would strcasecmp freed memory (guaranteed segfault with
-       * thousands of poisoned NPCs on disk). Effects are transient
-       * (rounds, not days): dropping them on load is safe and needs no
-       * format change.*/
-      npcs[i].ai_ctx.behavior = AI_BEHAVIOR_DEFAULT;
-      npcs[i].effect_count = 0;
       if (npcs[i].active || npcs[i].respawn_timer >= 0) {
         if (npcs[i].archetype == ARCH_TREASURE || npcs[i].archetype == ARCH_GOLD) {
           npcs[i].template = NULL;
@@ -3139,43 +3017,29 @@ int main(int argc, char **argv) {
           if (tidx < 0 || tidx >= bestiary_size)
             tidx = 0;
           npcs[i].template = &bestiary_data[tidx];
-          // Reattach behavior tree WITHOUT resetting HP/stats
           ai_attach_behavior(&npcs[i]);
         }
       }
     }
   } else {
-    server_log("SYS", "Generating new world...");
+    /*Start from a clean slate: a half-read npcs.dat may have filled slots.*/
+    memset(npcs, 0, sizeof(NPC) * MAX_NPCS);
+    for (int i = 0; i < MAX_NPCS; i++)
+      npcs[i].respawn_timer = -1;
+    next_id = 1;
+    global_total_turns = 0;
+    server_log("SYS", "Generating a new world in %s ...", persist_state_dir());
     world_init(master_world);
     spawn_city_merchants(npcs, &next_id);
     spawn_magic_shops(npcs, &next_id);
     spawn_martial_archive(npcs, &next_id);
     populate_dungeons(npcs, &next_id);
-    world_save(master_world, world_path);
-    /*Atomic: see the autosave in server_world.c (same format).*/
-    char tmp[DATA_DIR_MAX + 64];
-    FILE *fn = atomic_write_begin(npcs_path, tmp, sizeof(tmp));
-    if (fn) {
-      /*Compact format (same as the autosave in server_world.c):
-       * [magic][count][NPC x count][next_id][turns] — only the used
-       * slots are written, not the whole 50,000-slot array.*/
-      const uint32_t magic = NPCS_FILE_MAGIC;
-      int used = 0;
-      bool ok = true;
-      for (int ni = 0; ni < MAX_NPCS; ni++)
-        if (npcs[ni].template != NULL || npcs[ni].active)
-          used++;
-      ok = ok && (fwrite(&magic, sizeof(uint32_t), 1, fn) == 1);
-      ok = ok && (fwrite(&used, sizeof(int), 1, fn) == 1);
-      for (int ni = 0; ni < MAX_NPCS; ni++)
-        if (npcs[ni].template != NULL || npcs[ni].active)
-          ok = ok && (fwrite(&npcs[ni], sizeof(NPC), 1, fn) == 1);
-      ok = ok && (fwrite(&next_id, sizeof(int), 1, fn) == 1);
-      ok = ok && (fwrite(&global_total_turns, sizeof(int), 1, fn) == 1);
-      if (!atomic_write_end(fn, npcs_path, tmp, ok))
-        server_log("SYS", "WARNING: failed to save npcs.dat (fresh world) — previous file kept.");
+    if (!save_world_state(npcs)) {
+      server_log("SYS", "ERROR: the new world could not be saved in %s.", persist_state_dir());
+      clog_close();
+      return 1;
     }
-    server_log("SYS", "World generated and saved in %s/.", g_data_dir);
+    server_log("SYS", "New world generated and saved.");
   }
 
   sync_entity_grid(npcs);
@@ -3543,6 +3407,9 @@ int main(int argc, char **argv) {
     if (clients[i].active && clients[i].authenticated)
       save_player_data(&clients[i]);
   }
+  if (save_world_state(npcs))
+    server_log("SYS", "World and NPCs saved.");
+  artifacts_save();
   clog_close();
   server_log("SYS", "Server shut down. Log saved.");
   return 0;

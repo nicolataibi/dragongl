@@ -1,46 +1,89 @@
-#!/bin/bash
-# DRAGON GL
+#!/usr/bin/env bash
 # Dragon GL - Copyright (C) 2026 Nicola Taibi
 # License: GPL-3.0-or-later
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
-# Professional Startup Script
+#
+# dragongl-reset-world — delete the server state (world, NPCs, artifacts,
+# characters, tombstones, logs, DM maps) so the next start generates a
+# new world.
+#
+# The state directory is resolved exactly like the server does:
+# --state-dir, $DRAGONGL_STATE_DIR, state/ in a development tree,
+# $XDG_STATE_HOME/dragongl, ~/.local/state/dragongl.
 
-echo "======================================"
-echo "    DRAGON GL - WORLD RESET SCRIPT"
-echo "======================================"
-echo "This script will delete all player saves"
-echo "and reset the world state (artifacts, ghosts, logs)."
-echo "Are you sure you want to continue? (y/n)"
+set -euo pipefail
 
-read -r response
-if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]
-then
-    echo "[*] Deleting player saves and tombstones..."
-    rm -f saves/*.save
-    rm -f saves/tombstone_*.dat
-    echo "    -> Done."
+show_help() {
+    cat <<EOF
+Usage: ${0##*/} [options]
 
-    echo "[*] Deleting world persistence files..."
-    rm -f data/world.dat
-    rm -f data/artifacts.dat
-    rm -f data/npcs.dat
-    rm -f data/bones_*.dat
-    echo "    -> Done."
+Options:
+  -S, --state-dir <dir>  state directory to reset (see below)
+  -y, --yes              do not ask for confirmation
+  -h, --help             show this help
 
-    echo "[*] Cleaning log and dump files..."
-    rm -f combat_log.json*
-    rm -f map_dump*.txt
-    rm -f map_floor*.pdf
-    rm -f server_log.txt
-    echo "    -> Done."
+Without --state-dir: \$DRAGONGL_STATE_DIR, else state/ when run from a
+development tree, else \$XDG_STATE_HOME/dragongl, else ~/.local/state/dragongl.
+Stop the server first.
+EOF
+}
 
-    echo "======================================"
-    echo " WORLD RESET COMPLETED SUCCESSFULLY!"
-    echo " You can restart the server to generate a new world."
-    echo "======================================"
-else
-    echo "Operation cancelled."
+die() { printf '[ERROR] %s\n' "$*" >&2; exit 1; }
+
+STATE_DIR=""
+ASSUME_YES=0
+while (($#)); do
+    case $1 in
+        -S|--state-dir) (($# > 1)) || die "$1 needs a value"; STATE_DIR=$2; shift 2 ;;
+        -y|--yes) ASSUME_YES=1; shift ;;
+        -h|--help) show_help; exit 0 ;;
+        *) show_help >&2; die "unknown option: $1" ;;
+    esac
+done
+
+if [[ -z $STATE_DIR ]]; then
+    HERE="$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")" && pwd)"
+    if [[ -n ${DRAGONGL_STATE_DIR:-} ]]; then
+        STATE_DIR=$DRAGONGL_STATE_DIR
+    elif [[ -x $HERE/build/dragongl_server || -f $HERE/CMakeLists.txt ]]; then
+        STATE_DIR=$HERE/state
+    elif [[ ${XDG_STATE_HOME:-} == /* ]]; then
+        STATE_DIR=$XDG_STATE_HOME/dragongl
+    elif [[ ${HOME:-} == /* ]]; then
+        STATE_DIR=$HOME/.local/state/dragongl
+    else
+        die "no state directory: use --state-dir"
+    fi
 fi
+
+if [[ ! -d $STATE_DIR ]]; then
+    printf 'Nothing to reset: %s does not exist.\n' "$STATE_DIR"
+    exit 0
+fi
+# Refuse anything that does not look like a Dragon GL state directory, so
+# a wrong --state-dir can never delete unrelated files.
+[[ -d $STATE_DIR/saves ]] || die "$STATE_DIR is not a Dragon GL state directory (no saves/)"
+
+# The running server holds an flock on server.lock: resetting under it
+# would be undone by its next autosave.
+if [[ -f $STATE_DIR/server.lock ]] && command -v flock >/dev/null 2>&1; then
+    flock -n "$STATE_DIR/server.lock" true ||
+        die "a dragongl_server is running on $STATE_DIR: stop it first"
+fi
+
+printf 'This deletes the world, the NPCs, every character and tombstone, the logs\n'
+printf 'and the DM maps in:\n  %s\n' "$STATE_DIR"
+if ((!ASSUME_YES)); then
+    read -r -p "Continue? (y/N) " answer
+    [[ $answer =~ ^([yY]|[yY][eE][sS])$ ]] || { printf 'Cancelled.\n'; exit 0; }
+fi
+
+rm -f -- "$STATE_DIR"/world.dat "$STATE_DIR"/npcs.dat "$STATE_DIR"/artifacts.dat \
+         "$STATE_DIR"/combat_log.json "$STATE_DIR"/combat_log.json.1 "$STATE_DIR"/*.tmp
+rm -f -- "$STATE_DIR"/saves/*.save "$STATE_DIR"/saves/tombstone_*.dat "$STATE_DIR"/saves/*.tmp
+rm -f -- "$STATE_DIR"/maps/*.txt "$STATE_DIR"/maps/*.pdf
+
+printf 'World reset. The next server start generates a new world.\n'

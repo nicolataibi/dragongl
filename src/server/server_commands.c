@@ -25,6 +25,7 @@
  * interaction (buy, sell, wear), spells (cast, spells) and DM commands.*/
 
 #include "server_commands.h"
+#include "persist.h"
 #include "server_internal.h"
 #include "server_combat.h"
 #include "server_spawn.h"
@@ -639,7 +640,8 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
       send_text_to_client(c->sock, "[RANKING] Hall of Fame processing in progress...");
       DIR *d;
       struct dirent *dir;
-      d = opendir("saves");
+      char saves_dir[STATE_DIR_MAX + 16];
+      d = state_path(saves_dir, sizeof(saves_dir), "saves") ? opendir(saves_dir) : NULL;
       if (d) {
           LeaderboardEntry entries[1000];
           memset(entries, 0, sizeof(entries));
@@ -651,38 +653,27 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
                * plain 'top' command.*/
               if (entry_count >= 1000)
                   break;
-              if (strstr(dir->d_name, ".save")) {
-                  char filepath[300];
-                  if (snprintf(filepath, sizeof(filepath), "saves/%s", dir->d_name) >= (int)sizeof(filepath))
+              size_t name_len = strlen(dir->d_name);
+              if (name_len > 5 && strcmp(dir->d_name + name_len - 5, ".save") == 0) {
+                  char filepath[STATE_DIR_MAX + 300];
+                  if (snprintf(filepath, sizeof(filepath), "%s/%s", saves_dir, dir->d_name) >= (int)sizeof(filepath))
                       continue;
-                  FILE *f = fopen(filepath, "rb");
-                  if (f) {
-                      /*v1 saves start with a SaveHeader (magic + version
-                       * + CRC): skip and validate it before reading the
-                       * payload, and verify the CRC so a corrupt save
-                       * (which login would refuse anyway) is not listed
-                       * with garbage level/xp.*/
-                      SaveHeader sh;
-                      SaveData sd;
-                      if (fread(&sh, 1, sizeof(sh), f) == sizeof(sh) &&
-                          sh.magic == SAVE_MAGIC &&
-                          sh.version == SAVE_VERSION &&
-                          fread(&sd, 1, sizeof(SaveData), f) == sizeof(SaveData) &&
-                          crc32_data(&sd, sizeof(SaveData)) == sh.crc32) {
-                          char username[32];
-                          strncpy(username, dir->d_name, sizeof(username) - 1);
-                          username[sizeof(username) - 1] = '\0';
-                          char *dot = strrchr(username, '.');
-                          if (dot) *dot = '\0';
-                          if (strcmp(username, "dm") != 0) {
-                              strncpy(entries[entry_count].username, username, 32);
-                              entries[entry_count].level = sd.level;
-                              entries[entry_count].xp = sd.xp;
-                              entries[entry_count].bosses_defeated = sd.bosses_defeated;
-                              entry_count++;
-                          }
+                  /*Only readable saves are listed: a corrupt one (which
+                   * login would refuse anyway) would show garbage.*/
+                  SaveData sd;
+                  if (persist_read_player(filepath, &sd, NULL, 0) == BINFILE_OK) {
+                      char username[32];
+                      copy_str(username, dir->d_name, sizeof(username));
+                      char *dot = strrchr(username, '.');
+                      if (dot) *dot = '\0';
+                      if (strcmp(username, "dm") != 0) {
+                          copy_str(entries[entry_count].username, username,
+                                   sizeof(entries[entry_count].username));
+                          entries[entry_count].level = sd.level;
+                          entries[entry_count].xp = sd.xp;
+                          entries[entry_count].bosses_defeated = sd.bosses_defeated;
+                          entry_count++;
                       }
-                      fclose(f);
                   }
               }
           }
@@ -1633,22 +1624,22 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
     }
     if (strncmp(cmd, "dm_pdf ", 7) == 0) {
       int f = 0;
-      if (sscanf(cmd + 7, "%d", &f) == 1 && f >= 0 && f < 100) {
-        if (dump_floor_v2("map_dump.txt", f, c) == 0) {
-          char pdf_path[128];
-          snprintf(pdf_path, sizeof(pdf_path), "map_floor_%d.pdf", f);
-          run_pdf_map_generator(c->sock, "map_dump.txt", pdf_path, f);
+      if (sscanf(cmd + 7, "%d", &f) == 1 && f >= 0 && f < MAX_FLOORS) {
+        char dump_path[STATE_DIR_MAX + 64], pdf_path[STATE_DIR_MAX + 64];
+        if (state_path(dump_path, sizeof(dump_path), "maps/map_dump_floor_%d.txt", f) &&
+            state_path(pdf_path, sizeof(pdf_path), "maps/map_floor_%d.pdf", f) &&
+            dump_floor_v2(dump_path, f, c) == 0) {
+          run_pdf_map_generator(c->sock, dump_path, pdf_path, f);
         }
       }
       return;
     }
     if (strcmp(cmd, "dm_mapfloor") == 0) {
       int f = c->floor_id;
-      char dump_path[128];
-      char pdf_path[128];
-      snprintf(dump_path, sizeof(dump_path), "map_dump_floor_%d.txt", f);
-      snprintf(pdf_path,  sizeof(pdf_path),  "map_floor_%d.pdf", f);
-      if (dump_floor_v2(dump_path, f, c) != 0) {
+      char dump_path[STATE_DIR_MAX + 64], pdf_path[STATE_DIR_MAX + 64];
+      if (!state_path(dump_path, sizeof(dump_path), "maps/map_dump_floor_%d.txt", f) ||
+          !state_path(pdf_path, sizeof(pdf_path), "maps/map_floor_%d.pdf", f) ||
+          dump_floor_v2(dump_path, f, c) != 0) {
         send_text_to_client(c->sock, "[DM] Error opening temporary file.");
         return;
       }
@@ -1726,45 +1717,16 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
           return;
       }
       
-      char fname[128];
-      snprintf(fname, sizeof(fname), "data/bones_%d.dat", c->floor_id);
-      FILE *bfile = fopen(fname, "rb");
-      if (bfile) {
-          BonesData b;
-          if (fread(&b, sizeof(BonesData), 1, bfile) == 1) {
-              c->gold += b.gold;
-              for (int i = 0; i < 30; i++) {
-                  if (b.items[i] >= 0 && b.amounts[i] > 0 && c->backpack_count < MAX_BACKPACK) {
-                      c->backpack[c->backpack_count].template_idx = b.items[i];
-                      c->backpack[c->backpack_count].stack_count = b.amounts[i];
-                      c->backpack[c->backpack_count].durability = item_database[b.items[i]].max_durability;
-                      c->backpack_count++;
-                  }
-              }
-              int equipped[] = { b.w_idx, b.b_idx, b.h_idx, b.s_idx };
-              for(int i = 0; i < 4; i++) {
-                  if (equipped[i] >= 0 && c->backpack_count < MAX_BACKPACK) {
-                      c->backpack[c->backpack_count].template_idx = equipped[i];
-                      c->backpack[c->backpack_count].stack_count = 1;
-                      c->backpack[c->backpack_count].durability = item_database[equipped[i]].max_durability;
-                      c->backpack_count++;
-                  }
-              }
-          }
-          fclose(bfile);
-          remove(fname);
-      } else {
-          if (npcs[ghost_npc_idx].gold_drop > 0) {
-              c->gold += npcs[ghost_npc_idx].gold_drop;
-              npcs[ghost_npc_idx].gold_drop = 0;
-          }
-          for (int gi = 0; gi < 30; gi++) {
-              if (npcs[ghost_npc_idx].ghost_loot[gi].template_idx >= 0 &&
-                  npcs[ghost_npc_idx].ghost_loot[gi].stack_count > 0 && c->backpack_count < MAX_BACKPACK) {
-                  c->backpack[c->backpack_count++] = npcs[ghost_npc_idx].ghost_loot[gi];
-                  npcs[ghost_npc_idx].ghost_loot[gi].template_idx = -1;
-                  npcs[ghost_npc_idx].ghost_loot[gi].stack_count  = 0;
-              }
+      if (npcs[ghost_npc_idx].gold_drop > 0) {
+          c->gold += npcs[ghost_npc_idx].gold_drop;
+          npcs[ghost_npc_idx].gold_drop = 0;
+      }
+      for (int gi = 0; gi < 30; gi++) {
+          if (npcs[ghost_npc_idx].ghost_loot[gi].template_idx >= 0 &&
+              npcs[ghost_npc_idx].ghost_loot[gi].stack_count > 0 && c->backpack_count < MAX_BACKPACK) {
+              c->backpack[c->backpack_count++] = npcs[ghost_npc_idx].ghost_loot[gi];
+              npcs[ghost_npc_idx].ghost_loot[gi].template_idx = -1;
+              npcs[ghost_npc_idx].ghost_loot[gi].stack_count  = 0;
           }
       }
       

@@ -77,11 +77,11 @@ In the client, rendering and networking execute on separate POSIX threads:
 ## 5. Developer & Balancing Workflows
 
 ### 1. Game Balance Analysis
-Combat interactions are recorded as structured JSON records in `combat_log.json`. Run the statistical analysis script to review balance data:
+Combat interactions are recorded as structured JSON records in `combat_log.json`, in the server state directory (`state/` in a development tree). Run the statistical analysis script to review balance data:
 
 ```bash
-# Run balance analysis report
-python3 tools/analyze_balance.py ./combat_log.json
+# Run balance analysis report (finds state/combat_log.json by itself)
+python3 tools/analyze_balance.py
 ```
 
 The script outputs four analytical domains:

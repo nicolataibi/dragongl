@@ -16,6 +16,7 @@
  */
 
 #include "data_loader.h"
+#include "persist.h"
 #include "server_conn.h"
 #include "server_commands.h"
 #include "server_entities.h"
@@ -51,9 +52,16 @@ static void reset_item(ItemInstance *it) {
     it->template_idx = -1;
 }
 
-static int fixture_init(void) {
+static int fixture_init(const char *test_name) {
     if (!auth_init()) {
         fprintf(stderr, "libsodium initialization failed\n");
+        return 1;
+    }
+    char err[256], dir[160];
+    /* One state directory per test: each process locks its own. */
+    snprintf(dir, sizeof(dir), "state-%s", test_name);
+    if (!persist_init_state_dir(dir, err, sizeof(err))) {
+        fprintf(stderr, "state directory: %s\n", err);
         return 1;
     }
     if (!init_data_loaders(DGL_TEST_DATA_DIR)) {
@@ -262,6 +270,144 @@ static int test_trade_into_full_backpack_is_cancelled(void) {
     return 0;
 }
 
+/* --- File formats ------------------------------------------------------ */
+
+static void flip_byte(const char *path, long offset) {
+    FILE *f = fopen(path, "r+b");
+    if (!f)
+        return;
+    fseek(f, offset, SEEK_SET);
+    int ch = fgetc(f);
+    fseek(f, offset, SEEK_SET);
+    fputc(ch ^ 0xFF, f);
+    fclose(f);
+}
+
+/* world.dat: tiles, traps and crystal respawns round-trip; a flipped byte
+ * is detected. */
+static int test_world_roundtrip(void) {
+    static World saved, loaded;
+    memset(&saved, 0, sizeof(saved));
+    for (int f = 0; f < MAX_FLOORS; f++) {
+        saved.floors[f].id = f;
+        for (int y = 0; y < MAP_HEIGHT; y++)
+            for (int x = 0; x < MAP_WIDTH; x++)
+                saved.floors[f].map.data[0][y][x] = (VoxelType)((x * 7 + y * 13 + f) % 22);
+    }
+    Trap *t = &saved.floors[5].traps[0];
+    saved.floors[5].trap_count = 1;
+    t->type = TRAP_COUNT - 1;
+    t->x = 10; t->y = 20; t->floor_id = 5; t->detection_dc = 12; t->save_dc = 14;
+    t->damage_dice = 2; t->damage_sides = 6; t->damage_type = DMG_FIRE;
+    t->respawn_timer = 33; t->active = true; t->detected = false; t->wall_dir = 3;
+    saved.floors[7].crystal_respawn_count = 1;
+    saved.floors[7].crystal_respawns[0] = (CrystalRespawn){.x = 1, .y = 2, .type = 17, .respawn_timer = 99};
+
+    char path[512];
+    CHECK(state_path(path, sizeof(path), "world.dat"), "state path");
+    CHECK(persist_write_world(path, &saved), "write failed");
+    memset(&loaded, 0xAB, sizeof(loaded));
+    char why[96];
+    CHECK(persist_read_world(path, &loaded, why, sizeof(why)) == BINFILE_OK, "read: %s", why);
+    for (int f = 0; f < MAX_FLOORS; f++) {
+        CHECK(loaded.floors[f].id == f, "floor id");
+        CHECK(memcmp(loaded.floors[f].map.data, saved.floors[f].map.data,
+                     sizeof(saved.floors[f].map.data)) == 0, "tiles of floor %d", f);
+        CHECK(loaded.floors[f].entity_grid[0][0] == 0, "entity grid not cleared");
+    }
+    const Trap *lt = &loaded.floors[5].traps[0];
+    CHECK(loaded.floors[5].trap_count == 1 && lt->type == t->type && lt->x == 10 && lt->y == 20 &&
+          lt->save_dc == 14 && lt->damage_type == DMG_FIRE && lt->active && !lt->detected &&
+          lt->wall_dir == 3, "trap fields");
+    CHECK(loaded.floors[7].crystal_respawn_count == 1 &&
+          loaded.floors[7].crystal_respawns[0].type == 17 &&
+          loaded.floors[7].crystal_respawns[0].respawn_timer == 99, "crystal respawn");
+
+    flip_byte(path, BINFILE_HEADER_SIZE + 1000);
+    CHECK(persist_read_world(path, &loaded, why, sizeof(why)) == BINFILE_INVALID,
+          "corruption not detected");
+    return 0;
+}
+
+/* npcs.dat: records keep their slot and their fields; transient state
+ * (effects, template pointer) is not stored. */
+static int test_npcs_roundtrip(void) {
+    memset(g_npcs, 0, sizeof(NPC) * MAX_NPCS);
+    NPC *a = &g_npcs[3];
+    a->entity_id = 42; a->x = 11; a->y = 12; a->floor_id = 4; a->hp = 30; a->max_hp = 40;
+    a->active = true; a->archetype = ARCH_MERCHANT; a->template_idx = 2; a->gold_drop = 77;
+    a->ai_ctx.behavior = AI_BEHAVIOR_MAGE; a->merchant.item_count = 2;
+    a->merchant.item_templates[1] = 9; a->merchant.item_stock[1] = 5;
+    snprintf(a->merchant.shop_name, sizeof(a->merchant.shop_name), "The Iron Anvil");
+    a->merchant.spec = BOOKS_MARTIAL; a->respawn_timer = -1; a->energy = 3;
+    a->ghost_loot[29].template_idx = 1; a->ghost_loot[29].stack_count = 2;
+    a->effect_count = 1; /* transient: must not survive */
+    NPC *b = &g_npcs[MAX_NPCS - 1];
+    b->entity_id = 43; b->floor_id = 100; b->x = 299; b->y = 299;
+    b->template = (const MonsterTemplate *)1; /* inactive but kept (respawning) */
+    b->respawn_timer = 50;
+
+    char path[512];
+    CHECK(state_path(path, sizeof(path), "npcs.dat"), "state path");
+    CHECK(persist_write_npcs(path, g_npcs, MAX_NPCS, 1234, 5678), "write failed");
+    NPC *loaded = calloc(MAX_NPCS, sizeof(NPC));
+    CHECK(loaded != NULL, "out of memory");
+    int next = 0, turns = 0, count = 0;
+    char why[96];
+    BinFileStatus st = persist_read_npcs(path, loaded, MAX_NPCS, &next, &turns, &count, why, sizeof(why));
+    int rc = 0;
+    if (st != BINFILE_OK) { fprintf(stderr, "FAIL read: %s\n", why); rc = 1; }
+    else if (count != 2 || next != 1234 || turns != 5678) { fprintf(stderr, "FAIL header\n"); rc = 1; }
+    else {
+        const NPC *la = &loaded[3], *lb = &loaded[MAX_NPCS - 1];
+        if (la->entity_id != 42 || la->x != 11 || la->hp != 30 || !la->active ||
+            la->archetype != ARCH_MERCHANT || la->ai_ctx.behavior != AI_BEHAVIOR_MAGE ||
+            la->merchant.item_count != 2 || la->merchant.item_stock[1] != 5 ||
+            strcmp(la->merchant.shop_name, "The Iron Anvil") != 0 ||
+            la->merchant.spec != BOOKS_MARTIAL || la->ghost_loot[29].stack_count != 2 ||
+            la->effect_count != 0 || la->template != NULL) {
+            fprintf(stderr, "FAIL npc 3 fields\n"); rc = 1;
+        }
+        if (lb->entity_id != 43 || lb->active || lb->respawn_timer != 50 || lb->floor_id != 100) {
+            fprintf(stderr, "FAIL npc last fields\n"); rc = 1;
+        }
+    }
+    free(loaded);
+    b->template = NULL;
+    return rc;
+}
+
+static int test_tombstone_and_flags_roundtrip(void) {
+    Tombstone t;
+    memset(&t, 0, sizeof(t));
+    t.active = true; t.x = 5; t.y = 6; t.floor_id = 7; t.gold = 1ULL << 40;
+    t.death_time = 1700000000; t.backpack_count = 1;
+    snprintf(t.owner, sizeof(t.owner), "fallen");
+    t.backpack[0].template_idx = 3; t.backpack[0].is_artifact = true;
+    snprintf(t.backpack[0].artifact_name, sizeof(t.backpack[0].artifact_name), "Void Blade");
+    t.slot_rings[9].template_idx = 4;
+    char path[512];
+    CHECK(state_path(path, sizeof(path), "saves/tombstone_test.dat"), "state path");
+    CHECK(persist_write_tombstone(path, &t), "tombstone write");
+    Tombstone l;
+    char why[96];
+    CHECK(persist_read_tombstone(path, &l, why, sizeof(why)) == BINFILE_OK, "tombstone read: %s", why);
+    CHECK(l.gold == t.gold && l.death_time == t.death_time && strcmp(l.owner, "fallen") == 0 &&
+          l.backpack[0].is_artifact && strcmp(l.backpack[0].artifact_name, "Void Blade") == 0 &&
+          l.slot_rings[9].template_idx == 4, "tombstone fields");
+    remove(path);
+
+    bool flags[5] = {true, false, true, true, false}, back[5] = {false};
+    CHECK(state_path(path, sizeof(path), "flags_test.dat"), "state path");
+    CHECK(persist_write_flags(path, flags, 5), "flags write");
+    CHECK(persist_read_flags(path, back, 5, why, sizeof(why)) == BINFILE_OK, "flags read");
+    CHECK(memcmp(flags, back, sizeof(flags)) == 0, "flags differ");
+    CHECK(persist_read_flags(path, back, 4, why, sizeof(why)) == BINFILE_INVALID,
+          "a different artifact count must be refused");
+    remove(path);
+    return 0;
+}
+
 /* --- Runner ------------------------------------------------------------ */
 
 typedef struct {
@@ -275,6 +421,9 @@ static const TestCase k_tests[] = {
     {"trade_offer_revalidated_on_accept", test_trade_offer_revalidated_on_accept},
     {"trade_moves_item_and_gold", test_trade_moves_item_and_gold},
     {"trade_into_full_backpack_is_cancelled", test_trade_into_full_backpack_is_cancelled},
+    {"world_roundtrip", test_world_roundtrip},
+    {"npcs_roundtrip", test_npcs_roundtrip},
+    {"tombstone_and_flags_roundtrip", test_tombstone_and_flags_roundtrip},
 };
 
 int main(int argc, char **argv) {
@@ -284,7 +433,7 @@ int main(int argc, char **argv) {
             fprintf(stderr, "  %s\n", k_tests[i].name);
         return 2;
     }
-    if (fixture_init() != 0)
+    if (fixture_init(argv[1]) != 0)
         return 1;
     for (size_t i = 0; i < sizeof(k_tests) / sizeof(k_tests[0]); i++) {
         if (strcmp(argv[1], k_tests[i].name) == 0) {

@@ -59,6 +59,14 @@ def server_env(gate=SERVER_PASS, dm=DM_PASS):
     return env
 
 
+def server_command(workdir, port, extra_args=()):
+    """Read-only data from the source tree, state in <workdir>/state."""
+    cmd = [SERVER, "--port", str(port), "--data-dir", DATA]
+    if "--state-dir" not in extra_args:
+        cmd += ["--state-dir", os.path.join(workdir, "state")]
+    return cmd + list(extra_args)
+
+
 class ServerProcess:
     """A dragongl_server running in its own working directory."""
 
@@ -70,7 +78,7 @@ class ServerProcess:
         # A restart appends to the same log: only look past this point.
         self._log_start = os.path.getsize(self.log_path)
         self.proc = subprocess.Popen(
-            [SERVER, "--port", str(port), *extra_args],
+            server_command(workdir, port, extra_args),
             cwd=workdir, env=server_env() if env is None else env,
             stdout=self._log, stderr=subprocess.STDOUT)
 
@@ -114,17 +122,19 @@ class ServerTest(unittest.TestCase):
         cls.root = tempfile.mkdtemp(prefix="dragongl-it-")
         cls.template = os.path.join(cls.root, "template")
         os.makedirs(cls.template)
-        shutil.copytree(DATA, os.path.join(cls.template, "data"))
         server = ServerProcess(cls.template, free_port())
         try:
             server.wait_ready(timeout=600)
         finally:
             server.stop()
-        for leftover in ("server.log", "combat_log.json"):
-            path = os.path.join(cls.template, leftover)
+        os.remove(os.path.join(cls.template, "server.log"))
+        state = os.path.join(cls.template, "state")
+        for leftover in ("combat_log.json",):
+            path = os.path.join(state, leftover)
             if os.path.exists(path):
                 os.remove(path)
-        shutil.rmtree(os.path.join(cls.template, "saves"), ignore_errors=True)
+        for name in os.listdir(os.path.join(state, "saves")):
+            os.remove(os.path.join(state, "saves", name))
 
     @classmethod
     def tearDownClass(cls):
@@ -150,7 +160,7 @@ class ServerTest(unittest.TestCase):
     def run_server_expecting_exit(self, env, extra_args=()):
         """Run the server binary that must refuse to start; return
         (exit status, output)."""
-        proc = subprocess.run([SERVER, "--port", str(free_port()), *extra_args],
+        proc = subprocess.run(server_command(self.workdir, free_port(), extra_args),
                               cwd=self.workdir, env=env, timeout=60,
                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         return proc.returncode, proc.stdout.decode(errors="replace")
@@ -280,7 +290,7 @@ class ServerTest(unittest.TestCase):
         owner = self.player("owner", password="right")
         owner.close()
         time.sleep(1.0)
-        save = os.path.join(self.workdir, "saves", "owner.save")
+        save = os.path.join(self.workdir, "state", "saves", "owner.save")
         with open(save, "rb") as f:
             before = f.read()
         thief = self.connect()
@@ -385,7 +395,7 @@ class ServerTest(unittest.TestCase):
     def test_save_keeps_only_an_argon2id_hash(self):
         self.player("keeper", password="plain-text-pw").close()
         time.sleep(1.0)
-        with open(os.path.join(self.workdir, "saves", "keeper.save"), "rb") as f:
+        with open(os.path.join(self.workdir, "state", "saves", "keeper.save"), "rb") as f:
             data = f.read()
         self.assertIn(b"$argon2id$", data)
         self.assertNotIn(b"plain-text-pw", data)
@@ -398,6 +408,71 @@ class ServerTest(unittest.TestCase):
         self.assertIsNotNone(listener.wait_for_text("[CHAT] speaker:", 5), listener.texts)
         for text in listener.texts:
             self.assertFalse(any(ord(ch) < 0x20 or ord(ch) == 0x7F for ch in text), repr(text))
+
+    # --- state directory and file formats (phase 4a) ----------------------------
+    def state(self, *parts):
+        return os.path.join(self.workdir, "state", *parts)
+
+    def test_state_directory_layout(self):
+        self.player("settler").close()
+        time.sleep(1.0)
+        self.restart_server()
+        mode = os.stat(self.state()).st_mode & 0o777
+        self.assertEqual(mode, 0o700, oct(mode))
+        for name in ("world.dat", "npcs.dat", "artifacts.dat", "combat_log.json"):
+            self.assertTrue(os.path.isfile(self.state(name)), name)
+        for name in ("saves", "maps"):
+            self.assertTrue(os.path.isdir(self.state(name)), name)
+        self.assertTrue(os.path.isfile(self.state("saves", "settler.save")))
+        self.assertFalse(any(n.endswith(".tmp") for n in os.listdir(self.state())))
+
+    def test_data_directory_is_never_written(self):
+        before = sorted((n, os.stat(os.path.join(DATA, n)).st_mtime_ns) for n in os.listdir(DATA))
+        self.player("reader").close()
+        self.restart_server()
+        after = sorted((n, os.stat(os.path.join(DATA, n)).st_mtime_ns) for n in os.listdir(DATA))
+        self.assertEqual(before, after)
+
+    def test_unusable_state_directory_is_refused(self):
+        blocker = os.path.join(self.workdir, "not-a-dir")
+        with open(blocker, "w") as f:
+            f.write("x")
+        status, out = self.run_server_expecting_exit(server_env(), ("--state-dir", blocker))
+        self.assertEqual(status, 2, out)
+        self.assertIn("State directory", out)
+
+    def test_second_server_on_the_same_state_is_refused(self):
+        status, out = self.run_server_expecting_exit(server_env())
+        self.assertEqual(status, 2, out)
+        self.assertIn("in use by another dragongl_server", out)
+
+    def test_corrupt_world_is_replaced_by_a_new_one(self):
+        self.server.stop()
+        with open(self.state("world.dat"), "r+b") as f:
+            f.seek(4096)
+            byte = f.read(1)
+            f.seek(4096)
+            f.write(bytes([byte[0] ^ 0xFF]))
+        self.restart_server()
+        log = open(self.server.log_path, errors="replace").read()
+        self.assertIn("checksum mismatch", log)
+        self.assertIn("New world generated and saved", log)
+
+    def test_corrupt_save_is_refused_and_kept(self):
+        self.player("fragile", password="pw-fragile").close()
+        time.sleep(1.0)
+        path = self.state("saves", "fragile.save")
+        with open(path, "r+b") as f:
+            data = bytearray(f.read())
+            data[-1] ^= 0xFF
+            f.seek(0)
+            f.write(data)
+        c = self.connect()
+        c.login("fragile", "pw-fragile", SERVER_PASS)
+        self.assertFalse(c.wait_for_login())
+        self.assertTrue(any("unreadable" in r for r in c.auth_fail), c.auth_fail)
+        with open(path, "rb") as f:
+            self.assertEqual(f.read(), bytes(data), "the corrupt save was overwritten")
 
     def test_second_login_of_same_character_is_rejected(self):
         """P1-2: the same character must not be online twice (item

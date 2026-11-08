@@ -1,33 +1,53 @@
-.TH DRAGONGL-RESET-WORLD 1 "2026-08-24" "DragonGL 2026.05.26.01" "User Commands"
+.TH DRAGONGL-RESET-WORLD 1 "2026-11-08" "DragonGL 2026.11.08.08" "User Commands"
 .SH NAME
 dragongl-reset-world \- reset the Dragon GL world state
 .SH SYNOPSIS
 .B dragongl-reset-world
+.RB [ \-S | \-\-state\-dir
+.IR dir ]
+.RB [ \-y | \-\-yes ]
+.RB [ \-h | \-\-help ]
 .SH DESCRIPTION
 .B dragongl-reset-world
-wipes all player saves, tombstones, and the world persistence state of a
-Dragon GL installation (artifacts, NPCs, bones, logs). After confirmation,
-the next server start will generate a brand new world.
-
-The script is interactive: it asks for confirmation (y/n) before deleting
-anything and must be run from the project root directory.
-.SH FILES REMOVED
+deletes the state of a Dragon GL server, so that the next start of
+.BR dragongl_server (1)
+generates a new world. It removes, inside the state directory:
+.IP \- 2
+.IR world.dat ", " npcs.dat ", " artifacts.dat
+(world, NPCs, unique artifacts);
+.IP \- 2
+.I saves/*.save
+and
+.I saves/tombstone_*.dat
+(every character and tombstone);
+.IP \- 2
+.I combat_log.json
+(and its rotation) and the DM maps in
+.IR maps/ .
+.PP
+The script refuses to run while a server holds the lock of that state
+directory, and refuses a directory without a
+.I saves/
+subdirectory, so a wrong path can never delete unrelated files.
+.SH OPTIONS
 .TP
-.IR saves/*.save
-Player save files.
+.BR \-S ", " \-\-state\-dir " \fIdir\fR"
+State directory to reset. Without it the script uses
+.BR DRAGONGL_STATE_DIR ,
+then
+.I state/
+when run from a development tree, then
+.IR $XDG_STATE_HOME/dragongl ,
+then
+.IR ~/.local/state/dragongl .
 .TP
-.IR saves/tombstone_*.dat
-Tombstone files (death locations and loot, reloaded by the server at start).
+.BR \-y ", " \-\-yes
+Do not ask for confirmation.
 .TP
-.IR data/world.dat ", " data/artifacts.dat ", " data/npcs.dat ", " data/bones_*.dat
-World persistence files.
-.TP
-.IR combat_log.json ", " map_dump.txt ", " server_log.txt
-Log and dump files.
-.SH WARNING
-This operation is destructive and cannot be undone: all player progress and
-world state will be lost.
+.BR \-h ", " \-\-help
+Show a short help message and exit.
 .SH SEE ALSO
+.BR dragongl_server (1),
 .BR dragongl-server (1)
 .SH AUTHOR
 Nicola Taibi <nicola.taibi.1967@gmail.com>

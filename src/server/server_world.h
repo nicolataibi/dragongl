@@ -24,6 +24,8 @@
 #include "../../include/net.h"
 
 void update_world(Client *clients, NPC *npcs);
+/*Save world.dat + npcs.dat to the state directory (false on failure).*/
+bool save_world_state(const NPC *npcs);
 
 /* Floor Stats Cache — incremental O(1) updates */
 void floor_stats_rebuild(NPC *npcs);

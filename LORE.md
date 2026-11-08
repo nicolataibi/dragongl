@@ -669,7 +669,7 @@ The complete world of Dragon GL is composed of discrete voxels. Every cell of ev
 - **Server authority.** The master copy of the world resides on the server (`master_world`, of type `World`). Clients never mutate voxel state; they receive incremental map chunks (`send_map_chunk`, initial view radius `INITIAL_VIEW_RADIUS = 100`) purely for rendering and minimap display.
 - **Generation.** Initial topology is produced by `generate_procedural_dungeon()` in `src/shared/map.c`. Rooms are carved out of a `VOXEL_ROCK` substrate: perimeter cells become `VOXEL_WALL` (the four corners are deliberately retained as `VOXEL_ROCK` so that digging can never pierce the structure at a corner), interiors become `VOXEL_FLOOR`, and navigation (stairs), doors, liquids, flora, resources, and the themed decorations of the 21 room archetypes are then stamped on top.
 - **Runtime mutation.** Voxel state is modified permanently during play by: mining (`tunnel`), door operation (`open`/`close`), terrain spells (Wall of Stone, Mud Field, Ice Storm), elemental area effects (§8.1), environmental traps (Flood, Ceiling Collapse, Stone Tomb), and trap detection/disarmal (`VOXEL_TRAP` markers).
-- **Persistence.** `world_save()` writes the entire `World` structure — every voxel cell, every trap table, every crystal-respawn queue — as a raw binary image to `data/world.dat`. Because the snapshot is a verbatim memory image, the numeric values of the enumeration form part of the on-disk contract: renumbering or reordering `VoxelType` would silently corrupt existing saves.
+- **Persistence.** `persist_write_world()` stores every voxel cell (one byte each), every trap table and every crystal-respawn queue in `world.dat`, in the server state directory. The numeric values of the enumeration are part of the on-disk contract: renumbering or reordering `VoxelType` requires a new world format version.
 - **Textual dumps.** The map dump (format v2) encodes each tile as a two-digit hexadecimal voxel identifier — `00` (`VOXEL_ROCK`) through `1B` (`VOXEL_CRYSTAL_WHITE`) — and is consumed by `tools/generate_pdf_map.py` to render pixel-accurate paper maps.
 
 ### 2. Master Enumeration Table
@@ -901,7 +901,7 @@ Tool detection scans both hands and the backpack for item names containing *Pick
 
 #### 8.5 Door operation
 
-`open` (door → floor) mutates the world and persists in `data/world.dat`, visible to all clients on the floor. `close` can only re-close a door that was `open`ed during this session: the server keeps a per-floor registry of recently opened door tiles, so a plain floor tile can never be turned into a door (the old behavior let a player seal a corridor permanently on a tile that was never a door). Both commands bounds-check the target tile.
+`open` (door → floor) mutates the world and persists in `world.dat` (server state directory), visible to all clients on the floor. `close` can only re-close a door that was `open`ed during this session: the server keeps a per-floor registry of recently opened door tiles, so a plain floor tile can never be turned into a door (the old behavior let a player seal a corridor permanently on a tile that was never a door). Both commands bounds-check the target tile.
 
 ### 9. Rendering & Presentation
 
@@ -955,7 +955,7 @@ The remaining crystal variants (red, green, yellow, orange, cyan, white) possess
 
 ### 10. Persistence & Serialization
 
-- **`data/world.dat`** — a verbatim binary image of the `World` structure (101 floors × 300×300 voxel cells, trap tables, crystal-respawn queues). Written at world shutdown and on critical in-game events; the numeric encoding of `VoxelType` is therefore part of the save-format contract.
+- **`world.dat`** (server state directory) — 101 floors × 300×300 voxel cells, trap tables and crystal-respawn queues, stored field by field in a versioned, CRC-checked container. Written every minute and at shutdown; the numeric encoding of `VoxelType` is part of the format contract.
 - **Floor dumps (v2)** — two hexadecimal digits per cell, `00`–`1B`, consumed by `tools/generate_pdf_map.py`.
 - **Network protocol** — the client's local map is populated exclusively from `send_map_chunk` payloads; the 3D renderer and the minimap are pure projections of the server-authoritative voxel state.
 
@@ -1180,7 +1180,8 @@ cd ..
 ./dragongl-server --password-file server.pw    # gate password from a file (chmod 600)
 ./dragongl-server --dm-password-file dm.pw     # enables the DM account
 ./dragongl-server --port 9000                  # TCP port (default: 8080)
-./dragongl-server --data-dir /path/to/data     # JSON + world.dat (default: ./data, else /usr/share/dragongl/data)
+./dragongl-server --data-dir /path/to/data     # read-only JSON (default: ./data, else /usr/share/dragongl/data)
+./dragongl-server --state-dir /path/to/state   # world, saves, logs (default: state/ in a development tree)
 ```
 **Run the Client:**
 ```bash
@@ -4407,8 +4408,10 @@ To ensure zero-lag performance while guaranteeing zero-data-loss for players, th
    
 2. **Asynchronous World Persistence (Voxel & NPCs):**
    Every **60 seconds** (1 minute), the server performs a global autosave for the environment without interrupting gameplay:
-   - **`data/world.dat`** — Snapshot of all 100 dungeon floors. Includes permanent voxel modifications (tunneled walls, open doors, spell terrain).
-   - **`data/npcs.dat`** — State of every NPC: position, HP, respawns.
+   - **`world.dat`** — Snapshot of all 100 dungeon floors. Includes permanent voxel modifications (tunneled walls, open doors, spell terrain).
+   - **`npcs.dat`** — State of every NPC: position, HP, respawns.
+
+   Both live in the server state directory and are also written at shutdown.
 
 > This guarantees that a player's inventory and XP are absolutely safe, while the impact on the dungeon remains permanent and visible to all connected players with a maximum rollback window of just 60 seconds for the world state.
 

@@ -131,6 +131,7 @@ set(SHARED_SRCS
     src/shared/rules.c
     src/shared/cJSON.c
     src/shared/data_loader.c
+    src/shared/binio.c
 )
 
 # 1. dragongl_server
@@ -141,6 +142,7 @@ add_executable(dragongl_server
     src/server/server_net.c
     src/server/server_conn.c
     src/server/auth.c
+    src/server/persist.c
     src/server/ai.c
     src/server/aoe.c
     src/server/combat_log.c

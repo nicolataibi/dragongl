@@ -85,7 +85,13 @@ Dragon GL resolves its assets automatically at runtime:
 2. **Local development:** `./data` relative to the current working directory.
 3. **System install:** `/usr/share/dragongl/data` (when installed from RPM or system prefix).
 
-Mutable player saves (`.save`), combat logs (`combat_log.json`), and dynamic dungeon persistence are saved to the current working directory or user data directory, leaving system package files untouched.
+Everything the server writes lives in its **state directory**, never in the data directory or next to the package files: `world.dat`, `npcs.dat`, `artifacts.dat`, `saves/` (characters and tombstones), `maps/` (DM maps), `combat_log.json`. It is chosen in this order:
+
+1. `--state-dir <dir>` (or `-S`);
+2. `$DRAGONGL_STATE_DIR`;
+3. `$XDG_STATE_HOME/dragongl`, else `~/.local/state/dragongl`.
+
+The `dragongl-server` launcher of a development tree uses `state/` in the project root. The directory is created with mode 0700 and locked by the running server. `dragongl-reset-world` deletes its content to start a new world.
 
 ---
 

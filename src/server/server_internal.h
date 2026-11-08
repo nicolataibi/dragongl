@@ -41,22 +41,8 @@ long long get_time_ms(void);
  * at 1 client or 64. NOTE: every in-game timer expressed in rounds
  * (hunger, light, trap respawns, ...) inherits this scale — when tuning
  * a constant, convert it: 1 round = 0.2 s real.*/
-/*npcs.dat header magic. The file holds raw NPC records, so the magic
- * changes whenever the NPC layout does: an old file is then refused and a
- * fresh world is generated instead of being misread.
- * ...7ECD: AIContext.behavior is an AiBehavior enum (was a pointer).*/
-#define NPCS_FILE_MAGIC 0xDEAD7ECDu
 #define TICK_MS 200LL
 #define MAX_TICK_CATCHUP_MS (5LL * TICK_MS)
-
-typedef struct {
-    char name[64];
-    int x, y;
-    uint64_t gold;
-    int items[30];
-    int amounts[30];
-    int w_idx, b_idx, h_idx, s_idx;
-} BonesData;
 
 // Global constants
 /*Population/respawn tuning — SINGLE source of truth (L3). These used
@@ -85,9 +71,9 @@ extern Client *g_clients;
 extern NPC *g_npcs;
 extern int global_total_turns;
 extern int next_id;
-/*Directory containing the JSON data files and the world state files
- * (world.dat, npcs.dat, artifacts.dat). Resolved at start: --data-dir
- * argument > local ./data > /usr/share/dragongl/data (RPM install).*/
+/*Read-only directory of the JSON datasets. Resolved at start: --data-dir
+ * argument > local ./data > /usr/share/dragongl/data (RPM install).
+ * Everything the server writes lives in the state directory (persist.h).*/
 #define DATA_DIR_MAX 256
 extern char g_data_dir[DATA_DIR_MAX];
 
@@ -107,10 +93,7 @@ void sync_entity_grid(NPC *npcs);
 /*Atomic file write helpers (temp file in the same directory + fsync +
  * rename): a crash mid-write never truncates the target file; on any
  * error the temp file is removed and the last good file is kept.*/
-FILE *atomic_write_begin(const char *path, char *tmp, size_t tmp_size);
-bool atomic_write_end(FILE *f, const char *path, const char *tmp, bool ok);
 /*Delete leftover *.tmp files in dir (stale from a crashed run).*/
-void cleanup_stale_tmp_files(const char *dir);
 
 void save_bones(Client* c);
 void drop_loot_from_monster(Client *c, NPC *killer);

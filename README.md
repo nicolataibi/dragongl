@@ -253,11 +253,11 @@ To authenticate as DM: connect with player name `dm` and the DM password configu
 
 ### Game Balance Analysis Tool (`tools/analyze_balance.py`)
 
-All combat interactions are written in real-time to `combat_log.json`. Developers can evaluate combat balance using the bundled Python analyzer:
+All combat interactions are written in real-time to `combat_log.json` in the server state directory (`state/` in a development tree, `~/.local/state/dragongl/` for an installed server). Developers can evaluate combat balance using the bundled Python analyzer, which finds that file by itself:
 
 ```bash
-# Run analysis on server session logs
-python3 tools/analyze_balance.py ./combat_log.json
+python3 tools/analyze_balance.py                          # state directory of this tree
+python3 tools/analyze_balance.py /path/to/combat_log.json # any other log
 ```
 
 The tool produces statistical breakdowns for:
