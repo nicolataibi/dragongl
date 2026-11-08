@@ -15,7 +15,7 @@ struct GpdVertex {
     vec3 normal;
 };
 
-layout(binding = 0) buffer SceneVerts { GpdVertex verts[]; } gpd_scene_verts;
+layout(binding = 0) readonly buffer SceneVerts { GpdVertex verts[]; } gpd_scene_verts;
 
 layout(push_constant) uniform PushConstants {
     mat4 mvp;

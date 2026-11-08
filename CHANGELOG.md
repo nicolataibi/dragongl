@@ -1,3 +1,9 @@
+* Sun Nov 08 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.08.16
+- SHADER: mark gpd_scene_verts SSBO as readonly in the GPD scene vertex
+  shader (gpd_scene.vert). Fixes Vulkan validation error
+  VUID-RuntimeSpirv-NonWritable-06341 when vertexPipelineStoresAndAtomics
+  is not enabled.
+
 * Sun Nov 08 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.08.15
 - PACKAGING: rpmlint passes on Fedora. The descriptions no longer use
   words the Fedora en_US dictionary rejects ('procedurally', and 'conf'
