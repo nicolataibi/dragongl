@@ -110,6 +110,11 @@ void send_text_to_client(int sock, const char *fmt, ...);
 bool net_send_client(int sock, const void *data, int len);
 /*Queue a MSG_AUTH_FAIL for the client on `sock`.*/
 void send_auth_fail(int sock, const char *reason);
+/*Structured events for the floating combat text (CombatEventKind).*/
+void send_combat_event(int sock, int kind, int entity_id, int amount);
+bool send_welcome(int sock, const MsgWelcome *m);
+void send_time_sync(int sock, const MsgTimeSync *m);
+void send_tombstone_remove(int sock, int entity_id);
 void send_detailed_state(Client *c);
 void server_log(const char *cat, const char *fmt, ...);
 void broadcast_spell_vfx(int sx, int sy, int tx, int ty, int vfx_type, float r, float g, float b, int floor_id);

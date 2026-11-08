@@ -665,7 +665,7 @@ static void draw_floating_combat_text(int width, int height) {
     float cy = (float)height / 2.0f;
 
     /*B1: the net thread may be spawning floating texts concurrently
-     * (fct_parse_log on MSG_TEXT); hold the FCT mutex for the whole
+     * (fct_combat_event on MSG_COMBAT_EVENT); hold the FCT mutex for the whole
      * pass (this one is read-only — updates happen in fct_update,
      * which takes the same mutex).*/
     pthread_mutex_lock(&g_fct_mutex);

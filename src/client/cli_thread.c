@@ -39,8 +39,17 @@ void* cli_thread_loop(void* arg) {
     
     while (g_running) {
         ret = poll(&pfd, 1, 100);
+        if (ret > 0 && (pfd.revents & (POLLHUP | POLLERR | POLLNVAL)) &&
+            !(pfd.revents & POLLIN)) {
+            break; /* stdin closed: the window keeps running without a console */
+        }
         if (ret > 0 && (pfd.revents & POLLIN)) {
-            if (fgets(buf, sizeof(buf), stdin) != NULL) {
+            if (fgets(buf, sizeof(buf), stdin) == NULL) {
+                /* End of input (Ctrl-D, closed pipe): poll() would report
+                 * it again forever, so the console thread stops here. */
+                break;
+            }
+            {
                 len = strlen(buf);
                 while (len > 0 && (buf[len - 1] == '\n' || buf[len - 1] == '\r' || buf[len - 1] == ' ')) {
                     buf[len - 1] = '\0';

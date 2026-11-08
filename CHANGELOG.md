@@ -1,3 +1,55 @@
+* Sun Nov 08 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.08.10
+- PROTOCOL: version 4, incompatible with 3. Every message is serialized
+  field by field, little-endian, by one module shared by server and client
+  (new include/wire.h, src/shared/wire.c): no struct is sent or read as raw
+  memory any more, so the format no longer depends on the compiler, the
+  struct padding or the host byte order. 8-byte header (u16 version, u16
+  type, u32 length); strings are u8 length + bytes; payloads must decode
+  exactly (trailing bytes, oversized strings, out-of-range counts, enums,
+  coordinates and tile values are protocol errors and close the
+  connection). Frames are smaller: a MSG_TEXT carries its text instead of
+  256 fixed bytes, a MSG_STATE shrinks from ~1.1 KB to a few hundred
+  bytes (the equipment names travel at their real length).
+- PROTOCOL: 64-byte credential fields. Personal and server passwords may be
+  up to 63 characters (were 31); server secrets 8-63 characters.
+- PROTOCOL: MSG_LOGIN keeps only what the server uses (credentials, race,
+  subrace, class, alignment); the client-rolled ability scores and the
+  cosmetic age/height/weight/social class are no longer sent. MSG_MOVE is
+  two bytes (dx, dy in -1..1); MSG_WELCOME drops the always-1 'success'.
+- PROTOCOL: new MSG_COMBAT_EVENT (kind, entity, amount) for damage taken
+  and dealt, critical hits, misses, healing, gold and level-ups. The client
+  draws the floating combat text from it; fct_parse_log(), which guessed
+  the events from the English wording of MSG_TEXT lines (and broke on the
+  Italian "Colpito! ... danni" line), is removed. Those lines now read
+  "Hit! ... damage", "RISEN TO LEVEL" and "You pick up a stack of".
+- SERVER: frames are encoded into one reused buffer and queued with a
+  single send; broadcasts (spell effects, "left the floor") are encoded
+  once for every receiver. The receive path validates the header and the
+  per-type length limit before reading the payload.
+- NETWORK: the server listens on IPv6 and IPv4 (dual-stack socket, IPv4
+  only where IPv6 is unavailable); IPv4 peers are logged and rate-limited
+  under their plain a.b.c.d address. The client resolves the server with
+  getaddrinfo() (host names, IPv4 and IPv6 addresses), tries every address
+  with a 5 s connect timeout and reports why a connection failed.
+- CLIENT: the network thread reads with poll() into a receive buffer and
+  decodes complete frames, instead of sleep-and-retry reads that could
+  desynchronize the stream on a slow link; any malformed frame ends the
+  session with the reason. TCP keepalive detects a server that vanished, a
+  failed send ends the session, and a closed standard input no longer makes
+  the console thread spin. The login frame and the typed passwords are
+  wiped after sending. (Passwords were already read without echo.)
+- CLEANUP: removed net_receive(), net_receive_all() and
+  net_receive_exact() (sleep-and-retry readers) and the raw MsgHeader
+  struct with its msg_hdr() helper.
+- TESTS: tests/test_protocol.c rewritten as encode/decode round trips of
+  every message plus malformed payloads; the integration client
+  (dglproto.py) speaks v4; new network tests for an old protocol version,
+  an oversized login string, trailing bytes, 63-character passwords, the
+  level-up combat event, IPv4 addresses in the log and IPv6 loopback.
+- DOCS: PROTOCOL.md describes the v4 byte layout of every message;
+  SECURITY.md, DEVELOPMENT.md, the launchers and the man pages follow the
+  new password lengths and the IPv6 support.
+
 * Sun Nov 08 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.08.09
 - PERFORMANCE (server): saves no longer stall the game loop. New writer
   thread (src/server/writer.c): the loop encodes the snapshot in memory and

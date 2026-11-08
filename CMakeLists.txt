@@ -132,6 +132,7 @@ set(SHARED_SRCS
     src/shared/cJSON.c
     src/shared/data_loader.c
     src/shared/binio.c
+    src/shared/wire.c
 )
 
 # 1. dragongl_server

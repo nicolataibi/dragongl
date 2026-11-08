@@ -135,4 +135,4 @@ CI (`.github/workflows/ci.yml`) runs four jobs on every push and pull request: a
 ### Guidelines for Contributions:
 1. **Warning-Clean Build:** All C code must compile cleanly with `-Wall -Wextra -Wpedantic` using clang.
 2. **Data Structure Bounds:** Enum-indexed arrays must be sized using `MAX_*` sentinels to guarantee type safety without bitmask overflow.
-3. **Persisted Formats:** Changes to `MsgHeader` or wire structures require incrementing `PROTOCOL_VERSION` in `include/protocol.h`.
+3. **Wire and file formats:** a message is changed in one place, its encoder/decoder pair in `src/shared/wire.c` (plus `tests/test_protocol.c`, `tests/integration/dglproto.py` and `PROTOCOL.md`), and every change increments `PROTOCOL_VERSION` in `include/protocol.h`. On-disk formats have their own version numbers in `src/server/persist.h`.

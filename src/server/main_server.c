@@ -26,6 +26,7 @@
 #include "items.h"
 #include "net.h"
 #include "protocol.h"
+#include "wire.h"
 #include "server_net.h"
 #include "server_conn.h"
 #include "auth.h"
@@ -2066,8 +2067,9 @@ void check_level_up(Client *c) {
 
     c->unspent_stat_points += 3;
 
-    send_text_to_client(c->sock, "[LEVEL] *** YOU HAVE RISE TO LEVEL %d! ***",
+    send_text_to_client(c->sock, "[LEVEL] *** YOU HAVE RISEN TO LEVEL %d! ***",
                         c->level);
+    send_combat_event(c->sock, COMBAT_EV_LEVEL_UP, c->entity_id, c->level);
     send_text_to_client(c->sock,
                         "[LEVEL] Maximum HP increased by %d (Total: %d)."
                         "Health and mana restored.",
@@ -2332,14 +2334,27 @@ static void reject_login(Client *c, int slot, const char *reason,
   conn_mark_drop(slot, reason);
 }
 
+/*The listening socket is dual-stack (net_create_server): an IPv4 client
+ * arrives as ::ffff:a.b.c.d and is shown — and rate-limited by the IP
+ * guard — under its plain IPv4 address.*/
 static void peer_ip_string(const struct sockaddr_storage *ss, char *out,
                            size_t out_len) {
   const void *addr = NULL;
-  if (ss->ss_family == AF_INET)
+  int family = ss->ss_family;
+  struct in_addr v4;
+  if (family == AF_INET) {
     addr = &((const struct sockaddr_in *)ss)->sin_addr;
-  else if (ss->ss_family == AF_INET6)
-    addr = &((const struct sockaddr_in6 *)ss)->sin6_addr;
-  if (!addr || !inet_ntop(ss->ss_family, addr, out, (socklen_t)out_len))
+  } else if (family == AF_INET6) {
+    const struct in6_addr *a6 = &((const struct sockaddr_in6 *)ss)->sin6_addr;
+    if (IN6_IS_ADDR_V4MAPPED(a6)) {
+      memcpy(&v4, &a6->s6_addr[12], sizeof(v4));
+      addr = &v4;
+      family = AF_INET;
+    } else {
+      addr = a6;
+    }
+  }
+  if (!addr || !inet_ntop(family, addr, out, (socklen_t)out_len))
     copy_str(out, "?", out_len);
 }
 
@@ -2545,14 +2560,14 @@ static void print_server_usage(const char *argv0) {
          "Passwords are never accepted on the command line. Without a file the\n"
          "server reads DRAGONGL_SERVER_PASSWORD (required) and DRAGONGL_DM_PASSWORD\n"
          "(optional: without it the DM account is disabled). Each password has\n"
-         "8-31 printable ASCII characters, no spaces.\n",
+         "8-63 printable ASCII characters, no spaces.\n",
          argv0);
 }
 
 /*Server access password (required) and DM password (optional), from a
  * file or the environment. Only digests are kept; the plaintext is wiped.*/
 static bool load_server_secrets(const char *gate_file, const char *dm_file) {
-  char secret[64], err[256];
+  char secret[128], err[256];
   int rc = auth_load_secret(gate_file, "DRAGONGL_SERVER_PASSWORD", secret,
                             sizeof(secret), err, sizeof(err));
   if (rc < 0) {
@@ -2604,15 +2619,8 @@ static uint64_t g_login_gen;
  * work and the save read go to the login worker; login_finish() completes
  * the login. Every refusal goes through reject_login().*/
 static void login_begin(Client *clients, int i, MsgLogin *ml) {
-  /*Force NUL terminators (M5): username/password/server_pass
-   * are fixed-size arrays and a malicious client can send all
-   * 32 bytes of each without a terminator. The first uses are
-   * strlen (valid_username) and strcmp (server_pass/DM check) —
-   * un-terminated, those read past the struct (UB). Same
-   * treatment MSG_TEXT_CMD already gets for tc.cmd.*/
-  ml->username[sizeof(ml->username) - 1] = '\0';
-  ml->password[sizeof(ml->password) - 1] = '\0';
-  ml->server_pass[sizeof(ml->server_pass) - 1] = '\0';
+  /*wire_get_login() already guarantees NUL-terminated strings that fit
+   * their fields.*/
 
   //Server access ("gate") password: keyed digest, constant-time compare.
   bool gate_ok = auth_check_gate(ml->server_pass);
@@ -2643,7 +2651,7 @@ static void login_begin(Client *clients, int i, MsgLogin *ml) {
 
   if (!auth_password_acceptable(ml->password)) {
       reject_login(&clients[i], i,
-                   "Invalid personal password: 1-31 printable characters.", false);
+                   "Invalid personal password: 1-63 printable characters.", false);
       return;
   }
 
@@ -2833,26 +2841,24 @@ static void login_finish(Client *clients, LoginJob *job, NPC *npcs) {
   }
 
   //Send welcome with current location (saved or default)
-  MsgHeader wh = msg_hdr(MSG_WELCOME, (int)sizeof(MsgWelcome));
-  MsgWelcome mw = {clients[i].entity_id,
-                   clients[i].x,
-                   clients[i].y,
-                   1,
-                   (load_status == 1) ? 0 : 1,
-                   clients[i].hp,
-                   clients[i].max_hp,
-                   clients[i].gold,
-                   (int)clients[i].race_id,
-                   (int)clients[i].subrace_id,
-                   (int)clients[i].class_id,
-                   clients[i].level,
-                   clients[i].alignment};
+  MsgWelcome mw;
+  memset(&mw, 0, sizeof(mw));
+  mw.entity_id = clients[i].entity_id;
+  mw.x = clients[i].x;
+  mw.y = clients[i].y;
+  mw.is_new = (load_status == 1) ? 0 : 1;
+  mw.hp = clients[i].hp;
+  mw.max_hp = clients[i].max_hp;
+  mw.gold = clients[i].gold;
+  mw.race_id = (int)clients[i].race_id;
+  mw.subrace_id = (int)clients[i].subrace_id;
+  mw.class_id = (int)clients[i].class_id;
+  mw.level = clients[i].level;
+  mw.alignment = clients[i].alignment;
   /*A failed welcome means the client is gone (net_send_client
    * already dropped it): skip the rest of the login sequence.*/
-  if (!net_send_client(clients[i].sock, &wh, sizeof(MsgHeader)) ||
-      !net_send_client(clients[i].sock, &mw, sizeof(MsgWelcome))) {
+  if (!send_welcome(clients[i].sock, &mw))
       return;
-  }
   send_detailed_state(&clients[i]);
   send_map_chunk(clients[i].sock,
                  &master_world->floors[clients[i].floor_id].map,
@@ -2887,7 +2893,7 @@ static void login_finish(Client *clients, LoginJob *job, NPC *npcs) {
              (load_status == 1) ? "logged in" : "created");
 }
 
-static void handle_login(Client *clients, int i, const void *payload) {
+static void handle_login(Client *clients, int i, const void *payload, uint32_t len) {
   if (clients[i].authenticated) {
     conn_mark_drop(i, "MSG_LOGIN on an authenticated session");
     return;
@@ -2897,7 +2903,12 @@ static void handle_login(Client *clients, int i, const void *payload) {
     return;
   }
   MsgLogin ml;
-  memcpy(&ml, payload, sizeof(ml));
+  if (!wire_get_login(payload, len, &ml)) {
+    auth_wipe(&ml, sizeof(ml));
+    conn_wipe_message(i);
+    conn_mark_drop(i, "malformed MSG_LOGIN");
+    return;
+  }
   login_begin(clients, i, &ml);
   auth_wipe(&ml, sizeof(ml)); /*the job keeps the only copy, wiped by the worker*/
   conn_wipe_message(i);
@@ -3231,14 +3242,17 @@ int main(int argc, char **argv) {
           while (clients[i].active && !conn_dropping(i) && !clients[i].login_pending &&
                  (got = conn_next_message(i, &hdr, &payload)) == 1) {
           if (hdr.type == MSG_LOGIN) {
-            handle_login(clients, i, payload);
+            handle_login(clients, i, payload, hdr.length);
           } else if (hdr.type == MSG_MOVE) {
             if (!clients[i].authenticated) {
               conn_mark_drop(i, "MSG_MOVE before login");
               continue;
             }
             MsgMove m;
-            memcpy(&m, payload, sizeof(m));
+            if (!wire_get_move(payload, hdr.length, &m)) {
+              conn_mark_drop(i, "malformed MSG_MOVE");
+              continue;
+            }
 
             /*Position/floor BEFORE the move: the 10 KB map chunk is
              * re-sent only if the view actually moved (M7).*/
@@ -3296,8 +3310,10 @@ int main(int argc, char **argv) {
                            /*Normal pile of gold*/
                            clients[i].gold += npcs[n].gold_drop;
                            send_text_to_client(clients[i].sock,
-                               "[SYSTEM] Collect a stack of %d gold coins!",
+                               "[SYSTEM] You pick up a stack of %d gold coins!",
                                npcs[n].gold_drop);
+                           send_combat_event(clients[i].sock, COMBAT_EV_GOLD,
+                                             clients[i].entity_id, npcs[n].gold_drop);
                            npc_set_active(&npcs[n], false);
                            npcs[n].respawn_timer = 0;
                            fl->entity_grid[ny][nx] = 0;
@@ -3485,7 +3501,10 @@ int main(int argc, char **argv) {
               continue;
             }
             MsgTextCmd tc;
-            memcpy(&tc, payload, sizeof(tc));
+            if (!wire_get_text_cmd(payload, hdr.length, &tc)) {
+              conn_mark_drop(i, "malformed MSG_TEXT_CMD");
+              continue;
+            }
             /*Rate limit text commands exactly like MSG_MOVE: the flag was
              * written but never tested, so a client spamming 'top', 'cast'
              * or 'look' at 10 kHz saturated the server CPU (every 'top'
@@ -3495,9 +3514,6 @@ int main(int argc, char **argv) {
               continue; //Rate limit: max 5 text commands per second
             }
             clients[i].last_action_ms = now_ms;
-            /*cmd is a fixed-size array, but make sure it is terminated
-             * (a malicious client could omit the NUL).*/
-            tc.cmd[sizeof(tc.cmd) - 1] = '\0';
             /*No control characters reach the game: they would travel
              * verbatim to other players' terminals (ANSI escapes, \r
              * overwriting lines) through chat and private messages.*/

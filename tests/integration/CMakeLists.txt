@@ -62,6 +62,7 @@ set(DGL_SERVER_SRCS
     ${DGL_ROOT}/src/shared/cJSON.c
     ${DGL_ROOT}/src/shared/data_loader.c
     ${DGL_ROOT}/src/shared/binio.c
+    ${DGL_ROOT}/src/shared/wire.c
 )
 set(DGL_INCLUDES ${DGL_ROOT}/include ${DGL_ROOT}/src/server ${DGL_ROOT}/src/client)
 

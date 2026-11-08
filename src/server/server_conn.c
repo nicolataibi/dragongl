@@ -22,6 +22,7 @@
 #include "net.h"
 #include "server_entities.h"
 #include "server_internal.h"
+#include "wire.h"
 
 #include <errno.h>
 #include <stdint.h>
@@ -37,7 +38,7 @@ typedef struct {
 
     uint8_t rx[CONN_RX_CAP];
     size_t rx_len;
-    uint8_t msg[CONN_RX_CAP]; /* last message handed out */
+    uint8_t msg[CONN_RX_CAP]; /* payload of the last message handed out */
 
     uint8_t *tx;
     size_t tx_len;
@@ -46,6 +47,9 @@ typedef struct {
     bool dropping;
     char drop_reason[96];
 } Conn;
+
+_Static_assert(CONN_RX_CAP >= WIRE_HEADER_SIZE + WIRE_MAX_CLIENT_PAYLOAD,
+               "the receive buffer must hold the largest client message");
 
 static Conn g_conns[MAX_CLIENTS];
 
@@ -135,34 +139,25 @@ bool conn_rx_pending(int slot) {
     return c && c->rx_len > 0;
 }
 
-/* Exact payload size of every message a client may send. */
-static int client_msg_size(MsgType type) {
-    switch (type) {
-    case MSG_LOGIN:    return (int)sizeof(MsgLogin);
-    case MSG_MOVE:     return (int)sizeof(MsgMove);
-    case MSG_TEXT_CMD: return (int)sizeof(MsgTextCmd);
-    default:           return -1;
-    }
-}
-
 int conn_next_message(int slot, MsgHeader *hdr, const void **payload) {
     Conn *c = slot_conn(slot);
     if (!c || c->dropping)
         return 0;
-    if (c->rx_len < sizeof(MsgHeader))
+    if (c->rx_len < WIRE_HEADER_SIZE)
         return 0;
     MsgHeader h;
-    memcpy(&h, c->rx, sizeof(h));
-    /* Validate before waiting for the payload: an unknown type or a wrong
-     * length can never become valid, and the length drives the read. */
-    int expected = client_msg_size(h.type);
-    if (h.version != PROTOCOL_VERSION || h.reserved != 0 || expected < 0 ||
-        h.length != expected)
+    wire_read_header(c->rx, &h);
+    /* Validate before waiting for the payload: a wrong version, a type a
+     * client may not send or an oversized length can never become valid,
+     * and the length drives the read. The payload itself is decoded (and
+     * checked field by field) by the caller. */
+    uint32_t max = wire_client_payload_max(h.type);
+    if (h.version != PROTOCOL_VERSION || max == 0 || h.length > max)
         return -1;
-    size_t total = sizeof(MsgHeader) + (size_t)h.length;
+    size_t total = WIRE_HEADER_SIZE + (size_t)h.length;
     if (c->rx_len < total)
         return 0;
-    memcpy(c->msg, c->rx + sizeof(MsgHeader), (size_t)h.length);
+    memcpy(c->msg, c->rx + WIRE_HEADER_SIZE, (size_t)h.length);
     memmove(c->rx, c->rx + total, c->rx_len - total);
     c->rx_len -= total;
     /*The consumed bytes (a MSG_LOGIN carries passwords) must not linger
@@ -262,15 +257,13 @@ const char *conn_drop_reason(int slot) {
 }
 
 void conn_send_auth_fail_now(int fd, const char *reason) {
-    struct {
-        MsgHeader h;
-        MsgAuthFail m;
-    } pkt;
-    memset(&pkt, 0, sizeof(pkt));
-    pkt.h = msg_hdr(MSG_AUTH_FAIL, (int)sizeof(MsgAuthFail));
-    copy_str(pkt.m.reason, reason, sizeof(pkt.m.reason));
-    /* One attempt: a freshly accepted socket has an empty send buffer. */
-    (void)send(fd, &pkt, sizeof(pkt), MSG_NOSIGNAL | MSG_DONTWAIT);
+    BinWriter w;
+    bw_init(&w);
+    if (wire_put_auth_fail(&w, reason)) {
+        /* One attempt: a freshly accepted socket has an empty send buffer. */
+        (void)send(fd, w.data, w.len, MSG_NOSIGNAL | MSG_DONTWAIT);
+    }
+    bw_free(&w);
 }
 
 /* --- Per-IP guard ------------------------------------------------------ */

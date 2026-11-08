@@ -82,7 +82,7 @@ const char *auth_secret_problem(const char *pwd) {
     if (n < AUTH_SECRET_MIN)
         return "too short (at least 8 characters)";
     if (n > AUTH_SECRET_MAX)
-        return "too long (at most 31 characters: the client sends 32-byte fields)";
+        return "too long (at most 63 characters)";
     for (size_t i = 0; i < n; i++) {
         unsigned char ch = (unsigned char)pwd[i];
         if (ch <= 0x20 || ch >= 0x7F)

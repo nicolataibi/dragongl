@@ -253,19 +253,14 @@ static void broadcast_game_time(Client *clients) {
   int h = (total_mins / 60 + 8) % 24;
   int m = total_mins % 60;
 
-  MsgHeader hdr = msg_hdr(MSG_TIME_SYNC, (int)sizeof(MsgTimeSync));
   MsgTimeSync ts;
   ts.game_hour = h;
   ts.game_min = m;
   ts.total_turns = global_total_turns;
 
   for (int i = 0; i < MAX_CLIENTS; i++) {
-    if (clients[i].active && clients[i].authenticated) {
-      /*net_send_client: a failed time-sync send means a stuck/dead
-       * client — drop it instead of letting the message vanish (L2).*/
-      net_send_client(clients[i].sock, &hdr, sizeof(hdr));
-      net_send_client(clients[i].sock, &ts, sizeof(ts));
-    }
+    if (clients[i].active && clients[i].authenticated)
+      send_time_sync(clients[i].sock, &ts);
   }
 }
 

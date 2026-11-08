@@ -3975,6 +3975,7 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
         c->hp = (c->hp + dice_hp > c->max_hp) ? c->max_hp : c->hp + dice_hp;
         send_text_to_client(c->sock, "[MAGIC] %s: Recover %d HP (HP: %d/%d).",
                             sp->name, dice_hp, c->hp, c->max_hp);
+        send_combat_event(c->sock, COMBAT_EV_HEAL, c->entity_id, dice_hp);
       } else if (sp->has_status_effect &&
                  c->effect_count < MAX_EFFECTS_PER_ENTITY) {
         c->effects[c->effect_count++] = sp->status_effect;
@@ -4055,6 +4056,7 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
       c->hp = (c->hp + dice_hp > c->max_hp) ? c->max_hp : c->hp + dice_hp;
       send_text_to_client(c->sock, "[MAGIC] %s: Recover %d HP.", sp->name,
                           dice_hp);
+      send_combat_event(c->sock, COMBAT_EV_HEAL, c->entity_id, dice_hp);
     } else if (sp->has_status_effect) {
       if (target->effect_count < MAX_EFFECTS_PER_ENTITY) {
         target->effects[target->effect_count++] = sp->status_effect;
@@ -4125,6 +4127,7 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
         if (n->archetype == ARCH_GOLD) {
             c->gold += n->gold_drop;
             send_text_to_client(c->sock, "[SYSTEM] You have collected %d gold coins!", n->gold_drop);
+            send_combat_event(c->sock, COMBAT_EV_GOLD, c->entity_id, n->gold_drop);
             npc_set_active(n, false);
         } else if (n->archetype == ARCH_TREASURE) {
             if (n->ghost_loot[0].stack_count > 0) {

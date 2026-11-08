@@ -27,6 +27,7 @@
  * with N = FCT_MAX_ENTRIES (64). Linear scan with early-exit.*/
 
 #include "client_fct.h"
+#include "protocol.h"
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -145,96 +146,49 @@ void fct_update(float dt) {
 }
 
 /* ----------------------------------------------------------------
- * fct_parse_log — Parses the messages from the server and generates FCTs.
+ * fct_combat_event — Floating text for a MSG_COMBAT_EVENT.
  *
- * The recognized patterns (as currently sent by the server) are:
- *   ... [+C elem) = N ...] ...             → FCT_DAMAGE_OUT
- *   > BLOOD! A devastating blow ...        → FCT_CRITICAL
- *   [COMBAT] You take N damage!            → FCT_DAMAGE
- *   [COMBAT] ... missed you!               → FCT_MISS (enemy misses)
- *   > Missed... the attack bounces off...  → FCT_MISS (player misses)
- *   [LEVEL] *** YOU HAVE RISE TO LEVEL N *** → FCT_LEVELUP
- *   [SYSTEM] Collect a stack of N gold coins! → FCT_GOLD
- *   [MAGIC] ...: Recover N HP              → FCT_HEAL
+ * The server states what happened (protocol.h, CombatEventKind); the
+ * client no longer guesses it from the wording of MSG_TEXT lines, which
+ * broke whenever a message was reworded or translated.
  *
- * Coordinates are always (0,0) = on the player, since the world is
- * centered on the player in the renderer.
+ * Coordinates are relative to the player (the renderer centers the world
+ * on the player): (0,0) on the player, (0,-1) just in front for the
+ * damage the player deals.
  * ---------------------------------------------------------------- */
-void fct_parse_log(const char *log_line) {
-    if (!log_line) {
-        return;
-    }
-
+void fct_combat_event(int kind, int amount) {
     char buf[FCT_TEXT_LEN];
-
-    /*--- Damage dealt to enemy ---*/
-    const char *p = strstr(log_line, "elem) = ");
-    if (p) {
-        int val = atoi(p + 8);
-        if (val > 0) {
-            snprintf(buf, FCT_TEXT_LEN, "-%d", val);
-            /* Check if it is a critical hit */
-            if (strstr(log_line, "BLOOD!")) {
-                fct_spawn(FCT_CRITICAL, 0.0f, -1.0f, buf);
-            }
-            else {
-                fct_spawn(FCT_DAMAGE_OUT, 0.0f, -1.0f, buf);
-            }
-            return;
-        }
-    }
-
-    /*--- Damage suffered by the player ---*/
-    p = strstr(log_line, "You take ");
-    if (p) {
-        int val = atoi(p + 9);
-        if (val > 0) {
-            snprintf(buf, FCT_TEXT_LEN, "-%d", val);
-            fct_spawn(FCT_DAMAGE, 0.0f, 0.0f, buf);
-            return;
-        }
-    }
-
-    /*--- Missed shot (enemy misses player) ---*/
-    if (strstr(log_line, "missed you")) {
+    switch (kind) {
+    case COMBAT_EV_DAMAGE_TAKEN:
+        snprintf(buf, sizeof(buf), "-%d", amount);
+        fct_spawn(FCT_DAMAGE, 0.0f, 0.0f, buf);
+        break;
+    case COMBAT_EV_DAMAGE_DEALT:
+        snprintf(buf, sizeof(buf), "-%d", amount);
+        fct_spawn(FCT_DAMAGE_OUT, 0.0f, -1.0f, buf);
+        break;
+    case COMBAT_EV_CRITICAL:
+        snprintf(buf, sizeof(buf), "-%d", amount);
+        fct_spawn(FCT_CRITICAL, 0.0f, -1.0f, buf);
+        break;
+    case COMBAT_EV_MISS_TAKEN:
         fct_spawn(FCT_MISS, 0.0f, 0.0f, "MISS");
-        return;
-    }
-
-    /*--- Missed shot (player misses enemy) ---*/
-    if (strstr(log_line, "Missed...")) {
+        break;
+    case COMBAT_EV_MISS_DEALT:
         fct_spawn(FCT_MISS, 0.0f, -1.0f, "MISS");
-        return;
-    }
-
-    /* --- Level Up --- */
-    if (strstr(log_line, "YOU HAVE RISE TO LEVEL")) {
+        break;
+    case COMBAT_EV_HEAL:
+        snprintf(buf, sizeof(buf), "+%d", amount);
+        fct_spawn(FCT_HEAL, 0.0f, 0.0f, buf);
+        break;
+    case COMBAT_EV_GOLD:
+        snprintf(buf, sizeof(buf), "+%d gp", amount);
+        fct_spawn(FCT_GOLD, 0.0f, 0.0f, buf);
+        break;
+    case COMBAT_EV_LEVEL_UP:
         fct_spawn(FCT_LEVELUP, 0.0f, 0.0f, "LEVEL UP!");
-        return;
-    }
-
-    /*--- Gold collected ---*/
-    p = strstr(log_line, "Collect a stack of ");
-    if (!p) {
-        p = strstr(log_line, "You have collected ");
-    }
-    if (p) {
-        int val = atoi(p + 19);
-        if (val > 0) {
-            snprintf(buf, FCT_TEXT_LEN, "+%d gp", val);
-            fct_spawn(FCT_GOLD, 0.0f, 0.0f, buf);
-            return;
-        }
-    }
-
-    /* --- Healing --- */
-    p = strstr(log_line, "Recover ");
-    if (p) {
-        int val = atoi(p + 8);
-        if (val > 0) {
-            snprintf(buf, FCT_TEXT_LEN, "+%d", val);
-            fct_spawn(FCT_HEAL, 0.0f, 0.0f, buf);
-            return;
-        }
+        break;
+    default:
+        break;
     }
 }

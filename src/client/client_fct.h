@@ -65,8 +65,8 @@ typedef struct {
 /*Global array of FCTs — read by renderers*/
 extern FloatingText g_fct[FCT_MAX_ENTRIES];
 
-/*THREADING (B1): the pool is shared by the NET thread (fct_parse_log →
- * fct_spawn, called from net_thread.c on MSG_TEXT) and the GL RENDER
+/*THREADING (B1): the pool is shared by the NET thread (fct_combat_event →
+ * fct_spawn, called from net_thread.c on MSG_COMBAT_EVENT) and the GL RENDER
  * thread (fct_update + draw_floating_combat_text). It used to be touched
  * with no synchronization (TSan-flaggable). RULE: every access to g_fct[]
  * — spawn, update OR draw — must hold g_fct_mutex (fct_spawn/fct_update
@@ -88,9 +88,9 @@ void fct_spawn(FctType type, float wx, float wz, const char *text);
 void fct_update(float dt);
 
 /**
- * fct_parse_log — Parse a server log line to generate
- * automatically appropriate FCTs.
- * @param log_line The text line received from the server.*/
-void fct_parse_log(const char *log_line);
+ * fct_combat_event — Floating text for a MSG_COMBAT_EVENT.
+ * @param kind   CombatEventKind (protocol.h); unknown kinds are ignored.
+ * @param amount HP, gold or level, depending on the kind.*/
+void fct_combat_event(int kind, int amount);
 
 #endif /* CLIENT_FCT_H */

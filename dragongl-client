@@ -26,7 +26,7 @@ show_help() {
     echo "  gl            Start with OpenGL backend (Legacy)"
     echo "  vk            Start with Vulkan backend (Modern)"
     echo -e "\nConnection (optional, skips the interactive prompt):"
-    echo "  server_ip     IP/hostname of the game server (default 127.0.0.1)"
+    echo "  server_ip     host name, IPv4 or IPv6 address of the server (default 127.0.0.1)"
     echo "  port          TCP port of the game server (default 8080)"
     echo -e "\nExample:"
     echo "  $0 gl 192.168.1.10 9000"

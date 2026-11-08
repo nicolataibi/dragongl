@@ -46,14 +46,15 @@ To protect server resources and player accounts from unauthorized access:
 3. **Dungeon Master Account** (optional):
    - Administrative commands (`dm_*`) require authenticating as the reserved user `dm` with a dedicated password, kept only as an Argon2id hash.
    - Without a DM password the account is disabled.
-4. **Where secrets come from:** a file (`--password-file`, `--dm-password-file`; a warning is printed if it is readable by group/others) or the environment (`DRAGONGL_SERVER_PASSWORD`, `DRAGONGL_DM_PASSWORD`). Command-line passwords are refused, because every local user can read them with `ps`. The server wipes the environment values in place at start-up, so they disappear from `/proc/<pid>/environ`. Server secrets have 8-31 printable ASCII characters without spaces.
+4. **Where secrets come from:** a file (`--password-file`, `--dm-password-file`; a warning is printed if it is readable by group/others) or the environment (`DRAGONGL_SERVER_PASSWORD`, `DRAGONGL_DM_PASSWORD`). Command-line passwords are refused, because every local user can read them with `ps`. The server wipes the environment values in place at start-up, so they disappear from `/proc/<pid>/environ`. Server secrets have 8-63 printable ASCII characters without spaces.
 5. **Transport:** the protocol is not encrypted. Passwords travel in clear over TCP: run the server on a trusted LAN, or behind a VPN or TLS tunnel.
 6. **Off the game loop:** Argon2id (verification, or hashing for a new character) and the reading of the save run in a login worker thread (`src/server/login_worker.c`); the game keeps ticking while a login is checked. The plaintext password exists only in the worker's job and is wiped after use. While a login is being checked, its character name counts as online, so two connections cannot create or load the same character at once. The per-address limits below still bound how much hashing one address can request.
 
 ### B. Network Framing & Buffer Bounds
-- **Strict Packet Bounds:** All network messages begin with a 12-byte `MsgHeader` containing an explicit `length` field and `PROTOCOL_VERSION`.
-- **String Sanitization:** Text buffers (`username`, `password`, `cmd`, `text`) are constrained to fixed boundaries (32 to 256 bytes) and guaranteed NUL-terminated upon receipt.
-- **Protocol Version Lock:** Any packet arriving with an unexpected `version` is rejected immediately, disconnecting out-of-date or malformed clients before memory allocation occurs.
+- **Explicit encoding:** every message is serialized field by field, little-endian, by one module shared by server and client (`src/shared/wire.c`); no struct is sent or received as raw memory. Each frame starts with an 8-byte header (version, type, payload length).
+- **Strict decoding:** the length is checked against the limit of the message type before any payload byte is read (256 bytes for anything a client may send); then the payload must decode exactly. Strings are length-prefixed and a string longer than its field (31 bytes for names, 63 for passwords, 255 for commands) is a protocol error, as are trailing bytes, out-of-range counts, enums, coordinates and tile values. The peer is disconnected.
+- **Protocol Version Lock:** any frame with an unexpected `version` is rejected at once, so out-of-date clients fail with a clear message.
+- **Client side:** the client applies the same strict decoding to what the server sends (map chunk sizes and tiles, entity batch counts), ends the session with the reason on any malformed frame, and detects a vanished server with TCP keepalive.
 
 Text commands are stripped of control characters (bytes below 0x20 and 0x7F) before they reach the game, so chat and private messages cannot carry terminal escape sequences to other players. The RNG seed is not logged.
 

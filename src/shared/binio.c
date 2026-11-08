@@ -59,6 +59,11 @@ void bw_free(BinWriter *w) {
     memset(w, 0, sizeof(*w));
 }
 
+void bw_reset(BinWriter *w) {
+    w->len = 0;
+    w->failed = false;
+}
+
 void bw_bytes(BinWriter *w, const void *p, size_t n) {
     if (w->failed || n == 0)
         return;
@@ -143,6 +148,16 @@ void br_bytes(BinReader *r, void *out, size_t n) {
     }
     memcpy(out, r->data + r->pos, n);
     r->pos += n;
+}
+
+const uint8_t *br_view(BinReader *r, size_t n) {
+    if (r->failed || n > r->len - r->pos) {
+        r->failed = true;
+        return NULL;
+    }
+    const uint8_t *p = r->data + r->pos;
+    r->pos += n;
+    return p;
 }
 
 uint8_t br_u8(BinReader *r) {

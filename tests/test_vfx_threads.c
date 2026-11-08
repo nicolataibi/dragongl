@@ -22,13 +22,13 @@
  * FCT pools (B1).
  *
  * In the client, the NET thread spawns (spawn_vfx on MSG_SPELL_VFX,
- * fct_parse_log on MSG_TEXT) while the RENDER thread updates and reads
+ * fct_combat_event on MSG_COMBAT_EVENT) while the RENDER thread updates and reads
  * (particles_update / fct_update + the per-backend draw passes). Before
  * the fix the two threads touched g_particles[] / g_fct[] with no
  * synchronization at all (ThreadSanitizer-flaggable).
  *
  * This test hammers the REAL production pools from two threads:
- *   - "net" thread:    spawn_vfx() (all 5 types) + fct_parse_log()
+ *   - "net" thread:    spawn_vfx() (all 5 types) + fct_combat_event()
  *   - "render" thread: particles_update() + fct_update() + draw-side
  *                      scans that read every field the renderers read
  *                      and DEACTIVATE out-of-range particles exactly
@@ -54,6 +54,7 @@
 #include <math.h>
 #include "client_particles.h"
 #include "client_fct.h"
+#include "protocol.h"
 
 #define RUN_SECONDS 2
 
@@ -76,9 +77,9 @@ static void *net_thread(void *arg) {
     while (!g_stop) {
         spawn_vfx(type, 0.0f, 0.0f, 3.0f, 4.0f, 1.0f, 0.5f, 0.2f);
         type = (type + 1) % 5;
-        fct_parse_log("[COMBAT] You take 7 damage!");
-        fct_parse_log("> BLOOD! A devastating blow: (+C fire elem) = 12");
-        fct_parse_log("random chatter, no FCT expected in this line");
+        fct_combat_event(COMBAT_EV_DAMAGE_TAKEN, 7);
+        fct_combat_event(COMBAT_EV_CRITICAL, 12);
+        fct_combat_event(0, 0); /* unknown kind: no FCT */
         usleep(100); /*~10k spawn rounds/s — plenty of contention*/
     }
     return NULL;

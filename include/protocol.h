@@ -20,106 +20,100 @@
 #ifndef PROTOCOL_H
 #define PROTOCOL_H
 
+/*
+ * Wire protocol, version 4.
+ *
+ * The structs below are the IN-MEMORY form of each message. None of them
+ * is ever sent as raw bytes: src/shared/wire.c encodes and decodes every
+ * message field by field, little-endian, with explicit widths, so the
+ * format depends neither on the compiler's struct layout nor on the host
+ * byte order. See PROTOCOL.md for the byte-level description.
+ *
+ * Frame:  u16 version | u16 type | u32 payload length | payload
+ *
+ * Strings travel as u8 length + bytes (no NUL); a length that does not
+ * fit the receiving field is a protocol error. A payload must be consumed
+ * exactly: trailing bytes are an error too.
+ */
+
 #include <stdint.h>
 #include "map.h"
 
-typedef uint32_t MsgType;
-#define MSG_LOGIN      1
-#define MSG_WELCOME    2
-#define MSG_MOVE       3
-#define MSG_STATE      4
-#define MSG_MAP_CHUNK  5
-#define MSG_TEXT_CMD   6
-#define MSG_TEXT       7
-#define MSG_AUTH_FAIL  8
-#define MSG_SPELL_VFX  9
-#define MSG_TOMBSTONE_REMOVE 10
-#define MSG_TIME_SYNC 11
-#define MSG_ENTITY_UPDATE 12
+typedef uint16_t MsgType;
+#define MSG_LOGIN            1  /* C -> S */
+#define MSG_WELCOME          2  /* S -> C */
+#define MSG_MOVE             3  /* C -> S */
+#define MSG_STATE            4  /* S -> C */
+#define MSG_MAP_CHUNK        5  /* S -> C */
+#define MSG_TEXT_CMD         6  /* C -> S */
+#define MSG_TEXT             7  /* S -> C */
+#define MSG_AUTH_FAIL        8  /* S -> C */
+#define MSG_SPELL_VFX        9  /* S -> C */
+#define MSG_TOMBSTONE_REMOVE 10 /* S -> C */
+#define MSG_TIME_SYNC        11 /* S -> C */
+#define MSG_ENTITY_UPDATE    12 /* S -> C */
+#define MSG_COMBAT_EVENT     13 /* S -> C */
 
-/*Bumped whenever the wire format changes. Both ends REJECT any other
- * value, so an old client and a new server fail fast with a clear
- * protocol error instead of silently desynchronizing the stream.
- * v2: EntityUpdateRec.hp widened to int32_t (boss HP on deep floors
- * exceeded the old int16_t and showed up as random HP on clients).
- * v3: MsgMapChunk start/width/height narrowed from int32_t to int16_t
- * (a 300x300 grid fits in 16 bits with room to spare: 8-byte chunk
- * header instead of 16).*/
-#define PROTOCOL_VERSION 3
+/*Both ends reject any other value: an old client and a new server fail
+ * at the first message with a clear error instead of misreading it.
+ * v4: explicit serialization (wire.c), 8-byte header, length-prefixed
+ * strings, 64-byte credential fields, MSG_COMBAT_EVENT.*/
+#define PROTOCOL_VERSION 4
 
+#define WIRE_HEADER_SIZE 8
+/*Largest payload either side accepts (a map chunk is the biggest
+ * message: 8 + 256*256 tile bytes).*/
+#define WIRE_MAX_PAYLOAD (72u * 1024u)
+/*Largest payload a client may send (MSG_LOGIN): the server's receive
+ * buffer is sized from it.*/
+#define WIRE_MAX_CLIENT_PAYLOAD 256u
+
+/*Decoded frame header.*/
 typedef struct {
+    uint16_t version;
     MsgType type;
-    int length;
-    uint16_t version;  /*PROTOCOL_VERSION on every header*/
-    uint16_t reserved; /*must be 0*/
+    uint32_t length; /*payload bytes after the header*/
 } MsgHeader;
 
-/*Builds a correctly-versioned header. Every send site MUST use this
- * (a hand-written {type, len} initializer would leave version = 0 and
- * the peer would reject the message).*/
-static inline MsgHeader msg_hdr(MsgType type, int length) {
-    MsgHeader h;
-    h.type     = type;
-    h.length   = length;
-    h.version  = PROTOCOL_VERSION;
-    h.reserved = 0;
-    return h;
-}
+/*Text field sizes, NUL included (the wire carries at most size-1 bytes).*/
+#define PROTO_NAME_LEN     32  /* username, equipment and item names */
+#define PROTO_SECRET_LEN   64  /* personal and server passwords */
+#define PROTO_TEXT_LEN     256 /* MSG_TEXT, MSG_TEXT_CMD */
+#define PROTO_REASON_LEN   128 /* MSG_AUTH_FAIL */
 
-/*One compact entity record inside a MsgEntityUpdate payload.
- * Sent only for entities the client has ALREADY received a full
- * MsgState for (the server tracks that per client), so the client
- * can update position/HP without the ~1.5 KB full state message.
- * hp is int32_t (NOT int16_t): boss HP is hp_base*5 + floor*50, which
- * passes 32767 on deep floors with big JSON templates — the old
- * int16_t wrapped and clients drew random HP bars. The layout stays
- * 12 bytes (no padding: 4 + 2 + 2 + 4, hp 4-aligned at offset 8).*/
+/*MSG_LOGIN. Creation fields (race..alignment) are used only when the
+ * character does not exist yet; the ability scores are rolled by the
+ * server.*/
 typedef struct {
-    int   entity_id;
-    int16_t x;
-    int16_t y;
-    int32_t hp;
-} EntityUpdateRec; /*12 bytes: the payload is [int32 count][EntityUpdateRec count]*/
-
-/*Sent by the client at login.
-   If is_new_char == 1: The client wants to create a new character.
-   race_id and class_id are used for creation only.*/
-typedef struct {
-    char username[32];
-    char password[32];
-    char server_pass[32];
-    int  race_id;       /* RaceType  */
-    int  subrace_id;    /* SubraceType */
-    int  class_id;      /* ClassType */
-    int  is_new_char;   /*1 = request for new character*/
-    int  str, dex, con, intel, wis, cha;
-    int  age, height, weight, social_class, alignment;
+    char username[PROTO_NAME_LEN];
+    char password[PROTO_SECRET_LEN];
+    char server_pass[PROTO_SECRET_LEN];
+    int race_id;    /* RaceType, -> i8 */
+    int subrace_id; /* SubraceType or -1, -> i8 */
+    int class_id;   /* ClassType, -> i8 */
+    int alignment;  /* -> i8 */
 } MsgLogin;
 
-/*Sent by the server after successful authentication.*/
+/*MSG_WELCOME: the login succeeded.*/
 typedef struct {
     int entity_id;
-    int x;
-    int y;
-    int success;    /* 1 = OK, 0 = fallito */
-    int is_new;     /*1 = new character created*/
-    int hp;
-    int max_hp;
+    int x, y;
+    int is_new; /*1 = the character was just created*/
+    int hp, max_hp;
     uint64_t gold;
-    int race_id;
-    int subrace_id;
-    int class_id;
+    int race_id, subrace_id, class_id;
     int level;
     int alignment;
 } MsgWelcome;
 
+/*MSG_MOVE: one step, dx and dy in -1..1 (-> i8 each).*/
 typedef struct {
-    int entity_id;
     int dx;
     int dy;
-    int dz;
 } MsgMove;
 
+/*MSG_STATE: the full sheet of the player's own character, or the
+ * identity of another entity the client has not seen yet.*/
 typedef struct {
     uint64_t gold;
     int entity_id;
@@ -128,37 +122,37 @@ typedef struct {
     int game_hour, game_min, total_turns;
     int str, dex, con, intel, wis, cha;
     float movement_cooldown;
-    int equipped_mask; 
+    int equipped_mask;
     int level;
     int xp;
     int vision_radius;
     int ac;
-    uint32_t status_icons; //Bitmask for status icons
-    char weapon_name[32];
-    char armor_name[32];
+    uint32_t status_icons; /*bitmask of status icons*/
+    char weapon_name[PROTO_NAME_LEN];
+    char armor_name[PROTO_NAME_LEN];
     int to_hit;
     int to_dmg;
-    uint32_t bosses_defeated; // bitmask for 10 bosses
+    uint32_t bosses_defeated; /*bitmask for 10 bosses*/
     int hunger_level;
     int spell_slots[10];
     int spell_slots_max[10];
-    char eq_head[32];
-    char eq_neck[32];
-    char eq_body[32];
-    char eq_back[32];
-    char eq_hand_r[32];
-    char eq_hand_l[32];
-    char eq_hands[32];
-    char eq_arm_r[32];
-    char eq_arm_l[32];
-    char eq_feet[32];
-    char eq_ring[10][32];
-    char eq_belt[4][32];
-    int  is_merchant;   /*1 = entity is a merchant*/
-    int  shop_spec;    /*MerchantSpecialization of the shop (SHOP_SPEC_NONE if not a merchant)*/
-    int  is_tombstone;  /*1 = entity is a tombstone*/
-    int  is_player;
-    char username[32];
+    char eq_head[PROTO_NAME_LEN];
+    char eq_neck[PROTO_NAME_LEN];
+    char eq_body[PROTO_NAME_LEN];
+    char eq_back[PROTO_NAME_LEN];
+    char eq_hand_r[PROTO_NAME_LEN];
+    char eq_hand_l[PROTO_NAME_LEN];
+    char eq_hands[PROTO_NAME_LEN];
+    char eq_arm_r[PROTO_NAME_LEN];
+    char eq_arm_l[PROTO_NAME_LEN];
+    char eq_feet[PROTO_NAME_LEN];
+    char eq_ring[10][PROTO_NAME_LEN];
+    char eq_belt[4][PROTO_NAME_LEN];
+    int is_merchant;  /*1 = entity is a merchant*/
+    int shop_spec;    /*MerchantSpecialization (SHOP_SPEC_NONE if not a merchant)*/
+    int is_tombstone; /*1 = entity is a tombstone*/
+    int is_player;
+    char username[PROTO_NAME_LEN];
 } MsgState;
 
 /* Values for MsgState.shop_spec - they must match the
@@ -168,46 +162,52 @@ typedef struct {
 #define SHOP_SPEC_NONE          (-1)
 #define SHOP_SPEC_BOOKS_MARTIAL 11
 
-/*Sent by the server when a tombstone is removed (item recovery)*/
+/*MSG_ENTITY_UPDATE carries u16 count + count records: position and HP of
+ * entities the client already received a full MSG_STATE for.*/
 typedef struct {
-    int entity_id; /*ID of the tombstone to remove*/
+    int32_t entity_id;
+    int16_t x;
+    int16_t y;
+    int32_t hp;
+} EntityUpdateRec;
+#define WIRE_ENTITY_REC_SIZE 12
+#define WIRE_MAX_ENTITY_RECS 4096
+
+/*MSG_TOMBSTONE_REMOVE: a tombstone was emptied.*/
+typedef struct {
+    int entity_id;
 } MsgTombstoneRemove;
 
-/*Map chunk descriptor. int16_t is enough (L8): coordinates and
- * dimensions are bounded by MAP_WIDTH/MAP_HEIGHT (300), so 16 bits
- * carry them with margin and the header shrinks from 16 to 8 bytes
- * per chunk. (Changed layout => PROTOCOL_VERSION bumped to 3.)*/
+/*MSG_MAP_CHUNK: a rectangle of the floor, followed by width*height tile
+ * bytes (row by row) that stay in the payload buffer.*/
 typedef struct {
     int16_t start_x;
     int16_t start_y;
     int16_t width;
     int16_t height;
 } MsgMapChunk;
+#define WIRE_MAX_CHUNK_SIDE 256
 
 typedef struct {
-    char cmd[256];
+    char cmd[PROTO_TEXT_LEN];
 } MsgTextCmd;
 
 typedef struct {
-    char text[256];
+    char text[PROTO_TEXT_LEN];
 } MsgText;
 
-/*Sent by the server when authentication fails.
-   The reason field explains the reason.*/
+/*MSG_AUTH_FAIL: why the login (or the connection) was refused.*/
 typedef struct {
-    char reason[128];
+    char reason[PROTO_REASON_LEN];
 } MsgAuthFail;
 
-
+/*MSG_SPELL_VFX: a spell effect to draw. The colour travels as 8-bit
+ * channels.*/
 typedef struct {
-    int start_x;
-    int start_y;
-    int target_x;
-    int target_y;
+    int start_x, start_y;
+    int target_x, target_y;
     int vfx_type;
-    float color_r;
-    float color_g;
-    float color_b;
+    float color_r, color_g, color_b; /* 0..1 */
 } MsgSpellVFX;
 
 typedef struct {
@@ -216,5 +216,26 @@ typedef struct {
     int total_turns;
 } MsgTimeSync;
 
-#endif // PROTOCOL_H
+/*MSG_COMBAT_EVENT: what the floating combat text shows. It used to be
+ * guessed by matching the English wording of MSG_TEXT lines; now the
+ * server says it. entity_id is the entity the number belongs to (the
+ * player, or the monster that was hit), 0 if none.*/
+typedef enum {
+    COMBAT_EV_DAMAGE_TAKEN = 1, /* the player lost `amount` HP */
+    COMBAT_EV_DAMAGE_DEALT = 2, /* the player hit a monster for `amount` */
+    COMBAT_EV_CRITICAL     = 3, /* ... with a critical hit */
+    COMBAT_EV_MISS_TAKEN   = 4, /* a monster missed the player */
+    COMBAT_EV_MISS_DEALT   = 5, /* the player missed */
+    COMBAT_EV_HEAL         = 6, /* the player recovered `amount` HP */
+    COMBAT_EV_GOLD         = 7, /* the player picked up `amount` gold */
+    COMBAT_EV_LEVEL_UP     = 8, /* the player reached level `amount` */
+    COMBAT_EV_MAX          = 8
+} CombatEventKind;
 
+typedef struct {
+    int kind; /* CombatEventKind, -> u8 */
+    int entity_id;
+    int amount;
+} MsgCombatEvent;
+
+#endif // PROTOCOL_H

@@ -29,6 +29,7 @@
 #include "render_gl.h"
 #include "render_vk.h"
 #include "protocol.h"
+#include "wire.h"
 #include "rules.h"
 #include "species.h"
 #include "classes.h"
@@ -106,33 +107,41 @@ extern void* net_thread_loop(void* arg);
 extern void* cli_thread_loop(void* arg);
 extern void render_gl_start(void);
 
+/*Send one encoded frame. A failed send means the connection is gone:
+ * the session ends (the network thread may not notice a dead peer until
+ * TCP gives up).*/
+static void send_frame(BinWriter *w) {
+    bool ok = !w->failed && w->len > 0;
+    if (ok) {
+        pthread_mutex_lock(&g_net_mutex);
+        ok = net_send(g_server_sock, w->data, (int)w->len);
+        pthread_mutex_unlock(&g_net_mutex);
+    }
+    bw_free(w);
+    if (!ok && g_running) {
+        printf("\n[NET] Cannot send to the server: connection lost.\n");
+        g_running = false;
+    }
+}
+
 void client_send_move(int dx, int dy) {
-    MsgHeader hdr = msg_hdr(MSG_MOVE, (int)sizeof(MsgMove));
-    MsgMove msg_move;
-    
     if (g_my_entity_id == -1) return;
-    
-    msg_move.entity_id = g_my_entity_id;
-    msg_move.dx = dx;
-    msg_move.dy = dy;
-    
-    pthread_mutex_lock(&g_net_mutex);
-    net_send(g_server_sock, &hdr, sizeof(MsgHeader));
-    net_send(g_server_sock, &msg_move, sizeof(MsgMove));
-    pthread_mutex_unlock(&g_net_mutex);
+    MsgMove m = {dx, dy};
+    BinWriter w;
+    bw_init(&w);
+    if (wire_put_move(&w, &m))
+        send_frame(&w);
+    else
+        bw_free(&w);
 }
 
 void client_send_text_cmd(const char *cmd) {
-    MsgHeader hdr = msg_hdr(MSG_TEXT_CMD, (int)sizeof(MsgTextCmd));
-    MsgTextCmd msg_cmd;
-    
-    memset(&msg_cmd, 0, sizeof(msg_cmd));
-    strncpy(msg_cmd.cmd, cmd, sizeof(msg_cmd.cmd) - 1);
-    
-    pthread_mutex_lock(&g_net_mutex);
-    net_send(g_server_sock, &hdr, sizeof(MsgHeader));
-    net_send(g_server_sock, &msg_cmd, sizeof(MsgTextCmd));
-    pthread_mutex_unlock(&g_net_mutex);
+    BinWriter w;
+    bw_init(&w);
+    if (wire_put_text_cmd(&w, cmd))
+        send_frame(&w);
+    else
+        bw_free(&w);
 }
 
 void client_log_add(const char *text) {
@@ -175,8 +184,9 @@ static void read_secret(const char *prompt, char *out, size_t out_len) {
         printf("\n");
     }
     memset(line, 0, sizeof(line));
-    if (strlen(out) > 31)
-        printf("Warning: only the first 31 characters are sent to the server.\n");
+    if (strlen(out) >= PROTO_SECRET_LEN)
+        printf("Warning: only the first %d characters are sent to the server.\n",
+               PROTO_SECRET_LEN - 1);
 }
 
 int main(int argc, char **argv) {
@@ -194,11 +204,13 @@ int main(int argc, char **argv) {
             g_local_map[y][x] = VOXEL_ROCK;
 
     if (argc < 2) {
-        printf("Usage: %s [gl|vk] [server_ip] [port]\n", argv[0]);
+        printf("Usage: %s [gl|vk] [server_host] [port]\n"
+               "server_host: a host name, an IPv4 or an IPv6 address (default 127.0.0.1)\n",
+               argv[0]);
         return 1;
     }
 
-    char server_ip[64] = "127.0.0.1";
+    char server_ip[256] = "127.0.0.1";
     int server_port = 8080;
     bool ip_from_arg = false;
     if (argc >= 3 && argv[2][0] != '\0') {
@@ -211,9 +223,9 @@ int main(int argc, char **argv) {
             server_port = p;
     }
 
-    char server_pass[64] = "";
-    char username[32] = "";
-    char password[32] = "";
+    char server_pass[128] = "";
+    char username[PROTO_NAME_LEN] = "";
+    char password[128] = "";
     int is_new = 0;
     int race_id = 0;
     int class_id = 0;
@@ -223,9 +235,9 @@ int main(int argc, char **argv) {
     if (ip_from_arg) {
         printf("Server IP: %s (from command line)\n", server_ip);
     } else {
-        printf("Server IP [%s]: ", server_ip);
+        printf("Server host [%s]: ", server_ip);
         if (fgets(buf, sizeof(buf), stdin) && buf[0] != '\n') {
-            sscanf(buf, "%63s", server_ip);
+            sscanf(buf, "%127s", server_ip);
         }
     }
     read_secret("Server Password: ", server_pass, sizeof(server_pass));
@@ -363,39 +375,44 @@ int main(int argc, char **argv) {
     }
 
 
-    printf("Connecting to server %s:%d...\n", server_ip, server_port);
-    g_server_sock = net_connect_to_server(server_ip, server_port);
-    
+    printf("Connecting to server %s port %d...\n", server_ip, server_port);
+    char why[160];
+    g_server_sock = net_connect_to_server(server_ip, server_port, 5000, why, sizeof(why));
     if (g_server_sock < 0) {
-        printf("Connection error.\n");
+        printf("Connection error: %s\n", why);
         return 1;
     }
-    
+
     {
-        MsgHeader login_hdr = msg_hdr(MSG_LOGIN, (int)sizeof(MsgLogin));
-        MsgLogin msg_log;
-        memset(&msg_log, 0, sizeof(msg_log));
-        copy_str(msg_log.username, username, sizeof(msg_log.username));
-        copy_str(msg_log.password, password, sizeof(msg_log.password));
-        copy_str(msg_log.server_pass, server_pass, sizeof(msg_log.server_pass));
-        msg_log.is_new_char = is_new;
-        msg_log.race_id = race_id;
-        msg_log.subrace_id = g_subrace_id;
-        msg_log.class_id = class_id;
-        /*Stats are rolled server-side (M9): send zeros - the
-        * server ignores them for new characters and never
-        * reads them for existing ones.*/
-        msg_log.str = 0; msg_log.dex = 0; msg_log.con = 0;
-        msg_log.intel = 0; msg_log.wis = 0; msg_log.cha = 0;
-        msg_log.age = final_age; msg_log.height = final_height; msg_log.weight = final_weight;
-        msg_log.social_class = final_social; msg_log.alignment = g_alignment;
+        MsgLogin ml;
+        memset(&ml, 0, sizeof(ml));
+        copy_str(ml.username, username, sizeof(ml.username));
+        copy_str(ml.password, password, sizeof(ml.password));
+        copy_str(ml.server_pass, server_pass, sizeof(ml.server_pass));
+        /*Creation fields: used by the server only if the character does
+         * not exist yet (the ability scores are rolled by the server).*/
+        ml.race_id = race_id;
+        ml.subrace_id = g_subrace_id;
+        ml.class_id = class_id;
+        ml.alignment = g_alignment;
         g_race_id = race_id;
         g_class_id = class_id;
-        
-        net_send(g_server_sock, &login_hdr, sizeof(MsgHeader));
-        net_send(g_server_sock, &msg_log, sizeof(MsgLogin));
+        BinWriter w;
+        bw_init(&w);
+        bool ok = wire_put_login(&w, &ml) && net_send(g_server_sock, w.data, (int)w.len);
+        if (w.data)
+            memset(w.data, 0, w.cap); /* the frame holds the passwords */
+        bw_free(&w);
+        memset(&ml, 0, sizeof(ml));
+        memset(password, 0, sizeof(password));
+        memset(server_pass, 0, sizeof(server_pass));
+        if (!ok) {
+            printf("Connection error: cannot send the login.\n");
+            net_close(g_server_sock);
+            return 1;
+        }
     }
-    
+
     net_set_nonblocking(g_server_sock);
     
     pthread_create(&net_thread, NULL, net_thread_loop, NULL);

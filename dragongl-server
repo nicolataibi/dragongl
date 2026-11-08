@@ -42,7 +42,7 @@ Options:
 Without --password-file the launcher uses DRAGONGL_SERVER_PASSWORD, or asks
 for the password when run from a terminal. The DM account is enabled only
 when a DM password is given (--dm-password-file, DRAGONGL_DM_PASSWORD or the
-interactive prompt). Passwords: 8-31 printable ASCII characters, no spaces.
+interactive prompt). Passwords: 8-63 printable ASCII characters, no spaces.
 
 Examples:
   ${0##*/}

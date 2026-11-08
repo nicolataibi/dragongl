@@ -169,7 +169,7 @@ The server manages world state, NPC AI, combat resolution, and multiplayer synch
 ./dragongl-server --password-file server.pw --data-dir ./data
 ```
 
-Passwords are never accepted on the command line: they come from files, from `DRAGONGL_SERVER_PASSWORD` / `DRAGONGL_DM_PASSWORD`, or from the interactive prompt. Each one has 8-31 printable ASCII characters without spaces. Without a DM password the `dm` account is disabled.
+Passwords are never accepted on the command line: they come from files, from `DRAGONGL_SERVER_PASSWORD` / `DRAGONGL_DM_PASSWORD`, or from the interactive prompt. Each one has 8-63 printable ASCII characters without spaces. Without a DM password the `dm` account is disabled.
 
 *Data directory resolution order:* `--data-dir` argument -> `./data` (local development) -> `/usr/share/dragongl/data` (system RPM install).
 

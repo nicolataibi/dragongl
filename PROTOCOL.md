@@ -1,109 +1,104 @@
 # Dragon GL — Network Protocol Specification
 
-This document defines the binary client-server network protocol of Dragon GL, as implemented in `include/protocol.h`, `src/server/server_net.c`, and `src/client/net_client.c`.
+This document defines the binary client-server protocol of Dragon GL. The in-memory message structs live in `include/protocol.h`; the encoding is implemented once, in `src/shared/wire.c` (`include/wire.h`), and used by both the server (`src/server/server_net.c`, `src/server/server_conn.c`) and the client (`src/client/net_thread.c`, `src/client/main_client.c`).
 
-Current protocol version: **`PROTOCOL_VERSION 3`**.
+Current protocol version: **`PROTOCOL_VERSION 4`**.
 
 ---
 
 ## 1. Transport & Framing
 
-- **Transport:** Standard TCP stream. Default port: **8080** (configurable with `-P` or `--port`).
-- **Endianness:** Host byte order (little-endian on supported x86_64 architectures).
-- **Packet Structure:** Every message sent across the network begins with a standard 12-byte header (`MsgHeader`), followed immediately by the payload:
+- **Transport:** TCP. Default port **8080** (`-P` / `--port`). The server listens on every address, IPv6 and IPv4 (dual-stack socket; IPv4 only on hosts without IPv6). The client resolves a host name, an IPv4 or an IPv6 address with `getaddrinfo()` and tries every address, 5 s each.
+- **Encoding:** every field is written explicitly, little-endian, with the width given below. No struct is ever sent as raw memory, so the format does not depend on the compiler, the struct padding or the host byte order.
+- **Frame:** an 8-byte header followed by the payload.
 
-```c
-typedef struct {
-    uint32_t type;      /* MsgType identifier */
-    int32_t  length;    /* Payload length in bytes (excluding this header) */
-    uint16_t version;   /* PROTOCOL_VERSION (currently 3) */
-    uint16_t reserved;  /* Must be 0 */
-} MsgHeader;
-```
+| Offset | Size | Field |
+|---:|---:|:---|
+| 0 | 2 | `version` — `PROTOCOL_VERSION` (4) |
+| 2 | 2 | `type` — message type (table below) |
+| 4 | 4 | `length` — payload bytes after the header |
 
-> **Protocol Versioning:** When the wire format changes, `PROTOCOL_VERSION` is incremented. Both server and client immediately reject packets with mismatched versions to prevent stream corruption.
+- **Strings:** `u8 length` followed by that many bytes, no NUL. Each string has a field size (NUL included) on the receiving side; a longer string is a protocol error, never silently truncated.
+- **Strictness:** a payload must decode completely and be consumed exactly. Wrong version, a type the peer may not send, a length above the limit for its type, a truncated payload, trailing bytes, an out-of-range count, enum, coordinate or tile value: the receiver closes the connection.
+- **Limits:** a client payload is at most 256 bytes (`WIRE_MAX_CLIENT_PAYLOAD`); a server payload at most 72 KiB (a 256×256 map chunk).
+
+> **Versioning:** any change to the wire format increments `PROTOCOL_VERSION`. Both ends reject any other version at the first frame, so mismatched builds fail with a clear message instead of misreading the stream.
 
 ---
 
 ## 2. Message Types
 
-| Value | Identifier | Direction | Payload Structure | Description |
+| Value | Identifier | Direction | Payload | Description |
 |:---:|:---|:---:|:---|:---|
-| `1` | `MSG_LOGIN` | C → S | `MsgLogin` | Client authentication or new character registration |
-| `2` | `MSG_WELCOME` | S → C | `MsgWelcome` | Successful login confirmation and initial character stats |
-| `3` | `MSG_MOVE` | C → S | `MsgMove` | Directional movement vector `(dx, dy, dz)` |
-| `4` | `MSG_STATE` | S → C | `MsgState` | Full entity/player status snapshot (stats, gear, HP, icons) |
-| `5` | `MSG_MAP_CHUNK`| S → C | `MsgMapChunk` + voxels | Voxel terrain chunk data |
-| `6` | `MSG_TEXT_CMD` | C → S | `MsgTextCmd` | Player console command string |
-| `7` | `MSG_TEXT` | S → C | `MsgText` | Server text output, chat message, or combat log feedback |
-| `8` | `MSG_AUTH_FAIL`| S → C | `MsgAuthFail` | Authentication error message |
-| `9` | `MSG_SPELL_VFX`| S → C | `MsgSpellVFX` | Dynamic visual effect dispatch (particles, AoE burst) |
-| `10`| `MSG_TOMBSTONE_REMOVE` | S → C | `MsgTombstoneRemove`| Notifies client that a death tombstone was looted/removed |
-| `11`| `MSG_TIME_SYNC`| S → C | `MsgTimeSync` | Synchronizes in-game clock, turn counter, and day/night cycle |
-| `12`| `MSG_ENTITY_UPDATE` | S → C | `int32 count` + `EntityUpdateRec[]` | Lightweight position and HP deltas for tracked entities |
+| `1` | `MSG_LOGIN` | C → S | see 3.1 | Authentication, and the creation choices of a new character |
+| `2` | `MSG_WELCOME` | S → C | 37 bytes | Login accepted: entity id, position, vital stats |
+| `3` | `MSG_MOVE` | C → S | 2 bytes | One step `(dx, dy)` |
+| `4` | `MSG_STATE` | S → C | variable | Full character sheet, or the identity of an entity seen for the first time |
+| `5` | `MSG_MAP_CHUNK` | S → C | 8 + w·h bytes | A rectangle of floor tiles |
+| `6` | `MSG_TEXT_CMD` | C → S | string (255) | Console command |
+| `7` | `MSG_TEXT` | S → C | string (255) | Console output, chat, combat log |
+| `8` | `MSG_AUTH_FAIL` | S → C | string (127) | Why the login or the connection was refused |
+| `9` | `MSG_SPELL_VFX` | S → C | 12 bytes | Spell visual effect |
+| `10` | `MSG_TOMBSTONE_REMOVE` | S → C | 4 bytes | A tombstone was emptied |
+| `11` | `MSG_TIME_SYNC` | S → C | 6 bytes | Game clock |
+| `12` | `MSG_ENTITY_UPDATE` | S → C | 2 + 12·n bytes | Position and HP of entities already known to the client |
+| `13` | `MSG_COMBAT_EVENT` | S → C | 9 bytes | What the floating combat text shows |
 
 ---
 
 ## 3. Message Payloads
 
-### `MSG_LOGIN` (Client → Server)
-Carries credentials and initial character roll parameters:
-- `char username[32]`: Character name (or `"dm"` for administrator).
-- `char password[32]`: Personal character password (hashed on server).
-- `char server_pass[32]`: Gate access password for server admission.
-- `int race_id, subrace_id, class_id`: Lineage and profession identifiers.
-- `int is_new_char`: `1` if creating a new character, `0` for existing.
-- `int str, dex, con, intel, wis, cha`: Core d20 attribute rolls.
-- `int age, height, weight, social_class, alignment`: Roleplay characteristics.
+Notation: `i8 i16 i32` signed, `u8 u16 u32 u64` unsigned, `bool` one byte 0/1, `f32` IEEE-754 bits, `str(N)` a string of at most N bytes.
 
-### `MSG_WELCOME` (Server → Client)
-Returned when authentication succeeds:
-- `int entity_id`: Assigned network entity ID for the player.
-- `int x, y`: Starting coordinates on the floor.
-- `int success`: `1` if authenticated, `0` on error.
-- `int is_new`: `1` if character was newly initialized in the database.
-- `int hp, max_hp, level`: Character vital stats.
-- `uint64_t gold`: Starting currency.
+### 3.1 `MSG_LOGIN` (Client → Server)
+| Field | Type | Notes |
+|:---|:---|:---|
+| `username` | `str(31)` | `[A-Za-z0-9_]{1,16}`, or `dm` for the Dungeon Master |
+| `password` | `str(63)` | Personal password (1-63 printable characters), verified with Argon2id |
+| `server_pass` | `str(63)` | Server access password (8-63 characters) |
+| `race_id`, `subrace_id`, `class_id`, `alignment` | `i8` × 4 | Used only when the character does not exist yet (`subrace_id` -1 = none) |
 
-### `MSG_MOVE` (Client → Server)
-Relative step request:
-- `int entity_id`: Player entity ID.
-- `int dx, dy, dz`: Delta offsets (`-1, 0, 1`).
+The ability scores of a new character are rolled by the server.
 
-### `MSG_STATE` (Server → Client)
-Comprehensive state update containing full character sheet information:
-- Player position `(x, y)`, `floor_id`, `hp`, `max_hp`, `ac`, `level`, `xp`, `gold`.
-- Attributes: `str, dex, con, intel, wis, cha`, `to_hit`, `to_dmg`.
-- `uint32_t status_icons`: Active condition bitmask (Burning, Poisoned, Bleeding, etc.).
-- `uint32_t bosses_defeated`: Bitmask indicating which 10-floor bosses have been defeated (illuminating HUD trophies).
-- `int hunger_level`: Current vitality and starvation index.
-- `int spell_slots[10]`, `spell_slots_max[10]`: Available grimoire slots.
-- Equipment strings: `eq_head`, `eq_neck`, `eq_body`, `eq_back`, `eq_hand_r`, `eq_hand_l`, `eq_hands`, `eq_arm_r`, `eq_arm_l`, `eq_feet`, `eq_ring[10]`, `eq_belt[4]`.
+### 3.2 `MSG_WELCOME` (Server → Client)
+`i32 entity_id`, `i32 x`, `i32 y`, `bool is_new`, `i32 hp`, `i32 max_hp`, `u64 gold`, `i8 race_id`, `i8 subrace_id`, `i8 class_id`, `i32 level`, `i8 alignment`.
 
-### `MSG_ENTITY_UPDATE` (Server → Client)
-Lightweight delta packet sent to update visible monsters and nearby adventurers without the overhead of full `MsgState` messages:
-- `int32_t count`: Number of entity delta records.
-- Followed by array of `EntityUpdateRec` (12 bytes each):
-  ```c
-  typedef struct {
-      int32_t entity_id;
-      int16_t x;
-      int16_t y;
-      int32_t hp;
-  } EntityUpdateRec;
-  ```
+### 3.3 `MSG_MOVE` (Client → Server)
+`i8 dx`, `i8 dy`, each in -1..1.
 
-### `MSG_MAP_CHUNK` (Server → Client)
-Transmits procedural voxel maps to the client:
-- Header: `int16_t start_x, start_y, width, height` (8 bytes).
-- Payload: `uint8_t voxels[width * height]` raw voxel index grid.
+### 3.4 `MSG_STATE` (Server → Client)
+In order: `u64 gold`; `i32` entity_id, x, y, hp, max_hp, floor_id, game_hour, game_min, total_turns, str, dex, con, intel, wis, cha; `f32 movement_cooldown`; `i32` equipped_mask, level, xp, vision_radius, ac; `u32 status_icons`; `str(31)` weapon_name, armor_name; `i32` to_hit, to_dmg; `u32 bosses_defeated`; `i32 hunger_level`; `i32 spell_slots[10]`; `i32 spell_slots_max[10]`; `str(31)` × 24 for the equipment (head, neck, body, back, right hand, left hand, hands, right arm, left arm, feet, 10 rings, 4 belt slots); `bool is_merchant`; `i8 shop_spec`; `bool is_tombstone`; `bool is_player`; `str(31) username`.
 
-### `MSG_SPELL_VFX` (Server → Client)
-Dispatches visual particle effects:
-- `int start_x, start_y`: Origin coordinates.
-- `int target_x, target_y`: Impact / explosion coordinates.
-- `int vfx_type`: Projectile (`0`), Explosion (`1`), or Aura (`2`).
-- `float color_r, color_g, color_b`: Normalized RGB color for particle rendering.
+A state with `hp <= 0` for another entity removes it from the client (it died or left the floor).
+
+### 3.5 `MSG_MAP_CHUNK` (Server → Client)
+`i16 start_x`, `i16 start_y`, `i16 width`, `i16 height`, then `width × height` tile bytes, row by row. Width and height are 1..256, the rectangle lies inside the 300×300 map and every tile is a valid `VoxelType` (below `VOXEL_COUNT`).
+
+### 3.6 `MSG_ENTITY_UPDATE` (Server → Client)
+`u16 count` (1..4096), then `count` records of 12 bytes: `i32 entity_id`, `i16 x`, `i16 y`, `i32 hp`. Only entities the client already received a `MSG_STATE` for; unknown ids are ignored.
+
+### 3.7 `MSG_TEXT`, `MSG_TEXT_CMD`, `MSG_AUTH_FAIL`
+One string each: `str(255)`, `str(255)`, `str(127)`. The server replaces control characters in commands with spaces before they reach the game.
+
+### 3.8 `MSG_SPELL_VFX` (Server → Client)
+`i16 start_x`, `i16 start_y`, `i16 target_x`, `i16 target_y`, `u8 vfx_type` (projectile 0, explosion 1, aura 2, ...), `u8 r`, `u8 g`, `u8 b` (colour, 0-255).
+
+### 3.9 `MSG_TOMBSTONE_REMOVE`, `MSG_TIME_SYNC`
+`i32 entity_id` (a tombstone id, negative). `u8 game_hour` (0-23), `u8 game_min` (0-59), `i32 total_turns`.
+
+### 3.10 `MSG_COMBAT_EVENT` (Server → Client)
+`u8 kind`, `i32 entity_id`, `i32 amount`. The client draws floating combat text from these events; it used to guess them by matching the English wording of `MSG_TEXT` lines.
+
+| `kind` | Meaning | `amount` |
+|:---:|:---|:---|
+| 1 | The player took damage | HP lost |
+| 2 | The player hit a monster (`entity_id`) | damage |
+| 3 | Critical hit on a monster | damage |
+| 4 | A monster missed the player | 0 |
+| 5 | The player missed | 0 |
+| 6 | The player recovered HP | HP |
+| 7 | The player picked up gold | gold |
+| 8 | Level up | new level |
 
 ---
 
@@ -150,6 +145,6 @@ The server never waits on a single connection: input is buffered per client and 
 | Silent peer (no traffic, no FIN) | TCP keepalive: 60 s idle, 3 probes 10 s apart | connection closed, character saved and released |
 | Unsent output queued for one client | 2 MiB | client disconnected (it is not reading) |
 
-Any of the following closes the connection: a header with a wrong `version`, a non-zero `reserved` field, a type a client may not send, a `length` different from the exact payload size of its type, `MSG_MOVE` or `MSG_TEXT_CMD` before `MSG_LOGIN`, a second `MSG_LOGIN` on an authenticated session.
+Any of the following closes the connection: a header with a wrong `version`, a type a client may not send, a `length` above the limit of its type, a payload that does not decode exactly (see section 1), `MSG_MOVE` or `MSG_TEXT_CMD` before `MSG_LOGIN`, a second `MSG_LOGIN` on an authenticated session.
 
 The password check of a `MSG_LOGIN` runs in a worker thread, so `MSG_WELCOME` (or `MSG_AUTH_FAIL`) may take a few tens of milliseconds. Messages a client sends after `MSG_LOGIN` and before the answer are kept and handled, in order, once the login succeeds; nothing is read from the socket in between.

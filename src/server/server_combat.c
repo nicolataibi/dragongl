@@ -167,13 +167,15 @@ void perform_attack(Client *c, NPC *t, NPC *npcs) {
     if (is_crit) {
       send_text_to_client(c->sock,
                           "> BLOOD! A devastating blow [%dd%d: %d %+d (+%d elem) = %d"
-                          "danni]! (HP: %d/%d)",
+                          " damage]! (HP: %d/%d)",
                           dc, ds, roll_d, mod_d, element_d, d, t->hp, t->max_hp);
     } else {
       send_text_to_client(c->sock,
-                          "  > Colpito! [%dd%d: %d %+d (+%d elem) = %d danni] (HP: %d/%d)",
+                          "  > Hit! [%dd%d: %d %+d (+%d elem) = %d damage] (HP: %d/%d)",
                           dc, ds, roll_d, mod_d, element_d, d, t->hp, t->max_hp);
     }
+    send_combat_event(c->sock, is_crit ? COMBAT_EV_CRITICAL : COMBAT_EV_DAMAGE_DEALT,
+                      t->entity_id, d);
     clog_attack(c->username, npc_name(t), roll_v, ctx.final_value, t->ac,
                 true, is_crit, d);
     //===== COMBAT WEAR =====
@@ -259,6 +261,7 @@ void perform_attack(Client *c, NPC *t, NPC *npcs) {
                         "> Missed... the attack bounces off the armor of"
                         " %s, leaving not even a scratch.",
                         npc_name(t));
+    send_combat_event(c->sock, COMBAT_EV_MISS_DEALT, t->entity_id, 0);
   }
 }
 
@@ -343,6 +346,7 @@ void perform_attack_npc(NPC *n, Client *c, NPC *npcs) {
     d = rules_calculate_damage(d, d_mod);
     c->hp -= d;
     send_text_to_client(c->sock, "[COMBAT] You take %d damage!", d);
+    send_combat_event(c->sock, COMBAT_EV_DAMAGE_TAKEN, c->entity_id, d);
     clog_attack(npc_name(n), c->username, roll_v, n_bonus, p_ac, true,
                 is_crit, d);
     if (c->slot_body.template_idx != -1) {
@@ -360,6 +364,7 @@ void perform_attack_npc(NPC *n, Client *c, NPC *npcs) {
                 false, 0);
     send_text_to_client(c->sock, "[COMBAT] %s missed you!",
                         npc_name(n));
+    send_combat_event(c->sock, COMBAT_EV_MISS_TAKEN, c->entity_id, 0);
   }
 }
 

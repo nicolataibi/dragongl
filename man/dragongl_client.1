@@ -1,4 +1,4 @@
-.TH DRAGONGL_CLIENT 1 "2026-09-06" "DragonGL 2026.09.04.02" "User Commands"
+.TH DRAGONGL_CLIENT 1 "2026-11-08" "DragonGL 2026.11.08.10" "User Commands"
 .SH NAME
 dragongl_client \- Dragon GL 3D game client
 .SH SYNOPSIS
@@ -16,13 +16,18 @@ equipment, boss trophies, AR compass).
 Unless
 .I server_ip
 is given on the command line, after selecting the backend the client
-interactively prompts for the server IP address (default: 127.0.0.1), the
+interactively prompts for the server host (default: 127.0.0.1), the
 server password, and the player credentials; new players are then asked to
 choose race and class.
 
 The client does not generate a local world at startup: the map is received
 from the server in chunks (MSG_MAP_CHUNK), so starting up is fast even
 before the first tile is known.
+
+When the server closes the connection, stops answering (TCP keepalive,
+about 90 s) or sends a message the client cannot decode, the client prints
+the reason and exits. Server and client must speak the same protocol
+version.
 .SH ARGUMENTS
 .TP
 .B gl
@@ -34,8 +39,9 @@ via SPIR-V shaders.
 .TP
 .I server_ip
 (optional)
-IP address or hostname of the game server. When present, the interactive
-"Server IP" prompt is skipped (convenient for remote/SSH sessions).
+Host name, IPv4 or IPv6 address of the game server (every address the
+name resolves to is tried, 5 s each). When present, the interactive
+"Server host" prompt is skipped (convenient for remote/SSH sessions).
 .TP
 .I port
 (optional)

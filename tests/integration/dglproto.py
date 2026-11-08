@@ -1,9 +1,10 @@
 # Dragon GL - Copyright (C) 2026 Nicola Taibi
 # License: GPL-3.0-or-later
-"""Minimal client for the Dragon GL wire protocol (PROTOCOL_VERSION 3).
+"""Minimal client for the Dragon GL wire protocol (PROTOCOL_VERSION 4).
 
-Used only by the integration tests. Layouts mirror include/protocol.h on
-x86-64 / AArch64 Linux (little-endian, 4-byte int).
+Used only by the integration tests; mirrors src/shared/wire.c (frames of
+u16 version, u16 type, u32 length, little-endian payloads, strings as u8
+length + bytes).
 """
 
 import select
@@ -11,7 +12,7 @@ import socket
 import struct
 import time
 
-PROTOCOL_VERSION = 3
+PROTOCOL_VERSION = 4
 
 MSG_LOGIN = 1
 MSG_WELCOME = 2
@@ -21,32 +22,43 @@ MSG_MAP_CHUNK = 5
 MSG_TEXT_CMD = 6
 MSG_TEXT = 7
 MSG_AUTH_FAIL = 8
+MSG_COMBAT_EVENT = 13
 
-HEADER = struct.Struct("<IiHH")  # type, length, version, reserved
-LOGIN_SIZE = 156
-MOVE_SIZE = 16
-TEXT_CMD_SIZE = 256
+HEADER = struct.Struct("<HHI")  # version, type, length
 
 
-def header(msg_type, length):
-    return HEADER.pack(msg_type, length, PROTOCOL_VERSION, 0)
+def header(msg_type, length, version=PROTOCOL_VERSION):
+    return HEADER.pack(version, msg_type, length)
 
 
-def _cstr(text, size):
-    raw = text.encode()
-    if len(raw) >= size:
-        raise ValueError("string too long for a %d-byte field" % size)
-    return raw.ljust(size, b"\0")
+def lstr(text, cap):
+    """u8 length + bytes; the receiving field holds cap-1 bytes."""
+    raw = text.encode() if isinstance(text, str) else bytes(text)
+    if len(raw) > 255:
+        raise ValueError("string too long for the wire")
+    return bytes([len(raw)]) + raw
+
+
+def frame(msg_type, payload):
+    return header(msg_type, len(payload)) + payload
 
 
 def login_payload(username, password, server_pass, race=0, char_class=0):
-    payload = _cstr(username, 32) + _cstr(password, 32) + _cstr(server_pass, 32)
-    # race, subrace, class, is_new_char, str..cha, age, height, weight,
-    # social_class, alignment
-    payload += struct.pack("<15i", race, -1, char_class, 1,
-                           0, 0, 0, 0, 0, 0, 20, 170, 70, 50, 0)
-    assert len(payload) == LOGIN_SIZE
-    return payload
+    return (lstr(username, 32) + lstr(password, 64) + lstr(server_pass, 64) +
+            struct.pack("<4b", race, -1, char_class, 0))
+
+
+def text_cmd_payload(text):
+    return lstr(text, 256)
+
+
+def move_payload(dx, dy):
+    return struct.pack("<2b", dx, dy)
+
+
+def _read_str(payload, off):
+    n = payload[off]
+    return payload[off + 1:off + 1 + n].decode(errors="replace"), off + 1 + n
 
 
 class Client:
@@ -61,22 +73,20 @@ class Client:
         self.entity_id = None
         self.position = None  # (x, y) from MSG_WELCOME / own MSG_STATE
         self.closed_by_peer = False
+        self.combat_events = []  # (kind, entity_id, amount)
 
     # --- sending ---------------------------------------------------------
     def login(self, username, password, server_pass):
-        payload = login_payload(username, password, server_pass)
-        self.sock.sendall(header(MSG_LOGIN, len(payload)) + payload)
+        self.sock.sendall(frame(MSG_LOGIN, login_payload(username, password, server_pass)))
 
     def move(self, dx, dy):
-        payload = struct.pack("<4i", self.entity_id or 0, dx, dy, 0)
-        self.sock.sendall(header(MSG_MOVE, MOVE_SIZE) + payload)
+        self.sock.sendall(frame(MSG_MOVE, move_payload(dx, dy)))
 
     def send_raw(self, data):
         self.sock.sendall(data)
 
     def command(self, text):
-        payload = _cstr(text, TEXT_CMD_SIZE)
-        self.sock.sendall(header(MSG_TEXT_CMD, len(payload)) + payload)
+        self.sock.sendall(frame(MSG_TEXT_CMD, text_cmd_payload(text)))
 
     def close(self):
         try:
@@ -137,7 +147,7 @@ class Client:
 
     def _decode(self):
         while len(self._buf) >= HEADER.size:
-            msg_type, length, _version, _ = HEADER.unpack_from(self._buf)
+            _version, msg_type, length = HEADER.unpack_from(self._buf)
             if len(self._buf) < HEADER.size + length:
                 return
             payload = self._buf[HEADER.size:HEADER.size + length]
@@ -147,11 +157,14 @@ class Client:
                 self.entity_id, x, y = struct.unpack_from("<3i", payload)
                 self.position = (x, y)
             elif msg_type == MSG_STATE:
-                # MsgState: uint64 gold, then int entity_id, x, y
+                # u64 gold, then i32 entity_id, x, y
                 entity_id, x, y = struct.unpack_from("<3i", payload, 8)
                 if entity_id == self.entity_id:
                     self.position = (x, y)
             elif msg_type == MSG_TEXT:
-                self.texts.append(payload.split(b"\0", 1)[0].decode(errors="replace"))
+                self.texts.append(_read_str(payload, 0)[0])
             elif msg_type == MSG_AUTH_FAIL:
-                self.auth_fail.append(payload.split(b"\0", 1)[0].decode(errors="replace"))
+                self.auth_fail.append(_read_str(payload, 0)[0])
+            elif msg_type == MSG_COMBAT_EVENT:
+                kind, entity_id, amount = struct.unpack("<Bii", payload)
+                self.combat_events.append((kind, entity_id, amount))

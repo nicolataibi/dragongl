@@ -303,14 +303,14 @@ class ServerTest(unittest.TestCase):
 
     def test_messages_before_login_disconnect(self):
         rogue = self.connect()
-        rogue.send_raw(dglproto.header(dglproto.MSG_MOVE, dglproto.MOVE_SIZE) + bytes(16))
+        rogue.send_raw(dglproto.frame(dglproto.MSG_MOVE, dglproto.move_payload(1, 0)))
         self.assertIsNotNone(rogue.wait_until_closed(3), "MSG_MOVE before login accepted")
         self.assert_server_alive()
 
     def test_malformed_header_disconnects_only_the_sender(self):
         hero = self.player("hero")
         rogue = self.connect()
-        rogue.send_raw(dglproto.HEADER.pack(99, 1 << 30, 3, 0))
+        rogue.send_raw(dglproto.HEADER.pack(dglproto.PROTOCOL_VERSION, 99, 1 << 30))
         self.assertIsNotNone(rogue.wait_until_closed(3), "malformed header accepted")
         hero.texts.clear()
         hero.command("who")
@@ -565,8 +565,8 @@ class ServerTest(unittest.TestCase):
         """Two MSG_LOGIN back to back: the second waits behind the first,
         then arrives on an authenticated session and drops it."""
         c = self.connect()
-        payload = dglproto.login_payload("doubled", "pw", SERVER_PASS)
-        frame = dglproto.header(dglproto.MSG_LOGIN, len(payload)) + payload
+        frame = dglproto.frame(dglproto.MSG_LOGIN,
+                               dglproto.login_payload("doubled", "pw", SERVER_PASS))
         c.send_raw(frame + frame)
         self.assertIsNotNone(c.wait_until_closed(10), "second MSG_LOGIN accepted")
         self.login_retrying("doubled")
@@ -575,10 +575,9 @@ class ServerTest(unittest.TestCase):
         """A command sent right after MSG_LOGIN (before MSG_WELCOME) waits
         for the login to complete and is then executed."""
         c = self.connect()
-        payload = dglproto.login_payload("eager", "pw", SERVER_PASS)
-        cmd = dglproto._cstr("who", dglproto.TEXT_CMD_SIZE)
-        c.send_raw(dglproto.header(dglproto.MSG_LOGIN, len(payload)) + payload +
-                   dglproto.header(dglproto.MSG_TEXT_CMD, len(cmd)) + cmd)
+        c.send_raw(dglproto.frame(dglproto.MSG_LOGIN,
+                                  dglproto.login_payload("eager", "pw", SERVER_PASS)) +
+                   dglproto.frame(dglproto.MSG_TEXT_CMD, dglproto.text_cmd_payload("who")))
         self.assertTrue(c.wait_for_login(), c.auth_fail)
         self.assertIsNotNone(c.wait_for_text("[WHO]", 5), c.texts[-5:])
 
@@ -619,6 +618,73 @@ class ServerTest(unittest.TestCase):
         self.assertIsNotNone(done, "no completion notice")
         if "Generated PDF Map" in done:
             self.assertTrue(os.path.exists(self.state("maps", "map_floor_0.pdf")))
+
+    # --- protocol v4 (phase 4c) ------------------------------------------------
+    def test_older_protocol_version_is_refused(self):
+        old = self.connect()
+        old.send_raw(dglproto.header(dglproto.MSG_LOGIN, 4, version=3) + bytes(4))
+        self.assertIsNotNone(old.wait_until_closed(5), "a v3 frame was accepted")
+        self.assert_server_alive()
+
+    def test_oversized_string_in_login_disconnects(self):
+        """A string longer than its field is a protocol error, not
+        silently truncated."""
+        c = self.connect()
+        payload = (dglproto.lstr("x" * 40, 32) + dglproto.lstr("pw", 64) +
+                   dglproto.lstr(SERVER_PASS, 64) + bytes(4))
+        c.send_raw(dglproto.frame(dglproto.MSG_LOGIN, payload))
+        self.assertFalse(c.wait_for_login(3))
+        self.assertIsNotNone(c.wait_until_closed(5))
+        self.assertIn("malformed MSG_LOGIN", self.server.log_tail(50))
+
+    def test_trailing_bytes_disconnect(self):
+        hero = self.player("strict")
+        time.sleep(0.3)
+        hero.send_raw(dglproto.frame(dglproto.MSG_TEXT_CMD,
+                                     dglproto.text_cmd_payload("who") + b"!"))
+        self.assertIsNotNone(hero.wait_until_closed(5), "trailing bytes accepted")
+        self.assert_server_alive()
+
+    def test_long_passwords_are_accepted(self):
+        """64-byte credential fields: 63-character passwords work end to end."""
+        secret = "S" * 63
+        self.restart_server(env=server_env(gate=secret))
+        c = self.connect()
+        c.login("longpass", "p" * 63, secret)
+        self.assertTrue(c.wait_for_login(), c.auth_fail)
+        c.close()
+        time.sleep(0.3)
+        again = self.connect()
+        again.login("longpass", "p" * 62, secret)
+        self.assertFalse(again.wait_for_login(), "a different password was accepted")
+
+    def test_level_up_is_a_combat_event(self):
+        """Floating combat text comes from MSG_COMBAT_EVENT, not from the
+        wording of MSG_TEXT."""
+        dm = self.player("dm", password=DM_PASS)
+        time.sleep(0.3)
+        dm.command("dm_level 3")
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline and not dm.combat_events:
+            dm.pump(0.1)
+        self.assertIn((8, dm.entity_id, 2), dm.combat_events)  # COMBAT_EV_LEVEL_UP
+
+    def test_ipv4_clients_are_logged_as_ipv4(self):
+        """The listening socket is dual-stack: an IPv4 peer must still be
+        reported (and rate-limited) as a.b.c.d, not ::ffff:a.b.c.d."""
+        self.player("v4peer")
+        log = self.server.log_tail(80)
+        self.assertIn("from 127.0.0.1", log)
+        self.assertNotIn("::ffff:", log)
+
+    def test_ipv6_loopback(self):
+        try:
+            c = dglproto.Client(self.server.port, host="::1")
+        except OSError as e:
+            self.skipTest("no IPv6 loopback here: %s" % e)
+        self.clients.append(c)
+        c.login("sixer", "pw", SERVER_PASS)
+        self.assertTrue(c.wait_for_login(), c.auth_fail)
 
 if __name__ == "__main__":
     unittest.main()

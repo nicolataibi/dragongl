@@ -23,24 +23,17 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+/* Listening TCP socket on every local address (IPv6 dual-stack, or IPv4
+ * where IPv6 is unavailable); -1 on error. */
 int net_create_server(int port);
-int net_connect_to_server(const char *ip, int port);
+/* Connect to host (name, IPv4 or IPv6 address) within timeout_ms per
+ * address tried. The socket is non-blocking, close-on-exec, with TCP
+ * keepalive. Returns -1 with a reason in why on failure. */
+int net_connect_to_server(const char *host, int port, int timeout_ms, char *why,
+                          size_t why_len);
 void net_set_nonblocking(int sock);
+/* Send all len bytes; false if the peer is gone (or stays full ~2 s). */
 bool net_send(int sock, const void *data, int len);
-int net_receive(int sock, void *buffer, int max_len);
-int net_receive_all(int sock, void *buffer, int len);
-/*Read EXACTLY len bytes (no partial reads), waiting with short pauses for
- * up to ~5 s. Returns len on success, or:
- *   NET_RECV_CLOSED  the peer closed the connection;
- *   NET_RECV_IDLE    nothing arrived within the retry budget (try again);
- *   NET_RECV_ERROR   socket error, or the budget ran out after PART of the
- *                    data was consumed (the stream is no longer in sync).
- * Use it for protocol headers so a short recv() can never be mistaken for
- * a complete header.*/
-#define NET_RECV_CLOSED 0
-#define NET_RECV_IDLE (-1)
-#define NET_RECV_ERROR (-2)
-int net_receive_exact(int sock, void *buffer, int len);
 void net_close(int sock);
 
 /*Safe string copy that ALWAYS NUL-terminates: copies at most cap-1 chars

@@ -17,7 +17,7 @@ See [BUILD.md](BUILD.md) for dependencies and every `build.sh` option.
 ./dragongl-server --password-file server.pw    # first line of the file (chmod 600)
 ```
 
-Passwords: 8-31 printable ASCII characters, no spaces; they are never accepted on the command line. A Dungeon Master password (asked at start-up, or `--dm-password-file dm.pw`) enables the `dm` account. `--port <n>` changes the TCP port (default 8080).
+Passwords: 8-63 printable ASCII characters, no spaces; they are never accepted on the command line. A Dungeon Master password (asked at start-up, or `--dm-password-file dm.pw`) enables the `dm` account. `--port <n>` changes the TCP port (default 8080).
 
 ## 3. Start the client
 

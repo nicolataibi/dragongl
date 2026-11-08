@@ -38,6 +38,8 @@
 #ifndef DRAGONGL_AUTH_H
 #define DRAGONGL_AUTH_H
 
+#include "protocol.h"
+
 #include <stdbool.h>
 #include <stddef.h>
 
@@ -45,14 +47,14 @@
  * (crypto_pwhash_STRBYTES). */
 #define AUTH_HASH_LEN 128
 
-/* Server secrets: 8..31 printable, non-blank ASCII characters. 31 is the
- * room the client has in MsgLogin (32-byte fields). */
+/* Server secrets: 8..63 printable, non-blank ASCII characters. 63 is the
+ * room a password has in MsgLogin (PROTO_SECRET_LEN, NUL included). */
 #define AUTH_SECRET_MIN 8
-#define AUTH_SECRET_MAX 31
+#define AUTH_SECRET_MAX (PROTO_SECRET_LEN - 1)
 
 bool auth_init(void);
 
-/* Character passwords: 1..31 printable characters. */
+/* Character passwords: 1..63 printable characters. */
 bool auth_password_acceptable(const char *pwd);
 bool auth_hash_password(const char *pwd, char out[AUTH_HASH_LEN]);
 bool auth_verify_password(const char *stored_hash, const char *pwd);

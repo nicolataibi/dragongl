@@ -62,6 +62,8 @@ typedef struct {
 
 void bw_init(BinWriter *w);
 void bw_free(BinWriter *w);
+/* Empty the buffer but keep its memory (a writer reused for every send). */
+void bw_reset(BinWriter *w);
 void bw_bytes(BinWriter *w, const void *p, size_t n);
 void bw_u8(BinWriter *w, uint8_t v);
 void bw_u16(BinWriter *w, uint16_t v);
@@ -84,6 +86,8 @@ typedef struct {
 
 void br_init(BinReader *r, const void *data, size_t len);
 void br_bytes(BinReader *r, void *out, size_t n);
+/* The next n bytes in place (NULL, reader failed, if fewer remain). */
+const uint8_t *br_view(BinReader *r, size_t n);
 uint8_t br_u8(BinReader *r);
 uint16_t br_u16(BinReader *r);
 uint32_t br_u32(BinReader *r);

@@ -81,8 +81,8 @@ add_executable(test_pathfinding test_pathfinding.c ${DG_SRCS}/server/pathfinding
 target_link_libraries(test_pathfinding m)
 add_test(NAME pathfinding COMMAND test_pathfinding)
 
-# --- wire protocol layout invariants ---
-add_executable(test_protocol test_protocol.c)
+# --- wire protocol: encode/decode round trips and malformed payloads ---
+add_executable(test_protocol test_protocol.c ${DG_SRCS}/shared/wire.c ${DG_SRCS}/shared/binio.c)
 add_test(NAME protocol COMMAND test_protocol)
 
 # --- floating tome animation (shop bounds, random wander, rotation) ---

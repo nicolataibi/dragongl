@@ -501,21 +501,14 @@ bool tombstone_pickup(Client *c) {
         /*Broadcast MSG_TOMBSTONE_REMOVE to all clients on the same plane*/
 
         int tomb_entity_id = -(i + 1);
-        MsgHeader rm_hdr = msg_hdr(MSG_TOMBSTONE_REMOVE, (int)sizeof(MsgTombstoneRemove));
-        MsgTombstoneRemove rm_msg;
-        rm_msg.entity_id = tomb_entity_id;
         for (int ci = 0; ci < MAX_CLIENTS; ci++) {
-            if (!g_clients[ci].active) {
+            if (!g_clients[ci].active || !g_clients[ci].authenticated) {
                 continue;
             }
             if (g_clients[ci].floor_id != t->floor_id) {
                 continue;
             }
-            /*net_send_client: drop the client if the removal message
-             * cannot be delivered (a lost removal would leave a
-             * phantom tombstone on its screen — L2).*/
-            net_send_client(g_clients[ci].sock, &rm_hdr, sizeof(rm_hdr));
-            net_send_client(g_clients[ci].sock, &rm_msg, sizeof(rm_msg));
+            send_tombstone_remove(g_clients[ci].sock, tomb_entity_id);
         }
 
         send_text_to_client(c->sock,

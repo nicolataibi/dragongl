@@ -20,22 +20,56 @@
 #include "server_internal.h"
 #include "server_conn.h"
 #include "protocol.h"
+#include "wire.h"
 #include "map.h"
 #include "game.h"
 #include <string.h>
 #include <stdio.h>
 #include <stdarg.h>
 
+/*Every frame is encoded into this writer (the game loop is the only
+ * sender) and queued with a single net_send_client(); its memory is
+ * reused from one message to the next. A broadcast encodes once and
+ * queues the same bytes for every receiver.*/
+static BinWriter g_tx;
+
+static BinWriter *tx_frame(void) {
+  bw_reset(&g_tx);
+  return &g_tx;
+}
+
+static bool tx_send(int sock) {
+  return !g_tx.failed && g_tx.len > 0 && net_send_client(sock, g_tx.data, (int)g_tx.len);
+}
+
 void send_text_to_client(int sock, const char *fmt, ...) {
-  MsgHeader h = msg_hdr(MSG_TEXT, (int)sizeof(MsgText));
-  MsgText m;
-  memset(&m, 0, sizeof(m)); /*the bytes after the NUL go on the wire too*/
+  char text[PROTO_TEXT_LEN];
   va_list a;
   va_start(a, fmt);
-  vsnprintf(m.text, sizeof(m.text), fmt, a);
+  vsnprintf(text, sizeof(text), fmt, a);
   va_end(a);
-  net_send_client(sock, &h, sizeof(h));
-  net_send_client(sock, &m, sizeof(m));
+  if (wire_put_text(tx_frame(), text))
+    tx_send(sock);
+}
+
+void send_combat_event(int sock, int kind, int entity_id, int amount) {
+  MsgCombatEvent ev = {kind, entity_id, amount};
+  if (wire_put_combat_event(tx_frame(), &ev))
+    tx_send(sock);
+}
+
+bool send_welcome(int sock, const MsgWelcome *m) {
+  return wire_put_welcome(tx_frame(), m) && tx_send(sock);
+}
+
+void send_time_sync(int sock, const MsgTimeSync *m) {
+  if (wire_put_time_sync(tx_frame(), m))
+    tx_send(sock);
+}
+
+void send_tombstone_remove(int sock, int entity_id) {
+  if (wire_put_tombstone_remove(tx_frame(), entity_id))
+    tx_send(sock);
 }
 
 /*Queue a message for a client. Sends never block and never disconnect
@@ -53,17 +87,14 @@ bool net_send_client(int sock, const void *data, int len) {
 }
 
 void send_auth_fail(int sock, const char *reason) {
-  MsgHeader h = msg_hdr(MSG_AUTH_FAIL, (int)sizeof(MsgAuthFail));
-  MsgAuthFail m;
-  memset(&m, 0, sizeof(m));
-  copy_str(m.reason, reason, sizeof(m.reason));
-  net_send_client(sock, &h, sizeof(h));
-  net_send_client(sock, &m, sizeof(m));
+  if (wire_put_auth_fail(tx_frame(), reason))
+    tx_send(sock);
 }
 
 void send_map_chunk(int sock, Map *map, int cx, int cy, int size) {
-  MsgHeader h;
   MsgMapChunk mc;
+  if (size <= 0 || size > WIRE_MAX_CHUNK_SIDE || size > MAP_WIDTH || size > MAP_HEIGHT)
+    return;
   int sx = cx - size / 2, sy = cy - size / 2;
   if (sx < 0) {
     sx = 0;
@@ -81,23 +112,16 @@ void send_map_chunk(int sock, Map *map, int cx, int cy, int size) {
   mc.start_y = sy;
   mc.width = size;
   mc.height = size;
-  h = msg_hdr(MSG_MAP_CHUNK,
-              (int)(sizeof(mc) + (size_t)size * size * sizeof(VoxelType)));
-  VoxelType *buf = malloc(size * size * sizeof(VoxelType));
-  if (!buf)
-    return;
+  static uint8_t buf[WIRE_MAX_CHUNK_SIDE * WIRE_MAX_CHUNK_SIDE];
   int idx = 0;
   for (int iy = sy; iy < sy + size; iy++)
     for (int ix = sx; ix < sx + size; ix++)
-      buf[idx++] = map->data[0][iy][ix];
-  net_send_client(sock, &h, sizeof(h));
-  net_send_client(sock, &mc, sizeof(mc));
-  net_send_client(sock, buf, size * size * sizeof(VoxelType));
-  free(buf);
+      buf[idx++] = (uint8_t)map->data[0][iy][ix];
+  if (wire_put_map_chunk(tx_frame(), &mc, buf))
+    tx_send(sock);
 }
 
 void send_detailed_state(Client *c) {
-  MsgHeader h = msg_hdr(MSG_STATE, (int)sizeof(MsgState));
   MsgState s;
   memset(&s, 0, sizeof(s));
   s.entity_id = c->entity_id;
@@ -217,31 +241,21 @@ void send_detailed_state(Client *c) {
   }
   #undef SLOT_NAME
 
-  net_send_client(c->sock, &h, sizeof(h));
-  net_send_client(c->sock, &s, sizeof(s));
+  if (wire_put_state(tx_frame(), &s))
+    tx_send(c->sock);
 }
 
 void broadcast_spell_vfx(int sx, int sy, int tx, int ty, int vfx_type, float r, float g, float b, int floor_id) {
-    MsgHeader hdr = msg_hdr(MSG_SPELL_VFX, (int)sizeof(MsgSpellVFX));
-    
     MsgSpellVFX msg;
     msg.start_x = sx; msg.start_y = sy;
     msg.target_x = tx; msg.target_y = ty;
     msg.vfx_type = vfx_type;
     msg.color_r = r; msg.color_g = g; msg.color_b = b;
-    
+    if (!wire_put_spell_vfx(tx_frame(), &msg))
+        return;
     for (int i = 0; i < MAX_CLIENTS; i++) {
-        if (g_clients[i].active && g_clients[i].authenticated && g_clients[i].floor_id == floor_id) {
-            /*net_send_client() (NOT raw write()): on a non-blocking socket a
-             * partial write() desynced that client's whole protocol
-             * stream — every later message became garbage until the
-             * connection died. net_send loops until the full payload
-             * is queued; net_send_client additionally DROPS the client
-             * if the send fails (a message it never receives would
-             * leave it in a stale state — see net_send_client).*/
-            net_send_client(g_clients[i].sock, &hdr, sizeof(MsgHeader));
-            net_send_client(g_clients[i].sock, &msg, sizeof(MsgSpellVFX));
-        }
+        if (g_clients[i].active && g_clients[i].authenticated && g_clients[i].floor_id == floor_id)
+            tx_send(g_clients[i].sock);
     }
 }
 
@@ -303,7 +317,6 @@ static inline int client_seen_test(int ci, int npc_i) {
 /*Full MsgState for an NPC (used the first time the client sees it, when
  * it still needs the merchant/tombstone/identity fields).*/
 static void send_full_npc_state(int sock, const NPC *n) {
-  MsgHeader h = msg_hdr(MSG_STATE, (int)sizeof(MsgState));
   MsgState s;
   memset(&s, 0, sizeof(s));
   s.entity_id   = n->entity_id;
@@ -318,8 +331,8 @@ static void send_full_npc_state(int sock, const NPC *n) {
                     : SHOP_SPEC_NONE;
   s.is_tombstone = 0;
   s.is_player = 0;
-  net_send_client(sock, &h, sizeof(h));
-  net_send_client(sock, &s, sizeof(s));
+  if (wire_put_state(tx_frame(), &s))
+    tx_send(sock);
 }
 
 /*Full MsgState for a PLAYER (identity: username, is_player, hp/max_hp).
@@ -327,7 +340,6 @@ static void send_full_npc_state(int sock, const NPC *n) {
  * receives 12-byte EntityUpdateRec records (see broadcast_player_state
  * and the player section of broadcast_nearby_entities).*/
 static void send_full_player_state(int sock, const Client *p) {
-  MsgHeader h = msg_hdr(MSG_STATE, (int)sizeof(MsgState));
   MsgState s;
   memset(&s, 0, sizeof(s));
   s.entity_id   = p->entity_id;
@@ -341,20 +353,16 @@ static void send_full_player_state(int sock, const Client *p) {
   s.is_tombstone= 0;
   s.is_player   = 1;
   copy_str(s.username, p->username, sizeof(s.username));
-  net_send_client(sock, &h, sizeof(h));
-  net_send_client(sock, &s, sizeof(s));
+  if (wire_put_state(tx_frame(), &s))
+    tx_send(sock);
 }
 
-/*One header + [int32 count][records] instead of N header+MsgState pairs.
- * 100 known entities: ~150 KB (old way) -> ~1.2 KB.*/
+/*One frame with u16 count + 12-byte records instead of one MSG_STATE per
+ * entity (100 known entities: ~1.2 KB).*/
 static void flush_entity_batch(int sock, const EntityUpdateRec *recs, int count) {
   if (count <= 0) return;
-  MsgHeader h = msg_hdr(MSG_ENTITY_UPDATE,
-                        (int)(sizeof(int32_t) + (size_t)count * sizeof(EntityUpdateRec)));
-  int32_t cnt = count;
-  net_send_client(sock, &h, sizeof(h));
-  net_send_client(sock, &cnt, sizeof(cnt));
-  net_send_client(sock, recs, (size_t)count * sizeof(EntityUpdateRec));
+  if (wire_put_entity_update(tx_frame(), recs, count))
+    tx_send(sock);
 }
 
 void broadcast_nearby_entities(Client *c, NPC *npcs) {
@@ -422,7 +430,6 @@ void broadcast_nearby_entities(Client *c, NPC *npcs) {
       if (ddx * ddx + ddy * ddy > r2) continue;
     }
     int tomb_id = -(i + 1);
-    MsgHeader h = msg_hdr(MSG_STATE, (int)sizeof(MsgState));
     MsgState s;
     memset(&s, 0, sizeof(s));
     s.entity_id    = tomb_id;
@@ -435,8 +442,8 @@ void broadcast_nearby_entities(Client *c, NPC *npcs) {
     s.shop_spec    = SHOP_SPEC_NONE;
     s.is_tombstone = 1;
     s.is_player    = 0;
-    net_send_client(c->sock, &h, sizeof(h));
-    net_send_client(c->sock, &s, sizeof(s));
+    if (wire_put_state(tx_frame(), &s))
+      tx_send(c->sock);
   }
   
   /*--- Active Players on the same plane (L9: the same compact path as
@@ -470,7 +477,6 @@ void broadcast_nearby_entities(Client *c, NPC *npcs) {
 
 void notify_player_left_floor(Client *c, int old_floor) {
   int c_idx = (int)(c - g_clients); /*c is always a g_clients member*/
-  MsgHeader h = msg_hdr(MSG_STATE, (int)sizeof(MsgState));
   MsgState s;
   memset(&s, 0, sizeof(s));
   s.entity_id   = c->entity_id;
@@ -484,12 +490,12 @@ void notify_player_left_floor(Client *c, int old_floor) {
   s.is_tombstone= 0;
   s.is_player   = 1;
   copy_str(s.username, c->username, sizeof(s.username));
-  
+  if (!wire_put_state(tx_frame(), &s))
+    return;
   for (int i = 0; i < MAX_CLIENTS; i++) {
     if (g_clients[i].active && g_clients[i].authenticated && g_clients[i].floor_id == old_floor) {
       if (g_clients[i].entity_id == c->entity_id) continue;
-      net_send_client(g_clients[i].sock, &h, sizeof(h));
-      net_send_client(g_clients[i].sock, &s, sizeof(s));
+      tx_send(g_clients[i].sock);
       /*The receiver just lost this entity (hp<=0 removal): clear the
        * "seen" bit so the NEXT time the two players share a floor the
        * state is sent in FULL. A compact update for an id the client
@@ -506,7 +512,7 @@ void broadcast_player_state(Client *c) {
   if (c_idx < 0 || c_idx >= MAX_CLIENTS)
     return;
   /*Compact record for receivers that ALREADY know this player (L9).
-   * 24 bytes on the wire (8 header + 4 count + 12 record) instead of
+   * 22 bytes on the wire (8 header + 2 count + 12 record) instead of
    * the ~1.5 KB full MsgState the old code sent to every player on
    * the floor on every step.*/
   EntityUpdateRec rec;
