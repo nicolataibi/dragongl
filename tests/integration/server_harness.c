@@ -201,6 +201,56 @@ static int test_trade_offer_revalidated_on_accept(void) {
     return 0;
 }
 
+/* Control case: a plain exchange moves the item one way and the gold the
+ * other, and nothing is created or destroyed. */
+static int test_trade_moves_item_and_gold(void) {
+    Client *alice = make_player(0, "alice");
+    Client *bob = make_player(1, "bob");
+    CHECK(alice && bob, "socketpair failed");
+    give_item(alice, 0);
+    give_item(alice, 1);
+    int offered = alice->backpack[1].template_idx;
+    bob->gold = 500;
+
+    cmd(alice, "trade bob");
+    cmd(bob, "trade alice");
+    cmd(alice, "offer 0 2");
+    cmd(bob, "offer 300");
+    cmd(alice, "accept");
+    cmd(bob, "accept");
+
+    CHECK(alice->backpack_count == 1, "alice should keep 1 item, has %d", alice->backpack_count);
+    CHECK(bob->backpack_count == 1, "bob should have 1 item, has %d", bob->backpack_count);
+    CHECK(bob->backpack[0].template_idx == offered, "bob got the wrong item");
+    CHECK(alice->gold == 300 && bob->gold == 200, "gold not exchanged (alice %llu, bob %llu)",
+          (unsigned long long)alice->gold, (unsigned long long)bob->gold);
+    CHECK(alice->trading_with[0] == '\0' && bob->trading_with[0] == '\0', "trade not closed");
+    return 0;
+}
+
+/* A receiver with a full backpack: the trade is cancelled, nothing is
+ * overwritten (the old code replaced backpack slot 31). */
+static int test_trade_into_full_backpack_is_cancelled(void) {
+    Client *alice = make_player(0, "alice");
+    Client *bob = make_player(1, "bob");
+    CHECK(alice && bob, "socketpair failed");
+    give_item(alice, 2);
+    for (int i = 0; i < MAX_BACKPACK; i++)
+        give_item(bob, 3);
+    int last = bob->backpack[MAX_BACKPACK - 1].template_idx;
+
+    cmd(alice, "trade bob");
+    cmd(bob, "trade alice");
+    cmd(alice, "offer 0 1");
+    cmd(bob, "accept");
+    cmd(alice, "accept");
+
+    CHECK(alice->backpack_count == 1, "alice lost her item");
+    CHECK(bob->backpack_count == MAX_BACKPACK, "bob backpack_count %d", bob->backpack_count);
+    CHECK(bob->backpack[MAX_BACKPACK - 1].template_idx == last, "bob's last item was overwritten");
+    return 0;
+}
+
 /* --- Runner ------------------------------------------------------------ */
 
 typedef struct {
@@ -212,6 +262,8 @@ static const TestCase k_tests[] = {
     {"full_backpack_roundtrip", test_full_backpack_roundtrip},
     {"partial_backpack_roundtrip", test_partial_backpack_roundtrip},
     {"trade_offer_revalidated_on_accept", test_trade_offer_revalidated_on_accept},
+    {"trade_moves_item_and_gold", test_trade_moves_item_and_gold},
+    {"trade_into_full_backpack_is_cancelled", test_trade_into_full_backpack_is_cancelled},
 };
 
 int main(int argc, char **argv) {

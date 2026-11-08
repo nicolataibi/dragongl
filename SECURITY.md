@@ -58,6 +58,7 @@ To protect server resources and player accounts from unauthorized access:
 - **Login limits:** 10 s to authenticate after connecting; 5 failed logins within 60 s lock the address out for 60 s.
 - **Back-pressure:** A client that lets more than 2 MiB of output pile up is disconnected.
 - **Peer resets:** `SIGPIPE` is ignored and every send uses `MSG_NOSIGNAL`, so a connection closed by the peer is handled as an ordinary disconnect.
+- **One session per character:** a second login of a character already online is refused, so two sessions can never save the same character independently (item duplication). TCP keepalive releases the character of a client that vanished without closing the connection within about 90 s.
 - **Single disconnect path:** A connection with an error is only marked; the main loop removes it once per iteration (save, notify, close). A rejected login clears its authentication state first, so the reaper never saves a character whose password was wrong.
 
 ### D. Concurrency & Thread Safety

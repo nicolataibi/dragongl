@@ -39,6 +39,7 @@
 #include <ifaddrs.h>
 #include <math.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <sys/epoll.h>
 #include <signal.h>
 #include <stdarg.h>
@@ -1854,11 +1855,12 @@ int load_player_data(Client *c) {
   }
 
   /*Inventory: the item arrays are copied wholesale, but the COUNT must
-   * be in [0, MAX_BACKPACK) — otherwise the next pickup would write past
-   * backpack[32] in an ~8.5 KB struct.*/
+   * be in [0, MAX_BACKPACK]. MAX_BACKPACK itself is legal: it is a full
+   * backpack (every pickup checks for space before writing), and treating
+   * it as corrupt used to wipe the whole inventory on the next login.*/
   memcpy(c->backpack, sd.backpack, sizeof(sd.backpack));
   c->backpack_count = sd.backpack_count;
-  if (c->backpack_count < 0 || c->backpack_count >= MAX_BACKPACK) {
+  if (c->backpack_count < 0 || c->backpack_count > MAX_BACKPACK) {
     c->backpack_count = 0;
     save_corrupted = 1;
   }
@@ -2592,6 +2594,25 @@ static void peer_ip_string(const struct sockaddr_storage *ss, char *out,
     copy_str(out, "?", out_len);
 }
 
+static bool character_online(const Client *clients, const char *username) {
+  for (int i = 0; i < MAX_CLIENTS; i++)
+    if (clients[i].active && clients[i].authenticated &&
+        strcmp(clients[i].username, username) == 0)
+      return true;
+  return false;
+}
+
+/*TCP keepalive: a client that vanished without closing (power loss,
+ * dropped Wi-Fi) is detected after ~90 s, its slot freed and its
+ * character saved and released for the next login.*/
+static void enable_keepalive(int fd) {
+  int on = 1, idle = 60, interval = 10, count = 3;
+  setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &on, sizeof(on));
+  setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &idle, sizeof(idle));
+  setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &interval, sizeof(interval));
+  setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &count, sizeof(count));
+}
+
 static int pending_logins_from(const Client *clients, const char *ip) {
   int n = 0;
   for (int i = 0; i < MAX_CLIENTS; i++)
@@ -2614,6 +2635,7 @@ static void accept_pending_connections(int listen_fd, int epoll_fd,
     if (cs >= 0) {
       net_set_nonblocking(cs);
       fcntl(cs, F_SETFD, FD_CLOEXEC);
+      enable_keepalive(cs);
     }
     if (cs < 0) {
       if (errno == EINTR)
@@ -3094,6 +3116,14 @@ int main(int argc, char **argv) {
             //traversal vectors, so reject anything that doesn't match.
             if (!valid_username(ml.username)) {
                 reject_login(&clients[i], i, "Invalid username: use 1-16 chars (a-z, A-Z, 0-9, _).", false);
+                continue;
+            }
+
+            //One session per character: two sessions would load and save
+            //the same character independently (the last save wins), which
+            //duplicates items. The live session keeps the character.
+            if (character_online(clients, ml.username)) {
+                reject_login(&clients[i], i, "Character already online.", false);
                 continue;
             }
 

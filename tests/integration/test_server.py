@@ -10,9 +10,9 @@ Environment:
   DRAGONGL_SERVER  path of the server executable (set by CTest)
   DRAGONGL_DATA    path of the read-only JSON data directory
 
-Tests decorated with @unittest.expectedFailure reproduce a defect that is
-still open; the review id (P0-x / P1-x) is in the docstring. Remove the
-decorator in the same commit that fixes the defect.
+A test that reproduces a defect still open is decorated with
+@unittest.expectedFailure and carries the review id (P0-x / P1-x) in its
+docstring; remove the decorator in the same commit that fixes the defect.
 """
 
 import os
@@ -301,15 +301,22 @@ class ServerTest(unittest.TestCase):
         again = self.player("walker")
         self.assertEqual(again.position, here)
 
-    @unittest.expectedFailure
     def test_second_login_of_same_character_is_rejected(self):
         """P1-2: the same character must not be online twice (item
         duplication through independent saves)."""
-        self.player("twin")
+        first = self.player("twin")
         second = self.connect()
         second.login("twin", "pw", SERVER_PASS)
         self.assertFalse(second.wait_for_login(), "second session was accepted")
-        self.assertTrue(second.auth_fail, "no MSG_AUTH_FAIL for the second session")
+        self.assertTrue(any("already online" in r for r in second.auth_fail), second.auth_fail)
+        # The first session is untouched, and the character is free again
+        # once it leaves.
+        first.texts.clear()
+        first.command("who")
+        self.assertIsNotNone(first.wait_for_text("[WHO] 1 player(s) online", 5))
+        first.close()
+        time.sleep(1.0)
+        self.player("twin")
 
 
 if __name__ == "__main__":

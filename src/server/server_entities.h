@@ -178,6 +178,7 @@ typedef struct {
     char trading_with[32];           //Username of the player you are trading with
     bool trade_accepted;             //true if he accepted the trade
     int trade_offer_item_idx;        //Backpack index of the offered item (-1 = none)
+    ItemInstance trade_offer_item;   //Byte copy of that item when it was offered
     uint64_t trade_offer_gold;       //Gold offered
 
     /*--- Messaging: block list and anti-spam ---*/

@@ -146,6 +146,8 @@ The server never waits on a single connection: input is buffered per client and 
 | Unauthenticated connections from one address | 8 | new connection refused with `MSG_AUTH_FAIL` |
 | Failed logins (gate, DM or character password) from one address | 5 within 60 s | address locked out for 60 s; connections refused with `MSG_AUTH_FAIL` |
 | Concurrent clients | 64 (`MAX_CLIENTS`) | `MSG_AUTH_FAIL` "Server full", connection closed |
+| Sessions per character | 1 | second `MSG_LOGIN` refused with `MSG_AUTH_FAIL` "Character already online." |
+| Silent peer (no traffic, no FIN) | TCP keepalive: 60 s idle, 3 probes 10 s apart | connection closed, character saved and released |
 | Unsent output queued for one client | 2 MiB | client disconnected (it is not reading) |
 
 Any of the following closes the connection: a header with a wrong `version`, a non-zero `reserved` field, a type a client may not send, a `length` different from the exact payload size of its type, `MSG_MOVE` or `MSG_TEXT_CMD` before login, a second `MSG_LOGIN` on an authenticated session.

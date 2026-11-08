@@ -1,23 +1,35 @@
-# Copyright (C) 2026 Nicola Taibi
-# This file is part of DragonGL.
-#
-# DragonGL is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+# Dragon GL — Quick Start
 
+Copyright (C) 2026 Nicola Taibi. Dragon GL is free software, released under the GNU General Public License version 3 or later (see [LICENSE.txt](LICENSE.txt)).
+
+## 1. Build
+
+```bash
+./build.sh -n          # Release build, no tests
+```
+
+See [BUILD.md](BUILD.md) for dependencies and every `build.sh` option.
+
+## 2. Start the server
+
+```bash
 ./dragongl-server --password "anypassword"
+```
 
-#With GLFW 3d
-./dragongl-client gl
+Add `--dm-password <pwd>` to enable the Dungeon Master account and `--port <n>` to change the TCP port (default 8080).
 
-#With Vulkan 3d
-./dragongl-client vk
+## 3. Start the client
+
+```bash
+./dragongl-client gl                 # OpenGL backend
+./dragongl-client vk                 # Vulkan backend
+./dragongl-client vk 192.168.1.10    # remote server, default port
+```
+
+## 4. Reset the world
+
+```bash
+./dragongl-reset-world
+```
+
+Deletes player saves, the generated world and the logs: the next server start generates a new world.

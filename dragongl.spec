@@ -4,7 +4,7 @@
 %global toolchain clang
 
 Name:           dragongl
-Version:        2026.11.08.04
+Version:        2026.11.08.06
 Release:        %autorelease
 Summary:        Multi-User Client-Server 3D RPG Engine — OpenGL (GLFW) & Vulkan
 
@@ -87,7 +87,7 @@ suite designed to manage and inspect data stored within the JSON files.
 %{_mandir}/man1/dragongl_client.1*
 %{_mandir}/man1/dragongl-server.1*
 %{_mandir}/man1/dragongl-client.1*
-%{_mandir}/man1/dragongl_reset_world.1*
+%{_mandir}/man1/dragongl-reset-world.1*
 
 
 %files data
@@ -98,7 +98,8 @@ suite designed to manage and inspect data stored within the JSON files.
 
 %files doc
 %license LICENSE.txt
-%doc README.md HOWTO.txt
+%doc README.md HOWTO.md INSTALL.md BUILD.md DEVELOPMENT.md PROTOCOL.md SECURITY.md
+%doc CONTRIBUTING.md CODE_OF_CONDUCT.md ACCESSIBILITY.md LORE.md CHANGELOG.md
 %doc readme_assets/
 
 

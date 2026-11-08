@@ -90,7 +90,7 @@ The Fedora packaging divides Dragon GL into modular subpackages conforming to th
 
 | Package | Architecture | Contents |
 | :--- | :--- | :--- |
-| **`dragongl`** | Arch-dependent | Server binary (`dragongl-server`), Client binary (`dragongl-client`), world reset utility (`dragongl_reset_world`), and man pages. |
+| **`dragongl`** | Arch-dependent | Server binary (`dragongl-server`), Client binary (`dragongl-client`), world reset utility (`dragongl-reset-world`), and man pages. |
 | **`dragongl-data`** | `noarch` | Game datasets (`bestiary.json`, `items.json`, `spells.json`) and compiled Vulkan SPIR-V shaders (`/usr/share/dragongl/`). |
 | **`dragongl-tools`** | `noarch` | Developer and DM tools: balance analyzer (`analyze_balance.py`), map PDF generator (`generate_pdf_map.py`), and the HTML Data Studio suite. |
 | **`dragongl-doc`** | `noarch` | User manuals, technical documents, and documentation image assets (`/usr/share/doc/dragongl/`). |
@@ -189,12 +189,12 @@ The client supports both OpenGL and Vulkan renderers:
 DRAGONGL_GPD=0 ./dragongl-client vk
 ```
 
-### 3. Resetting the Game World (`dragongl_reset_world`)
+### 3. Resetting the Game World (`dragongl-reset-world`)
 
 To wipe temporary server saves and reset world persistence:
 
 ```bash
-./dragongl_reset_world
+./dragongl-reset-world
 ```
 
 ---
@@ -275,7 +275,7 @@ Interactive HTML5/JavaScript editors for inspecting and modifying game datasets:
 
 ## Documentation Index
 
-- [HOWTO.txt](HOWTO.txt) — Quick-start guide and basic invocation commands
+- [HOWTO.md](HOWTO.md) — Quick-start guide and basic invocation commands
 - [LORE.md](LORE.md) — Comprehensive narrative, dungeon chronicle, and chapter lore
 - [PROTOCOL.md](PROTOCOL.md) — Network wire protocol and packet specification
 - [SECURITY.md](SECURITY.md) — Security policy and vulnerability reporting

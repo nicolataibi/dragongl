@@ -417,7 +417,7 @@ The file is a valid JSON array opened at server startup and gracefully closed wi
 ]
 ```
 
-> **Note:** The file is listed in `.gitignore` and is automatically deleted by the `dragongl_reset_world` script when performing a full world reset.
+> **Note:** The file is listed in `.gitignore` and is automatically deleted by the `dragongl-reset-world` script when performing a full world reset.
 
 ---
 

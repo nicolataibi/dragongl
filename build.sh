@@ -340,10 +340,7 @@ step_stage() {
 
 unit_dir() { if ((SANITIZE)); then printf '%s' "$UNIT_ASAN_DIR"; else printf '%s' "$UNIT_DIR"; fi; }
 
-have_unit_suite() { [[ -f $ROOT/tests/CMakeLists.txt ]]; }
-
 step_build_unit() {
-    have_unit_suite || return 0
     local dir; dir=$(unit_dir)
     section "Unit tests — build (${dir#"$ROOT"/})"
     mkdir -p "$dir"
@@ -368,11 +365,6 @@ run_ctest() {
 }
 
 step_test_unit() {
-    if ! have_unit_suite; then
-        warn "tests/CMakeLists.txt not found: unit suite skipped"
-        record "unit tests" "${C_YELLOW}skipped${C_RESET} (no tests/CMakeLists.txt)"
-        return 0
-    fi
     section "Unit tests — run"
     run_timed "unit tests" run_ctest "$(unit_dir)" --parallel "$JOBS"
 }

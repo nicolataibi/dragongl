@@ -1,3 +1,40 @@
+* Sun Nov 08 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.08.06
+- BUGFIX (server, P1-1): a full backpack (32/32 items) survives a reload.
+  load_player_data() treated backpack_count == MAX_BACKPACK as corrupt and
+  reset it to 0, deleting the whole inventory on the next login.
+- SECURITY FIX (server, P1-2): one session per character. A second login of
+  a character already online is refused with "Character already online."
+  (two sessions saved independently, the last save won: item duplication).
+- SECURITY FIX (server, P1-3): player-to-player trades are re-validated
+  when both sides have accepted. 'offer' keeps a byte copy of the item;
+  the exchange is cancelled if an offered item changed or is gone, if gold
+  is insufficient, if the players moved apart or if a backpack is full.
+  Before, an item sold or dropped after 'offer' was still handed over
+  (duplication, negative backpack_count) and a full backpack had its last
+  slot overwritten. Both characters are saved right after the exchange.
+- SERVER: TCP keepalive (60 s idle, 3 probes 10 s apart) on client sockets,
+  so a client that vanished without closing releases its character.
+- TESTS: P1-1, P1-2 and P1-3 are regular tests; new tests for a normal trade
+  and for a trade into a full backpack. No expected failures remain.
+- DOCS: PROTOCOL.md and SECURITY.md describe the one-session rule and the
+  keepalive.
+
+* Sun Nov 08 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.08.05
+- PACKAGING FIX: references updated after the renames of
+  dragongl_reset_world -> dragongl-reset-world, HOWTO.txt -> HOWTO.md and
+  changelog -> CHANGELOG.md. CMake installed the old script name, so
+  "cmake --install" (and therefore rpmbuild) failed; the spec listed
+  HOWTO.txt in %doc. Man page renamed to dragongl-reset-world.1 and
+  cross-referenced from dragongl_server.1.
+- PACKAGING: the -doc subpackage ships every Markdown document (INSTALL,
+  BUILD, DEVELOPMENT, PROTOCOL, SECURITY, CONTRIBUTING, CODE_OF_CONDUCT,
+  ACCESSIBILITY, LORE, CHANGELOG).
+- DOCS: HOWTO.md rewritten as Markdown (the license lines of the old text
+  file rendered as headings); README.md, INSTALL.md and LORE.md point to the
+  new names.
+- CI / BUILD: the unit suite is now in the repository, so the CI job and
+  build.sh no longer skip it when tests/CMakeLists.txt is missing.
+
 * Sun Nov 08 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.08.04
 - BUILD: new build.sh, the quick dev loop. Default: Release build of the
   main project + unit suite + server integration suite. Build types -d

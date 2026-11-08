@@ -403,6 +403,68 @@ static void run_pdf_map_generator(int sock, const char *dump, const char *pdf, i
   }
 }
 
+/*--- Player-to-player trade -----------------------------------------
+ * 'offer' records the backpack index AND a byte copy of the item; the
+ * exchange runs only when both players have accepted, and trade_check()
+ * re-validates everything at that moment. Any change to an offered item
+ * in between (sold, dropped, used, shifted by another removal) cancels
+ * the trade instead of moving a different item or a stale copy.*/
+static void trade_reset(Client *c) {
+  c->trading_with[0] = '\0';
+  c->trade_offer_item_idx = -1;
+  c->trade_offer_gold = 0;
+  c->trade_accepted = false;
+}
+
+static bool trade_offer_intact(const Client *c) {
+  int idx = c->trade_offer_item_idx;
+  if (idx == -1)
+    return true;
+  return idx >= 0 && idx < c->backpack_count &&
+         memcmp(&c->backpack[idx], &c->trade_offer_item, sizeof(ItemInstance)) == 0;
+}
+
+/*NULL if the trade can run, otherwise the reason it cannot.*/
+static const char *trade_check(const Client *c, const Client *t) {
+  if (!trade_offer_intact(c) || !trade_offer_intact(t))
+    return "an offered item has changed or is gone";
+  if (c->gold < c->trade_offer_gold || t->gold < t->trade_offer_gold)
+    return "insufficient gold";
+  if (c->floor_id != t->floor_id || abs(c->x - t->x) > 2 || abs(c->y - t->y) > 2)
+    return "you are too far apart";
+  int c_gives = (c->trade_offer_item_idx != -1), t_gives = (t->trade_offer_item_idx != -1);
+  if (c->backpack_count - c_gives + t_gives > MAX_BACKPACK ||
+      t->backpack_count - t_gives + c_gives > MAX_BACKPACK)
+    return "a backpack is full";
+  return NULL;
+}
+
+static void backpack_remove_at(Client *c, int idx) {
+  for (int k = idx; k < c->backpack_count - 1; k++)
+    c->backpack[k] = c->backpack[k + 1];
+  c->backpack_count--;
+  memset(&c->backpack[c->backpack_count], 0, sizeof(ItemInstance));
+  c->backpack[c->backpack_count].template_idx = -1;
+}
+
+/*Precondition: trade_check(c, t) == NULL.*/
+static void trade_execute(Client *c, Client *t) {
+  c->gold = c->gold - c->trade_offer_gold + t->trade_offer_gold;
+  t->gold = t->gold - t->trade_offer_gold + c->trade_offer_gold;
+  bool c_gives = (c->trade_offer_item_idx != -1), t_gives = (t->trade_offer_item_idx != -1);
+  ItemInstance from_c = c->trade_offer_item, from_t = t->trade_offer_item;
+  if (c_gives)
+    backpack_remove_at(c, c->trade_offer_item_idx);
+  if (t_gives)
+    backpack_remove_at(t, t->trade_offer_item_idx);
+  if (c_gives)
+    t->backpack[t->backpack_count++] = from_c;
+  if (t_gives)
+    c->backpack[c->backpack_count++] = from_t;
+  save_player_data(c);
+  save_player_data(t);
+}
+
 void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
   if (!c || !cmd) {
     return;
@@ -813,6 +875,7 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
               int idx = item - 1;
               if (idx >= 0 && idx < c->backpack_count && c->backpack[idx].template_idx >= 0) {
                   c->trade_offer_item_idx = idx;
+                  memcpy(&c->trade_offer_item, &c->backpack[idx], sizeof(ItemInstance));
               } else {
                   send_text_to_client(c->sock, "[TRADE] Invalid item in backpack.");
                   return;
@@ -838,7 +901,8 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
       }
       Client *t = NULL;
       for (int i = 0; i < MAX_CLIENTS; i++) {
-          if (g_clients[i].active && strcmp(g_clients[i].username, c->trading_with) == 0) {
+          if (g_clients[i].active && g_clients[i].authenticated &&
+              strcmp(g_clients[i].username, c->trading_with) == 0) {
               t = &g_clients[i];
               break;
           }
@@ -854,68 +918,19 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
       send_text_to_client(t->sock, "[TRADE] %s accepted the offer.", c->username);
       
       if (c->trade_accepted && t->trade_accepted) {
-          //Execute the exchange
-          // Final validity checks
-          if (c->gold < c->trade_offer_gold || t->gold < t->trade_offer_gold) {
-              send_text_to_client(c->sock, "[TRADE] ERROR: Insufficient gold, trade cancelled.");
-              send_text_to_client(t->sock, "[TRADE] ERROR: Insufficient gold, trade cancelled.");
+          /*Everything is re-validated now: an offer is only a promise made
+           * earlier, and both inventories may have changed since.*/
+          const char *why = trade_check(c, t);
+          if (why) {
+              send_text_to_client(c->sock, "[TRADE] Trade cancelled: %s.", why);
+              send_text_to_client(t->sock, "[TRADE] Trade cancelled: %s.", why);
           } else {
-              //Gold swaps
-              c->gold -= c->trade_offer_gold;
-              c->gold += t->trade_offer_gold;
-              t->gold -= t->trade_offer_gold;
-              t->gold += c->trade_offer_gold;
-              
-              // Swap item
-              ItemInstance i1, i2;
-              memset(&i1, 0, sizeof(ItemInstance));
-              memset(&i2, 0, sizeof(ItemInstance));
-              i1.template_idx = -1;
-              i2.template_idx = -1;
-              bool has_i1 = false, has_i2 = false;
-              if (c->trade_offer_item_idx != -1) {
-                  i1 = c->backpack[c->trade_offer_item_idx];
-                  has_i1 = true;
-                  //Remove from c backpack
-                  for (int k = c->trade_offer_item_idx; k < c->backpack_count - 1; k++) {
-                      c->backpack[k] = c->backpack[k+1];
-                  }
-                  c->backpack_count--;
-              }
-              if (t->trade_offer_item_idx != -1) {
-                  i2 = t->backpack[t->trade_offer_item_idx];
-                  has_i2 = true;
-                  //Remove from t's backpack
-                  for (int k = t->trade_offer_item_idx; k < t->backpack_count - 1; k++) {
-                      t->backpack[k] = t->backpack[k+1];
-                  }
-                  t->backpack_count--;
-              }
-              
-              //Give it to you
-              if (has_i1 && t->backpack_count < MAX_BACKPACK) {
-                  t->backpack[t->backpack_count++] = i1;
-              } else if (has_i1) {
-                  // If the backpack is full this shouldn't happen, or the item falls to the ground.
-                  // Simplification: there is enough space for 1-to-1, but we don't check here.
-                  //If there is no space we give it anyway (minor bug) but better to drop or overwrite.
-                  //We overwrite the last slot.
-                  t->backpack[MAX_BACKPACK-1] = i1;
-              }
-              //Give it to c
-              if (has_i2 && c->backpack_count < MAX_BACKPACK) {
-                  c->backpack[c->backpack_count++] = i2;
-              } else if (has_i2) {
-                  c->backpack[MAX_BACKPACK-1] = i2;
-              }
-              
+              trade_execute(c, t);
               send_text_to_client(c->sock, "[TRADE] Trade complete!");
               send_text_to_client(t->sock, "[TRADE] Trade complete!");
           }
-          c->trading_with[0] = '\0';
-          t->trading_with[0] = '\0';
-          c->trade_offer_item_idx = -1;
-          t->trade_offer_item_idx = -1;
+          trade_reset(c);
+          trade_reset(t);
       }
       return;
   }

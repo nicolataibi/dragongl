@@ -84,14 +84,10 @@ add_test(NAME persistence_full_backpack_roundtrip
 add_test(NAME persistence_partial_backpack_roundtrip
          COMMAND server_harness partial_backpack_roundtrip
          WORKING_DIRECTORY "${DGL_WORK}")
-add_test(NAME trade_offer_revalidated_on_accept
-         COMMAND server_harness trade_offer_revalidated_on_accept
-         WORKING_DIRECTORY "${DGL_WORK}")
-
-# Known open defects (see the technical review): remove WILL_FAIL together
-# with the fix.
-set_tests_properties(persistence_full_backpack_roundtrip   PROPERTIES WILL_FAIL TRUE) # P1-1
-set_tests_properties(trade_offer_revalidated_on_accept     PROPERTIES WILL_FAIL TRUE) # P1-3
+foreach(t trade_offer_revalidated_on_accept trade_moves_item_and_gold
+          trade_into_full_backpack_is_cancelled)
+    add_test(NAME ${t} COMMAND server_harness ${t} WORKING_DIRECTORY "${DGL_WORK}")
+endforeach()
 
 add_test(NAME server_network
          COMMAND ${Python3_EXECUTABLE} -m unittest -v test_server

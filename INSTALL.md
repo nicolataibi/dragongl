@@ -33,7 +33,7 @@ sudo dnf install dragongl dragongl-data dragongl-tools dragongl-doc
 ```
 
 ### Installed Package Components:
-- **`dragongl`**: Client and server executables (`dragongl-server`, `dragongl-client`, `dragongl_reset_world`), symlinks, and man pages.
+- **`dragongl`**: Client and server executables (`dragongl-server`, `dragongl-client`, `dragongl-reset-world`), symlinks, and man pages.
 - **`dragongl-data`**: Core game databases (`bestiary.json`, `items.json`, `spells.json`) and compiled SPIR-V shaders located in `/usr/share/dragongl/`.
 - **`dragongl-tools`**: Analysis utilities (`analyze_balance.py`, `generate_pdf_map.py`) and the Web Data Studio located in `/usr/share/dragongl/tools/`.
 - **`dragongl-doc`**: Offline manual, guides, and documentation assets in `/usr/share/doc/dragongl/`.
@@ -102,4 +102,4 @@ dragongl-server --help
 python3 /usr/share/dragongl/tools/analyze_balance.py --help
 ```
 
-For quick-start usage, see [HOWTO.txt](HOWTO.txt) and [README.md](README.md).
+For quick-start usage, see [HOWTO.md](HOWTO.md) and [README.md](README.md).

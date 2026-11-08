@@ -186,7 +186,7 @@ include(GNUInstallDirs)
 install(TARGETS dragongl_server dragongl_client
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
-install(PROGRAMS dragongl-server dragongl-client dragongl_reset_world
+install(PROGRAMS dragongl-server dragongl-client dragongl-reset-world
         DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 install(FILES ${SHADER_SPV_FILES}
@@ -206,7 +206,7 @@ set(MAN_PAGES
     man/dragongl_client.1
     man/dragongl-server.1
     man/dragongl-client.1
-    man/dragongl_reset_world.1
+    man/dragongl-reset-world.1
     man/analyze_balance.1
     man/generate_pdf_map.1
 )
