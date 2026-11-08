@@ -423,7 +423,7 @@ static void render_vk_hud(VkVertex *v, uint32_t *c, uint32_t max_v, float sw, fl
     }
 
     /* Status Conditions */
-    char statuses[256] = "";
+    char statuses[96] = ""; /*the 12 labels below take 87 characters*/
     if (g_status_icons & (1 << 0))  strcat(statuses, "POISON ");
     if (g_status_icons & (1 << 1))  strcat(statuses, "BLIND ");
     if (g_status_icons & (1 << 2))  strcat(statuses, "PARALYZE ");

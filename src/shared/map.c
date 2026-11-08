@@ -669,7 +669,7 @@ static void place_polygon_rooms(Map* map) {
             int sides = 3 + (rand() % 23); // 3 to 25 sides
             double phase = ((double)rand() / RAND_MAX) * 2.0 * M_PI;
             
-            int px[30], py[30];
+            int px[30] = {0}, py[30] = {0};
             for (int s = 0; s < sides; s++) {
                 double angle = phase + (s * 2.0 * M_PI / sides);
                 px[s] = (int)(cx + r * cos(angle));

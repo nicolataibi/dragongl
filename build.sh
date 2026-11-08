@@ -263,6 +263,22 @@ generator_for() {
     else printf 'Unix Makefiles'; fi
 }
 
+# CMake cannot switch compilers inside a build tree: it deletes the cache
+# and re-configures WITHOUT the -D values of that command line, silently
+# dropping -Werror and the sanitizer flags. Reset the cache ourselves first.
+reset_cache_if_compiler_changed() {
+    local dir=$1 want=$2 cached have
+    [[ -f $dir/CMakeCache.txt ]] || return 0
+    cached=$(sed -n 's/^CMAKE_C_COMPILER:[A-Z]*=//p' "$dir/CMakeCache.txt")
+    [[ -n $cached ]] || return 0
+    have=$(readlink -f -- "$(command -v -- "$cached" 2>/dev/null || printf '%s' "$cached")")
+    want=$(readlink -f -- "$(command -v -- "$want")")
+    if [[ $have != "$want" ]]; then
+        info "compiler changed (${have##*/} -> ${want##*/}): resetting the CMake cache of ${dir#"$ROOT"/}"
+        rm -rf -- "$dir/CMakeCache.txt" "$dir/CMakeFiles"
+    fi
+}
+
 # configure <dir> <source dir> [extra cmake args...]
 # Every cache variable that depends on the options is passed explicitly, so
 # switching between -d and a Release build in the same directory never keeps
@@ -272,12 +288,15 @@ configure() {
     local cflags="" ldflags=""
     if ((SANITIZE)); then cflags=$SANITIZE_FLAGS; ldflags=$SANITIZE_LDFLAGS; fi
     if ((WERROR)); then cflags="${cflags:+$cflags }-Werror"; fi
+    local compiler=clang
+    if ((USE_GCC)); then compiler=gcc; fi
+    reset_cache_if_compiler_changed "$dir" "$compiler"
     local args=(-S "$src" -B "$dir" -G "$(generator_for "$dir")"
                 -DCMAKE_BUILD_TYPE="$BUILD_TYPE"
                 -DCMAKE_C_FLAGS="$cflags"
                 -DCMAKE_EXE_LINKER_FLAGS="$ldflags")
     if ((USE_GCC)); then args+=(-DCMAKE_C_COMPILER=gcc -DDRAGONGL_USE_CLANG=OFF)
-    else args+=(-DCMAKE_C_COMPILER=clang); fi
+    else args+=(-DCMAKE_C_COMPILER=clang -DDRAGONGL_USE_CLANG=ON); fi
     args+=("$@")
     if ((VERBOSE)); then
         cmake "${args[@]}"

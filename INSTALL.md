@@ -16,6 +16,7 @@ This document describes how to install Dragon GL on Linux systems, either via pr
   - GLFW 3.3+ (`glfw`)
   - Mesa OpenGL (`mesa-libGL`, `mesa-libGLU`)
   - Vulkan loader (`vulkan-loader`)
+  - libsodium (`libsodium`, server)
   - Python 3 (`python3`, required for `dragongl-tools`)
 
 ---
@@ -56,6 +57,7 @@ sudo dnf install -y \
     vulkan-loader-devel \
     glslc \
     pkgconf-pkg-config \
+    libsodium-devel \
     python3
 ```
 

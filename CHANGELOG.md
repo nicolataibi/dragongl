@@ -1,3 +1,59 @@
+* Sun Nov 08 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.08.07
+- SECURITY (server): no default credentials. The server does not start
+  without a server access password, and the DM account exists only when a
+  DM password is configured (dragongl_secret / dragongl_dm_secret are gone).
+- SECURITY (server): passwords are never accepted on the command line
+  (-p/--password and -d/--dm-password are refused: ps shows them to every
+  user). They come from --password-file / --dm-password-file or from
+  DRAGONGL_SERVER_PASSWORD / DRAGONGL_DM_PASSWORD, which the server wipes
+  in place at start-up (gone from /proc/<pid>/environ). Server passwords:
+  8-31 printable ASCII characters without spaces (31 is what the client can
+  send). Unknown options and an invalid --port are now errors.
+- SECURITY (server): new module src/server/auth.c on libsodium. Character
+  and DM passwords are Argon2id strings (crypto_pwhash_str, interactive
+  limits, random salt); the gate password is a keyed BLAKE2b digest
+  compared in constant time. The hand-written SHA-256/PBKDF2 code (4
+  iterations) is removed. The plaintext is verified once at login and wiped
+  (MsgLogin copy, receive buffer); the session keeps only the hash, so
+  saves no longer re-hash a stored plaintext. Empty or control-character
+  personal passwords are refused.
+- SAVE FORMAT: SAVE_VERSION 2 (Argon2id string). Version 1 saves are
+  refused as unreadable: reset the world (dragongl-reset-world) or remove
+  saves/*.save.
+- SECURITY (server): control characters are replaced in text commands, so
+  chat and private messages can no longer carry terminal escape sequences
+  to other players. The RNG seed is no longer written to the log.
+- LAUNCHER: dragongl-server takes --password-file / --dm-password-file,
+  otherwise uses the environment or asks on the terminal (no echo); it runs
+  the dragongl_server installed next to it, or build/dragongl_server in a
+  development tree.
+- CLIENT: server and personal passwords are typed without echo.
+- REFACTOR (server): the MSG_LOGIN handler moved out of main() into
+  handle_login() / login_with().
+- BUILD: libsodium is a new dependency (CMake, spec BuildRequires
+  pkgconfig(libsodium), CI, BUILD.md, INSTALL.md).
+- BUILD FIX (build.sh): switching compiler (-g) inside an existing build
+  directory made CMake drop the -D values of that run, so -Werror and the
+  sanitizer flags were silently lost. The script now resets the CMake cache
+  itself when the compiler changes.
+- BUILD: the whole tree (main project, unit suite, integration suite) now
+  builds with gcc -Werror as well as clang -Werror. Fixed: strncpy without
+  a guaranteed terminator replaced by copy_str (client login fields, party
+  invites, trade partner, cloud owner, ghost and tombstone names), snprintf
+  truncation of save and script paths, oversized status buffers in the HUD,
+  a maybe-uninitialized polygon array, test_gpu_mesh not linking libm.
+- SERVER: the NPC behavior is an AiBehavior enum instead of a function
+  pointer stored in a void * (not valid ISO C). The NPC layout changed, so
+  the npcs.dat magic is now 0xDEAD7ECD: an old file triggers a fresh world.
+- CI: the Release -Werror build runs for clang and gcc (matrix).
+- TESTS: start-up without a password, command-line passwords refused, weak
+  password refused, secrets absent from /proc cmdline/environ and from the
+  log, password file, DM disabled without a DM password, DM login, save
+  holding only an Argon2id hash, control characters stripped from chat;
+  the persistence harness also checks a wrong password is refused.
+- DOCS: SECURITY.md, README.md, HOWTO.md, LORE.md and the man pages
+  dragongl_server(1) / dragongl-server(1) describe the new rules.
+
 * Sun Nov 08 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.08.06
 - BUGFIX (server, P1-1): a full backpack (32/32 items) survives a reload.
   load_player_data() treated backpack_count == MAX_BACKPACK as corrupt and

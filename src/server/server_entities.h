@@ -29,6 +29,7 @@
 #include "species.h"
 #include "classes.h"
 #include "spells.h"
+#include "auth.h"
 
 /* Size in uint64_t of the bitfield for known spells.
  * MAX_SPELL_DB_SIZE is defined in spells.h (512).
@@ -103,12 +104,22 @@ typedef enum {
     AI_RUNNING
 } AINodeStatus;
 
+/*Behavior tree of an NPC, chosen from its archetype (ai_attach_behavior).
+ * An enum, not a function pointer: it can be persisted as is, and ISO C
+ * does not allow storing a function pointer in a void *.*/
+typedef enum {
+    AI_BEHAVIOR_DEFAULT = 0,
+    AI_BEHAVIOR_VOID_CRAWLER,
+    AI_BEHAVIOR_MAGE,
+    AI_BEHAVIOR_SWARM
+} AiBehavior;
+
 // Context for NPC Artificial Intelligence
 typedef struct {
     int current_target_id;
     int state_timer;
     int legendary_actions_spent;
-    void* behavior_tree_root; // Points to an AINodeFunc
+    AiBehavior behavior;
 } AIContext;
 
 typedef struct {
@@ -150,7 +161,8 @@ typedef EntityInstance NPC; // Temporary alias for backward compatibility
 typedef struct {
     int sock, entity_id, x, y, floor_id;
     bool active, authenticated, is_dm;
-    char username[32], password[32];
+    char username[32];
+    char password_hash[AUTH_HASH_LEN]; /*Argon2id string, see auth.h*/
     RaceType race_id;
     SubraceType subrace_id;
     ClassType class_id;
@@ -233,8 +245,8 @@ typedef struct {
  * tampering => CRC mismatch; the file is kept intact and the login is
  * refused with a clear reason.*/
 #define SAVE_MAGIC   0x44474C53u /* 'D''G''L''S' */
-/*v1: header + PBKDF2-SHA256 password (64 hex) + SavedEffect (POD).*/
-#define SAVE_VERSION 1
+/*v2: Argon2id password string (libsodium crypto_pwhash_str).*/
+#define SAVE_VERSION 2
 
 typedef struct {
     uint32_t magic;    /*SAVE_MAGIC */
@@ -244,7 +256,7 @@ typedef struct {
 } SaveHeader;
 
 typedef struct {
-    char password[80]; /*PBKDF2-SHA256 hex (64 chars) + NUL + margin */
+    char password_hash[AUTH_HASH_LEN]; /*Argon2id string, NUL-terminated */
     int x, y, floor_id;
     RaceType race_id;
     SubraceType subrace_id;

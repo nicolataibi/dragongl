@@ -13,10 +13,11 @@ See [BUILD.md](BUILD.md) for dependencies and every `build.sh` option.
 ## 2. Start the server
 
 ```bash
-./dragongl-server --password "anypassword"
+./dragongl-server                              # asks for the passwords
+./dragongl-server --password-file server.pw    # first line of the file (chmod 600)
 ```
 
-Add `--dm-password <pwd>` to enable the Dungeon Master account and `--port <n>` to change the TCP port (default 8080).
+Passwords: 8-31 printable ASCII characters, no spaces; they are never accepted on the command line. A Dungeon Master password (asked at start-up, or `--dm-password-file dm.pw`) enables the `dm` account. `--port <n>` changes the TCP port (default 8080).
 
 ## 3. Start the client
 

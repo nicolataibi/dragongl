@@ -324,16 +324,16 @@ static int resolve_pdf_script(char *out, size_t out_len) {
     char *slash = strrchr(exe, '/');
     if (slash != NULL) {
       *slash = '\0'; /* directory of the binary */
-      char cand[4096];
+      char cand[sizeof(exe) + 64];
       snprintf(cand, sizeof(cand), "%s/tools/generate_pdf_map.py", exe);
-      if (access(cand, R_OK) == 0) {
-        snprintf(out, out_len, "%s", cand);
+      if (access(cand, R_OK) == 0 && strlen(cand) < out_len) {
+        copy_str(out, cand, out_len);
         return 0;
       }
       /* build/ layout: the binary sits in <root>/build, tools/ in <root> */
       snprintf(cand, sizeof(cand), "%s/../tools/generate_pdf_map.py", exe);
-      if (access(cand, R_OK) == 0) {
-        snprintf(out, out_len, "%s", cand);
+      if (access(cand, R_OK) == 0 && strlen(cand) < out_len) {
+        copy_str(out, cand, out_len);
         return 0;
       }
     }
@@ -652,8 +652,9 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
               if (entry_count >= 1000)
                   break;
               if (strstr(dir->d_name, ".save")) {
-                  char filepath[128];
-                  snprintf(filepath, sizeof(filepath), "saves/%s", dir->d_name);
+                  char filepath[300];
+                  if (snprintf(filepath, sizeof(filepath), "saves/%s", dir->d_name) >= (int)sizeof(filepath))
+                      continue;
                   FILE *f = fopen(filepath, "rb");
                   if (f) {
                       /*v1 saves start with a SaveHeader (magic + version
@@ -721,7 +722,7 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
       bool found = false;
       for (int i = 0; i < MAX_CLIENTS; i++) {
           if (g_clients[i].active && g_clients[i].authenticated && strcmp(g_clients[i].username, target_name) == 0) {
-              strncpy(g_clients[i].pending_invite, c->username, 31);
+              copy_str(g_clients[i].pending_invite, c->username, sizeof(g_clients[i].pending_invite));
               send_text_to_client(g_clients[i].sock, "[PARTY] %s has invited you to his party! Type 'join' to accept.", c->username);
               send_text_to_client(c->sock, "[PARTY] Invitation sent to %s.", target_name);
               found = true;
@@ -747,7 +748,7 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
               leader_online = true;
               // Set the leader of the person who invited us as our leader
               if (strlen(g_clients[i].party_leader) > 0) {
-                  strncpy(c->party_leader, g_clients[i].party_leader, 31);
+                  copy_str(c->party_leader, g_clients[i].party_leader, sizeof(c->party_leader));
               } else {
                   //They didn't have a party, so they become the leader
                   strncpy(g_clients[i].party_leader, g_clients[i].username, 31);
@@ -823,7 +824,7 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
                   return;
               }
               
-              strncpy(c->trading_with, target_name, 31);
+              copy_str(c->trading_with, target_name, sizeof(c->trading_with));
               c->trade_offer_item_idx = -1;
               c->trade_offer_gold = 0;
               c->trade_accepted = false;
@@ -1856,11 +1857,11 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
         } else if (npcs[i].archetype == ARCH_TREASURE) {
           strncat(feet_buf, "| [Treasury Chest]", sizeof(feet_buf) - strlen(feet_buf) - 1);
         } else if (npcs[i].is_ghost) {
-          char gbuf[64];
+          char gbuf[96]; /*room for a 63-char name + decoration*/
           snprintf(gbuf, sizeof(gbuf), "| [%s remains]", npcs[i].custom_name);
           strncat(feet_buf, gbuf, sizeof(feet_buf) - strlen(feet_buf) - 1);
         } else if (npcs[i].archetype == ARCH_MERCHANT) {
-          char mbuf[64];
+          char mbuf[96];
           snprintf(mbuf, sizeof(mbuf), " | [%s]", npcs[i].merchant.shop_name);
           strncat(feet_buf, mbuf, sizeof(feet_buf) - strlen(feet_buf) - 1);
         } else if (npcs[i].template) {
@@ -4623,11 +4624,11 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
             } else if (npcs[m].archetype == ARCH_TREASURE) {
               strncat(presence, "| [Treasury Chest]", sizeof(presence) - strlen(presence) - 1);
             } else if (npcs[m].is_ghost) {
-              char gbuf[64];
+              char gbuf[96]; /*room for a 63-char name + decoration*/
               snprintf(gbuf, sizeof(gbuf), "| [%s remains]", npcs[m].custom_name);
               strncat(presence, gbuf, sizeof(presence) - strlen(presence) - 1);
             } else if (npcs[m].archetype == ARCH_MERCHANT) {
-              char mbuf[64];
+              char mbuf[96];
               snprintf(mbuf, sizeof(mbuf), " | [%s]", npcs[m].merchant.shop_name);
               strncat(presence, mbuf, sizeof(presence) - strlen(presence) - 1);
             } else if (npcs[m].template) {

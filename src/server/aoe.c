@@ -146,8 +146,7 @@ static void spawn_cloud(SpellTemplate *sp, int cx, int cy, int floor_id, int sav
             strncpy(g_clouds[i].name, sp->name, 31);
             g_clouds[i].owner[0]    = '\0';
             if (owner_name && owner_name[0] != '\0') {
-                strncpy(g_clouds[i].owner, owner_name, sizeof(g_clouds[i].owner) - 1);
-                g_clouds[i].owner[sizeof(g_clouds[i].owner) - 1] = '\0';
+                copy_str(g_clouds[i].owner, owner_name, sizeof(g_clouds[i].owner));
             }
             break;
         }

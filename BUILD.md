@@ -17,6 +17,7 @@ Dragon GL is written in standard **C11** and is designed to build warning-clean 
   - `OpenGL` & `GLU` (Mesa development packages)
   - `Vulkan` loader and header files
 - **System Libraries:** POSIX Threads (`pthread`), Math library (`libm`), PkgConfig (`pkg-config` / `pkgconf`)
+- **Cryptography (server):** `libsodium` (Argon2id password hashing, constant-time comparisons)
 - **Python:** Python 3 (for build verification and developer balance tools)
 
 ### Installing Dependencies on Fedora:
@@ -31,6 +32,7 @@ sudo dnf install -y \
     mesa-libGL-devel \
     mesa-libGLU-devel \
     vulkan-loader-devel \
+    libsodium-devel \
     python3
 ```
 
@@ -46,6 +48,7 @@ sudo apt-get install -y \
     libgl1-mesa-dev \
     libglu1-mesa-dev \
     libvulkan-dev \
+    libsodium-dev \
     python3
 ```
 

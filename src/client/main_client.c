@@ -22,6 +22,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
+#include <termios.h>
 #include <unistd.h>
 #include "client_state.h"
 #include "net.h"
@@ -149,6 +150,35 @@ void client_log_add(const char *text) {
     pthread_mutex_unlock(&g_state_mutex);
 }
 
+/*Prompt for a secret without echoing it when stdin is a terminal. The
+ * first word of the line is kept (passwords contain no spaces).*/
+static void read_secret(const char *prompt, char *out, size_t out_len) {
+    char line[128];
+    struct termios saved, quiet;
+    bool tty = isatty(STDIN_FILENO) && tcgetattr(STDIN_FILENO, &saved) == 0;
+    printf("%s", prompt);
+    fflush(stdout);
+    if (tty) {
+        quiet = saved;
+        quiet.c_lflag &= (tcflag_t)~ECHO;
+        tcsetattr(STDIN_FILENO, TCSAFLUSH, &quiet);
+    }
+    out[0] = '\0';
+    if (fgets(line, sizeof(line), stdin)) {
+        char fmt[16];
+        snprintf(fmt, sizeof(fmt), "%%%zus", out_len - 1);
+        if (sscanf(line, fmt, out) != 1)
+            out[0] = '\0';
+    }
+    if (tty) {
+        tcsetattr(STDIN_FILENO, TCSAFLUSH, &saved);
+        printf("\n");
+    }
+    memset(line, 0, sizeof(line));
+    if (strlen(out) > 31)
+        printf("Warning: only the first 31 characters are sent to the server.\n");
+}
+
 int main(int argc, char **argv) {
     pthread_t net_thread;
     pthread_t cli_thread;
@@ -198,18 +228,12 @@ int main(int argc, char **argv) {
             sscanf(buf, "%63s", server_ip);
         }
     }
-    printf("Server Password: ");
-    if (fgets(buf, sizeof(buf), stdin)) {
-        sscanf(buf, "%63s", server_pass);
-    }
+    read_secret("Server Password: ", server_pass, sizeof(server_pass));
     printf("Player Name: ");
     if (fgets(buf, sizeof(buf), stdin)) {
         sscanf(buf, "%31s", username);
     }
-    printf("Personal Password: ");
-    if (fgets(buf, sizeof(buf), stdin)) {
-        sscanf(buf, "%31s", password);
-    }
+    read_secret("Personal Password: ", password, sizeof(password));
     printf("New character? (1=Yes, 0=No):");
     if (fgets(buf, sizeof(buf), stdin)) {
         sscanf(buf, "%d", &is_new);
@@ -299,7 +323,7 @@ int main(int argc, char **argv) {
             snprintf(full_race, sizeof(full_race), "%s (%s)",
                      RACES[race_id].name, SUBRACES[g_subrace_id].name);
         } else {
-            strncpy(full_race, RACES[race_id].name, sizeof(full_race));
+            copy_str(full_race, RACES[race_id].name, sizeof(full_race));
         }
 
         printf("\n========================================================================\n");
@@ -324,7 +348,7 @@ int main(int argc, char **argv) {
             snprintf(full_race_f, sizeof(full_race_f), "%s (%s)",
                      RACES[race_id].name, SUBRACES[g_subrace_id].name);
         } else {
-            strncpy(full_race_f, RACES[race_id].name, sizeof(full_race_f));
+            copy_str(full_race_f, RACES[race_id].name, sizeof(full_race_f));
         }
 
         printf("\n===========================================================================\n");
@@ -351,9 +375,9 @@ int main(int argc, char **argv) {
         MsgHeader login_hdr = msg_hdr(MSG_LOGIN, (int)sizeof(MsgLogin));
         MsgLogin msg_log;
         memset(&msg_log, 0, sizeof(msg_log));
-        strncpy(msg_log.username, username, 31);
-        strncpy(msg_log.password, password, 31);
-        strncpy(msg_log.server_pass, server_pass, 31);
+        copy_str(msg_log.username, username, sizeof(msg_log.username));
+        copy_str(msg_log.password, password, sizeof(msg_log.password));
+        copy_str(msg_log.server_pass, server_pass, sizeof(msg_log.server_pass));
         msg_log.is_new_char = is_new;
         msg_log.race_id = race_id;
         msg_log.subrace_id = g_subrace_id;

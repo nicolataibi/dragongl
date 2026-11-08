@@ -79,6 +79,9 @@ ConnRxStatus conn_read(int slot);
  * until the next call); 0 = need more bytes; -1 = protocol violation. */
 int conn_next_message(int slot, MsgHeader *hdr, const void **payload);
 
+/* Zero the buffer of the last message handed out (credentials). */
+void conn_wipe_message(int slot);
+
 /* Send side. */
 bool conn_queue(int slot, const void *data, size_t len); /* false = slot is being dropped */
 void conn_flush(int slot);                                /* marks the slot on a hard error */

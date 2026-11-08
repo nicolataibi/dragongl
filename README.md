@@ -159,15 +159,17 @@ cd ..
 The server manages world state, NPC AI, combat resolution, and multiplayer synchronization:
 
 ```bash
-# Basic startup with default access password
+# Interactive: the launcher asks for the server and DM passwords
 ./dragongl-server
 
-# Custom passwords and port
-./dragongl-server --password "mysecret" --dm-password "adminkey" --port 8080
+# Passwords from files (first line, chmod 600) and a custom port
+./dragongl-server --password-file server.pw --dm-password-file dm.pw --port 8080
 
 # Explicit data directory path
-./dragongl-server --data-dir ./data --port 8080
+./dragongl-server --password-file server.pw --data-dir ./data
 ```
+
+Passwords are never accepted on the command line: they come from files, from `DRAGONGL_SERVER_PASSWORD` / `DRAGONGL_DM_PASSWORD`, or from the interactive prompt. Each one has 8-31 printable ASCII characters without spaces. Without a DM password the `dm` account is disabled.
 
 *Data directory resolution order:* `--data-dir` argument -> `./data` (local development) -> `/usr/share/dragongl/data` (system RPM install).
 
@@ -239,7 +241,7 @@ Dragon GL includes a dedicated administrative role for game masters and automate
 
 ### DM Privileges & Commands
 
-To authenticate as DM: connect with player name `dm` and use the `--dm-password` configured at server startup:
+To authenticate as DM: connect with player name `dm` and the DM password configured at server startup (`--dm-password-file` or `DRAGONGL_DM_PASSWORD`; without it the DM account is disabled):
 
 - `dm_telemetry`: Real-time server telemetry (tick timing, active clients, live NPCs, traps).
 - `dm_goto <floor> <x> <y>`: Instant teleportation across all 100 floors.

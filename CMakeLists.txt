@@ -67,6 +67,8 @@ find_package(PkgConfig REQUIRED)
 
 # GLFW per il client 3D (backend OpenGL e Vulkan)
 pkg_check_modules(GLFW REQUIRED glfw3)
+# libsodium: Argon2id password hashing and constant-time comparisons (server)
+pkg_check_modules(SODIUM REQUIRED IMPORTED_TARGET libsodium)
 
 # --- Include Directories ---
 include_directories(include src/client ${GLFW_INCLUDE_DIRS})
@@ -138,6 +140,7 @@ add_executable(dragongl_server
     src/server/main_server.c
     src/server/server_net.c
     src/server/server_conn.c
+    src/server/auth.c
     src/server/ai.c
     src/server/aoe.c
     src/server/combat_log.c
@@ -150,7 +153,7 @@ add_executable(dragongl_server
     src/server/tombstone.c
     ${SHARED_SRCS}
 )
-target_link_libraries(dragongl_server ${COMMON_LIBS})
+target_link_libraries(dragongl_server ${COMMON_LIBS} PkgConfig::SODIUM)
 
 # 2. dragongl_client
 set(CLIENT_SRCS

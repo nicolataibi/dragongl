@@ -5,7 +5,7 @@ boundary at MAX_FLOORS-1).
 
 Usage: python3 test_walk.py [host] [port] [target_floor] [username]
 """
-import socket, struct, sys, time, random
+import os, socket, struct, sys, time, random
 
 HOST = sys.argv[1] if len(sys.argv) > 1 else "127.0.0.1"
 PORT = int(sys.argv[2]) if len(sys.argv) > 2 else 8080
@@ -67,7 +67,9 @@ def main():
     s = socket.create_connection((HOST, PORT), timeout=10)
     s.settimeout(0.5)
     n = Net(s)
-    payload = build_login(USER, "testpw", "dragongl_secret", 1)
+    # Same variable the server reads: there is no default gate password.
+    server_pass = os.environ.get("DRAGONGL_SERVER_PASSWORD", "")
+    payload = build_login(USER, "testpw", server_pass, 1)
     s.sendall(hdr(MSG_LOGIN, len(payload)) + payload)
 
     eid = x = y = None

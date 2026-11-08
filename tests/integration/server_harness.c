@@ -29,7 +29,7 @@
 #include <unistd.h>
 
 void save_player_data(Client *c);
-int load_player_data(Client *c);
+int load_player_data(Client *c, const char *password);
 
 #define CHECK(cond, ...)                                                   \
     do {                                                                   \
@@ -52,6 +52,10 @@ static void reset_item(ItemInstance *it) {
 }
 
 static int fixture_init(void) {
+    if (!auth_init()) {
+        fprintf(stderr, "libsodium initialization failed\n");
+        return 1;
+    }
     if (!init_data_loaders(DGL_TEST_DATA_DIR)) {
         fprintf(stderr, "cannot load game data from %s\n", DGL_TEST_DATA_DIR);
         return 1;
@@ -86,7 +90,10 @@ static Client *make_player(int slot, const char *name) {
     c->authenticated = true;
     c->entity_id = 1000 + slot;
     snprintf(c->username, sizeof(c->username), "%s", name);
-    snprintf(c->password, sizeof(c->password), "pw-%s", name);
+    char pwd[40];
+    snprintf(pwd, sizeof(pwd), "pw-%s", name);
+    if (!auth_hash_password(pwd, c->password_hash))
+        return NULL;
     c->level = 1;
     c->hp = c->max_hp = 20;
     c->str = c->dex = c->con = c->intel = c->wis = c->cha = 10;
@@ -141,10 +148,12 @@ static int backpack_roundtrip(int count) {
     save_player_data(c);
 
     static Client loaded;
+    char pwd[40];
+    snprintf(pwd, sizeof(pwd), "pw-%s", c->username);
     memset(&loaded, 0, sizeof(loaded));
     snprintf(loaded.username, sizeof(loaded.username), "%s", c->username);
-    snprintf(loaded.password, sizeof(loaded.password), "%s", c->password);
-    int status = load_player_data(&loaded);
+    CHECK(load_player_data(&loaded, "wrong-password") == -1, "wrong password accepted");
+    int status = load_player_data(&loaded, pwd);
     CHECK(status == 1, "load_player_data returned %d", status);
     CHECK(loaded.backpack_count == count,
           "backpack_count after reload: expected %d, got %d", count,
@@ -152,6 +161,8 @@ static int backpack_roundtrip(int count) {
     for (int i = 0; i < count; i++)
         CHECK(loaded.backpack[i].template_idx == c->backpack[i].template_idx,
               "item %d changed on reload", i);
+    CHECK(strncmp(loaded.password_hash, "$argon2id$", 10) == 0,
+          "password not stored as an Argon2id string");
     return 0;
 }
 

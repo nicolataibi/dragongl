@@ -407,7 +407,7 @@ void render_gl_hud(int width, int height) {
     }
 
     // Status Conditions
-    char statuses[256] = "";
+    char statuses[96] = ""; /*the 12 labels below take 87 characters*/
     if (g_status_icons & (1 << 0)) strcat(statuses, "POISON ");
     if (g_status_icons & (1 << 1)) strcat(statuses, "BLIND ");
     if (g_status_icons & (1 << 2)) strcat(statuses, "PARALYZE ");
@@ -422,7 +422,7 @@ void render_gl_hud(int width, int height) {
     if (g_status_icons & (1 << 11)) strcat(statuses, "STUDY ");
     
     if (statuses[0] != '\0') {
-        sprintf(buf, "STATUS: %s", statuses);
+        snprintf(buf, sizeof(buf), "STATUS: %s", statuses);
         draw_text(sx, sy, buf, 1.5f, 1.0f, 0.5f, 1.0f);
         sy += 18;
     }

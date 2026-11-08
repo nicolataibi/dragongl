@@ -4,7 +4,7 @@
 %global toolchain clang
 
 Name:           dragongl
-Version:        2026.11.08.06
+Version:        2026.11.08.07
 Release:        %autorelease
 Summary:        Multi-User Client-Server 3D RPG Engine — OpenGL (GLFW) & Vulkan
 
@@ -20,6 +20,7 @@ BuildRequires:  pkgconfig(glu)
 BuildRequires:  pkgconfig(glfw3)
 BuildRequires:  pkgconfig(vulkan)
 BuildRequires:  glslc
+BuildRequires:  pkgconfig(libsodium)
 
 # Automatic dependency generation handles libraries
 Requires:       %{name}-data = %{version}-%{release}

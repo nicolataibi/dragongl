@@ -1,74 +1,102 @@
-.TH DRAGONGL_SERVER 1 "2026-09-06" "DragonGL 2026.09.04.02" "User Commands"
+.TH DRAGONGL_SERVER 1 "2026-11-08" "DragonGL 2026.11.08.07" "User Commands"
 .SH NAME
 dragongl_server \- Dragon GL master game server
 .SH SYNOPSIS
 .B dragongl_server
-.RI "[\-\-password\ |\ -p\ " pwd ]"
-.RI "[\-\-dm\-password\ |\ -d\ " pwd ]"
-.RI "[\-\-port\ |\ -P\ " port ]"
-.RI "[\-\-data\-dir\ |\ -D\ " dir ]"
-.RI "[\-\-help\ |\ -h ]"
+.RB [ \-P | \-\-port
+.IR port ]
+.RB [ \-D | \-\-data\-dir
+.IR dir ]
+.RB [ \-\-password\-file
+.IR file ]
+.RB [ \-\-dm\-password\-file
+.IR file ]
+.RB [ \-h | \-\-help ]
 .SH DESCRIPTION
 .B dragongl_server
 is the authoritative server of the Dragon GL client/server dungeon crawler.
 It generates and maintains the master world (a 300x300 dungeon spanning
 101 floors), runs monster AI, resolves combat, and synchronizes the game
 state with all connected clients over TCP.
-
+.PP
 The server listens on port
-.BR 8080
-(unless changed with
-.BR \-\-port ).
-
-Security notes:
+.B 8080
+unless changed with
+.BR \-\-port .
+It does not start without a server access password.
+.SH SECURITY
 .IP \- 2
-Usernames are restricted to
-.BR 1-16
-alphanumeric/underscore characters (they are used to build file names).
+Passwords are never accepted on the command line (\fB\-p\fR, \fB\-\-password\fR,
+\fB\-d\fR and \fB\-\-dm\-password\fR are refused). They come from a file or from
+the environment; the server wipes the environment values at start-up.
+Server passwords have 8\(en31 printable ASCII characters without spaces.
+.IP \- 2
+The server access password is kept only as a keyed BLAKE2b digest and
+compared in constant time.
+.IP \- 2
+Character passwords are stored as Argon2id hashes (libsodium) created with
+the character; the plaintext is verified once per login and wiped.
 .IP \- 2
 The privileged
 .B dm
-account requires a
-.I dedicated
-password (
-.BR \-\-dm-password ): knowing the plain server access password
-no longer grants DM powers (dm_spawn, dm_goto, dm_pdf, ...).
+account exists only if a Dungeon Master password is configured; that
+password is kept as an Argon2id hash.
 .IP \- 2
-Passwords are stored salted (FNV-1a, salt derived from the username).
-The protocol is NOT encrypted: passwords travel in clear over TCP, which
-is acceptable on a trusted LAN but should not be exposed to the Internet.
+Usernames are restricted to 1\(en16 alphanumeric/underscore characters
+(they are used to build file names). A character can be online only once.
+.IP \- 2
+Control characters are removed from text commands, so chat cannot carry
+terminal escape sequences.
+.IP \- 2
+The protocol is NOT encrypted: passwords travel in clear over TCP. Use the
+server on a trusted LAN, or behind a VPN or TLS tunnel.
 .SH OPTIONS
 .TP
-.BI \-p ", " \-\-password " pwd"
-Set the password required by clients to join the server.
-Default:
-.I dragongl_secret
-(a warning is printed at boot while the default is in use).
+.BR \-P ", " \-\-port " \fIport\fR"
+TCP port to listen on (default 8080).
 .TP
-.BI \-d ", " \-\-dm-password " pwd"
-Set the password of the dedicated
-.B dm
-account.
-Default:
-.IR dragongl_dm_secret .
-.TP
-.BI \-P ", " \-\-port " port"
-TCP port to listen on (default 8080). Useful to run several servers on
-the same machine or to test in parallel.
-.TP
-.BI \-D ", " \-\-data-dir " dir"
+.BR \-D ", " \-\-data\-dir " \fIdir\fR"
 Directory holding the JSON datasets and the world state files
 (world.dat, npcs.dat, artifacts.dat).
 When not given, the server uses
-.IR ./data
+.I ./data
 if it contains
 .IR bestiary.json ,
 otherwise
-.IR /usr/share/dragongl/data
+.I /usr/share/dragongl/data
 (RPM install).
 .TP
-.B \-h , \-\-help
+.BI \-\-password\-file " file"
+Read the server access password from the first line of
+.IR file .
+A warning is printed if the file is readable by group or others.
+.TP
+.BI \-\-dm\-password\-file " file"
+Read the Dungeon Master password from the first line of
+.IR file .
+.TP
+.BR \-h ", " \-\-help
 Show a short help message and exit.
+.SH ENVIRONMENT
+.TP
+.B DRAGONGL_SERVER_PASSWORD
+Server access password, used when
+.B \-\-password\-file
+is not given. Required.
+.TP
+.B DRAGONGL_DM_PASSWORD
+Dungeon Master password, used when
+.B \-\-dm\-password\-file
+is not given. Optional: without it the
+.B dm
+account is disabled.
+.SH EXIT STATUS
+.B 0
+on a normal shutdown (SIGINT/SIGTERM: characters online are saved first),
+.B 1
+on a start-up error (port in use, data not found),
+.B 2
+on invalid options or a missing or invalid password.
 .SH FILES
 .TP
 .I combat_log.json
@@ -81,7 +109,7 @@ Player save files (*.save) and tombstones (tombstone_*.dat).
 World persistence files (world.dat, artifacts.dat, npcs.dat).
 world.dat carries a magic/version/CRC32 header (1 byte per tile, the
 volatile entity grid is not persisted); a missing or invalid file is
-never half-loaded — the server generates a fresh world instead.
+never half-loaded \(em the server generates a fresh world instead.
 .SH SEE ALSO
 .BR dragongl_client (1),
 .BR dragongl-server (1),

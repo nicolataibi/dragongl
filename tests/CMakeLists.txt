@@ -108,7 +108,7 @@ add_test(NAME vfx_threads COMMAND test_vfx_threads)
 find_package(Vulkan QUIET)
 if(Vulkan_FOUND)
     add_executable(test_gpu_mesh gpu_mesh_test.c)
-    target_link_libraries(test_gpu_mesh Vulkan::Vulkan)
+    target_link_libraries(test_gpu_mesh Vulkan::Vulkan m)
     set_source_files_properties(gpu_mesh_test.c PROPERTIES
         COMPILE_FLAGS "-ffp-contract=off")
     add_test(NAME gpu_mesh COMMAND test_gpu_mesh ${DG_ROOT}/build/shaders)

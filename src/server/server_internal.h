@@ -41,6 +41,11 @@ long long get_time_ms(void);
  * at 1 client or 64. NOTE: every in-game timer expressed in rounds
  * (hunger, light, trap respawns, ...) inherits this scale — when tuning
  * a constant, convert it: 1 round = 0.2 s real.*/
+/*npcs.dat header magic. The file holds raw NPC records, so the magic
+ * changes whenever the NPC layout does: an old file is then refused and a
+ * fresh world is generated instead of being misread.
+ * ...7ECD: AIContext.behavior is an AiBehavior enum (was a pointer).*/
+#define NPCS_FILE_MAGIC 0xDEAD7ECDu
 #define TICK_MS 200LL
 #define MAX_TICK_CATCHUP_MS (5LL * TICK_MS)
 
@@ -113,7 +118,8 @@ void check_level_up(Client *c);
 int get_xp_threshold(int level);
 void damage_item(ItemInstance *it, int amt);
 void save_player_data(Client *c);
-int load_player_data(Client *c);
+/*1 loaded, 0 no save (new character), -1 wrong password, -2 unreadable.*/
+int load_player_data(Client *c, const char *password);
 void send_text_to_client(int sock, const char *fmt, ...);
 /*Queue bytes for a client (never blocks, see server_conn.h). Returns
  * false if the client is being dropped (peer gone, queue overflow): the

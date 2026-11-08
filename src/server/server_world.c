@@ -304,7 +304,7 @@ void update_world(Client *clients, NPC *npcs) {
       if (fn) {
         /*Compact format: [magic:uint32][count:int][NPC * count][next_id:int][turns:int]
          * Replaces the old format that always wrote 50,000 slots.*/
-        const uint32_t magic = 0xDEAD7ECC;
+        const uint32_t magic = NPCS_FILE_MAGIC;
         int used = 0;
         bool ok = true;
         for (int ni = 0; ni < MAX_NPCS; ni++) {

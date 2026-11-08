@@ -619,7 +619,7 @@ void populate_dungeons(NPC *npcs, int *next_id) {
           g->hp = 250;
           g->max_hp = 250;
           g->is_ghost = true;
-          strncpy(g->custom_name, b.name, sizeof(g->custom_name) - 1);
+          copy_str(g->custom_name, b.name, sizeof(g->custom_name));
           for (int i = 0; i < 30; i++) {
             g->ghost_loot[i].template_idx = b.items[i];
             g->ghost_loot[i].stack_count = b.amounts[i];

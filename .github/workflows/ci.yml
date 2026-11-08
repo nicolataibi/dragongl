@@ -21,8 +21,12 @@ env:
 
 jobs:
   build:
-    name: Build (clang, -Werror)
+    name: Build (${{ matrix.cc }}, -Werror)
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        cc: [clang, gcc]
     steps:
       - uses: actions/checkout@v4
 
@@ -32,10 +36,12 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             clang cmake ninja-build pkg-config \
             libglfw3-dev libgl1-mesa-dev libglu1-mesa-dev \
-            libvulkan-dev glslc
+            libvulkan-dev glslc libsodium-dev
 
       - name: Configure (Release, warnings are errors)
-        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS=-Werror
+        run: |
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS=-Werror \
+            -DCMAKE_C_COMPILER=${{ matrix.cc }}
 
       - name: Build
         run: cmake --build build
@@ -87,7 +93,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            clang libclang-rt-18-dev cmake ninja-build python3
+            clang libclang-rt-18-dev cmake ninja-build pkg-config \
+            libsodium-dev python3
 
       - name: Configure
         run: |

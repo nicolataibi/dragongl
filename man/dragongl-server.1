@@ -1,59 +1,98 @@
-.TH DRAGONGL-SERVER 1 "2026-09-06" "DragonGL 2026.09.04.02" "User Commands"
+.TH DRAGONGL-SERVER 1 "2026-11-08" "DragonGL 2026.11.08.07" "User Commands"
 .SH NAME
 dragongl-server \- Dragon GL server launcher script
 .SH SYNOPSIS
 .B dragongl-server
-.RI "[\-\-password\ |\ -p\ " pwd ]
-.RI "[\-\-dm\-password\ |\ -d\ " pwd ]"
-.RI "[\-\-port\ |\ -P\ " port ]"
-.RI "[\-\-help\ |\ -h ]"
+.RB [ \-\-password\-file
+.IR file ]
+.RB [ \-\-dm\-password\-file
+.IR file ]
+.RB [ \-P | \-\-port
+.IR port ]
+.RB [ \-D | \-\-data\-dir
+.IR dir ]
+.RB [ \-h | \-\-help ]
 .SH DESCRIPTION
 .B dragongl-server
-is a convenience launcher for the Dragon GL master server. Before starting
-the server it prints diagnostic information about the host (operating
-system, uptime and load, memory usage, disk space, network interfaces) and
-then executes
-.B build/dragongl_server
-from the project root directory, passing the selected options.
-
-NOTE: the diagnostics block prints the machine's IP addresses to the log;
-set
+starts the Dragon GL game server
+.BR dragongl_server (1).
+It runs the binary installed next to it, or
+.I build/dragongl_server
+in a development tree (in that case it first changes to the project root,
+where
+.I data/
+and
+.I saves/
+live).
+.PP
+Before starting the server it prints diagnostic information about the host
+(operating system, uptime and load, memory, disk space, network
+interfaces). The block includes the machine's IP addresses: set
 .B DIAGNOSTICS=0
-in the environment to skip it.
-
-The access password is mandatory: if no option is given, the script prints
-an error and exits.
+to skip it.
+.PP
+Passwords are never accepted on the command line, where every local user
+can read them with
+.BR ps (1).
+The server access password comes from
+.BR \-\-password\-file ,
+from
+.BR DRAGONGL_SERVER_PASSWORD ,
+or, when the launcher runs on a terminal, from a prompt that also asks for
+the optional Dungeon Master password. The passwords reach the server
+through its environment, which the server wipes at start-up.
 .SH OPTIONS
 .TP
-.BI \-p ", " \-\-password " pwd"
-Set the server access password (required).
+.BI \-\-password\-file " file"
+Read the server access password from the first line of
+.IR file .
 .TP
-.BI \-d ", " \-\-dm\-password " pwd"
-Set the dedicated password of the privileged
+.BI \-\-dm\-password\-file " file"
+Read the Dungeon Master password from the first line of
+.IR file .
+Without a DM password the
 .B dm
-account (see
-.BR dragongl_server (1)).
+account is disabled.
 .TP
-.BI \-P ", " \-\-port " port"
+.BR \-P ", " \-\-port " \fIport\fR"
 TCP port to listen on (default 8080).
 .TP
-.B \-h , \-\-help
+.BR \-D ", " \-\-data\-dir " \fIdir\fR"
+Data directory (see
+.BR dragongl_server (1)).
+.TP
+.BR \-h ", " \-\-help
 Show a short help message and exit.
+.SH ENVIRONMENT
+.TP
+.B DRAGONGL_SERVER_PASSWORD
+Server access password, used when no
+.B \-\-password\-file
+is given.
+.TP
+.B DRAGONGL_DM_PASSWORD
+Dungeon Master password (optional).
+.TP
+.B DIAGNOSTICS
+Set to 0 to skip the host diagnostics block.
 .SH EXAMPLES
-Start the server with a custom password:
+Start interactively (the launcher asks for the passwords):
 .PP
 .RS
-.B dragongl-server --password segreto123
+.B dragongl-server
 .RE
 .PP
-Start a second server on another port with a dedicated DM password:
+Start from password files on another port:
 .PP
 .RS
-.B dragongl-server --password segreto123 --dm-password dm123 --port 9000
+.B chmod 600 server.pw dm.pw
+.br
+.B dragongl-server \-\-password\-file server.pw \-\-dm\-password\-file dm.pw \-\-port 9000
 .RE
 .SH SEE ALSO
 .BR dragongl_server (1),
-.BR dragongl-client (1)
+.BR dragongl-client (1),
+.BR dragongl-reset-world (1)
 .SH AUTHOR
 Nicola Taibi <nicola.taibi.1967@gmail.com>
 .SH LICENSE

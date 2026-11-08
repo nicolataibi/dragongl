@@ -171,8 +171,9 @@ void tombstone_load_all(void) {
         if (strncmp(entry->d_name, "tombstone_", 10) != 0) {
             continue;
         }
-        char path[256];
-        snprintf(path, sizeof(path), "saves/%s", entry->d_name);
+        char path[300];
+        if (snprintf(path, sizeof(path), "saves/%s", entry->d_name) >= (int)sizeof(path))
+            continue;
         FILE *f = fopen(path, "rb");
         if (!f) {
             continue;
@@ -272,7 +273,7 @@ void tombstone_create(Client *c) {
     t->y            = c->y;
     t->floor_id     = c->floor_id;
     t->death_time   = time(NULL);
-    strncpy(t->owner, c->username, sizeof(t->owner) - 1);
+    copy_str(t->owner, c->username, sizeof(t->owner));
 
     t->gold         = c->gold;
     t->backpack_count = c->backpack_count;

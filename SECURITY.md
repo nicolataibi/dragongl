@@ -36,21 +36,26 @@ Dragon GL is a multi-user client-server game engine communicating over non-block
 
 ### A. Dual-Key Authentication & DM Separation
 To protect server resources and player accounts from unauthorized access:
-1. **Server Access Password (`--password`)**:
+1. **Server Access Password** (required, no default):
    - Acts as a perimeter gate. All incoming connections must supply the correct server password in `MsgLogin`.
+   - Kept in memory only as a keyed BLAKE2b digest (random per-process key) and compared in constant time.
    - Connections failing this check receive `MSG_AUTH_FAIL` and are immediately closed.
-2. **Player Account Password (`password`)**:
-   - Each player character is secured with an individual password.
-   - Passwords are validated using salted hashes against saved binary profiles (`.save`), protecting character data from impersonation.
-3. **Dedicated Dungeon Master Account (`--dm-password`)**:
-   - Administrative commands (`dm_*`) require authenticating as the reserved user `dm`.
-   - DM authentication uses an isolated, independent password configured at server boot (`-d/--dm-password`), hashed with a unique salt (`SERVER_DM_PASSWORD`).
-   - Standard players cannot elevate privileges even if they know the general server gate password.
+2. **Player Account Password**:
+   - Each character has its own password, hashed with **Argon2id** (libsodium `crypto_pwhash_str`, interactive limits, random salt) when the character is created. The `.save` file stores only that string.
+   - The plaintext is verified once per login and wiped: it is not kept for the session, and every save writes the stored hash.
+3. **Dungeon Master Account** (optional):
+   - Administrative commands (`dm_*`) require authenticating as the reserved user `dm` with a dedicated password, kept only as an Argon2id hash.
+   - Without a DM password the account is disabled.
+4. **Where secrets come from:** a file (`--password-file`, `--dm-password-file`; a warning is printed if it is readable by group/others) or the environment (`DRAGONGL_SERVER_PASSWORD`, `DRAGONGL_DM_PASSWORD`). Command-line passwords are refused, because every local user can read them with `ps`. The server wipes the environment values in place at start-up, so they disappear from `/proc/<pid>/environ`. Server secrets have 8-31 printable ASCII characters without spaces.
+5. **Transport:** the protocol is not encrypted. Passwords travel in clear over TCP: run the server on a trusted LAN, or behind a VPN or TLS tunnel.
+6. **Known limit:** Argon2id runs on the main loop, so each login pauses the game for roughly 50-100 ms. The per-address limits below bound how often this can be triggered.
 
 ### B. Network Framing & Buffer Bounds
 - **Strict Packet Bounds:** All network messages begin with a 12-byte `MsgHeader` containing an explicit `length` field and `PROTOCOL_VERSION`.
 - **String Sanitization:** Text buffers (`username`, `password`, `cmd`, `text`) are constrained to fixed boundaries (32 to 256 bytes) and guaranteed NUL-terminated upon receipt.
 - **Protocol Version Lock:** Any packet arriving with an unexpected `version` is rejected immediately, disconnecting out-of-date or malformed clients before memory allocation occurs.
+
+Text commands are stripped of control characters (bytes below 0x20 and 0x7F) before they reach the game, so chat and private messages cannot carry terminal escape sequences to other players. The RNG seed is not logged.
 
 ### C. Denial-of-Service Resistance
 - **Non-blocking server loop:** Each client has a receive buffer and a send queue (`src/server/server_conn.c`). A slow, silent or half-open connection can never stall the game loop for the other players.

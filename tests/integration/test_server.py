@@ -47,18 +47,32 @@ def open_fds(pid):
     return len(os.listdir("/proc/%d/fd" % pid))
 
 
+def server_env(gate=SERVER_PASS, dm=DM_PASS):
+    """Environment for a server process: secrets travel only here."""
+    env = dict(os.environ)
+    env.pop("DRAGONGL_SERVER_PASSWORD", None)
+    env.pop("DRAGONGL_DM_PASSWORD", None)
+    if gate is not None:
+        env["DRAGONGL_SERVER_PASSWORD"] = gate
+    if dm is not None:
+        env["DRAGONGL_DM_PASSWORD"] = dm
+    return env
+
+
 class ServerProcess:
     """A dragongl_server running in its own working directory."""
 
-    def __init__(self, workdir, port):
+    def __init__(self, workdir, port, env=None, extra_args=()):
         self.workdir = workdir
         self.port = port
         self.log_path = os.path.join(workdir, "server.log")
-        self._log = open(self.log_path, "w")
+        self._log = open(self.log_path, "a")
+        # A restart appends to the same log: only look past this point.
+        self._log_start = os.path.getsize(self.log_path)
         self.proc = subprocess.Popen(
-            [SERVER, "--password", SERVER_PASS, "--dm-password", DM_PASS,
-             "--port", str(port)],
-            cwd=workdir, stdout=self._log, stderr=subprocess.STDOUT)
+            [SERVER, "--port", str(port), *extra_args],
+            cwd=workdir, env=server_env() if env is None else env,
+            stdout=self._log, stderr=subprocess.STDOUT)
 
     def wait_ready(self, timeout):
         deadline = time.monotonic() + timeout
@@ -66,6 +80,7 @@ class ServerProcess:
             if self.proc.poll() is not None:
                 raise RuntimeError("server exited during start-up:\n" + self.log_tail())
             with open(self.log_path, errors="replace") as f:
+                f.seek(self._log_start)
                 if READY_MARK in f.read():
                     return
             time.sleep(0.2)
@@ -122,14 +137,23 @@ class ServerTest(unittest.TestCase):
         self.server.wait_ready(timeout=300)
         self.clients = []
 
-    def restart_server(self):
+    def restart_server(self, env=None, extra_args=()):
         """Stop the server gracefully and start it again on the same world."""
         for c in self.clients:
             c.close()
         self.clients = []
         self.server.stop()
-        self.server = ServerProcess(self.workdir, free_port())
+        self.server = ServerProcess(self.workdir, free_port(), env=env,
+                                    extra_args=extra_args)
         self.server.wait_ready(timeout=300)
+
+    def run_server_expecting_exit(self, env, extra_args=()):
+        """Run the server binary that must refuse to start; return
+        (exit status, output)."""
+        proc = subprocess.run([SERVER, "--port", str(free_port()), *extra_args],
+                              cwd=self.workdir, env=env, timeout=60,
+                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        return proc.returncode, proc.stdout.decode(errors="replace")
 
     def tearDown(self):
         for c in self.clients:
@@ -300,6 +324,80 @@ class ServerTest(unittest.TestCase):
         self.restart_server()
         again = self.player("walker")
         self.assertEqual(again.position, here)
+
+    # --- credentials (phase 3) -------------------------------------------------
+    def test_server_refuses_to_start_without_a_password(self):
+        status, out = self.run_server_expecting_exit(server_env(gate=None, dm=None))
+        self.assertEqual(status, 2, out)
+        self.assertIn("No server password", out)
+
+    def test_passwords_on_the_command_line_are_refused(self):
+        for opt in ("--password", "-p", "--dm-password", "-d"):
+            status, out = self.run_server_expecting_exit(server_env(), (opt, "whatever123"))
+            self.assertEqual(status, 2, out)
+            self.assertIn("not accepted on the command line", out)
+
+    def test_weak_server_password_is_refused(self):
+        status, out = self.run_server_expecting_exit(server_env(gate="short"))
+        self.assertEqual(status, 2, out)
+        self.assertIn("too short", out)
+
+    def test_secrets_are_not_visible_to_other_processes(self):
+        pid = self.server.proc.pid
+        with open("/proc/%d/cmdline" % pid, "rb") as f:
+            cmdline = f.read()
+        with open("/proc/%d/environ" % pid, "rb") as f:
+            environ = f.read()
+        for secret in (SERVER_PASS, DM_PASS):
+            self.assertNotIn(secret.encode(), cmdline)
+            self.assertNotIn(secret.encode(), environ)
+        log = open(self.server.log_path, errors="replace").read()
+        self.assertNotIn(SERVER_PASS, log)
+        self.assertNotIn("RNG seeded", log)
+
+    def test_password_file(self):
+        pw_file = os.path.join(self.workdir, "gate.pw")
+        with open(pw_file, "w") as f:
+            f.write("from-a-file-123\n")
+        os.chmod(pw_file, 0o600)
+        self.restart_server(env=server_env(gate=None, dm=None),
+                            extra_args=("--password-file", pw_file))
+        c = self.connect()
+        c.login("filed", "pw", "from-a-file-123")
+        self.assertTrue(c.wait_for_login(), c.auth_fail)
+
+    def test_dm_account_is_disabled_without_a_dm_password(self):
+        self.restart_server(env=server_env(dm=None))
+        c = self.connect()
+        c.login("dm", DM_PASS, SERVER_PASS)
+        self.assertFalse(c.wait_for_login())
+        self.assertTrue(any("disabled" in r for r in c.auth_fail), c.auth_fail)
+
+    def test_dm_login_needs_the_dm_password(self):
+        wrong = self.connect()
+        wrong.login("dm", "not-the-dm-password", SERVER_PASS)
+        self.assertFalse(wrong.wait_for_login())
+        self.assertTrue(any("DM password" in r for r in wrong.auth_fail), wrong.auth_fail)
+        dm = self.player("dm", password=DM_PASS)
+        dm.command("dm_telemetry")
+        self.assertIsNotNone(dm.wait_for_text("[DM]", 5), dm.texts[-5:])
+
+    def test_save_keeps_only_an_argon2id_hash(self):
+        self.player("keeper", password="plain-text-pw").close()
+        time.sleep(1.0)
+        with open(os.path.join(self.workdir, "saves", "keeper.save"), "rb") as f:
+            data = f.read()
+        self.assertIn(b"$argon2id$", data)
+        self.assertNotIn(b"plain-text-pw", data)
+        self.player("keeper", password="plain-text-pw")
+
+    def test_chat_control_characters_are_stripped(self):
+        speaker = self.player("speaker")
+        listener = self.player("listener")
+        speaker.command("say hi\x1b[2J\rthere")
+        self.assertIsNotNone(listener.wait_for_text("[CHAT] speaker:", 5), listener.texts)
+        for text in listener.texts:
+            self.assertFalse(any(ord(ch) < 0x20 or ord(ch) == 0x7F for ch in text), repr(text))
 
     def test_second_login_of_same_character_is_rejected(self):
         """P1-2: the same character must not be online twice (item

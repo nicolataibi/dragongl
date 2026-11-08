@@ -29,6 +29,8 @@ get_filename_component(DGL_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
 
 find_package(Threads REQUIRED)
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(SODIUM REQUIRED IMPORTED_TARGET libsodium)
 
 add_compile_definitions(_DEFAULT_SOURCE)
 if(NOT MSVC)
@@ -39,6 +41,7 @@ set(DGL_SERVER_SRCS
     ${DGL_ROOT}/src/server/main_server.c
     ${DGL_ROOT}/src/server/server_net.c
     ${DGL_ROOT}/src/server/server_conn.c
+    ${DGL_ROOT}/src/server/auth.c
     ${DGL_ROOT}/src/server/ai.c
     ${DGL_ROOT}/src/server/aoe.c
     ${DGL_ROOT}/src/server/combat_log.c
@@ -61,7 +64,7 @@ set(DGL_INCLUDES ${DGL_ROOT}/include ${DGL_ROOT}/src/server ${DGL_ROOT}/src/clie
 # --- The real server, built with the flags of this project (sanitizers) ---
 add_executable(dragongl_server_it ${DGL_SERVER_SRCS})
 target_include_directories(dragongl_server_it PRIVATE ${DGL_INCLUDES})
-target_link_libraries(dragongl_server_it PRIVATE Threads::Threads m)
+target_link_libraries(dragongl_server_it PRIVATE Threads::Threads m PkgConfig::SODIUM)
 
 # --- In-process harness: same sources, no main() ---
 add_executable(server_harness server_harness.c ${DGL_SERVER_SRCS})
@@ -70,7 +73,7 @@ target_compile_definitions(server_harness PRIVATE DRAGONGL_NO_MAIN
     DGL_TEST_DATA_DIR="${DGL_ROOT}/data")
 # Without main() a few file-local helpers and globals of main_server.c are unused.
 target_compile_options(server_harness PRIVATE -Wno-unused-function -Wno-unused-variable)
-target_link_libraries(server_harness PRIVATE Threads::Threads m)
+target_link_libraries(server_harness PRIVATE Threads::Threads m PkgConfig::SODIUM)
 
 enable_testing()
 

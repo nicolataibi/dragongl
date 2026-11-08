@@ -1,15 +1,21 @@
-#!/bin/bash
-# DRAGON GL
+#!/usr/bin/env bash
 # Dragon GL - Copyright (C) 2026 Nicola Taibi
 # License: GPL-3.0-or-later
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
-# Professional Startup Script
+#
+# dragongl-server — launcher for the Dragon GL game server.
+#
+# Passwords never go on the command line (every local user can read it
+# with ps). They come from files, from the environment, or are asked
+# interactively, and reach the server through its environment, which the
+# server wipes at start-up.
 
-# DragonGL Server Launcher
-cat << "EOF"
+set -euo pipefail
+
+cat <<"EOF"
 ###############################################################################
 #                                                                             #
 #                      Dragon GL - Arcane Game Engine                         #
@@ -19,96 +25,103 @@ cat << "EOF"
 EOF
 
 show_help() {
-    echo -e "\nUsage: $0 [opzioni]"
-    echo "Options:"
-    echo "  -p, --password <pwd>       Sets the server access password"
-    echo "  -d, --dm-password <pwd>    Sets the dedicated DM account password"
-    echo "  -P, --port <port>          TCP port (default: 8080)"
-    echo "  -h, --help                 Shows this help message"
-    echo -e "\nExample:"
-    echo "  $0 --password myPwd123 --dm-password dm123 --port 9000"
+    cat <<EOF
+
+Usage: ${0##*/} [options]
+
+Options:
+  --password-file <file>     server access password (first line of the file)
+  --dm-password-file <file>  Dungeon Master password (optional)
+  -P, --port <port>          TCP port (default: 8080)
+  -D, --data-dir <dir>       data directory (default: ./data, else /usr/share/dragongl/data)
+  -h, --help                 show this help
+
+Without --password-file the launcher uses DRAGONGL_SERVER_PASSWORD, or asks
+for the password when run from a terminal. The DM account is enabled only
+when a DM password is given (--dm-password-file, DRAGONGL_DM_PASSWORD or the
+interactive prompt). Passwords: 8-31 printable ASCII characters, no spaces.
+
+Examples:
+  ${0##*/}
+  ${0##*/} --password-file ~/.config/dragongl/server.pw --port 9000
+  DIAGNOSTICS=0 ${0##*/} --password-file server.pw --dm-password-file dm.pw
+EOF
 }
 
-# Parsing parameters
-PASSWORD=""
-DMPASSWORD=""
-PORT=""
-while [[ $# -gt 0 ]]; do
-    key="$1"
-    case $key in
-        -p|--password)
-            PASSWORD="$2"
-            shift # past argument
-            shift # past value
+die() { printf '\n[ERROR] %s\n' "$*" >&2; exit 1; }
+
+ARGS=()
+HAVE_GATE_FILE=0
+HAVE_DM_FILE=0
+while (($#)); do
+    case $1 in
+        --password-file|--dm-password-file|-P|--port|-D|--data-dir)
+            (($# > 1)) || die "$1 needs a value"
+            [[ $1 == --password-file ]] && HAVE_GATE_FILE=1
+            [[ $1 == --dm-password-file ]] && HAVE_DM_FILE=1
+            ARGS+=("$1" "$2")
+            shift 2
             ;;
-        -d|--dm-password)
-            DMPASSWORD="$2"
-            shift # past argument
-            shift # past value
-            ;;
-        -P|--port)
-            PORT="$2"
-            shift # past argument
-            shift # past value
+        -p|--password|-d|--dm-password)
+            die "$1 is no longer supported: passwords on the command line are visible to every user. Use --password-file / --dm-password-file, or let the launcher ask."
             ;;
         -h|--help)
             show_help
             exit 0
             ;;
-        *)    # unknown option
-            echo "Unknown option: $1"
-            show_help
-            exit 1
+        *)
+            show_help >&2
+            die "unknown option: $1"
             ;;
     esac
 done
 
-if [ -z "$PASSWORD" ]; then
-    echo -e "\n[ERROR] A server password is required."
-    show_help
-    exit 1
+# --- Server binary: next to this script (RPM: /usr/bin) or in build/ ------
+HERE="$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")" && pwd)"
+if [[ -x $HERE/dragongl_server ]]; then
+    BIN="$HERE/dragongl_server"
+elif [[ -x $HERE/build/dragongl_server ]]; then
+    BIN="$HERE/build/dragongl_server"
+    # Development tree: data/ and saves/ are relative to the project root.
+    cd -- "$HERE"
+else
+    die "dragongl_server not found next to ${0##*/} or in build/. Build it with: ./build.sh -n"
 fi
 
-# Check if executable exists
-BIN="./build/dragongl_server"
-if [ ! -f "$BIN" ]; then
-    echo -e "\n[ERROR] Server executable not found in build/."
-    echo "Compile the project with:"
-    echo "  cd build && cmake .. && make -j\$(nproc)"
-    exit 1
-fi
+# --- Passwords ------------------------------------------------------------------
+ask_secret() { # ask_secret <prompt> <variable>
+    local value
+    IFS= read -rs -p "$1" value
+    printf '\n'
+    printf -v "$2" '%s' "$value"
+}
 
-# Start the server from root (data/ e saves/ sono relativi a questa directory)
-cd "$(dirname "$0")"
-
-echo -e "\n========================================"
-echo -e "[SYSTEM] Diagnostic Data for the Master"
-echo -e "========================================"
-# NOTE (privacy): the block below prints host IPs, uptime, memory and disk
-# usage to the log. If the server log is shared, use DIAGNOSTICS=0 to skip it.
-if [ "${DIAGNOSTICS:-1}" != "0" ]; then
-    echo -e "\n[OS]"
-    uname -a
-    echo -e "\n[UPTIME & LOAD]"
-    uptime
-    echo -e "\n[MEMORY]"
-    free -m
-    echo -e "\n[DISK SPACE]"
-    df -h /
-    echo -e "\n[NETWORK (IP Addresses)]"
-    ip -brief address show || ifconfig || hostname -I
+if ((!HAVE_GATE_FILE)) && [[ -z ${DRAGONGL_SERVER_PASSWORD:-} ]]; then
+    [[ -t 0 ]] || die "no server password: use --password-file or DRAGONGL_SERVER_PASSWORD."
+    ask_secret "Server access password: " DRAGONGL_SERVER_PASSWORD
+    if ((!HAVE_DM_FILE)) && [[ -z ${DRAGONGL_DM_PASSWORD:-} ]]; then
+        ask_secret "Dungeon Master password (empty = DM account disabled): " DRAGONGL_DM_PASSWORD
+    fi
 fi
-echo -e "\n========================================\n"
+export DRAGONGL_SERVER_PASSWORD="${DRAGONGL_SERVER_PASSWORD:-}"
+export DRAGONGL_DM_PASSWORD="${DRAGONGL_DM_PASSWORD:-}"
+[[ -n $DRAGONGL_SERVER_PASSWORD ]] || unset DRAGONGL_SERVER_PASSWORD
+[[ -n $DRAGONGL_DM_PASSWORD ]] || unset DRAGONGL_DM_PASSWORD
 
-# Build the argv safely (the old `CMD="$BIN --password $PASSWORD"; $CMD`
-# relied on word splitting: a password containing spaces — or even glob
-# characters like * or ? — would break the command or expand to files).
-ARGS=(--password "$PASSWORD")
-if [ -n "$DMPASSWORD" ]; then
-    ARGS+=(--dm-password "$DMPASSWORD")
-fi
-if [ -n "$PORT" ]; then
-    ARGS+=(--port "$PORT")
+# --- Host diagnostics -------------------------------------------------------------
+# NOTE (privacy): prints host IPs, uptime, memory and disk usage. If the
+# server log is shared, run with DIAGNOSTICS=0.
+if [[ ${DIAGNOSTICS:-1} != 0 ]]; then
+    printf '\n========================================\n'
+    printf '[SYSTEM] Diagnostic Data for the Master\n'
+    printf '========================================\n'
+    printf '\n[OS]\n'; uname -a
+    printf '\n[UPTIME & LOAD]\n'; uptime || true
+    printf '\n[MEMORY]\n'; free -m || true
+    printf '\n[DISK SPACE]\n'; df -h . || true
+    printf '\n[NETWORK (IP Addresses)]\n'
+    ip -brief address show 2>/dev/null || hostname -I 2>/dev/null || true
+    printf '\n========================================\n\n'
 fi
 
 exec "$BIN" "${ARGS[@]}"

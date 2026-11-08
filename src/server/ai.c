@@ -25,6 +25,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+AINodeStatus ai_swarm_behavior(NPC *npc, Client *clients, int num_clients,
+                               bool new_round, NPC *all_npcs);
+
 // Map archetype string -> enum EntityArchetype
 static EntityArchetype archetype_from_string(const char* s) {
     if (!s)                                return ARCH_MELEE;
@@ -39,12 +42,11 @@ static EntityArchetype archetype_from_string(const char* s) {
 
 // Attach the behavior tree to the correct function pointer based on archetype
 static void attach_behavior_by_archetype(NPC* npc) {
-    extern AINodeStatus ai_swarm_behavior(NPC*, Client*, int, bool, NPC*);
     switch (npc->archetype) {
-        case ARCH_BOSS:     npc->ai_ctx.behavior_tree_root = (void*)ai_void_crawler_behavior; break;
-        case ARCH_CASTER:   npc->ai_ctx.behavior_tree_root = (void*)ai_mage_behavior;         break;
-        case ARCH_SWARM:    npc->ai_ctx.behavior_tree_root = (void*)ai_swarm_behavior;        break;
-        default:            npc->ai_ctx.behavior_tree_root = NULL;                            break;
+        case ARCH_BOSS:     npc->ai_ctx.behavior = AI_BEHAVIOR_VOID_CRAWLER; break;
+        case ARCH_CASTER:   npc->ai_ctx.behavior = AI_BEHAVIOR_MAGE;         break;
+        case ARCH_SWARM:    npc->ai_ctx.behavior = AI_BEHAVIOR_SWARM;        break;
+        default:            npc->ai_ctx.behavior = AI_BEHAVIOR_DEFAULT;      break;
     }
 }
 
@@ -388,11 +390,19 @@ void ai_update_npc(NPC* npc, Client* clients, int num_clients, bool new_round, N
         npc->archetype == ARCH_TREASURE ||
         npc->archetype == ARCH_GOLD) return;
 
-    AINodeFunc root = (AINodeFunc)npc->ai_ctx.behavior_tree_root;
-    if (root) {
-        root(npc, clients, num_clients, new_round, all_npcs);
-    } else {
+    switch (npc->ai_ctx.behavior) {
+    case AI_BEHAVIOR_VOID_CRAWLER:
+        (void)ai_void_crawler_behavior(npc, clients, num_clients, new_round, all_npcs);
+        break;
+    case AI_BEHAVIOR_MAGE:
+        (void)ai_mage_behavior(npc, clients, num_clients, new_round, all_npcs);
+        break;
+    case AI_BEHAVIOR_SWARM:
+        (void)ai_swarm_behavior(npc, clients, num_clients, new_round, all_npcs);
+        break;
+    default:
         default_ai_update(npc, clients, num_clients, new_round, all_npcs);
+        break;
     }
 }
 

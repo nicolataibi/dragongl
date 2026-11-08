@@ -28,6 +28,7 @@
 #include "protocol.h"
 #include "server_net.h"
 #include "server_conn.h"
+#include "auth.h"
 #include "rules.h"
 #include "species.h"
 #include "spells.h"
@@ -102,195 +103,6 @@ long long get_time_ms(void) {
     struct timeval tv;
     gettimeofday(&tv, NULL);
     return (long long)tv.tv_sec * 1000 + tv.tv_usec / 1000;
-}
-static char SERVER_ACCESS_PASSWORD[64] = "dragongl_secret";
-/*Dedicated password for the privileged "dm" account. Anyone who knows it
- * becomes DM (dm_spawn, dm_goto, dm_pdf, ...). It is a SEPARATE credential
- * from the server access password: knowing the access password no longer
- * grants DM powers. Override at start with --dm-password.*/
-static char SERVER_DM_PASSWORD[64] = "dragongl_dm_secret";
-
-/*--- Password hashing: PBKDF2-SHA256 (RFC 2898), 4 iterations ----------
- * Replaces salted FNV-1a: the 32-bit output meant anyone with read
- * access to saves/ could brute-force a hash in seconds on a GPU (2^32
- * is a small space). PBKDF2-SHA256 gives a 256-bit output (64 hex
- * chars). The iteration count is deliberately low: this is a LAN game
- * and login happens on a user's keyboard, not against a bot — we want
- * to out-race offline brute force, not to slow down the login path.
- * Passwords still travel in the clear over TCP: document this for
- * users. (SHA-256 below is self-contained: the server links no
- * crypto library.)*/
-#define PBKDF2_ITERS 4u
-
-static uint32_t rotr32(uint32_t x, int n) {
-    return (x >> n) | (x << (32 - n));
-}
-
-static const uint32_t g_sha256_k[64] = {
-    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1,
-    0x923f82a4, 0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3,
-    0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786,
-    0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
-    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147,
-    0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13,
-    0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b,
-    0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
-    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a,
-    0x5b9cca4f, 0x682e6ff3, 0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208,
-    0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
-};
-
-/*One 64-byte compression step (FIPS 180-4).*/
-static void sha256_block(uint32_t state[8], const uint8_t block[64]) {
-    uint32_t w[64];
-    for (int i = 0; i < 16; i++) {
-        w[i] = ((uint32_t)block[i * 4] << 24) | ((uint32_t)block[i * 4 + 1] << 16) |
-               ((uint32_t)block[i * 4 + 2] << 8) | (uint32_t)block[i * 4 + 3];
-    }
-    for (int i = 16; i < 64; i++) {
-        uint32_t s0 = rotr32(w[i - 15], 7) ^ rotr32(w[i - 15], 18) ^ (w[i - 15] >> 3);
-        uint32_t s1 = rotr32(w[i - 2], 17) ^ rotr32(w[i - 2], 19) ^ (w[i - 2] >> 10);
-        w[i] = w[i - 16] + s0 + w[i - 7] + s1;
-    }
-    uint32_t a = state[0], b = state[1], c = state[2], d = state[3];
-    uint32_t e = state[4], f = state[5], g = state[6], h = state[7];
-    for (int i = 0; i < 64; i++) {
-        uint32_t S1 = rotr32(e, 6) ^ rotr32(e, 11) ^ rotr32(e, 25);
-        uint32_t ch = (e & f) ^ (~e & g);
-        uint32_t t1 = h + S1 + ch + g_sha256_k[i] + w[i];
-        uint32_t S0 = rotr32(a, 2) ^ rotr32(a, 13) ^ rotr32(a, 22);
-        uint32_t maj = (a & b) ^ (a & c) ^ (b & c);
-        uint32_t t2 = S0 + maj;
-        h = g; g = f; f = e; e = d + t1;
-        d = c; c = b; b = a; a = t1 + t2;
-    }
-    state[0] += a; state[1] += b; state[2] += c; state[3] += d;
-    state[4] += e; state[5] += f; state[6] += g; state[7] += h;
-}
-
-static void sha256(const uint8_t *data, size_t len, uint8_t out[32]) {
-    static const uint32_t init[8] = {
-        0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
-        0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19
-    };
-    uint32_t state[8];
-    for (int i = 0; i < 8; i++) state[i] = init[i];
-    size_t i = 0;
-    for (; i + 64 <= len; i += 64)
-        sha256_block(state, data + i);
-    /*Padding: 0x80, zeros, then the 64-bit big-endian bit count. If the
-     * final block has no room for the 8-byte length (rem >= 56), the
-     * length goes in an extra all-zero block.*/
-    size_t rem = len - i;
-    uint8_t tail[64];
-    memset(tail, 0, sizeof(tail));
-    memcpy(tail, data + i, rem);
-    tail[rem] = 0x80;
-    if (rem + 9 > 64) {
-        sha256_block(state, tail);
-        memset(tail, 0, sizeof(tail));
-    }
-    uint64_t bits = (uint64_t)len * 8;
-    for (int j = 7; j >= 0; j--) {
-        tail[56 + j] = (uint8_t)(bits & 0xFF);
-        bits >>= 8;
-    }
-    sha256_block(state, tail);
-    for (int j = 0; j < 8; j++) {
-        out[j * 4]     = (uint8_t)(state[j] >> 24);
-        out[j * 4 + 1] = (uint8_t)(state[j] >> 16);
-        out[j * 4 + 2] = (uint8_t)(state[j] >> 8);
-        out[j * 4 + 3] = (uint8_t)(state[j]);
-    }
-}
-
-static void hmac_sha256(const uint8_t *key, size_t key_len,
-                        const uint8_t *msg, size_t msg_len, uint8_t out[32]) {
-    /*SHA-256 block size is 64 bytes (RFC 2104 ipad/opad).*/
-    uint8_t kbuf[64], ikey[64], okey[64];
-    memset(kbuf, 0, sizeof(kbuf));
-    if (key_len > 64) {
-        uint8_t kh[32];
-        sha256(key, key_len, kh);
-        memcpy(kbuf, kh, 32);
-    } else {
-        memcpy(kbuf, key, key_len);
-    }
-    for (int i = 0; i < 64; i++) {
-        ikey[i] = kbuf[i] ^ 0x36;
-        okey[i] = kbuf[i] ^ 0x5c;
-    }
-    uint8_t inner[32];
-    uint8_t *im = malloc(64 + msg_len);
-    if (!im)
-        return; /*caller's buffer is left untouched (zeroed by the caller)*/
-    memcpy(im, ikey, 64);
-    memcpy(im + 64, msg, msg_len);
-    sha256(im, 64 + msg_len, inner);
-    free(im);
-    uint8_t om[64 + 32];
-    memcpy(om, okey, 64);
-    memcpy(om + 64, inner, 32);
-    sha256(om, 64 + 32, out);
-}
-
-/*PBKDF2-SHA256 (RFC 2898) with a 32-byte output = one block (i = 1):
- * U_1 = PRF(pwd, salt || INT(1)), U_j = PRF(pwd, U_(j-1)),
- * DK  = U_1 ^ U_2 ^ ... ^ U_c.
- * NOTE: the counter appears ONLY in U_1; every following U is the HMAC
- * of the PREVIOUS U (the chain folds the password in each step) — do
- * not "simplify" this to PRF(pwd, salt||INT(j)): that is a different,
- * non-standard function. The salt here is always shorter than a
- * SHA-256 block, so a single counter block suffices.*/
-static void pbkdf2_sha256(const uint8_t *pwd, size_t pwd_len,
-                          const uint8_t *salt, size_t salt_len,
-                          uint32_t iters, uint8_t out[32]) {
-    memset(out, 0, 32);
-    uint8_t *msg = malloc(salt_len + 4);
-    if (!msg)
-        return;
-    memcpy(msg, salt, salt_len);
-    msg[salt_len + 0] = 0;
-    msg[salt_len + 1] = 0;
-    msg[salt_len + 2] = 0;
-    msg[salt_len + 3] = 1;
-    uint8_t prev[32], cur[32];
-    hmac_sha256(pwd, pwd_len, msg, salt_len + 4, prev);
-    memcpy(out, prev, 32);
-    for (uint32_t i = 2; i <= iters; i++) {
-        hmac_sha256(pwd, pwd_len, prev, 32, cur);
-        for (int j = 0; j < 32; j++)
-            out[j] ^= cur[j];
-        memcpy(prev, cur, 32);
-    }
-    free(msg);
-}
-
-/*KDF for the stored password (also used for the DM credential check):
- * PBKDF2-SHA256, PBKDF2_ITERS iterations, 64 hex chars + NUL (the
- * caller must pass at least 65 bytes). The salt is mixed in by the
- * KDF itself (per-username, see password_salt_for), so identical
- * passwords hash differently per character.*/
-static void hash_password_kdf(const char *pwd, const char *salt,
-                              char *out, size_t out_len) {
-    if (out_len < 65) {
-        if (out) out[0] = '\0';
-        return;
-    }
-    uint8_t dk[32];
-    pbkdf2_sha256((const uint8_t *)(pwd ? pwd : ""),
-                  pwd ? strlen(pwd) : 0,
-                  (const uint8_t *)(salt ? salt : ""),
-                  salt ? strlen(salt) : 0,
-                  PBKDF2_ITERS, dk);
-    for (int i = 0; i < 32; i++)
-        snprintf(out + 2 * i, 3, "%02x", dk[i]);
-}
-
-/*The salt for a character's password: derived from the username so the
- * same password for two characters hashes differently.*/
-static void password_salt_for(const char *username, char *out, size_t out_len) {
-    snprintf(out, out_len, "dragongl.v2:%s", username ? username : "?");
 }
 
 /*--- Username policy: [A-Za-z0-9_]{1,16}.
@@ -404,7 +216,8 @@ static void seed_game_rng(void) {
         seed ^= (uint32_t)(uintptr_t)&seed;
     }
     srand(seed);
-    server_log("SYS", "RNG seeded with %u", seed);
+    /*The seed is NOT logged: with it, anyone reading the log could
+     * replay every die roll and loot drop of rand().*/
 }
 
 // ===== SISTEMA ARTEFATTI UNICI =====
@@ -1615,12 +1428,9 @@ void save_player_data(Client *c) {
     return;
   SaveData sd;
   memset(&sd, 0, sizeof(sd));
-  /*PBKDF2-SHA256 hash of the password (salt = username, so identical
-   * passwords hash differently per character) — never the plaintext, and
-   * never the old 32-bit FNV-1a digest (GPU-brute-forceable in seconds).*/
-  char salt[96];
-  password_salt_for(c->username, salt, sizeof(salt));
-  hash_password_kdf(c->password, salt, sd.password, sizeof(sd.password));
+  /*The Argon2id string computed when the character was created (random
+   * salt and parameters are encoded in it): the plaintext is never kept.*/
+  copy_str(sd.password_hash, c->password_hash, sizeof(sd.password_hash));
   sd.x = c->x;
   sd.y = c->y;
   sd.floor_id = c->floor_id;
@@ -1722,8 +1532,8 @@ static void sanitize_item_instance(ItemInstance *it) {
 //Returns 1 if loaded, 0 if not exists, -1 if password incorrect,
 //-2 if the file exists but is unreadable (old format, wrong version,
 //or CRC mismatch): the login is refused and the file is kept intact.
-int load_player_data(Client *c) {
-  if (!c)
+int load_player_data(Client *c, const char *password) {
+  if (!c || !password)
     return 0;
   char p[64];
   snprintf(p, 64, "saves/%s.save", c->username);
@@ -1757,16 +1567,12 @@ int load_player_data(Client *c) {
     return -2;
   }
   fclose(f);
-  /*Verify the PBKDF2-SHA256 password hash (salt = username): the full
-   * 64-hex-char digest, not the old 8-char prefix compare.*/
-  char salt[96];
-  password_salt_for(c->username, salt, sizeof(salt));
-  char expected_hash[80];
-  hash_password_kdf(c->password, salt, expected_hash, sizeof(expected_hash));
-  if (strcmp(sd.password, expected_hash) != 0) {
+  if (!auth_verify_password(sd.password_hash, password)) {
+    auth_wipe(&sd, sizeof(sd));
     server_log("AUTH", "Incorrect password for: %s", c->username);
     return -1; //Incorrect password
   }
+  copy_str(c->password_hash, sd.password_hash, sizeof(c->password_hash));
   //Restore state
   /*--- SANITIZE THE LOADED STATE --------------------------------
    * A save file is untrusted input: saves are written atomically
@@ -2767,52 +2573,394 @@ static void update_write_interest(int epoll_fd, Client *clients) {
   }
 }
 
+static void print_server_usage(const char *argv0) {
+  printf("Usage: %s [options]\n"
+         "Options:\n"
+         "  -P, --port <port>          TCP port to listen on (default: 8080)\n"
+         "  -D, --data-dir <dir>       Data directory (JSON + world.dat).\n"
+         "                             Default: ./data if present, else\n"
+         "                             /usr/share/dragongl/data (RPM).\n"
+         "      --password-file <f>    Read the server access password from f\n"
+         "      --dm-password-file <f> Read the Dungeon Master password from f\n"
+         "  -h, --help                 Show this help\n"
+         "\n"
+         "Passwords are never accepted on the command line. Without a file the\n"
+         "server reads DRAGONGL_SERVER_PASSWORD (required) and DRAGONGL_DM_PASSWORD\n"
+         "(optional: without it the DM account is disabled). Each password has\n"
+         "8-31 printable ASCII characters, no spaces.\n",
+         argv0);
+}
+
+/*Server access password (required) and DM password (optional), from a
+ * file or the environment. Only digests are kept; the plaintext is wiped.*/
+static bool load_server_secrets(const char *gate_file, const char *dm_file) {
+  char secret[64], err[256];
+  int rc = auth_load_secret(gate_file, "DRAGONGL_SERVER_PASSWORD", secret,
+                            sizeof(secret), err, sizeof(err));
+  if (rc < 0) {
+    fprintf(stderr, "[SYS] Server password: %s\n", err);
+    return false;
+  }
+  if (rc == 0) {
+    fprintf(stderr, "[SYS] No server password: set DRAGONGL_SERVER_PASSWORD or use "
+                    "--password-file <file>.\n");
+    return false;
+  }
+  if (err[0])
+    fprintf(stderr, "[SYS] WARNING: %s\n", err);
+  const char *why = auth_secret_problem(secret);
+  if (why) {
+    auth_wipe(secret, sizeof(secret));
+    fprintf(stderr, "[SYS] Server password %s.\n", why);
+    return false;
+  }
+  auth_set_gate_secret(secret);
+  auth_wipe(secret, sizeof(secret));
+
+  rc = auth_load_secret(dm_file, "DRAGONGL_DM_PASSWORD", secret, sizeof(secret),
+                        err, sizeof(err));
+  if (rc < 0) {
+    fprintf(stderr, "[SYS] DM password: %s\n", err);
+    return false;
+  }
+  if (rc == 0) {
+    server_log("SYS", "DM account disabled (no DM password configured).");
+    return true;
+  }
+  if (err[0])
+    fprintf(stderr, "[SYS] WARNING: %s\n", err);
+  why = auth_secret_problem(secret);
+  bool ok = (why == NULL) && auth_set_dm_secret(secret);
+  auth_wipe(secret, sizeof(secret));
+  if (!ok) {
+    fprintf(stderr, "[SYS] DM password %s.\n", why ? why : "could not be hashed");
+    return false;
+  }
+  server_log("SYS", "DM account enabled.");
+  return true;
+}
+
+/*MSG_LOGIN: authenticate, then load or create the character and send
+ * the initial state. Every refusal goes through reject_login().*/
+static void login_with(Client *clients, int i, MsgLogin *ml, NPC *npcs) {
+  /*Force NUL terminators (M5): username/password/server_pass
+   * are fixed-size arrays and a malicious client can send all
+   * 32 bytes of each without a terminator. The first uses are
+   * strlen (valid_username) and strcmp (server_pass/DM check) —
+   * un-terminated, those read past the struct (UB). Same
+   * treatment MSG_TEXT_CMD already gets for tc.cmd.*/
+  ml->username[sizeof(ml->username) - 1] = '\0';
+  ml->password[sizeof(ml->password) - 1] = '\0';
+  ml->server_pass[sizeof(ml->server_pass) - 1] = '\0';
+
+  //Server access ("gate") password: keyed digest, constant-time compare.
+  bool gate_ok = auth_check_gate(ml->server_pass);
+  auth_wipe(ml->server_pass, sizeof(ml->server_pass));
+  if (!gate_ok) {
+      server_log("AUTH", "Server access denied (wrong server password) from %s",
+                 conn_peer_ip(i));
+      reject_login(&clients[i], i, "Wrong server password.", true);
+      return;
+  }
+
+  //--- Username policy (§1.3): [A-Za-z0-9_]{1,16} ---
+  //The username goes into file names (saves/<u>.save,
+  //saves/tombstone_<u>_*.dat): slashes, ".." etc. were path-
+  //traversal vectors, so reject anything that doesn't match.
+  if (!valid_username(ml->username)) {
+      reject_login(&clients[i], i, "Invalid username: use 1-16 chars (a-z, A-Z, 0-9, _).", false);
+      return;
+  }
+
+  //One session per character: two sessions would load and save
+  //the same character independently (the last save wins), which
+  //duplicates items. The live session keeps the character.
+  if (character_online(clients, ml->username)) {
+      reject_login(&clients[i], i, "Character already online.", false);
+      return;
+  }
+
+  if (!auth_password_acceptable(ml->password)) {
+      reject_login(&clients[i], i,
+                   "Invalid personal password: 1-31 printable characters.", false);
+      return;
+  }
+
+  //--- Dungeon Master: a separate credential. The account exists only if
+  //the server was started with a DM password. ---
+  bool is_dm = false;
+  if (strcmp(ml->username, "dm") == 0) {
+      if (!auth_dm_enabled()) {
+          reject_login(&clients[i], i, "The DM account is disabled on this server.", false);
+          return;
+      }
+      if (!auth_check_dm(ml->password)) {
+          reject_login(&clients[i], i, "Invalid DM password.", true);
+          return;
+      }
+      is_dm = true;
+  }
+
+  //Initialize base fields
+  clients[i].entity_id = next_id++;
+  copy_str(clients[i].username, ml->username, sizeof(clients[i].username));
+  clients[i].effect_count = 0;
+
+  //Load the character (verifies its Argon2id password hash), or create it.
+  int load_status = load_player_data(&clients[i], ml->password);
+  if (load_status == -1 || load_status == -2) {
+      //Wrong personal password (-1), or the save file is unreadable:
+      //other format version or CRC mismatch (-2). The file is kept.
+      reject_login(&clients[i], i,
+                   (load_status == -1)
+                       ? "Incorrect character password."
+                       : "Save file unreadable (other format version or corrupt).",
+                   load_status == -1);
+      return;
+  }
+  if (load_status == 0 && !auth_hash_password(ml->password, clients[i].password_hash)) {
+      reject_login(&clients[i], i, "Server error while creating the character.", false);
+      return;
+  }
+  auth_wipe(ml->password, sizeof(ml->password));
+  clients[i].authenticated = true;
+  clients[i].is_dm = is_dm;
+  if (is_dm)
+      server_log("AUTH", "DM account authenticated from %s.", conn_peer_ip(i));
+  if (load_status == 0) {
+    //New character. Stats are rolled on the SERVER below,
+    //once race/subrace are sanitized: the client-provided
+    //str..cha were the client's own 3d6 roll, i.e. untrusted
+    //(a modified client used to send 18/18/18/18/18/18 and
+    //the server only clamped them). M9.
+    clients[i].floor_id = 0;
+    clients[i].max_floor_explored = 0;
+    clients[i].x = MAP_CENTER_X;
+    clients[i].y = MAP_CENTER_Y;
+    clients[i].gold = 1000;
+    clients[i].level = 1;
+    clients[i].xp = 0;
+    clients[i].backpack_count = 0;
+    clients[i].slot_head.template_idx = -1;
+    clients[i].slot_neck.template_idx = -1;
+    clients[i].slot_body.template_idx = -1;
+    clients[i].slot_back.template_idx = -1;
+    clients[i].slot_hand_r.template_idx = -1;
+    clients[i].slot_hand_l.template_idx = -1;
+    clients[i].slot_hands.template_idx = -1;
+    clients[i].slot_arm_r.template_idx = -1;
+    clients[i].slot_arm_l.template_idx = -1;
+    clients[i].slot_feet.template_idx = -1;
+    for (int r = 0; r < 10; r++)
+      clients[i].slot_rings[r].template_idx = -1;
+    for (int b = 0; b < MAX_BELT; b++)
+      clients[i].belt[b].template_idx = -1;
+    clients[i].pending_trade_merchant_id = -1;
+    /*Client-provided enums: out-of-range values would index the
+     * RACES/SUBRACES/CLASSES/ALIGNMENTS tables out of bounds.*/
+    clients[i].race_id = (ml->race_id >= 0 && ml->race_id < RACE_COUNT)
+                             ? ml->race_id : 0;
+    clients[i].subrace_id =
+        (ml->subrace_id >= -1 && ml->subrace_id < SUBRACE_COUNT)
+            ? ml->subrace_id : -1;
+    clients[i].class_id = (ml->class_id >= 0 && ml->class_id < CLASS_COUNT)
+                              ? ml->class_id : CLASS_BARBARIAN;
+    clients[i].alignment =
+        (ml->alignment >= 0 && ml->alignment < ALIGN_COUNT)
+            ? ml->alignment : 0;
+
+    /*--- Ability scores: rolled HERE, on the server (M9) ---
+     * The client used to roll 3d6 locally (with a reroll
+     * loop) and send the totals; an edited client simply
+     * sent 18 six times. Same formula the client used to
+     * compute: 3d6 per stat + race bonus + subrace bonus,
+     * with the result clamped to the playable range 3..18.
+     * The rolled values are sent back as a [CHARACTER] line
+     * (below) so the player sees them in-game.*/
+    {
+      const RaceType rt = (RaceType)clients[i].race_id;
+      int bonus[6] = {
+          RACES[rt].str_bonus, RACES[rt].dex_bonus,
+          RACES[rt].con_bonus, RACES[rt].int_bonus,
+          RACES[rt].wis_bonus, RACES[rt].cha_bonus
+      };
+      if (clients[i].subrace_id >= 0) {
+        const SubraceType st = (SubraceType)clients[i].subrace_id;
+        bonus[0] += SUBRACES[st].str_bonus;
+        bonus[1] += SUBRACES[st].dex_bonus;
+        bonus[2] += SUBRACES[st].con_bonus;
+        bonus[3] += SUBRACES[st].int_bonus;
+        bonus[4] += SUBRACES[st].wis_bonus;
+        bonus[5] += SUBRACES[st].cha_bonus;
+      }
+      clients[i].str   = clamp_stat(rules_roll_dice(3, 6) + bonus[0]);
+      clients[i].dex   = clamp_stat(rules_roll_dice(3, 6) + bonus[1]);
+      clients[i].con   = clamp_stat(rules_roll_dice(3, 6) + bonus[2]);
+      clients[i].intel = clamp_stat(rules_roll_dice(3, 6) + bonus[3]);
+      clients[i].wis   = clamp_stat(rules_roll_dice(3, 6) + bonus[4]);
+      clients[i].cha   = clamp_stat(rules_roll_dice(3, 6) + bonus[5]);
+    }
+    clients[i].hp = 20 + rules_get_modifier(clients[i].con);
+    clients[i].max_hp = clients[i].hp;
+
+    memset(clients[i].spell_slots_max, 0,
+           sizeof(clients[i].spell_slots_max));
+    switch (clients[i].class_id) {
+    case CLASS_PALADIN:
+    case CLASS_RANGER:
+      clients[i].spell_slots_max[1] = 21;
+      break;
+    case CLASS_BARBARIAN:
+    case CLASS_ROGUE:
+      clients[i].spell_slots_max[1] = 22;
+      break;
+    case CLASS_FIGHTER:
+    case CLASS_MONK:
+      clients[i].spell_slots_max[1] = 23;
+      break;
+    default:
+      clients[i].spell_slots_max[1] = 24;
+      clients[i].spell_slots_max[2] = 23;
+      clients[i].spell_slots_max[3] = 22;
+      clients[i].spell_slots_max[4] = 21;
+      clients[i].spell_slots_max[5] = 20;
+      clients[i].spell_slots_max[6] = 19;
+      clients[i].spell_slots_max[7] = 18;
+      clients[i].spell_slots_max[8] = 17;
+      clients[i].spell_slots_max[9] = 16;
+      break;
+    }
+    for (int s = 1; s <= MAX_SPELL_LEVEL; s++) {
+      clients[i].spell_slots[s] = clients[i].spell_slots_max[s];
+    }
+
+    give_starting_gear(&clients[i]);
+  }
+
+  //Send welcome with current location (saved or default)
+  MsgHeader wh = msg_hdr(MSG_WELCOME, (int)sizeof(MsgWelcome));
+  MsgWelcome mw = {clients[i].entity_id,
+                   clients[i].x,
+                   clients[i].y,
+                   1,
+                   (load_status == 1) ? 0 : 1,
+                   clients[i].hp,
+                   clients[i].max_hp,
+                   clients[i].gold,
+                   (int)clients[i].race_id,
+                   (int)clients[i].subrace_id,
+                   (int)clients[i].class_id,
+                   clients[i].level,
+                   clients[i].alignment};
+  /*A failed welcome means the client is gone (net_send_client
+   * already dropped it): skip the rest of the login sequence.*/
+  if (!net_send_client(clients[i].sock, &wh, sizeof(MsgHeader)) ||
+      !net_send_client(clients[i].sock, &mw, sizeof(MsgWelcome))) {
+      return;
+  }
+  send_detailed_state(&clients[i]);
+  send_map_chunk(clients[i].sock,
+                 &master_world->floors[clients[i].floor_id].map,
+                 clients[i].x, clients[i].y, INITIAL_VIEW_RADIUS);
+  broadcast_nearby_entities(&clients[i], npcs);
+  broadcast_player_state(&clients[i]);
+  master_world->floors[clients[i].floor_id].entity_grid[clients[i].y][clients[i].x] = clients[i].entity_id;
+  if (load_status == 1) {
+    send_text_to_client(clients[i].sock,
+                        "[SYSTEM] Welcome back, %s! (Floor %d, HP "
+                        "%d/%d, Gold %lu gp)",
+                        clients[i].username, clients[i].floor_id,
+                        clients[i].hp, clients[i].max_hp,
+                        (unsigned long)clients[i].gold);
+  } else {
+    send_text_to_client(
+        clients[i].sock,
+        "[SYSTEM] Welcome, %s! Your adventure begins...",
+        clients[i].username);
+    /*The rolled ability summary (M9): the dice were thrown on
+     * the server, this is the player's view of the result.*/
+    send_text_to_client(
+        clients[i].sock,
+        "[CHARACTER] Rolled by the server: STR %d, DEX %d, CON %d, "
+        "INT %d, WIS %d, CHA %d (Max HP %d)",
+        clients[i].str, clients[i].dex, clients[i].con,
+        clients[i].intel, clients[i].wis, clients[i].cha,
+        clients[i].max_hp);
+  }
+  ipguard_login_succeeded(conn_peer_ip(i));
+  server_log("AUTH", "'%s' %s", ml->username,
+             (load_status == 1) ? "rientrato" : "new");
+}
+
+static void handle_login(Client *clients, int i, const void *payload, NPC *npcs) {
+  if (clients[i].authenticated) {
+    conn_mark_drop(i, "MSG_LOGIN on an authenticated session");
+    return;
+  }
+  MsgLogin ml;
+  memcpy(&ml, payload, sizeof(ml));
+  login_with(clients, i, &ml, npcs);
+  auth_wipe(&ml, sizeof(ml)); /*credentials never outlive the login*/
+  conn_wipe_message(i);
+}
+
 int main(int argc, char **argv) {
   setvbuf(stdout, NULL, _IONBF,
           0); // Disable stdout buffering for live log files
   int server_port = 8080;
+  const char *password_file = NULL;
+  const char *dm_password_file = NULL;
   for (int i = 1; i < argc; i++) {
-    if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
-      printf("Usage: %s [options]\n", argv[0]);
-      printf("Options:\n");
-      printf("  -p, --password <pwd>    Sets the server password "
-             "(default: dragongl_secret)\n");
-      printf("  -d, --dm-password <pwd> Sets the dedicated DM account "
-             "password (default: dragongl_dm_secret)\n");
-      printf("  -P, --port <port>       TCP port to listen on (default: 8080)\n");
-      printf("  -D, --data-dir <dir>    Data directory (JSON + world.dat).\n"
-             "                          Default: ./data if present, else\n"
-             "                          /usr/share/dragongl/data (RPM).\n");
-      printf("  -h, --help              Shows this help\n");
+    const char *opt = argv[i];
+    const char *val = (i + 1 < argc) ? argv[i + 1] : NULL;
+    if (strcmp(opt, "-h") == 0 || strcmp(opt, "--help") == 0) {
+      print_server_usage(argv[0]);
       return 0;
     }
-    if ((strcmp(argv[i], "-p") == 0 || strcmp(argv[i], "--password") == 0) &&
-        i + 1 < argc) {
-      copy_str(SERVER_ACCESS_PASSWORD, argv[i + 1], sizeof(SERVER_ACCESS_PASSWORD));
-      i++;
+    if (strcmp(opt, "-p") == 0 || strcmp(opt, "--password") == 0 ||
+        strcmp(opt, "-d") == 0 || strcmp(opt, "--dm-password") == 0) {
+      fprintf(stderr,
+              "%s: passwords are not accepted on the command line (every local\n"
+              "user can read them with ps). Use --password-file / --dm-password-file\n"
+              "or the DRAGONGL_SERVER_PASSWORD / DRAGONGL_DM_PASSWORD variables.\n",
+              argv[0]);
+      return 2;
     }
-    if ((strcmp(argv[i], "-d") == 0 || strcmp(argv[i], "--dm-password") == 0) &&
-        i + 1 < argc) {
-      copy_str(SERVER_DM_PASSWORD, argv[i + 1], sizeof(SERVER_DM_PASSWORD));
-      i++;
+    bool takes_value = strcmp(opt, "-P") == 0 || strcmp(opt, "--port") == 0 ||
+                       strcmp(opt, "-D") == 0 || strcmp(opt, "--data-dir") == 0 ||
+                       strcmp(opt, "--password-file") == 0 ||
+                       strcmp(opt, "--dm-password-file") == 0;
+    if (!takes_value) {
+      fprintf(stderr, "%s: unknown option '%s' (see --help)\n", argv[0], opt);
+      return 2;
     }
-    if ((strcmp(argv[i], "-P") == 0 || strcmp(argv[i], "--port") == 0) &&
-        i + 1 < argc) {
-      int port = atoi(argv[i + 1]);
-      if (port > 0 && port < 65536) {
-        server_port = port;
-      } else {
-        fprintf(stderr, "[SYS] Invalid port '%s', using %d\n",
-                argv[i + 1], server_port);
+    if (!val) {
+      fprintf(stderr, "%s: %s needs a value\n", argv[0], opt);
+      return 2;
+    }
+    i++;
+    if (strcmp(opt, "-P") == 0 || strcmp(opt, "--port") == 0) {
+      char *end = NULL;
+      long port = strtol(val, &end, 10);
+      if (!end || *end != '\0' || port < 1 || port > 65535) {
+        fprintf(stderr, "%s: invalid port '%s'\n", argv[0], val);
+        return 2;
       }
-      i++;
-    }
-    if ((strcmp(argv[i], "-D") == 0 || strcmp(argv[i], "--data-dir") == 0) &&
-        i + 1 < argc) {
-      copy_str(g_data_dir, argv[i + 1], sizeof(g_data_dir));
-      i++;
+      server_port = (int)port;
+    } else if (strcmp(opt, "-D") == 0 || strcmp(opt, "--data-dir") == 0) {
+      copy_str(g_data_dir, val, sizeof(g_data_dir));
+    } else if (strcmp(opt, "--password-file") == 0) {
+      password_file = val;
+    } else {
+      dm_password_file = val;
     }
   }
+  if (!auth_init()) {
+    fprintf(stderr, "%s: libsodium initialization failed\n", argv[0]);
+    return 1;
+  }
+  if (!load_server_secrets(password_file, dm_password_file))
+    return 2;
   /*Resolve the data directory (see server_internal.h).
    * 1. explicit --data-dir (trusted as-is)
    * 2. local ./data (development layout)
@@ -2837,17 +2985,6 @@ int main(int argc, char **argv) {
   /*Seed the RNG BEFORE anything else: even when a world is loaded from
    * disk (world_init skipped), dice must not run on the default seed.*/
   seed_game_rng();
-  if (strcmp(SERVER_ACCESS_PASSWORD, "dragongl_secret") == 0) {
-    server_log("SYS",
-               "WARNING: using the DEFAULT server access password. "
-               "Set a real one with -p/--password (and the DM password "
-               "with -d/--dm-password)!");
-  }
-  if (strcmp(SERVER_DM_PASSWORD, "dragongl_dm_secret") == 0) {
-    server_log("SYS",
-               "WARNING: using the DEFAULT DM account password. "
-               "Set a real one with -d/--dm-password!");
-  }
   server_log("SYS", "Starting Dragon GL Server...");
   clog_init("combat_log.json");
   server_log("SYS", "Tactical log opened: combat_log.json");
@@ -2938,7 +3075,7 @@ int main(int argc, char **argv) {
   snprintf(npcs_path, sizeof(npcs_path), "%s/npcs.dat", g_data_dir);
 
   /*npcs.dat format (single, versioned):
-   *   [magic:uint32 0xDEAD7ECC][count:int][NPC x count][next_id:int][turns:int]
+   *   [magic:uint32 NPCS_FILE_MAGIC][count:int][NPC x count][next_id:int][turns:int]
    * A missing/invalid file is NOT loaded "best effort": world and NPC
    * state are a pair, so any inconsistency means a fresh world is
    * generated (the old "read the whole 50k-slot array" fallback was
@@ -2951,7 +3088,7 @@ int main(int argc, char **argv) {
     if (fn) {
       uint32_t file_magic = 0;
       if (fread(&file_magic, sizeof(uint32_t), 1, fn) == 1 &&
-          file_magic == 0xDEAD7ECC) {
+          file_magic == NPCS_FILE_MAGIC) {
         int used = 0;
         if (fread(&used, sizeof(int), 1, fn) == 1 &&
             used >= 0 && used <= MAX_NPCS) {
@@ -2992,7 +3129,7 @@ int main(int argc, char **argv) {
        * thousands of poisoned NPCs on disk). Effects are transient
        * (rounds, not days): dropping them on load is safe and needs no
        * format change.*/
-      npcs[i].ai_ctx.behavior_tree_root = NULL;
+      npcs[i].ai_ctx.behavior = AI_BEHAVIOR_DEFAULT;
       npcs[i].effect_count = 0;
       if (npcs[i].active || npcs[i].respawn_timer >= 0) {
         if (npcs[i].archetype == ARCH_TREASURE || npcs[i].archetype == ARCH_GOLD) {
@@ -3022,7 +3159,7 @@ int main(int argc, char **argv) {
       /*Compact format (same as the autosave in server_world.c):
        * [magic][count][NPC x count][next_id][turns] — only the used
        * slots are written, not the whole 50,000-slot array.*/
-      const uint32_t magic = 0xDEAD7ECC;
+      const uint32_t magic = NPCS_FILE_MAGIC;
       int used = 0;
       bool ok = true;
       for (int ni = 0; ni < MAX_NPCS; ni++)
@@ -3086,254 +3223,7 @@ int main(int argc, char **argv) {
           while (clients[i].active && !conn_dropping(i) &&
                  (got = conn_next_message(i, &hdr, &payload)) == 1) {
           if (hdr.type == MSG_LOGIN) {
-            if (clients[i].authenticated) {
-              conn_mark_drop(i, "MSG_LOGIN on an authenticated session");
-              continue;
-            }
-            MsgLogin ml;
-            memcpy(&ml, payload, sizeof(ml));
-            /*Force NUL terminators (M5): username/password/server_pass
-             * are fixed-size arrays and a malicious client can send all
-             * 32 bytes of each without a terminator. The first uses are
-             * strlen (valid_username) and strcmp (server_pass/DM check) —
-             * un-terminated, those read past the struct (UB). Same
-             * treatment MSG_TEXT_CMD already gets for tc.cmd.*/
-            ml.username[sizeof(ml.username) - 1] = '\0';
-            ml.password[sizeof(ml.password) - 1] = '\0';
-            ml.server_pass[sizeof(ml.server_pass) - 1] = '\0';
-
-            //Check Server Password to allow connection
-            if (strlen(SERVER_ACCESS_PASSWORD) > 0 && strcmp(ml.server_pass, SERVER_ACCESS_PASSWORD) != 0) {
-                server_log("AUTH", "Server access denied (wrong server password) from %s",
-                           conn_peer_ip(i));
-                reject_login(&clients[i], i, "Wrong server password.", true);
-                continue;
-            }
-
-            //--- Username policy (§1.3): [A-Za-z0-9_]{1,16} ---
-            //The username goes into file names (saves/<u>.save,
-            //saves/tombstone_<u>_*.dat): slashes, ".." etc. were path-
-            //traversal vectors, so reject anything that doesn't match.
-            if (!valid_username(ml.username)) {
-                reject_login(&clients[i], i, "Invalid username: use 1-16 chars (a-z, A-Z, 0-9, _).", false);
-                continue;
-            }
-
-            //One session per character: two sessions would load and save
-            //the same character independently (the last save wins), which
-            //duplicates items. The live session keeps the character.
-            if (character_online(clients, ml.username)) {
-                reject_login(&clients[i], i, "Character already online.", false);
-                continue;
-            }
-
-            //Initialize base fields
-            clients[i].authenticated = true;
-            clients[i].entity_id = next_id++;
-            copy_str(clients[i].username, ml.username,
-                     sizeof(clients[i].username));
-            copy_str(clients[i].password, ml.password,
-                     sizeof(clients[i].password));
-
-            //--- DM role = separate credential (§1.2) ---
-            //Knowing the server access password no longer grants DM powers.
-            //The user "dm" must ALSO present the dedicated DM password.
-            clients[i].is_dm = false;
-            if (strcmp(ml.username, "dm") == 0) {
-                char dm_salt[16], dm_expected[80], dm_given[80];
-                copy_str(dm_salt, "dm", sizeof(dm_salt));
-                /*PBKDF2-SHA256, compared in full (64 hex chars).*/
-                hash_password_kdf(SERVER_DM_PASSWORD, dm_salt,
-                                  dm_expected, sizeof(dm_expected));
-                hash_password_kdf(ml.password, dm_salt,
-                                  dm_given, sizeof(dm_given));
-                if (strcmp(dm_expected, dm_given) != 0) {
-                    reject_login(&clients[i], i, "Invalid DM password.", true);
-                    continue;
-                }
-                clients[i].is_dm = true;
-                server_log("AUTH", "DM account authenticated.");
-            }
-            clients[i].effect_count = 0;
-            
-            //Try loading an existing save
-            int load_status = load_player_data(&clients[i]);
-            if (load_status == -1 || load_status == -2) {
-                //Personal Password incorrect (-1) or save file unreadable:
-                //old format / wrong version / CRC mismatch (-2). In both
-                //cases the file stays intact on disk; a -2 character must
-                //be recreated (pre-v1 saves hold an 8-hex FNV-1a digest
-                //that cannot be upgraded to PBKDF2 without the password).
-                reject_login(&clients[i], i,
-                             (load_status == -1)
-                                 ? "Incorrect character password."
-                                 : "Save file unreadable (old format, wrong version or corrupt).",
-                             load_status == -1);
-                continue;
-            }
-            if (load_status == 0) {
-              //New character. Stats are rolled on the SERVER below,
-              //once race/subrace are sanitized: the client-provided
-              //str..cha were the client's own 3d6 roll, i.e. untrusted
-              //(a modified client used to send 18/18/18/18/18/18 and
-              //the server only clamped them). M9.
-              clients[i].floor_id = 0;
-              clients[i].max_floor_explored = 0;
-              clients[i].x = MAP_CENTER_X;
-              clients[i].y = MAP_CENTER_Y;
-              clients[i].gold = 1000;
-              clients[i].level = 1;
-              clients[i].xp = 0;
-              clients[i].backpack_count = 0;
-              clients[i].slot_head.template_idx = -1;
-              clients[i].slot_neck.template_idx = -1;
-              clients[i].slot_body.template_idx = -1;
-              clients[i].slot_back.template_idx = -1;
-              clients[i].slot_hand_r.template_idx = -1;
-              clients[i].slot_hand_l.template_idx = -1;
-              clients[i].slot_hands.template_idx = -1;
-              clients[i].slot_arm_r.template_idx = -1;
-              clients[i].slot_arm_l.template_idx = -1;
-              clients[i].slot_feet.template_idx = -1;
-              for (int r = 0; r < 10; r++)
-                clients[i].slot_rings[r].template_idx = -1;
-              for (int b = 0; b < MAX_BELT; b++)
-                clients[i].belt[b].template_idx = -1;
-              clients[i].pending_trade_merchant_id = -1;
-              /*Client-provided enums: out-of-range values would index the
-               * RACES/SUBRACES/CLASSES/ALIGNMENTS tables out of bounds.*/
-              clients[i].race_id = (ml.race_id >= 0 && ml.race_id < RACE_COUNT)
-                                       ? ml.race_id : 0;
-              clients[i].subrace_id =
-                  (ml.subrace_id >= -1 && ml.subrace_id < SUBRACE_COUNT)
-                      ? ml.subrace_id : -1;
-              clients[i].class_id = (ml.class_id >= 0 && ml.class_id < CLASS_COUNT)
-                                        ? ml.class_id : CLASS_BARBARIAN;
-              clients[i].alignment =
-                  (ml.alignment >= 0 && ml.alignment < ALIGN_COUNT)
-                      ? ml.alignment : 0;
-
-              /*--- Ability scores: rolled HERE, on the server (M9) ---
-               * The client used to roll 3d6 locally (with a reroll
-               * loop) and send the totals; an edited client simply
-               * sent 18 six times. Same formula the client used to
-               * compute: 3d6 per stat + race bonus + subrace bonus,
-               * with the result clamped to the playable range 3..18.
-               * The rolled values are sent back as a [CHARACTER] line
-               * (below) so the player sees them in-game.*/
-              {
-                const RaceType rt = (RaceType)clients[i].race_id;
-                int bonus[6] = {
-                    RACES[rt].str_bonus, RACES[rt].dex_bonus,
-                    RACES[rt].con_bonus, RACES[rt].int_bonus,
-                    RACES[rt].wis_bonus, RACES[rt].cha_bonus
-                };
-                if (clients[i].subrace_id >= 0) {
-                  const SubraceType st = (SubraceType)clients[i].subrace_id;
-                  bonus[0] += SUBRACES[st].str_bonus;
-                  bonus[1] += SUBRACES[st].dex_bonus;
-                  bonus[2] += SUBRACES[st].con_bonus;
-                  bonus[3] += SUBRACES[st].int_bonus;
-                  bonus[4] += SUBRACES[st].wis_bonus;
-                  bonus[5] += SUBRACES[st].cha_bonus;
-                }
-                clients[i].str   = clamp_stat(rules_roll_dice(3, 6) + bonus[0]);
-                clients[i].dex   = clamp_stat(rules_roll_dice(3, 6) + bonus[1]);
-                clients[i].con   = clamp_stat(rules_roll_dice(3, 6) + bonus[2]);
-                clients[i].intel = clamp_stat(rules_roll_dice(3, 6) + bonus[3]);
-                clients[i].wis   = clamp_stat(rules_roll_dice(3, 6) + bonus[4]);
-                clients[i].cha   = clamp_stat(rules_roll_dice(3, 6) + bonus[5]);
-              }
-              clients[i].hp = 20 + rules_get_modifier(clients[i].con);
-              clients[i].max_hp = clients[i].hp;
-
-              memset(clients[i].spell_slots_max, 0,
-                     sizeof(clients[i].spell_slots_max));
-              switch (clients[i].class_id) {
-              case CLASS_PALADIN:
-              case CLASS_RANGER:
-                clients[i].spell_slots_max[1] = 21;
-                break;
-              case CLASS_BARBARIAN:
-              case CLASS_ROGUE:
-                clients[i].spell_slots_max[1] = 22;
-                break;
-              case CLASS_FIGHTER:
-              case CLASS_MONK:
-                clients[i].spell_slots_max[1] = 23;
-                break;
-              default:
-                clients[i].spell_slots_max[1] = 24;
-                clients[i].spell_slots_max[2] = 23;
-                clients[i].spell_slots_max[3] = 22;
-                clients[i].spell_slots_max[4] = 21;
-                clients[i].spell_slots_max[5] = 20;
-                clients[i].spell_slots_max[6] = 19;
-                clients[i].spell_slots_max[7] = 18;
-                clients[i].spell_slots_max[8] = 17;
-                clients[i].spell_slots_max[9] = 16;
-                break;
-              }
-              for (int s = 1; s <= MAX_SPELL_LEVEL; s++) {
-                clients[i].spell_slots[s] = clients[i].spell_slots_max[s];
-              }
-
-              give_starting_gear(&clients[i]);
-            }
-
-            //Send welcome with current location (saved or default)
-            MsgHeader wh = msg_hdr(MSG_WELCOME, (int)sizeof(MsgWelcome));
-            MsgWelcome mw = {clients[i].entity_id,
-                             clients[i].x,
-                             clients[i].y,
-                             1,
-                             (load_status == 1) ? 0 : 1,
-                             clients[i].hp,
-                             clients[i].max_hp,
-                             clients[i].gold,
-                             (int)clients[i].race_id,
-                             (int)clients[i].subrace_id,
-                             (int)clients[i].class_id,
-                             clients[i].level,
-                             clients[i].alignment};
-            /*A failed welcome means the client is gone (net_send_client
-             * already dropped it): skip the rest of the login sequence.*/
-            if (!net_send_client(clients[i].sock, &wh, sizeof(MsgHeader)) ||
-                !net_send_client(clients[i].sock, &mw, sizeof(MsgWelcome))) {
-                continue;
-            }
-            send_detailed_state(&clients[i]);
-            send_map_chunk(clients[i].sock,
-                           &master_world->floors[clients[i].floor_id].map,
-                           clients[i].x, clients[i].y, INITIAL_VIEW_RADIUS);
-            broadcast_nearby_entities(&clients[i], npcs);
-            broadcast_player_state(&clients[i]);
-            master_world->floors[clients[i].floor_id].entity_grid[clients[i].y][clients[i].x] = clients[i].entity_id;
-            if (load_status == 1) {
-              send_text_to_client(clients[i].sock,
-                                  "[SYSTEM] Welcome back, %s! (Floor %d, HP "
-                                  "%d/%d, Gold %lu gp)",
-                                  clients[i].username, clients[i].floor_id,
-                                  clients[i].hp, clients[i].max_hp,
-                                  (unsigned long)clients[i].gold);
-            } else {
-              send_text_to_client(
-                  clients[i].sock,
-                  "[SYSTEM] Welcome, %s! Your adventure begins...",
-                  clients[i].username);
-              /*The rolled ability summary (M9): the dice were thrown on
-               * the server, this is the player's view of the result.*/
-              send_text_to_client(
-                  clients[i].sock,
-                  "[CHARACTER] Rolled by the server: STR %d, DEX %d, CON %d, "
-                  "INT %d, WIS %d, CHA %d (Max HP %d)",
-                  clients[i].str, clients[i].dex, clients[i].con,
-                  clients[i].intel, clients[i].wis, clients[i].cha,
-                  clients[i].max_hp);
-            }
-            ipguard_login_succeeded(conn_peer_ip(i));
-            server_log("AUTH", "'%s' %s", ml.username,
-                       (load_status == 1) ? "rientrato" : "new");
+            handle_login(clients, i, payload, npcs);
           } else if (hdr.type == MSG_MOVE) {
             if (!clients[i].authenticated) {
               conn_mark_drop(i, "MSG_MOVE before login");
@@ -3600,6 +3490,14 @@ int main(int argc, char **argv) {
             /*cmd is a fixed-size array, but make sure it is terminated
              * (a malicious client could omit the NUL).*/
             tc.cmd[sizeof(tc.cmd) - 1] = '\0';
+            /*No control characters reach the game: they would travel
+             * verbatim to other players' terminals (ANSI escapes, \r
+             * overwriting lines) through chat and private messages.*/
+            for (char *p = tc.cmd; *p; p++) {
+              unsigned char ch = (unsigned char)*p;
+              if (ch < 0x20 || ch == 0x7F)
+                *p = ' ';
+            }
             handle_text_cmd(&clients[i], tc.cmd, npcs);
           }
           }

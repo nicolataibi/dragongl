@@ -18,6 +18,7 @@
  */
 
 #include "server_conn.h"
+#include "auth.h"
 #include "net.h"
 #include "server_entities.h"
 #include "server_internal.h"
@@ -159,6 +160,9 @@ int conn_next_message(int slot, MsgHeader *hdr, const void **payload) {
     memcpy(c->msg, c->rx + sizeof(MsgHeader), (size_t)h.length);
     memmove(c->rx, c->rx + total, c->rx_len - total);
     c->rx_len -= total;
+    /*The consumed bytes (a MSG_LOGIN carries passwords) must not linger
+     * past the end of the buffer.*/
+    auth_wipe(c->rx + c->rx_len, total);
     *hdr = h;
     *payload = c->msg;
     return 1;
@@ -219,6 +223,12 @@ void conn_flush(int slot) {
         memmove(c->tx, c->tx + sent, c->tx_len - sent);
         c->tx_len -= sent;
     }
+}
+
+void conn_wipe_message(int slot) {
+    Conn *c = slot_conn(slot);
+    if (c)
+        auth_wipe(c->msg, sizeof(c->msg));
 }
 
 bool conn_tx_pending(int slot) {

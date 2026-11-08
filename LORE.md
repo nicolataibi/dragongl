@@ -540,18 +540,18 @@ Dragon GL includes a specialized administrative role for world management and li
 
 DragonGL implements a dual-key system to guarantee both server access control and player privacy:
 
-1. **Server Password (`server_pass`)**: This is the global password set by the server administrator (`dragongl_secret` by default). It acts purely as a "gate key": anyone who wants to connect to the game must know this password. If entered incorrectly, the server will instantly reject the connection, protecting the game from outsiders.
-2. **Personal Password (`password`)**: This is the private and personal password for each individual player. It is saved securely via hashing and protects your character's identity and inventory. Only you can access your character by knowing this password.
+1. **Server Password (`server_pass`)**: This is the global password set by the server administrator (there is no default: the server does not start without one). It acts purely as a "gate key": anyone who wants to connect to the game must know this password. If entered incorrectly, the server will instantly reject the connection, protecting the game from outsiders.
+2. **Personal Password (`password`)**: This is the private and personal password for each individual player. It is stored only as an Argon2id hash and protects your character's identity and inventory. Only you can access your character by knowing this password.
 
 ### How to login as Dungeon Master (DM)
 
 To prevent abuse, administrative privileges are protected by a **dedicated credential**: knowing the server password alone no longer grants DM powers (it used to — that was a security hole).
 
-- **Server Password**: the server's gate password (default `dragongl_secret`) — required to connect, as for every player.
+- **Server Password**: the server's gate password — required to connect, as for every player.
 - **Player Name**: `dm` (the system recognizes this name).
-- **DM Password**: the dedicated DM password configured by the administrator at server start with `-d/--dm-password` (default `dragongl_dm_secret`). It is verified as a salted hash (`SERVER_DM_PASSWORD`); on mismatch the connection is closed with an authentication-failure message.
+- **DM Password**: the dedicated DM password configured by the administrator at server start (`--dm-password-file`, `DRAGONGL_DM_PASSWORD` or the launcher prompt). Without it the DM account is disabled. It is kept only as an Argon2id hash; on mismatch the connection is closed with an authentication-failure message.
 
-Both passwords are compared against salted hashes, never stored in clear. If the server is started with the default access password or the default DM password, a `WARNING` is printed to the server log at boot.
+No password is ever stored in clear, and none has a default value.
 
 ### Administrative Commands
 The DM can issue commands directly through the game console to manipulate the world state in real-time:
@@ -1176,8 +1176,9 @@ cd ..
 ### 2. Launch
 **Run the Server:**
 ```bash
-./dragongl-server --password <pwd>             # gate password (default: dragongl_secret)
-./dragongl-server --password <pwd> --dm-password <dmpwd>   # dedicated DM password (default: dragongl_dm_secret)
+./dragongl-server                              # asks for the gate and DM passwords
+./dragongl-server --password-file server.pw    # gate password from a file (chmod 600)
+./dragongl-server --dm-password-file dm.pw     # enables the DM account
 ./dragongl-server --port 9000                  # TCP port (default: 8080)
 ./dragongl-server --data-dir /path/to/data     # JSON + world.dat (default: ./data, else /usr/share/dragongl/data)
 ```
