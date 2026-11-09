@@ -50,10 +50,10 @@
 #include <stdint.h>
 
 typedef enum {
-    LOGIN_LOADED = 1,       /* existing character, password verified: sd is valid */
-    LOGIN_NEW = 0,          /* no save: new_hash holds the new character's hash */
+    LOGIN_LOADED = 1, /* existing character, password verified: sd is valid */
+    LOGIN_NEW = 0,    /* no save: new_hash holds the new character's hash */
     LOGIN_BAD_PASSWORD = -1,
-    LOGIN_UNREADABLE = -2,  /* save exists but is not valid: kept, login refused */
+    LOGIN_UNREADABLE = -2, /* save exists but is not valid: kept, login refused */
     LOGIN_SERVER_ERROR = -3,
     LOGIN_BAD_DM = -4
 } LoginOutcome;
@@ -63,7 +63,7 @@ typedef struct LoginJob {
     /* request */
     int slot;
     uint64_t gen;
-    MsgLogin ml;            /* server_pass already wiped; password wiped by the worker */
+    MsgLogin ml; /* server_pass already wiped; password wiped by the worker */
     bool is_dm;
     char save_path[STATE_DIR_MAX + 64];
     /* result */

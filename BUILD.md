@@ -77,7 +77,11 @@ sudo apt-get install -y \
 
 Options combine: `./build.sh -cn`, `./build.sh -dwa`, `./build.sh -j8 -i`. Conflicting options (two build types, `-t` with `-c`) are rejected. Every option that changes the compiler flags is passed to CMake on each run, so switching between `-d` and a Release build in the same directory never keeps stale sanitizer flags. The script prints a summary with the duration of each step and exits with a non-zero status on the first failure.
 
-Build directories: `build/` (used by `./dragongl-server` and `./dragongl-client`), `build-tests/` (`build-tests-asan/` with `-d`), `build-integration/`. Sanitizer builds (`-d`) with clang need compiler-rt (Fedora: `compiler-rt`, Debian/Ubuntu: `libclang-rt-dev`); `-g` uses gcc instead. Release builds do not need it.
+Sanitizer builds (`-d`) with clang need compiler-rt (Fedora: `compiler-rt`, Debian/Ubuntu: `libclang-rt-dev`); `-g` uses gcc instead. Release builds do not need it.
+
+Build directories: `build/` (used by `./dragongl-server` and `./dragongl-client`), `build-tests/` (`build-tests-asan/` with `-d`), `build-integration/`, and `build-quality/` for `tools/quality.sh` (removed by `-c` too).
+
+The quality gates of CI (clang-format, clang-tidy, game data, metrics, coverage, ThreadSanitizer, fuzzing) are in `tools/quality.sh`, described in `DEVELOPMENT.md`; they need clang 18 and its tools (Fedora: `clang-tools-extra llvm compiler-rt python3-jsonschema`; Debian/Ubuntu: `clang-format-18 clang-tidy-18 llvm-18 libclang-rt-18-dev python3-jsonschema`).
 
 The sections below describe the same steps done by hand.
 

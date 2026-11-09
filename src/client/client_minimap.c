@@ -89,118 +89,118 @@ void minimap_mark_explored(int cx, int cy, int radius) {
 static MiniPixel tile_to_color(TileType t) {
     MiniPixel c = {0, 0, 0, 255};
     switch (t) {
-        case VOXEL_FLOOR:
-            c.r = 40;
-            c.g = 40;
-            c.b = 50;
-            break;
-        case VOXEL_WALL:
-            c.r = 120;
-            c.g = 120;
-            c.b = 130;
-            break;
-        case VOXEL_OBSIDIAN:
-            c.r = 30;
-            c.g = 15;
-            c.b = 60;
-            break;
-        case VOXEL_DOOR:
-            c.r = 130;
-            c.g = 80;
-            c.b = 30;
-            break;
-        case VOXEL_STAIRS_DOWN:
-            c.r = 230;
-            c.g = 230;
-            c.b = 0;
-            break;
-        case VOXEL_STAIRS_UP:
-            c.r = 0;
-            c.g = 230;
-            c.b = 230;
-            break;
-        case VOXEL_WATER:
-            c.r = 20;
-            c.g = 80;
-            c.b = 200;
-            break;
-        case VOXEL_LAVA:
-            c.r = 255;
-            c.g = 60;
-            c.b = 0;
-            break;
-        case VOXEL_GRASS:
-            c.r = 20;
-            c.g = 100;
-            c.b = 20;
-            break;
-        case VOXEL_ICE:
-            c.r = 150;
-            c.g = 200;
-            c.b = 255;
-            break;
-        case VOXEL_SAND:
-            c.r = 200;
-            c.g = 180;
-            c.b = 100;
-            break;
-        case VOXEL_GOLD_VEIN:
-            c.r = 200;
-            c.g = 180;
-            c.b = 20;
-            break;
-        case VOXEL_CRYSTAL_BLUE:
-            c.r = 80;
-            c.g = 180;
-            c.b = 255;
-            break;
-        case VOXEL_CRYSTAL_PURPLE:
-            c.r = 200;
-            c.g = 50;
-            c.b = 255;
-            break;
-        case VOXEL_MUSHROOM_GLOW:
-            c.r = 50;
-            c.g = 255;
-            c.b = 130;
-            break;
-        case VOXEL_TRAP:
-            c.r = 200;
-            c.g = 50;
-            c.b = 30;
-            break;
-        case VOXEL_WOOD:
-            c.r = 100;
-            c.g = 75;
-            c.b = 50;
-            break;
-        case VOXEL_COBBLE:
-            c.r = 75;
-            c.g = 75;
-            c.b = 75;
-            break;
-        case VOXEL_MUD:
-            c.r = 75;
-            c.g = 50;
-            c.b = 25;
-            break;
-        case VOXEL_MARBLE:
-            c.r = 230;
-            c.g = 230;
-            c.b = 230;
-            break;
-        case VOXEL_ASH:
-            c.r = 65;
-            c.g = 65;
-            c.b = 65;
-            break;
-        case VOXEL_ROCK:
-        default:
-            c.r = 0;
-            c.g = 0;
-            c.b = 0;
-            c.a = 0; /*completely transparent = not explored*/
-            break;
+    case VOXEL_FLOOR:
+        c.r = 40;
+        c.g = 40;
+        c.b = 50;
+        break;
+    case VOXEL_WALL:
+        c.r = 120;
+        c.g = 120;
+        c.b = 130;
+        break;
+    case VOXEL_OBSIDIAN:
+        c.r = 30;
+        c.g = 15;
+        c.b = 60;
+        break;
+    case VOXEL_DOOR:
+        c.r = 130;
+        c.g = 80;
+        c.b = 30;
+        break;
+    case VOXEL_STAIRS_DOWN:
+        c.r = 230;
+        c.g = 230;
+        c.b = 0;
+        break;
+    case VOXEL_STAIRS_UP:
+        c.r = 0;
+        c.g = 230;
+        c.b = 230;
+        break;
+    case VOXEL_WATER:
+        c.r = 20;
+        c.g = 80;
+        c.b = 200;
+        break;
+    case VOXEL_LAVA:
+        c.r = 255;
+        c.g = 60;
+        c.b = 0;
+        break;
+    case VOXEL_GRASS:
+        c.r = 20;
+        c.g = 100;
+        c.b = 20;
+        break;
+    case VOXEL_ICE:
+        c.r = 150;
+        c.g = 200;
+        c.b = 255;
+        break;
+    case VOXEL_SAND:
+        c.r = 200;
+        c.g = 180;
+        c.b = 100;
+        break;
+    case VOXEL_GOLD_VEIN:
+        c.r = 200;
+        c.g = 180;
+        c.b = 20;
+        break;
+    case VOXEL_CRYSTAL_BLUE:
+        c.r = 80;
+        c.g = 180;
+        c.b = 255;
+        break;
+    case VOXEL_CRYSTAL_PURPLE:
+        c.r = 200;
+        c.g = 50;
+        c.b = 255;
+        break;
+    case VOXEL_MUSHROOM_GLOW:
+        c.r = 50;
+        c.g = 255;
+        c.b = 130;
+        break;
+    case VOXEL_TRAP:
+        c.r = 200;
+        c.g = 50;
+        c.b = 30;
+        break;
+    case VOXEL_WOOD:
+        c.r = 100;
+        c.g = 75;
+        c.b = 50;
+        break;
+    case VOXEL_COBBLE:
+        c.r = 75;
+        c.g = 75;
+        c.b = 75;
+        break;
+    case VOXEL_MUD:
+        c.r = 75;
+        c.g = 50;
+        c.b = 25;
+        break;
+    case VOXEL_MARBLE:
+        c.r = 230;
+        c.g = 230;
+        c.b = 230;
+        break;
+    case VOXEL_ASH:
+        c.r = 65;
+        c.g = 65;
+        c.b = 65;
+        break;
+    case VOXEL_ROCK:
+    default:
+        c.r = 0;
+        c.g = 0;
+        c.b = 0;
+        c.a = 0; /*completely transparent = not explored*/
+        break;
     }
     return c;
 }
@@ -208,10 +208,7 @@ static MiniPixel tile_to_color(TileType t) {
 /* ----------------------------------------------------------------
  * minimap_update — Updates exploration and pixel buffer.
  * ---------------------------------------------------------------- */
-void minimap_update(int player_x,
-                    int player_y,
-                    TileType map[MAP_HEIGHT][MAP_WIDTH],
-                    int vision_r) {
+void minimap_update(int player_x, int player_y, TileType map[MAP_HEIGHT][MAP_WIDTH], int vision_r) {
     /*Mark visible cells as explored*/
     minimap_mark_explored(player_x, player_y, vision_r);
 
@@ -231,8 +228,7 @@ void minimap_update(int player_x,
             int map_y = player_y + dy;
 
             /*Outside the limits of the map → transparent black*/
-            if (map_x < 0 || map_x >= MAP_WIDTH ||
-                map_y < 0 || map_y >= MAP_HEIGHT) {
+            if (map_x < 0 || map_x >= MAP_WIDTH || map_y < 0 || map_y >= MAP_HEIGHT) {
                 g_minimap_buf[buf_y][buf_x] = (MiniPixel){0, 0, 0, 0};
                 continue;
             }

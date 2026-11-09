@@ -1,3 +1,4 @@
+#include "strnum.h"
 #include "client_fct.h"
 /*
  * DRAGON GL - 3D ARCANE ENGINE
@@ -22,7 +23,7 @@
 #include "client_state.h"
 #include "net.h"
 #include "protocol.h"
-#include "../../include/map.h"
+#include "map.h"
 #include <GLFW/glfw3.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -43,7 +44,7 @@ static VkState vk_state;
 typedef struct {
     float cur_x, cur_z;
     float tgt_x, tgt_z;
-    bool  initialized;
+    bool initialized;
 } LerpPos;
 
 static LerpPos g_entity_lerp[CLIENT_MAX_ENTITIES] = {0};
@@ -68,70 +69,96 @@ static void lerp_update(LerpPos *lp, float tgt_x, float tgt_z, float dt) {
     }
 }
 
-static float camera_yaw   = 0.0f;
+static float camera_yaw = 0.0f;
 static float camera_pitch = 45.0f;
-static float camera_dist  = 25.0f;
-static double last_x      = 0.0;
-static double last_y      = 0.0;
-static int    mouse_held  = 0;
+static float camera_dist = 25.0f;
+static double last_x = 0.0;
+static double last_y = 0.0;
+static int mouse_held = 0;
 
-static void cursor_callback(GLFWwindow* window, double xpos, double ypos) {
+static void cursor_callback(GLFWwindow *window, double xpos, double ypos) {
     (void)window;
     if (mouse_held) {
         float dx = (float)(xpos - last_x);
         float dy = (float)(ypos - last_y);
-        camera_yaw   += dx * 0.5f;
-        camera_pitch  = fminf(fmaxf(camera_pitch + dy * 0.5f, 10.0f), 89.0f);
+        camera_yaw += dx * 0.5f;
+        camera_pitch = fminf(fmaxf(camera_pitch + dy * 0.5f, 10.0f), 89.0f);
     }
     last_x = xpos;
     last_y = ypos;
 }
 
-static void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
+static void mouse_button_callback(GLFWwindow *window, int button, int action, int mods) {
     (void)window;
     (void)mods;
-    
+
     if (button == GLFW_MOUSE_BUTTON_LEFT) {
         mouse_held = (action == GLFW_PRESS) ? 1 : 0;
     }
 }
 
-static void scroll_callback(GLFWwindow* window, double xoff, double yoff) {
+static void scroll_callback(GLFWwindow *window, double xoff, double yoff) {
     (void)window;
     (void)xoff;
     camera_dist -= (float)yoff * 1.5f;
-    if (camera_dist < 2.0f)  camera_dist = 2.0f;
-    if (camera_dist > 200.0f) camera_dist = 200.0f;
+    if (camera_dist < 2.0f) {
+        camera_dist = 2.0f;
+    }
+    if (camera_dist > 200.0f) {
+        camera_dist = 200.0f;
+    }
 }
 
-static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
+static void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods) {
     (void)scancode;
     (void)mods;
     if (action == GLFW_PRESS || action == GLFW_REPEAT) {
-        if (key == GLFW_KEY_ESCAPE)    glfwSetWindowShouldClose(window, GLFW_TRUE);
-        if (key == GLFW_KEY_PAGE_UP)   camera_dist -= 1.5f;
-        if (key == GLFW_KEY_PAGE_DOWN) camera_dist += 1.5f;
-        if (camera_dist < 2.0f)   camera_dist = 2.0f;
-        if (camera_dist > 200.0f) camera_dist = 200.0f;
-        if (key == GLFW_KEY_W) client_send_move(0, -1);
-        if (key == GLFW_KEY_S) client_send_move(0,  1);
-        if (key == GLFW_KEY_A) client_send_move(-1, 0);
-        if (key == GLFW_KEY_D) client_send_move( 1, 0);
+        if (key == GLFW_KEY_ESCAPE) {
+            glfwSetWindowShouldClose(window, GLFW_TRUE);
+        }
+        if (key == GLFW_KEY_PAGE_UP) {
+            camera_dist -= 1.5f;
+        }
+        if (key == GLFW_KEY_PAGE_DOWN) {
+            camera_dist += 1.5f;
+        }
+        if (camera_dist < 2.0f) {
+            camera_dist = 2.0f;
+        }
+        if (camera_dist > 200.0f) {
+            camera_dist = 200.0f;
+        }
+        if (key == GLFW_KEY_W) {
+            client_send_move(0, -1);
+        }
+        if (key == GLFW_KEY_S) {
+            client_send_move(0, 1);
+        }
+        if (key == GLFW_KEY_A) {
+            client_send_move(-1, 0);
+        }
+        if (key == GLFW_KEY_D) {
+            client_send_move(1, 0);
+        }
     }
 }
 
 static void mat4_mul(float c[16], const float a[16], const float b[16]) {
     float tmp[16];
     int col, row, k, i;
-    for (i = 0; i < 16; i++) tmp[i] = 0.0f;
+    for (i = 0; i < 16; i++) {
+        tmp[i] = 0.0f;
+    }
     for (col = 0; col < 4; col++) {
         for (row = 0; row < 4; row++) {
             for (k = 0; k < 4; k++) {
-                tmp[col*4+row] += a[k*4+row] * b[col*4+k];
+                tmp[col * 4 + row] += a[k * 4 + row] * b[col * 4 + k];
             }
         }
     }
-    for (i = 0; i < 16; i++) c[i] = tmp[i];
+    for (i = 0; i < 16; i++) {
+        c[i] = tmp[i];
+    }
 }
 
 static void mat4_perspective(float m[16], float fov_rad, float aspect, float znear, float zfar) {
@@ -139,84 +166,111 @@ static void mat4_perspective(float m[16], float fov_rad, float aspect, float zne
     float A = zfar / (znear - zfar);
     float B = (znear * zfar) / (znear - zfar);
     int i;
-    for (i = 0; i < 16; i++) m[i] = 0.0f;
-    m[0*4+0] = f / aspect;
-    m[1*4+1] = -f;
-    m[2*4+2] = A;  m[2*4+3] = -1.0f;
-    m[3*4+2] = B;
+    for (i = 0; i < 16; i++) {
+        m[i] = 0.0f;
+    }
+    m[0 * 4 + 0] = f / aspect;
+    m[1 * 4 + 1] = -f;
+    m[2 * 4 + 2] = A;
+    m[2 * 4 + 3] = -1.0f;
+    m[3 * 4 + 2] = B;
 }
 
 /*2D orthographic projection: X into [0..w], Y into [0..h], Z into [-1..1]*/
 static void mat4_ortho(float m[16], float w, float h) {
     int i;
-    for (i = 0; i < 16; i++) m[i] = 0.0f;
-    m[0*4+0] =  2.0f / w;
-    m[1*4+1] =  2.0f / h;
-    m[2*4+2] = -1.0f;
-    m[3*4+0] = -1.0f;
-    m[3*4+1] = -1.0f;
-    m[3*4+3] =  1.0f;
+    for (i = 0; i < 16; i++) {
+        m[i] = 0.0f;
+    }
+    m[0 * 4 + 0] = 2.0f / w;
+    m[1 * 4 + 1] = 2.0f / h;
+    m[2 * 4 + 2] = -1.0f;
+    m[3 * 4 + 0] = -1.0f;
+    m[3 * 4 + 1] = -1.0f;
+    m[3 * 4 + 3] = 1.0f;
 }
 
 static void vec3_normalize(float v[3]) {
-    float len = sqrtf(v[0]*v[0] + v[1]*v[1] + v[2]*v[2]);
-    if (len > 1e-6f) { v[0]/=len; v[1]/=len; v[2]/=len; }
+    float len = sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+    if (len > 1e-6f) {
+        v[0] /= len;
+        v[1] /= len;
+        v[2] /= len;
+    }
 }
 
 static void vec3_cross(float r[3], const float a[3], const float b[3]) {
-    r[0] = a[1]*b[2] - a[2]*b[1];
-    r[1] = a[2]*b[0] - a[0]*b[2];
-    r[2] = a[0]*b[1] - a[1]*b[0];
+    r[0] = a[1] * b[2] - a[2] * b[1];
+    r[1] = a[2] * b[0] - a[0] * b[2];
+    r[2] = a[0] * b[1] - a[1] * b[0];
 }
 
 static float vec3_dot(const float a[3], const float b[3]) {
-    return a[0]*b[0] + a[1]*b[1] + a[2]*b[2];
+    return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 }
 
-static void mat4_lookat(float m[16], const float eye[3], const float center[3], const float world_up[3]) {
+static void mat4_lookat(float m[16], const float eye[3], const float center[3],
+                        const float world_up[3]) {
     float f[3], s[3], u[3];
     int i;
-    for (i = 0; i < 3; i++) f[i] = center[i] - eye[i];
+    for (i = 0; i < 3; i++) {
+        f[i] = center[i] - eye[i];
+    }
     vec3_normalize(f);
     vec3_cross(s, f, world_up);
     vec3_normalize(s);
     vec3_cross(u, s, f);
 
-    for (i = 0; i < 16; i++) m[i] = 0.0f;
-    m[0*4+0] = s[0]; m[1*4+0] = s[1]; m[2*4+0] = s[2];
-    m[0*4+1] = u[0]; m[1*4+1] = u[1]; m[2*4+1] = u[2];
-    m[0*4+2] = -f[0]; m[1*4+2] = -f[1]; m[2*4+2] = -f[2];
-    m[3*4+0] = -vec3_dot(s, eye);
-    m[3*4+1] = -vec3_dot(u, eye);
-    m[3*4+2] =  vec3_dot(f, eye);
-    m[3*4+3] =  1.0f;
+    for (i = 0; i < 16; i++) {
+        m[i] = 0.0f;
+    }
+    m[0 * 4 + 0] = s[0];
+    m[1 * 4 + 0] = s[1];
+    m[2 * 4 + 0] = s[2];
+    m[0 * 4 + 1] = u[0];
+    m[1 * 4 + 1] = u[1];
+    m[2 * 4 + 1] = u[2];
+    m[0 * 4 + 2] = -f[0];
+    m[1 * 4 + 2] = -f[1];
+    m[2 * 4 + 2] = -f[2];
+    m[3 * 4 + 0] = -vec3_dot(s, eye);
+    m[3 * 4 + 1] = -vec3_dot(u, eye);
+    m[3 * 4 + 2] = vec3_dot(f, eye);
+    m[3 * 4 + 3] = 1.0f;
 }
 
-
-static void push_vertex_a(VkVertex *v, uint32_t *c, float px, float py, float r, float g, float b, float a) {
-    v[*c].pos[0] = px; v[*c].pos[1] = py; v[*c].pos[2] = 0.0f;
-    v[*c].color[0] = r; v[*c].color[1] = g; v[*c].color[2] = b; v[*c].color[3] = a;
-    v[*c].normal[0] = 0.0f; v[*c].normal[1] = 0.0f; v[*c].normal[2] = 1.0f;
+static void push_vertex_a(VkVertex *v, uint32_t *c, float px, float py, float r, float g, float b,
+                          float a) {
+    v[*c].pos[0] = px;
+    v[*c].pos[1] = py;
+    v[*c].pos[2] = 0.0f;
+    v[*c].color[0] = r;
+    v[*c].color[1] = g;
+    v[*c].color[2] = b;
+    v[*c].color[3] = a;
+    v[*c].normal[0] = 0.0f;
+    v[*c].normal[1] = 0.0f;
+    v[*c].normal[2] = 1.0f;
     (*c)++;
 }
 
 /*Draw a 2D quad for the HUD (pixel coordinates)*/
-static void draw_quad_hud(VkVertex *v, uint32_t *c, uint32_t max_v,
-                           float x, float y, float w, float h,
-                           float r, float g, float b, float a) {
-    if (*c + 6 > max_v) return;
-    push_vertex_a(v, c, x,     y,     r, g, b, a);
-    push_vertex_a(v, c, x + w, y,     r, g, b, a);
-    push_vertex_a(v, c, x,     y + h, r, g, b, a);
-    push_vertex_a(v, c, x + w, y,     r, g, b, a);
+static void draw_quad_hud(VkVertex *v, uint32_t *c, uint32_t max_v, float x, float y, float w,
+                          float h, float r, float g, float b, float a) {
+    if (*c + 6 > max_v) {
+        return;
+    }
+    push_vertex_a(v, c, x, y, r, g, b, a);
+    push_vertex_a(v, c, x + w, y, r, g, b, a);
+    push_vertex_a(v, c, x, y + h, r, g, b, a);
+    push_vertex_a(v, c, x + w, y, r, g, b, a);
     push_vertex_a(v, c, x + w, y + h, r, g, b, a);
-    push_vertex_a(v, c, x,     y + h, r, g, b, a);
+    push_vertex_a(v, c, x, y + h, r, g, b, a);
 }
 
 /* Draws text using the font5x7 bitmap in the HUD vertex buffer */
-static void draw_text_vk(VkVertex *v, uint32_t *c, uint32_t max_v,
-                          float x, float y, const char *str, float scale,
-                          float r, float g, float b) {
+static void draw_text_vk(VkVertex *v, uint32_t *c, uint32_t max_v, float x, float y,
+                         const char *str, float scale, float r, float g, float b) {
     float cursor_x = x;
     while (*str) {
         unsigned char ch = (unsigned char)*str;
@@ -239,8 +293,8 @@ static void draw_text_vk(VkVertex *v, uint32_t *c, uint32_t max_v,
 }
 
 /*Updates the minimap and draws it into the HUD vertex buffer*/
-static void draw_minimap_vk(VkVertex *v, uint32_t *c, uint32_t max_v,
-                             int px, int py, float ox, float oy, float cell_sz) {
+static void draw_minimap_vk(VkVertex *v, uint32_t *c, uint32_t max_v, int px, int py, float ox,
+                            float oy, float cell_sz) {
     /*Safe to use the LIVE g_local_map here: the only caller,
      * render_vk_hud(), runs while holding g_state_mutex (see draw_frame),
      * and the net thread writes the map under that same lock.*/
@@ -249,7 +303,9 @@ static void draw_minimap_vk(VkVertex *v, uint32_t *c, uint32_t max_v,
     for (int by = 0; by < buf_size; by++) {
         for (int bx = 0; bx < buf_size; bx++) {
             MiniPixel mp = g_minimap_buf[by][bx];
-            if (mp.a == 0) continue;
+            if (mp.a == 0) {
+                continue;
+            }
             float fr = (float)mp.r / 255.0f;
             float fg = (float)mp.g / 255.0f;
             float fb = (float)mp.b / 255.0f;
@@ -263,8 +319,8 @@ static void draw_minimap_vk(VkVertex *v, uint32_t *c, uint32_t max_v,
     int center = MINIMAP_RADIUS;
     float cx_px = ox + (float)center * cell_sz;
     float cy_px = oy + (float)center * cell_sz;
-    draw_quad_hud(v, c, max_v, cx_px - cell_sz, cy_px - cell_sz,
-                  cell_sz * 3.0f, cell_sz * 3.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+    draw_quad_hud(v, c, max_v, cx_px - cell_sz, cy_px - cell_sz, cell_sz * 3.0f, cell_sz * 3.0f,
+                  1.0f, 1.0f, 1.0f, 1.0f);
 }
 
 /*=========================================================================
@@ -272,28 +328,32 @@ static void draw_minimap_vk(VkVertex *v, uint32_t *c, uint32_t max_v,
  * (minimap, status text, equipment, compass, names, combat text).
  * ========================================================================================*/
 
-static void project_point(const float mvp[16], float x, float y, float z, float sw, float sh, float *sx, float *sy, bool *visible) {
-    float clip_x = x * mvp[0] + y * mvp[4] + z * mvp[8]  + mvp[12];
-    float clip_y = x * mvp[1] + y * mvp[5] + z * mvp[9]  + mvp[13];
+static void project_point(const float mvp[16], float x, float y, float z, float sw, float sh,
+                          float *sx, float *sy, bool *visible) {
+    float clip_x = x * mvp[0] + y * mvp[4] + z * mvp[8] + mvp[12];
+    float clip_y = x * mvp[1] + y * mvp[5] + z * mvp[9] + mvp[13];
     float clip_w = x * mvp[3] + y * mvp[7] + z * mvp[11] + mvp[15];
-    
+
     if (clip_w <= 0.1f) {
         *visible = false;
         return;
     }
-    
+
     float ndc_x = clip_x / clip_w;
     float ndc_y = clip_y / clip_w;
-    
+
     *sx = (ndc_x + 1.0f) * 0.5f * sw;
     *sy = (ndc_y + 1.0f) * 0.5f * sh;
-    
+
     *visible = (ndc_x >= -1.0f && ndc_x <= 1.0f && ndc_y >= -1.0f && ndc_y <= 1.0f);
 }
 
-static void draw_player_names_vk(VkVertex *v, uint32_t *c, uint32_t max_v, float sw, float sh, const float mvp[16], FrameSnapshot *snap) {
+static void draw_player_names_vk(VkVertex *v, uint32_t *c, uint32_t max_v, float sw, float sh,
+                                 const float mvp[16], FrameSnapshot *snap) {
     for (int i = 0; i < CLIENT_MAX_ENTITIES; i++) {
-        if (snap->entities[i].active && snap->entities[i].is_player && snap->entities[i].id != snap->my_entity_id && snap->entities[i].floor_id == snap->my_floor) {
+        if (snap->entities[i].active && snap->entities[i].is_player &&
+            snap->entities[i].id != snap->my_entity_id &&
+            snap->entities[i].floor_id == snap->my_floor) {
             if (snap->entities[i].username[0] != '\0') {
                 float ex = (float)snap->entities[i].x;
                 float ez = (float)snap->entities[i].y;
@@ -305,48 +365,88 @@ static void draw_player_names_vk(VkVertex *v, uint32_t *c, uint32_t max_v, float
                 bool visible;
                 project_point(mvp, ex, 1.2f, ez, sw, sh, &sx, &sy, &visible);
                 if (visible) {
-                    float len = strlen(snap->entities[i].username) * 5.0f * 1.5f;
-                    draw_text_vk(v, c, max_v, sx - len / 2.0f, sy, snap->entities[i].username, 1.5f, 0.4f, 1.0f, 0.4f);
+                    float len = (float)strlen(snap->entities[i].username) * 5.0f * 1.5f;
+                    draw_text_vk(v, c, max_v, sx - len / 2.0f, sy, snap->entities[i].username, 1.5f,
+                                 0.4f, 1.0f, 0.4f);
                 }
             }
         }
     }
 }
 
-static void draw_floating_combat_text_vk(VkVertex *v, uint32_t *c, uint32_t max_v, float sw, float sh, const float mvp[16], FrameSnapshot *snap) {
+static void draw_floating_combat_text_vk(VkVertex *v, uint32_t *c, uint32_t max_v, float sw,
+                                         float sh, const float mvp[16], FrameSnapshot *snap) {
     float px = (snap->my_x != -1) ? (float)snap->my_x : 500.0f;
     float pz = (snap->my_y != -1) ? (float)snap->my_y : 500.0f;
 
     pthread_mutex_lock(&g_fct_mutex);
     for (int i = 0; i < FCT_MAX_ENTRIES; i++) {
-        if (!g_fct[i].active) continue;
+        if (!g_fct[i].active) {
+            continue;
+        }
         const FloatingText *f = &g_fct[i];
 
         float sx, sy;
         bool visible;
-        project_point(mvp, px + f->world_x, f->offset_y, pz + f->world_z, sw, sh, &sx, &sy, &visible);
-        if (!visible) continue;
+        project_point(mvp, px + f->world_x, f->offset_y, pz + f->world_z, sw, sh, &sx, &sy,
+                      &visible);
+        if (!visible) {
+            continue;
+        }
         float screen_x = sx;
         float screen_y = sy;
 
         float r = 1.0f, g = 1.0f, b = 1.0f;
         switch (f->type) {
-            case FCT_DAMAGE:      r = 1.0f; g = 0.2f; b = 0.2f; break;
-            case FCT_DAMAGE_OUT:  r = 1.0f; g = 0.6f; b = 0.0f; break;
-            case FCT_HEAL:        r = 0.2f; g = 1.0f; b = 0.2f; break;
-            case FCT_CRITICAL:    r = 1.0f; g = 1.0f; b = 0.2f; break;
-            case FCT_XP:          r = 0.2f; g = 1.0f; b = 1.0f; break;
-            case FCT_GOLD:        r = 1.0f; g = 0.9f; b = 0.1f; break;
-            case FCT_MISS:        r = 0.6f; g = 0.6f; b = 0.6f; break;
-            case FCT_LEVELUP:     r = 1.0f; g = 1.0f; b = 1.0f; break;
+        case FCT_DAMAGE:
+            r = 1.0f;
+            g = 0.2f;
+            b = 0.2f;
+            break;
+        case FCT_DAMAGE_OUT:
+            r = 1.0f;
+            g = 0.6f;
+            b = 0.0f;
+            break;
+        case FCT_HEAL:
+            r = 0.2f;
+            g = 1.0f;
+            b = 0.2f;
+            break;
+        case FCT_CRITICAL:
+            r = 1.0f;
+            g = 1.0f;
+            b = 0.2f;
+            break;
+        case FCT_XP:
+            r = 0.2f;
+            g = 1.0f;
+            b = 1.0f;
+            break;
+        case FCT_GOLD:
+            r = 1.0f;
+            g = 0.9f;
+            b = 0.1f;
+            break;
+        case FCT_MISS:
+            r = 0.6f;
+            g = 0.6f;
+            b = 0.6f;
+            break;
+        case FCT_LEVELUP:
+            r = 1.0f;
+            g = 1.0f;
+            b = 1.0f;
+            break;
         }
 
-        float len = strlen(f->text) * 5.0f * f->scale;
+        float len = (float)strlen(f->text) * 5.0f * f->scale;
         draw_text_vk(v, c, max_v, screen_x - len / 2.0f, screen_y, f->text, f->scale, r, g, b);
     }
     pthread_mutex_unlock(&g_fct_mutex);
 }
-static void render_vk_hud(VkVertex *v, uint32_t *c, uint32_t max_v, float sw, float sh, float mvp[16], float px, float pz) {
+static void render_vk_hud(VkVertex *v, uint32_t *c, uint32_t max_v, float sw, float sh,
+                          float mvp[16], float px, float pz) {
     float sx = 20.0f;
     float sy = 20.0f;
     char buf[192];
@@ -364,10 +464,11 @@ static void render_vk_hud(VkVertex *v, uint32_t *c, uint32_t max_v, float sw, fl
     sy += 10.0f;
 
     /*Floor + Level + Race/Class*/
-    const char *race_name  = (g_race_id  >= 0 && g_race_id  < RACE_COUNT)  ? RACES[g_race_id].name    : "";
-    const char *class_name = (g_class_id >= 0 && g_class_id < CLASS_COUNT) ? CLASSES[g_class_id].name : "";
-    snprintf(buf, sizeof(buf), "FLOOR: %d   LVL: %d  [%s %s]",
-             g_my_floor, g_my_level, race_name, class_name);
+    const char *race_name = (g_race_id >= 0 && g_race_id < RACE_COUNT) ? RACES[g_race_id].name : "";
+    const char *class_name =
+        (g_class_id >= 0 && g_class_id < CLASS_COUNT) ? CLASSES[g_class_id].name : "";
+    snprintf(buf, sizeof(buf), "FLOOR: %d   LVL: %d  [%s %s]", g_my_floor, g_my_level, race_name,
+             class_name);
     draw_text_vk(v, c, max_v, sx, sy, buf, scale, th_r, th_g, th_b);
     sy += 12.0f;
 
@@ -389,9 +490,22 @@ static void render_vk_hud(VkVertex *v, uint32_t *c, uint32_t max_v, float sw, fl
     /* Vitality */
     const char *hunger_str = "SATIATED";
     float hr = 0.2f, hg = 1.0f, hb = 0.2f;
-    if (g_hunger_level >= 1850) { hunger_str = "FAINTING"; hr = 1.0f; hg = 0.0f; hb = 0.0f; }
-    else if (g_hunger_level >= 1600) { hunger_str = "WEAK";    hr = 1.0f; hg = 0.5f; hb = 0.0f; }
-    else if (g_hunger_level >= 1200) { hunger_str = "HUNGRY";  hr = 1.0f; hg = 1.0f; hb = 0.0f; }
+    if (g_hunger_level >= 1850) {
+        hunger_str = "FAINTING";
+        hr = 1.0f;
+        hg = 0.0f;
+        hb = 0.0f;
+    } else if (g_hunger_level >= 1600) {
+        hunger_str = "WEAK";
+        hr = 1.0f;
+        hg = 0.5f;
+        hb = 0.0f;
+    } else if (g_hunger_level >= 1200) {
+        hunger_str = "HUNGRY";
+        hr = 1.0f;
+        hg = 1.0f;
+        hb = 0.0f;
+    }
     snprintf(buf, sizeof(buf), "VITALITY: %s", hunger_str);
     draw_text_vk(v, c, max_v, sx, sy, buf, scale, hr, hg, hb);
     sy += 12.0f;
@@ -399,7 +513,10 @@ static void render_vk_hud(VkVertex *v, uint32_t *c, uint32_t max_v, float sw, fl
     /* Spell Slots */
     bool has_slots = false;
     for (int i = 1; i <= 9; i++) {
-        if (g_my_spell_slots_max[i] > 0) { has_slots = true; break; }
+        if (g_my_spell_slots_max[i] > 0) {
+            has_slots = true;
+            break;
+        }
     }
     if (has_slots) {
         sy += 10.0f;
@@ -407,7 +524,8 @@ static void render_vk_hud(VkVertex *v, uint32_t *c, uint32_t max_v, float sw, fl
         sy += 10.0f;
         for (int i = 1; i <= 9; i++) {
             if (g_my_spell_slots_max[i] > 0) {
-                snprintf(buf, sizeof(buf), "L%d: %d/%d", i, g_my_spell_slots[i], g_my_spell_slots_max[i]);
+                snprintf(buf, sizeof(buf), "L%d: %d/%d", i, g_my_spell_slots[i],
+                         g_my_spell_slots_max[i]);
                 draw_text_vk(v, c, max_v, sx, sy, buf, 1.0f, 0.7f, 0.9f, 1.0f);
                 sy += 10.0f;
             }
@@ -416,18 +534,14 @@ static void render_vk_hud(VkVertex *v, uint32_t *c, uint32_t max_v, float sw, fl
 
     /* Status Conditions */
     char statuses[96] = ""; /*the 12 labels below take 87 characters*/
-    if (g_status_icons & (1 << 0))  strcat(statuses, "POISON ");
-    if (g_status_icons & (1 << 1))  strcat(statuses, "BLIND ");
-    if (g_status_icons & (1 << 2))  strcat(statuses, "PARALYZE ");
-    if (g_status_icons & (1 << 3))  strcat(statuses, "STUN ");
-    if (g_status_icons & (1 << 4))  strcat(statuses, "UNCONSCIOUS ");
-    if (g_status_icons & (1 << 5))  strcat(statuses, "BURN ");
-    if (g_status_icons & (1 << 6))  strcat(statuses, "BLEED ");
-    if (g_status_icons & (1 << 7))  strcat(statuses, "PETRIFIED ");
-    if (g_status_icons & (1 << 8))  strcat(statuses, "CURSE ");
-    if (g_status_icons & (1 << 9))  strcat(statuses, "FROZEN ");
-    if (g_status_icons & (1 << 10)) strcat(statuses, "EXHAUST ");
-    if (g_status_icons & (1 << 11)) strcat(statuses, "STUDY ");
+    static const char *const status_words[12] = {
+        "POISON ", "BLIND ",     "PARALYZE ", "STUN ",   "UNCONSCIOUS ", "BURN ",
+        "BLEED ",  "PETRIFIED ", "CURSE ",    "FROZEN ", "EXHAUST ",     "STUDY "};
+    for (int k = 0; k < 12; k++) {
+        if (g_status_icons & (1 << k)) {
+            strncat(statuses, status_words[k], sizeof(statuses) - strlen(statuses) - 1);
+        }
+    }
     if (statuses[0] != '\0') {
         snprintf(buf, sizeof(buf), "STATUS: %s", statuses);
         draw_text_vk(v, c, max_v, sx, sy, buf, 1.0f, 1.0f, 0.5f, 1.0f);
@@ -443,26 +557,36 @@ static void render_vk_hud(VkVertex *v, uint32_t *c, uint32_t max_v, float sw, fl
     sy += 10.0f;
 
     /* Stats block */
-    draw_text_vk(v, c, max_v, sx, sy, "--- STATS ---", scale, th_r, th_g, th_b); sy += 12.0f;
+    draw_text_vk(v, c, max_v, sx, sy, "--- STATS ---", scale, th_r, th_g, th_b);
+    sy += 12.0f;
     snprintf(buf, sizeof(buf), "STR: %d", g_str);
-    draw_text_vk(v, c, max_v, sx, sy, buf, scale, th_r, th_g, th_b); sy += 10.0f;
+    draw_text_vk(v, c, max_v, sx, sy, buf, scale, th_r, th_g, th_b);
+    sy += 10.0f;
     snprintf(buf, sizeof(buf), "DEX: %d", g_dex);
-    draw_text_vk(v, c, max_v, sx, sy, buf, scale, th_r, th_g, th_b); sy += 10.0f;
+    draw_text_vk(v, c, max_v, sx, sy, buf, scale, th_r, th_g, th_b);
+    sy += 10.0f;
     snprintf(buf, sizeof(buf), "CON: %d", g_con);
-    draw_text_vk(v, c, max_v, sx, sy, buf, scale, th_r, th_g, th_b); sy += 10.0f;
+    draw_text_vk(v, c, max_v, sx, sy, buf, scale, th_r, th_g, th_b);
+    sy += 10.0f;
     snprintf(buf, sizeof(buf), "INT: %d", g_intel);
-    draw_text_vk(v, c, max_v, sx, sy, buf, scale, th_r, th_g, th_b); sy += 10.0f;
+    draw_text_vk(v, c, max_v, sx, sy, buf, scale, th_r, th_g, th_b);
+    sy += 10.0f;
     snprintf(buf, sizeof(buf), "WIS: %d", g_wis);
-    draw_text_vk(v, c, max_v, sx, sy, buf, scale, th_r, th_g, th_b); sy += 10.0f;
+    draw_text_vk(v, c, max_v, sx, sy, buf, scale, th_r, th_g, th_b);
+    sy += 10.0f;
     snprintf(buf, sizeof(buf), "CHA: %d", g_cha);
-    draw_text_vk(v, c, max_v, sx, sy, buf, scale, th_r, th_g, th_b); sy += 16.0f;
+    draw_text_vk(v, c, max_v, sx, sy, buf, scale, th_r, th_g, th_b);
+    sy += 16.0f;
 
     /* Combat section */
-    draw_text_vk(v, c, max_v, sx, sy, "--- COMBAT ---", scale, th_r, th_g, th_b); sy += 12.0f;
+    draw_text_vk(v, c, max_v, sx, sy, "--- COMBAT ---", scale, th_r, th_g, th_b);
+    sy += 12.0f;
     snprintf(buf, sizeof(buf), "Total AC  : %d", g_my_ac);
-    draw_text_vk(v, c, max_v, sx, sy, buf, scale, 0.5f, 0.8f, 1.0f); sy += 10.0f;
+    draw_text_vk(v, c, max_v, sx, sy, buf, scale, 0.5f, 0.8f, 1.0f);
+    sy += 10.0f;
     snprintf(buf, sizeof(buf), "+To Hit   : %+d", g_to_hit);
-    draw_text_vk(v, c, max_v, sx, sy, buf, scale, 1.0f, 0.9f, 0.4f); sy += 10.0f;
+    draw_text_vk(v, c, max_v, sx, sy, buf, scale, 1.0f, 0.9f, 0.4f);
+    sy += 10.0f;
     snprintf(buf, sizeof(buf), "+To Dmg   : %+d", g_to_dmg);
     draw_text_vk(v, c, max_v, sx, sy, buf, scale, 1.0f, 0.9f, 0.4f);
 
@@ -471,19 +595,21 @@ static void render_vk_hud(VkVertex *v, uint32_t *c, uint32_t max_v, float sw, fl
      * ============================================================= */
     float rx = sw - 250.0f;
     float ry = 180.0f;
-    draw_text_vk(v, c, max_v, rx, ry, "--- EQUIP ---", scale, th_r, th_g, th_b); ry += 10.0f;
+    draw_text_vk(v, c, max_v, rx, ry, "--- EQUIP ---", scale, th_r, th_g, th_b);
+    ry += 10.0f;
 
-    /* Helper: draws equipment slot */
-    #define DRAW_SLOT_VK(label, name_str) do { \
-        char _eq[64]; \
-        if ((name_str)[0] != '\0') { \
-            snprintf(_eq, sizeof(_eq), label " %.22s", name_str); \
-            draw_text_vk(v, c, max_v, rx, ry, _eq, 1.0f, 0.9f, 0.85f, 0.75f); \
-        } else { \
-            draw_text_vk(v, c, max_v, rx, ry, label " ---", 1.0f, 0.35f, 0.35f, 0.35f); \
-        } \
-        ry += 10.0f; \
-    } while(0)
+/* Helper: draws equipment slot */
+#define DRAW_SLOT_VK(label, name_str)                                                              \
+    do {                                                                                           \
+        char _eq[64];                                                                              \
+        if ((name_str)[0] != '\0') {                                                               \
+            snprintf(_eq, sizeof(_eq), label " %.22s", name_str);                                  \
+            draw_text_vk(v, c, max_v, rx, ry, _eq, 1.0f, 0.9f, 0.85f, 0.75f);                      \
+        } else {                                                                                   \
+            draw_text_vk(v, c, max_v, rx, ry, label " ---", 1.0f, 0.35f, 0.35f, 0.35f);            \
+        }                                                                                          \
+        ry += 10.0f;                                                                               \
+    } while (0)
 
     DRAW_SLOT_VK("HEA:", g_eq_head);
     DRAW_SLOT_VK("NEC:", g_eq_neck);
@@ -510,7 +636,7 @@ static void render_vk_hud(VkVertex *v, uint32_t *c, uint32_t max_v, float sw, fl
             ry += 10.0f;
         }
     }
-    #undef DRAW_SLOT_VK
+#undef DRAW_SLOT_VK
 
     /*=========================================================================================
 * LOWER RIGHT SECTION: Boss Trophies
@@ -537,7 +663,8 @@ static void render_vk_hud(VkVertex *v, uint32_t *c, uint32_t max_v, float sw, fl
                 float dcx = bsx + 17.0f;
                 float dcy = bsy + 10.0f;
                 /* Top triangle */
-                draw_quad_hud(v, c, max_v, dcx - 4.0f, dcy - 6.0f, 8.0f, 6.0f, 1.0f, 0.9f, 0.0f, 1.0f);
+                draw_quad_hud(v, c, max_v, dcx - 4.0f, dcy - 6.0f, 8.0f, 6.0f, 1.0f, 0.9f, 0.0f,
+                              1.0f);
                 /* Bottom triangle */
                 draw_quad_hud(v, c, max_v, dcx - 4.0f, dcy, 8.0f, 6.0f, 1.0f, 0.9f, 0.0f, 1.0f);
             }
@@ -560,15 +687,11 @@ static void render_vk_hud(VkVertex *v, uint32_t *c, uint32_t max_v, float sw, fl
         float cell_sz = (float)MINIMAP_DISPLAY_SIZE / (float)MINIMAP_BUF_SIZE;
 
         /* Semi-transparent background */
-        draw_quad_hud(v, c, max_v, mm_x - 2.0f, mm_y - 2.0f,
-                      (float)MINIMAP_DISPLAY_SIZE + 4.0f,
-                      (float)MINIMAP_DISPLAY_SIZE + 4.0f,
-                      0.0f, 0.0f, 0.0f, 0.7f);
+        draw_quad_hud(v, c, max_v, mm_x - 2.0f, mm_y - 2.0f, (float)MINIMAP_DISPLAY_SIZE + 4.0f,
+                      (float)MINIMAP_DISPLAY_SIZE + 4.0f, 0.0f, 0.0f, 0.0f, 0.7f);
 
         draw_minimap_vk(v, c, max_v, g_my_x, g_my_y, mm_x, mm_y, cell_sz);
     }
-
-
 
     /* =============================================================
      * AR COMPASS (3D -> 2D Projection)
@@ -578,30 +701,35 @@ static void render_vk_hud(VkVertex *v, uint32_t *c, uint32_t max_v, float sw, fl
         bool vis;
         // North (Z = -3)
         project_point(mvp, px, 0.5f, pz - 3.0f, sw, sh, &sx, &sy, &vis);
-        if (vis) draw_text_vk(v, c, max_v, sx - 4.0f, sy - 4.0f, "N", 1.0f, 1.0f, 0.2f, 0.2f);
-        
+        if (vis) {
+            draw_text_vk(v, c, max_v, sx - 4.0f, sy - 4.0f, "N", 1.0f, 1.0f, 0.2f, 0.2f);
+        }
+
         // South (Z = 3)
         project_point(mvp, px, 0.5f, pz + 3.0f, sw, sh, &sx, &sy, &vis);
-        if (vis) draw_text_vk(v, c, max_v, sx - 4.0f, sy - 4.0f, "S", 1.0f, 0.8f, 0.8f, 0.8f);
-        
+        if (vis) {
+            draw_text_vk(v, c, max_v, sx - 4.0f, sy - 4.0f, "S", 1.0f, 0.8f, 0.8f, 0.8f);
+        }
+
         // East (X = 3)
         project_point(mvp, px + 3.0f, 0.5f, pz, sw, sh, &sx, &sy, &vis);
-        if (vis) draw_text_vk(v, c, max_v, sx - 4.0f, sy - 4.0f, "E", 1.0f, 0.8f, 0.8f, 0.8f);
-        
+        if (vis) {
+            draw_text_vk(v, c, max_v, sx - 4.0f, sy - 4.0f, "E", 1.0f, 0.8f, 0.8f, 0.8f);
+        }
+
         // West (X = -3)
         project_point(mvp, px - 3.0f, 0.5f, pz, sw, sh, &sx, &sy, &vis);
-        if (vis) draw_text_vk(v, c, max_v, sx - 4.0f, sy - 4.0f, "W", 1.0f, 0.8f, 0.8f, 0.8f);
+        if (vis) {
+            draw_text_vk(v, c, max_v, sx - 4.0f, sy - 4.0f, "W", 1.0f, 0.8f, 0.8f, 0.8f);
+        }
     }
 
     /* Center reticle */
     float cx_c = sw * 0.5f;
     float cy_c = sh * 0.5f;
-    draw_text_vk(v, c, max_v, cx_c - 20.0f, cy_c - 8.0f, "[",  scale, 0.2f, 1.0f, 0.2f);
-    draw_text_vk(v, c, max_v, cx_c -  4.0f, cy_c - 8.0f, "+",  scale, 0.2f, 1.0f, 0.2f);
-    draw_text_vk(v, c, max_v, cx_c + 12.0f, cy_c - 8.0f, "]",  scale, 0.2f, 1.0f, 0.2f);
-
-
-
+    draw_text_vk(v, c, max_v, cx_c - 20.0f, cy_c - 8.0f, "[", scale, 0.2f, 1.0f, 0.2f);
+    draw_text_vk(v, c, max_v, cx_c - 4.0f, cy_c - 8.0f, "+", scale, 0.2f, 1.0f, 0.2f);
+    draw_text_vk(v, c, max_v, cx_c + 12.0f, cy_c - 8.0f, "]", scale, 0.2f, 1.0f, 0.2f);
 }
 /*Map instances are built only for a WINDOW around the player, not the
  * whole 300x300 floor: the fragment shader discards every fragment
@@ -618,20 +746,21 @@ static void render_vk_hud(VkVertex *v, uint32_t *c, uint32_t max_v, float sw, fl
  *    travel (amortized), not on every step.
  * Each frame slot keeps its copy of the instance list and refreshes it
  * only when its map generation is stale.*/
-#define VK_MAP_VISION_MARGIN 8   /*fog fade-out slack beyond visionRadius */
-#define VK_MAP_BUILD_MARGIN  16  /*rebuild amortization: tiles of travel  */
-#define VK_MAP_MIN_RADIUS   16
-#define VK_MAP_MAX_RADIUS   56   /*city visionRadius is 50 (50+8 -> 56)   */
+#define VK_MAP_VISION_MARGIN 8  /*fog fade-out slack beyond visionRadius */
+#define VK_MAP_BUILD_MARGIN  16 /*rebuild amortization: tiles of travel  */
+#define VK_MAP_MIN_RADIUS    16
+#define VK_MAP_MAX_RADIUS    56 /*city visionRadius is 50 (50+8 -> 56)   */
 
 static bool s_map_built = false;
 static int s_map_floor = -1;
 static int s_map_win_x0 = 0, s_map_win_y0 = 0;
 static int s_map_win_x1 = -1, s_map_win_y1 = -1;
 
-static void record_commands(VkState *s, VkFrameResources *frame,
-                             float mvp[16], float vision_radius, float px, float pz, float time_val,
-                             float hud_ortho[16], float sw, float sh) {
-    (void)sw; (void)sh;
+static void record_commands(VkState *s, VkFrameResources *frame, float mvp[16], float vision_radius,
+                            float px, float pz, float time_val, float hud_ortho[16], float sw,
+                            float sh) {
+    (void)sw;
+    (void)sh;
     VkCommandBufferBeginInfo beginInfo = {0};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     vkBeginCommandBuffer(frame->command_buffer, &beginInfo);
@@ -659,11 +788,11 @@ static void record_commands(VkState *s, VkFrameResources *frame,
      *load, so the old contents never matter).*/
     VkImageMemoryBarrier2 depth_barrier = {0};
     depth_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-    depth_barrier.srcStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT |
-                                 VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
+    depth_barrier.srcStageMask =
+        VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
     depth_barrier.srcAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-    depth_barrier.dstStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT |
-                                 VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
+    depth_barrier.dstStageMask =
+        VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
     depth_barrier.dstAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
                                   VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
     depth_barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -710,19 +839,25 @@ static void record_commands(VkState *s, VkFrameResources *frame,
 
         uint32_t map_wg = (frame->gpd_map_count + VKD_WORKGROUP - 1) / VKD_WORKGROUP;
         if (map_wg > 0) {
-            vkCmdBindPipeline(frame->command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s->gpd_pipe_cull_map);
-            vkCmdBindDescriptorSets(frame->command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s->gpd_pl_cull, 0, 1, &frame->gpd_desc_cull_map, 0, NULL);
+            vkCmdBindPipeline(frame->command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                              s->gpd_pipe_cull_map);
+            vkCmdBindDescriptorSets(frame->command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                                    s->gpd_pl_cull, 0, 1, &frame->gpd_desc_cull_map, 0, NULL);
             pc.count = frame->gpd_map_count;
-            vkCmdPushConstants(frame->command_buffer, s->gpd_pl_cull, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(GpdPush), &pc);
+            vkCmdPushConstants(frame->command_buffer, s->gpd_pl_cull, VK_SHADER_STAGE_COMPUTE_BIT,
+                               0, sizeof(GpdPush), &pc);
             vkCmdDispatch(frame->command_buffer, map_wg, 1, 1);
         }
 
         uint32_t dyn_wg = (frame->gpd_dyn_count + VKD_WORKGROUP - 1) / VKD_WORKGROUP;
         if (dyn_wg > 0) {
-            vkCmdBindPipeline(frame->command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s->gpd_pipe_cull_dyn);
-            vkCmdBindDescriptorSets(frame->command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s->gpd_pl_cull, 0, 1, &frame->gpd_desc_cull_dyn, 0, NULL);
+            vkCmdBindPipeline(frame->command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                              s->gpd_pipe_cull_dyn);
+            vkCmdBindDescriptorSets(frame->command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                                    s->gpd_pl_cull, 0, 1, &frame->gpd_desc_cull_dyn, 0, NULL);
             pc.count = frame->gpd_dyn_count;
-            vkCmdPushConstants(frame->command_buffer, s->gpd_pl_cull, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(GpdPush), &pc);
+            vkCmdPushConstants(frame->command_buffer, s->gpd_pl_cull, VK_SHADER_STAGE_COMPUTE_BIT,
+                               0, sizeof(GpdPush), &pc);
             vkCmdDispatch(frame->command_buffer, dyn_wg, 1, 1);
         }
 
@@ -740,23 +875,30 @@ static void record_commands(VkState *s, VkFrameResources *frame,
         vkCmdPipelineBarrier2(frame->command_buffer, &cull_dep);
 
         if (map_wg > 0) {
-            vkCmdBindPipeline(frame->command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s->gpd_pipe_exp_map);
-            vkCmdBindDescriptorSets(frame->command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s->gpd_pl_exp, 0, 1, &frame->gpd_desc_exp_map, 0, NULL);
+            vkCmdBindPipeline(frame->command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                              s->gpd_pipe_exp_map);
+            vkCmdBindDescriptorSets(frame->command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                                    s->gpd_pl_exp, 0, 1, &frame->gpd_desc_exp_map, 0, NULL);
             vkCmdDispatch(frame->command_buffer, map_wg, 1, 1);
         }
 
         if (dyn_wg > 0) {
-            vkCmdBindPipeline(frame->command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s->gpd_pipe_exp_dyn);
-            vkCmdBindDescriptorSets(frame->command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s->gpd_pl_exp, 0, 1, &frame->gpd_desc_exp_dyn, 0, NULL);
+            vkCmdBindPipeline(frame->command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                              s->gpd_pipe_exp_dyn);
+            vkCmdBindDescriptorSets(frame->command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                                    s->gpd_pl_exp, 0, 1, &frame->gpd_desc_exp_dyn, 0, NULL);
             vkCmdDispatch(frame->command_buffer, dyn_wg, 1, 1);
         }
 
         uint32_t ori_wg = (frame->gpd_ori_count + VKD_WORKGROUP - 1) / VKD_WORKGROUP;
         if (ori_wg > 0) {
-            vkCmdBindPipeline(frame->command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s->gpd_pipe_exp_ori);
-            vkCmdBindDescriptorSets(frame->command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s->gpd_pl_exp_ori, 0, 1, &frame->gpd_desc_exp_ori, 0, NULL);
+            vkCmdBindPipeline(frame->command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                              s->gpd_pipe_exp_ori);
+            vkCmdBindDescriptorSets(frame->command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                                    s->gpd_pl_exp_ori, 0, 1, &frame->gpd_desc_exp_ori, 0, NULL);
             pc.count = frame->gpd_ori_count;
-            vkCmdPushConstants(frame->command_buffer, s->gpd_pl_exp_ori, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(GpdPush), &pc);
+            vkCmdPushConstants(frame->command_buffer, s->gpd_pl_exp_ori,
+                               VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(GpdPush), &pc);
             vkCmdDispatch(frame->command_buffer, ori_wg, 1, 1);
         }
 
@@ -774,15 +916,18 @@ static void record_commands(VkState *s, VkFrameResources *frame,
         vkCmdPipelineBarrier2(frame->command_buffer, &exp_dep);
 
         vkCmdBindPipeline(frame->command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s->gpd_pipe_final);
-        vkCmdBindDescriptorSets(frame->command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, s->gpd_pl_final, 0, 1, &frame->gpd_desc_final, 0, NULL);
+        vkCmdBindDescriptorSets(frame->command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                                s->gpd_pl_final, 0, 1, &frame->gpd_desc_final, 0, NULL);
         vkCmdDispatch(frame->command_buffer, 1, 1, 1);
 
         VkMemoryBarrier2 comp_to_gfx_barrier = {0};
         comp_to_gfx_barrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2;
         comp_to_gfx_barrier.srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
         comp_to_gfx_barrier.srcAccessMask = VK_ACCESS_2_SHADER_WRITE_BIT;
-        comp_to_gfx_barrier.dstStageMask = VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT | VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT;
-        comp_to_gfx_barrier.dstAccessMask = VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT | VK_ACCESS_2_SHADER_READ_BIT;
+        comp_to_gfx_barrier.dstStageMask =
+            VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT | VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT;
+        comp_to_gfx_barrier.dstAccessMask =
+            VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT | VK_ACCESS_2_SHADER_READ_BIT;
 
         VkDependencyInfo comp_to_gfx_dep = {0};
         comp_to_gfx_dep.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
@@ -824,8 +969,9 @@ static void record_commands(VkState *s, VkFrameResources *frame,
 
     /*Viewport and scissor are dynamic state: the pipelines do not depend
      *on the window size.*/
-    VkViewport viewport = {0.0f, 0.0f, (float)s->swapchain_extent.width,
-                           (float)s->swapchain_extent.height, 0.0f, 1.0f};
+    VkViewport viewport = {
+        0.0f, 0.0f, (float)s->swapchain_extent.width, (float)s->swapchain_extent.height,
+        0.0f, 1.0f};
     VkRect2D scissor = {{0, 0}, s->swapchain_extent};
     vkCmdSetViewport(frame->command_buffer, 0, 1, &viewport);
     vkCmdSetScissor(frame->command_buffer, 0, 1, &scissor);
@@ -838,10 +984,13 @@ static void record_commands(VkState *s, VkFrameResources *frame,
     push_data[18] = pz;
     push_data[19] = time_val;
 
-    vkCmdBindPipeline(frame->command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s->gpd_scene_pipeline);
-    vkCmdBindDescriptorSets(frame->command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s->gpd_scene_layout, 0, 1, &frame->gpd_desc_scene, 0, NULL);
+    vkCmdBindPipeline(frame->command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                      s->gpd_scene_pipeline);
+    vkCmdBindDescriptorSets(frame->command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                            s->gpd_scene_layout, 0, 1, &frame->gpd_desc_scene, 0, NULL);
     vkCmdPushConstants(frame->command_buffer, s->gpd_scene_layout,
-                       VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(float) * 20, push_data);
+                       VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
+                       sizeof(float) * 20, push_data);
     vkCmdDrawIndirect(frame->command_buffer, frame->gpd_indirect, 0, 1, 16);
 
     /*--- Step 2: 2D HUD overlay (pipeline without depth test, with blend) ---*/
@@ -853,7 +1002,8 @@ static void record_commands(VkState *s, VkFrameResources *frame,
         memcpy(hud_push, hud_ortho, sizeof(float) * 16);
         hud_push[16] = 99999.0f; /* disables fog in the fragment shader */
         vkCmdPushConstants(frame->command_buffer, s->pipeline_layout,
-                           VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(float) * 17, hud_push);
+                           VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
+                           sizeof(float) * 17, hud_push);
         vkCmdDraw(frame->command_buffer, s->hud_vertex_count, 1, 0, 0);
     }
 
@@ -891,24 +1041,31 @@ static uint32_t s_map_gpd_capacity = 0;
 static uint32_t s_map_gpd_count = 0;
 
 static bool ensure_map_gpd_capacity(uint32_t needed) {
-    if (needed <= s_map_gpd_capacity) return true;
+    if (needed <= s_map_gpd_capacity) {
+        return true;
+    }
     uint32_t cap = s_map_gpd_capacity ? s_map_gpd_capacity : 65536u;
     while (cap < needed) {
-        if (cap > UINT32_MAX / 2u) return false;
+        if (cap > UINT32_MAX / 2u) {
+            return false;
+        }
         cap *= 2u;
     }
     GpdInstance *nv = realloc(s_map_gpd_instances, (size_t)cap * sizeof(*nv));
-    if (!nv) return false;
+    if (!nv) {
+        return false;
+    }
     s_map_gpd_instances = nv;
     s_map_gpd_capacity = cap;
     return true;
 }
 
-static void push_gpd_box(GpdInstance *instances, uint32_t *count, uint32_t max_count,
-                         float cx, float cy, float cz,
-                         float hx, float hy, float hz,
-                         float r, float g, float b) {
-    if (!instances || *count >= max_count) return;
+static void push_gpd_box(GpdInstance *instances, uint32_t *count, uint32_t max_count, float cx,
+                         float cy, float cz, float hx, float hy, float hz, float r, float g,
+                         float b) {
+    if (!instances || *count >= max_count) {
+        return;
+    }
     instances[*count].pos[0] = cx;
     instances[*count].pos[1] = cy;
     instances[*count].pos[2] = cz;
@@ -924,11 +1081,12 @@ static void push_gpd_box(GpdInstance *instances, uint32_t *count, uint32_t max_c
     (*count)++;
 }
 
-static void push_gpd_pyramid(GpdInstance *instances, uint32_t *count, uint32_t max_count,
-                             float cx, float cy, float cz,
-                             float hx, float hy, float hz,
-                             float r, float g, float b) {
-    if (!instances || *count >= max_count) return;
+static void push_gpd_pyramid(GpdInstance *instances, uint32_t *count, uint32_t max_count, float cx,
+                             float cy, float cz, float hx, float hy, float hz, float r, float g,
+                             float b) {
+    if (!instances || *count >= max_count) {
+        return;
+    }
     instances[*count].pos[0] = cx;
     instances[*count].pos[1] = cy;
     instances[*count].pos[2] = cz;
@@ -944,12 +1102,12 @@ static void push_gpd_pyramid(GpdInstance *instances, uint32_t *count, uint32_t m
     (*count)++;
 }
 
-static void push_gpd_oriented(GpdOriented *instances, uint32_t *count, uint32_t max_count,
-                              float cx, float cy, float cz,
-                              float hx, float hy, float hz,
-                              const float orient[16],
-                              float r, float g, float b) {
-    if (!instances || *count >= max_count) return;
+static void push_gpd_oriented(GpdOriented *instances, uint32_t *count, uint32_t max_count, float cx,
+                              float cy, float cz, float hx, float hy, float hz,
+                              const float orient[16], float r, float g, float b) {
+    if (!instances || *count >= max_count) {
+        return;
+    }
     instances[*count].pos[0] = cx;
     instances[*count].pos[1] = cy;
     instances[*count].pos[2] = cz;
@@ -976,11 +1134,12 @@ static void push_gpd_oriented(GpdOriented *instances, uint32_t *count, uint32_t 
     instances[*count].pad3[2] = 0.0f;
     (*count)++;
 }
-static void push_gpd_particle(GpdInstance *instances, uint32_t *count, uint32_t max_count,
-                         float cx, float cy, float cz,
-                         float hx, float hy, float hz,
-                         float r, float g, float b) {
-    if (!instances || *count >= max_count) return;
+static void push_gpd_particle(GpdInstance *instances, uint32_t *count, uint32_t max_count, float cx,
+                              float cy, float cz, float hx, float hy, float hz, float r, float g,
+                              float b) {
+    if (!instances || *count >= max_count) {
+        return;
+    }
     instances[*count].pos[0] = cx;
     instances[*count].pos[1] = cy;
     instances[*count].pos[2] = cz;
@@ -1005,24 +1164,47 @@ static void update_gpd_buffers(VkState *s, float dt, FrameSnapshot *snap) {
 
     if (snap->my_x >= 0 && snap->my_y >= 0) {
         int R = vr + VK_MAP_VISION_MARGIN;
-        if (R < VK_MAP_MIN_RADIUS) R = VK_MAP_MIN_RADIUS;
-        if (R > VK_MAP_MAX_RADIUS) R = VK_MAP_MAX_RADIUS;
+        if (R < VK_MAP_MIN_RADIUS) {
+            R = VK_MAP_MIN_RADIUS;
+        }
+        if (R > VK_MAP_MAX_RADIUS) {
+            R = VK_MAP_MAX_RADIUS;
+        }
         int need_x0 = snap->my_x - R, need_x1 = snap->my_x + R;
         int need_y0 = snap->my_y - R, need_y1 = snap->my_y + R;
-        if (need_x0 < 0) need_x0 = 0;
-        if (need_y0 < 0) need_y0 = 0;
-        if (need_x1 >= MAP_WIDTH) need_x1 = MAP_WIDTH - 1;
-        if (need_y1 >= MAP_HEIGHT) need_y1 = MAP_HEIGHT - 1;
-        bool covers = s_map_built && s_map_floor == snap->my_floor &&
-                      s_map_win_x0 <= need_x0 && s_map_win_x1 >= need_x1 &&
-                      s_map_win_y0 <= need_y0 && s_map_win_y1 >= need_y1;
-        
+        if (need_x0 < 0) {
+            need_x0 = 0;
+        }
+        if (need_y0 < 0) {
+            need_y0 = 0;
+        }
+        if (need_x1 >= MAP_WIDTH) {
+            need_x1 = MAP_WIDTH - 1;
+        }
+        if (need_y1 >= MAP_HEIGHT) {
+            need_y1 = MAP_HEIGHT - 1;
+        }
+        bool covers = s_map_built && s_map_floor == snap->my_floor && s_map_win_x0 <= need_x0 &&
+                      s_map_win_x1 >= need_x1 && s_map_win_y0 <= need_y0 && s_map_win_y1 >= need_y1;
+
         if (atomic_load_explicit(&g_map_dirty, memory_order_acquire) || !covers) {
             int bR = R + VK_MAP_BUILD_MARGIN;
-            int x0 = snap->my_x - bR; if (x0 < 0) x0 = 0;
-            int x1 = snap->my_x + bR; if (x1 >= MAP_WIDTH) x1 = MAP_WIDTH - 1;
-            int y0 = snap->my_y - bR; if (y0 < 0) y0 = 0;
-            int y1 = snap->my_y + bR; if (y1 >= MAP_HEIGHT) y1 = MAP_HEIGHT - 1;
+            int x0 = snap->my_x - bR;
+            if (x0 < 0) {
+                x0 = 0;
+            }
+            int x1 = snap->my_x + bR;
+            if (x1 >= MAP_WIDTH) {
+                x1 = MAP_WIDTH - 1;
+            }
+            int y0 = snap->my_y - bR;
+            if (y0 < 0) {
+                y0 = 0;
+            }
+            int y1 = snap->my_y + bR;
+            if (y1 >= MAP_HEIGHT) {
+                y1 = MAP_HEIGHT - 1;
+            }
             count = 0;
             uint32_t map_capacity_needed = (uint32_t)((x1 - x0 + 1) * (y1 - y0 + 1) * 2u);
             if (!ensure_map_gpd_capacity(map_capacity_needed)) {
@@ -1037,52 +1219,141 @@ static void update_gpd_buffers(VkState *s, float dt, FrameSnapshot *snap) {
                     float fx = (float)x;
                     float fz = (float)y;
                     VoxelType tile = snap->map[y][x];
-                    if (tile == 0) continue;
-                    
+                    if (tile == 0) {
+                        continue;
+                    }
+
                     if (tile == VOXEL_WALL || tile == VOXEL_OBSIDIAN || tile == VOXEL_GOLD_VEIN) {
-                        if (tile == VOXEL_OBSIDIAN) push_gpd_box(s_map_gpd_instances, &count, VKD_MAP_INST_MAX, fx, 0.5f, fz, 0.5f, 1.5f, 0.5f, 0.1f, 0.05f, 0.2f);
-                        else if (tile == VOXEL_GOLD_VEIN) push_gpd_box(s_map_gpd_instances, &count, VKD_MAP_INST_MAX, fx, 0.5f, fz, 0.5f, 1.5f, 0.5f, 0.8f, 0.7f, 0.1f);
-                        else push_gpd_box(s_map_gpd_instances, &count, VKD_MAP_INST_MAX, fx, 0.5f, fz, 0.5f, 1.5f, 0.5f, 0.6f, 0.6f, 0.6f);
-                    } else if (tile == VOXEL_FLOOR || tile == VOXEL_COBBLE || tile == VOXEL_WOOD || tile == VOXEL_ICE || tile == VOXEL_SAND || tile == VOXEL_ASH || tile == VOXEL_MUD || tile == VOXEL_MARBLE || tile == VOXEL_GRASS || tile == VOXEL_TRAP) {
-                        float r=0.2f, g=0.2f, b=0.2f;
-                        if (tile == VOXEL_WOOD) { r=0.4f; g=0.3f; b=0.2f; }
-                        if (tile == VOXEL_COBBLE) { r=0.3f; g=0.3f; b=0.3f; }
-                        if (tile == VOXEL_ICE) { r=0.6f; g=0.8f; b=1.0f; }
-                        if (tile == VOXEL_SAND) { r=0.8f; g=0.7f; b=0.4f; }
-                        if (tile == VOXEL_ASH) { r=0.25f; g=0.25f; b=0.25f; }
-                        if (tile == VOXEL_MUD) { r=0.3f; g=0.2f; b=0.1f; }
-                        if (tile == VOXEL_MARBLE) { r=0.9f; g=0.9f; b=0.9f; }
-                        if (tile == VOXEL_GRASS) { r=0.1f; g=0.5f; b=0.1f; }
-                        if (tile == VOXEL_TRAP) { r=0.8f; g=0.2f; b=0.1f; }
-                        push_gpd_box(s_map_gpd_instances, &count, VKD_MAP_INST_MAX, fx, 0.0f, fz, 0.5f, 0.1f, 0.5f, r, g, b);
+                        if (tile == VOXEL_OBSIDIAN) {
+                            push_gpd_box(s_map_gpd_instances, &count, VKD_MAP_INST_MAX, fx, 0.5f,
+                                         fz, 0.5f, 1.5f, 0.5f, 0.1f, 0.05f, 0.2f);
+                        } else if (tile == VOXEL_GOLD_VEIN) {
+                            push_gpd_box(s_map_gpd_instances, &count, VKD_MAP_INST_MAX, fx, 0.5f,
+                                         fz, 0.5f, 1.5f, 0.5f, 0.8f, 0.7f, 0.1f);
+                        } else {
+                            push_gpd_box(s_map_gpd_instances, &count, VKD_MAP_INST_MAX, fx, 0.5f,
+                                         fz, 0.5f, 1.5f, 0.5f, 0.6f, 0.6f, 0.6f);
+                        }
+                    } else if (tile == VOXEL_FLOOR || tile == VOXEL_COBBLE || tile == VOXEL_WOOD ||
+                               tile == VOXEL_ICE || tile == VOXEL_SAND || tile == VOXEL_ASH ||
+                               tile == VOXEL_MUD || tile == VOXEL_MARBLE || tile == VOXEL_GRASS ||
+                               tile == VOXEL_TRAP) {
+                        float r = 0.2f, g = 0.2f, b = 0.2f;
+                        if (tile == VOXEL_WOOD) {
+                            r = 0.4f;
+                            g = 0.3f;
+                            b = 0.2f;
+                        }
+                        if (tile == VOXEL_COBBLE) {
+                            r = 0.3f;
+                            g = 0.3f;
+                            b = 0.3f;
+                        }
+                        if (tile == VOXEL_ICE) {
+                            r = 0.6f;
+                            g = 0.8f;
+                            b = 1.0f;
+                        }
+                        if (tile == VOXEL_SAND) {
+                            r = 0.8f;
+                            g = 0.7f;
+                            b = 0.4f;
+                        }
+                        if (tile == VOXEL_ASH) {
+                            r = 0.25f;
+                            g = 0.25f;
+                            b = 0.25f;
+                        }
+                        if (tile == VOXEL_MUD) {
+                            r = 0.3f;
+                            g = 0.2f;
+                            b = 0.1f;
+                        }
+                        if (tile == VOXEL_MARBLE) {
+                            r = 0.9f;
+                            g = 0.9f;
+                            b = 0.9f;
+                        }
+                        if (tile == VOXEL_GRASS) {
+                            r = 0.1f;
+                            g = 0.5f;
+                            b = 0.1f;
+                        }
+                        if (tile == VOXEL_TRAP) {
+                            r = 0.8f;
+                            g = 0.2f;
+                            b = 0.1f;
+                        }
+                        push_gpd_box(s_map_gpd_instances, &count, VKD_MAP_INST_MAX, fx, 0.0f, fz,
+                                     0.5f, 0.1f, 0.5f, r, g, b);
                     } else if (tile >= VOXEL_CRYSTAL_BLUE && tile <= VOXEL_CRYSTAL_WHITE) {
                         float r = 1.0f, g = 1.0f, b = 1.0f;
-                        if (tile == VOXEL_CRYSTAL_BLUE)   { r = 0.3f; g = 0.7f; b = 1.0f; }
-                        if (tile == VOXEL_CRYSTAL_PURPLE)  { r = 0.8f; g = 0.2f; b = 1.0f; }
-                        if (tile == VOXEL_CRYSTAL_RED)     { r = 1.0f; g = 0.1f; b = 0.1f; }
-                        if (tile == VOXEL_CRYSTAL_GREEN)   { r = 0.1f; g = 1.0f; b = 0.2f; }
-                        if (tile == VOXEL_CRYSTAL_YELLOW)  { r = 1.0f; g = 0.9f; b = 0.1f; }
-                        if (tile == VOXEL_CRYSTAL_ORANGE)  { r = 1.0f; g = 0.5f; b = 0.0f; }
-                        if (tile == VOXEL_CRYSTAL_CYAN)    { r = 0.0f; g = 0.9f; b = 1.0f; }
-                        push_gpd_box(s_map_gpd_instances, &count, VKD_MAP_INST_MAX, fx, 0.8f, fz, 0.4f, 0.8f, 0.4f, r, g, b);
+                        if (tile == VOXEL_CRYSTAL_BLUE) {
+                            r = 0.3f;
+                            g = 0.7f;
+                            b = 1.0f;
+                        }
+                        if (tile == VOXEL_CRYSTAL_PURPLE) {
+                            r = 0.8f;
+                            g = 0.2f;
+                            b = 1.0f;
+                        }
+                        if (tile == VOXEL_CRYSTAL_RED) {
+                            r = 1.0f;
+                            g = 0.1f;
+                            b = 0.1f;
+                        }
+                        if (tile == VOXEL_CRYSTAL_GREEN) {
+                            r = 0.1f;
+                            g = 1.0f;
+                            b = 0.2f;
+                        }
+                        if (tile == VOXEL_CRYSTAL_YELLOW) {
+                            r = 1.0f;
+                            g = 0.9f;
+                            b = 0.1f;
+                        }
+                        if (tile == VOXEL_CRYSTAL_ORANGE) {
+                            r = 1.0f;
+                            g = 0.5f;
+                            b = 0.0f;
+                        }
+                        if (tile == VOXEL_CRYSTAL_CYAN) {
+                            r = 0.0f;
+                            g = 0.9f;
+                            b = 1.0f;
+                        }
+                        push_gpd_box(s_map_gpd_instances, &count, VKD_MAP_INST_MAX, fx, 0.8f, fz,
+                                     0.4f, 0.8f, 0.4f, r, g, b);
                     } else if (tile == VOXEL_WATER || tile == VOXEL_LAVA) {
-                        if (tile == VOXEL_WATER) push_gpd_box(s_map_gpd_instances, &count, VKD_MAP_INST_MAX, fx, -0.05f, fz, 0.5f, 0.05f, 0.5f, 0.1f, 0.4f, 0.8f);
-                        else push_gpd_box(s_map_gpd_instances, &count, VKD_MAP_INST_MAX, fx, -0.05f, fz, 0.5f, 0.05f, 0.5f, 1.0f, 0.3f, 0.0f);
+                        if (tile == VOXEL_WATER) {
+                            push_gpd_box(s_map_gpd_instances, &count, VKD_MAP_INST_MAX, fx, -0.05f,
+                                         fz, 0.5f, 0.05f, 0.5f, 0.1f, 0.4f, 0.8f);
+                        } else {
+                            push_gpd_box(s_map_gpd_instances, &count, VKD_MAP_INST_MAX, fx, -0.05f,
+                                         fz, 0.5f, 0.05f, 0.5f, 1.0f, 0.3f, 0.0f);
+                        }
                     } else if (tile == VOXEL_DOOR) {
-                        push_gpd_box(s_map_gpd_instances, &count, VKD_MAP_INST_MAX, fx, 0.4f, fz, 0.45f, 0.4f, 0.45f, 0.6f, 0.3f, 0.1f);
-                        push_gpd_box(s_map_gpd_instances, &count, VKD_MAP_INST_MAX, fx, -0.05f, fz, 0.5f, 0.05f, 0.5f, 0.2f, 0.2f, 0.25f);
+                        push_gpd_box(s_map_gpd_instances, &count, VKD_MAP_INST_MAX, fx, 0.4f, fz,
+                                     0.45f, 0.4f, 0.45f, 0.6f, 0.3f, 0.1f);
+                        push_gpd_box(s_map_gpd_instances, &count, VKD_MAP_INST_MAX, fx, -0.05f, fz,
+                                     0.5f, 0.05f, 0.5f, 0.2f, 0.2f, 0.25f);
                     } else if (tile == VOXEL_STAIRS_DOWN || tile == VOXEL_STAIRS_UP) {
-                        push_gpd_box(s_map_gpd_instances, &count, VKD_MAP_INST_MAX, fx, 0.05f, fz, 0.5f, 0.1f, 0.5f, 0.9f, 0.9f, 0.0f);
+                        push_gpd_box(s_map_gpd_instances, &count, VKD_MAP_INST_MAX, fx, 0.05f, fz,
+                                     0.5f, 0.1f, 0.5f, 0.9f, 0.9f, 0.0f);
                     } else if (tile == VOXEL_MUSHROOM_GLOW) {
-                        push_gpd_box(s_map_gpd_instances, &count, VKD_MAP_INST_MAX, fx, 0.2f, fz, 0.3f, 0.2f, 0.3f, 0.2f, 1.0f, 0.5f);
+                        push_gpd_box(s_map_gpd_instances, &count, VKD_MAP_INST_MAX, fx, 0.2f, fz,
+                                     0.3f, 0.2f, 0.3f, 0.2f, 1.0f, 0.5f);
                     }
                 }
             }
             s_map_gpd_count = count;
             s_map_built = true;
             s_map_floor = snap->my_floor;
-            s_map_win_x0 = x0; s_map_win_y0 = y0;
-            s_map_win_x1 = x1; s_map_win_y1 = y1;
+            s_map_win_x0 = x0;
+            s_map_win_y0 = y0;
+            s_map_win_x1 = x1;
+            s_map_win_y1 = y1;
             (void)atomic_exchange_explicit(&g_map_dirty, false, memory_order_acq_rel);
         }
     } else {
@@ -1104,7 +1375,6 @@ static void update_gpd_buffers(VkState *s, float dt, FrameSnapshot *snap) {
     GpdInstance *dyn_ptr = (GpdInstance *)frame->gpd_dyn_ptr;
     GpdOriented *ori_ptr = (GpdOriented *)frame->gpd_ori_ptr;
 
-    
     for (int i = 0; i < CLIENT_MAX_ENTITIES; i++) {
         if (snap->entities[i].active && snap->entities[i].id != snap->my_entity_id) {
             float tgt_ex = (float)snap->entities[i].x;
@@ -1112,32 +1382,42 @@ static void update_gpd_buffers(VkState *s, float dt, FrameSnapshot *snap) {
             lerp_update(&g_entity_lerp[i], tgt_ex, tgt_ez, dt);
             float ex = g_entity_lerp[i].cur_x;
             float ez = g_entity_lerp[i].cur_z;
-            
+
             if (snap->entities[i].floor_id == snap->my_floor) {
                 float er = 0.4f, eg = 0.4f, eb = 1.0f;
-                if (snap->entities[i].is_merchant && snap->entities[i].shop_spec == SHOP_SPEC_BOOKS_MARTIAL) {
-                    er = 0.75f; eg = 0.15f; eb = 0.2f;
+                if (snap->entities[i].is_merchant &&
+                    snap->entities[i].shop_spec == SHOP_SPEC_BOOKS_MARTIAL) {
+                    er = 0.75f;
+                    eg = 0.15f;
+                    eb = 0.2f;
                 } else if (snap->entities[i].is_merchant) {
-                    er = 1.0f; eg = 0.8f; eb = 0.0f;
+                    er = 1.0f;
+                    eg = 0.8f;
+                    eb = 0.0f;
                 } else if (snap->entities[i].is_player) {
-                    er = 0.2f; eg = 0.8f; eb = 0.2f;
+                    er = 0.2f;
+                    eg = 0.8f;
+                    eb = 0.2f;
                 } else if (snap->entities[i].id < 10) {
-                    er = 1.0f; eg = 0.3f; eb = 0.3f;
+                    er = 1.0f;
+                    eg = 0.3f;
+                    eb = 0.3f;
                 }
-                
+
                 if (snap->entities[i].is_player) {
-                    push_gpd_pyramid(dyn_ptr, &dyn_count, VKD_DYN_INST_MAX, ex, 0.4f, ez, 0.35f, 0.5f, 0.35f, er, eg, eb);
+                    push_gpd_pyramid(dyn_ptr, &dyn_count, VKD_DYN_INST_MAX, ex, 0.4f, ez, 0.35f,
+                                     0.5f, 0.35f, er, eg, eb);
                 } else {
-                    push_gpd_box(dyn_ptr, &dyn_count, VKD_DYN_INST_MAX, ex, 0.4f, ez, 0.3f, 0.4f, 0.3f, er, eg, eb);
-                    if (snap->entities[i].is_merchant && snap->entities[i].shop_spec == SHOP_SPEC_BOOKS_MARTIAL) {
+                    push_gpd_box(dyn_ptr, &dyn_count, VKD_DYN_INST_MAX, ex, 0.4f, ez, 0.3f, 0.4f,
+                                 0.3f, er, eg, eb);
+                    if (snap->entities[i].is_merchant &&
+                        snap->entities[i].shop_spec == SHOP_SPEC_BOOKS_MARTIAL) {
                         float tp[3], to[16];
                         tome_anim_update(i, snap->entities[i].id, snap->entities[i].floor_id,
-                                         snap->entities[i].x, snap->entities[i].y,
-                                         snap->map[0], dt, tp, to);
-                        push_gpd_oriented(ori_ptr, &ori_count, VKD_ORIENTED_MAX,
-                                          tp[0], tp[1], tp[2],
-                                          0.45f, 0.1f, 0.35f, to,
-                                          0.9f, 0.75f, 0.3f);
+                                         snap->entities[i].x, snap->entities[i].y, snap->map[0], dt,
+                                         tp, to);
+                        push_gpd_oriented(ori_ptr, &ori_count, VKD_ORIENTED_MAX, tp[0], tp[1],
+                                          tp[2], 0.45f, 0.1f, 0.35f, to, 0.9f, 0.75f, 0.3f);
                     }
                 }
             }
@@ -1149,7 +1429,8 @@ static void update_gpd_buffers(VkState *s, float dt, FrameSnapshot *snap) {
         }
     }
 
-    push_gpd_box(dyn_ptr, &dyn_count, VKD_DYN_INST_MAX, (float)px, 0.6f, (float)py, 0.3f, 0.6f, 0.3f, 0.0f, 1.0f, 0.0f);
+    push_gpd_box(dyn_ptr, &dyn_count, VKD_DYN_INST_MAX, (float)px, 0.6f, (float)py, 0.3f, 0.6f,
+                 0.3f, 0.0f, 1.0f, 0.0f);
 
     pthread_mutex_lock(&g_particles_mutex);
     for (int i = 0; i < MAX_PARTICLES; i++) {
@@ -1158,7 +1439,8 @@ static void update_gpd_buffers(VkState *s, float dt, FrameSnapshot *snap) {
             float pr = p->r * p->a;
             float pg = p->g * p->a;
             float pb = p->b * p->a;
-            push_gpd_particle(dyn_ptr, &dyn_count, VKD_DYN_INST_MAX, p->x, -p->y, p->z, p->size, p->size, p->size, pr, pg, pb);
+            push_gpd_particle(dyn_ptr, &dyn_count, VKD_DYN_INST_MAX, p->x, -p->y, p->z, p->size,
+                              p->size, p->size, pr, pg, pb);
         }
     }
     pthread_mutex_unlock(&g_particles_mutex);
@@ -1177,8 +1459,9 @@ static bool recreate_swapchain(VkState *s) {
         glfwWaitEventsTimeout(0.1);
         glfwGetFramebufferSize(s->window, &fb_w, &fb_h);
     }
-    if (fb_w == 0 || fb_h == 0)
+    if (fb_w == 0 || fb_h == 0) {
         return true; /* closing */
+    }
     s->swapchain_dirty = false;
     return vk_recreate_swapchain(s, (uint32_t)fb_w, (uint32_t)fb_h);
 }
@@ -1216,8 +1499,9 @@ static void draw_frame(VkState *s) {
         s->device_lost = true; /* device or surface lost, out of memory: not recoverable */
         return;
     }
-    if (acquire_res == VK_SUBOPTIMAL_KHR)
+    if (acquire_res == VK_SUBOPTIMAL_KHR) {
         s->swapchain_dirty = true; /* this frame is still presentable */
+    }
 
     vkResetFences(s->device, 1, &s->fences[slot]);
     vkResetCommandBuffer(frame->command_buffer, 0);
@@ -1230,14 +1514,12 @@ static void draw_frame(VkState *s) {
     float vr = (float)snap.vision_radius;
 
     float rad_pitch = camera_pitch * (float)M_PI / 180.0f;
-    float rad_yaw   = camera_yaw   * (float)M_PI / 180.0f;
-    float center[3] = { px, 0.0f, pz };
-    float eye[3] = {
-        px + camera_dist * cosf(rad_pitch) * sinf(rad_yaw),
-        0.0f + camera_dist * sinf(rad_pitch),
-        pz + camera_dist * cosf(rad_pitch) * cosf(rad_yaw)
-    };
-    float up[3]     = { 0.0f, 1.0f, 0.0f };
+    float rad_yaw = camera_yaw * (float)M_PI / 180.0f;
+    float center[3] = {px, 0.0f, pz};
+    float eye[3] = {px + camera_dist * cosf(rad_pitch) * sinf(rad_yaw),
+                    0.0f + camera_dist * sinf(rad_pitch),
+                    pz + camera_dist * cosf(rad_pitch) * cosf(rad_yaw)};
+    float up[3] = {0.0f, 1.0f, 0.0f};
     float view[16], proj[16], mvp[16];
     mat4_lookat(view, eye, center, up);
     float sw = (float)s->swapchain_extent.width;
@@ -1252,9 +1534,13 @@ static void draw_frame(VkState *s) {
 
     static double last_time = 0.0;
     double current_time = glfwGetTime();
-    if (last_time == 0.0) last_time = current_time;
+    if (last_time == 0.0) {
+        last_time = current_time;
+    }
     float dt = (float)(current_time - last_time);
-    if (dt > 0.1f) dt = 0.1f;
+    if (dt > 0.1f) {
+        dt = 0.1f;
+    }
     last_time = current_time;
 
     /*The slot's host-visible HUD buffer (persistently mapped).*/
@@ -1274,7 +1560,7 @@ static void draw_frame(VkState *s) {
     pthread_mutex_lock(&g_state_mutex);
     render_vk_hud(v, &hud_count, s->max_vertices, sw, sh, mvp, px, pz);
     pthread_mutex_unlock(&g_state_mutex);
-    
+
     draw_player_names_vk(v, &hud_count, s->max_vertices, sw, sh, mvp, &snap);
     fct_update(dt);
     draw_floating_combat_text_vk(v, &hud_count, s->max_vertices, sw, sh, mvp, &snap);
@@ -1332,9 +1618,10 @@ static void initial_window_size(int *w, int *h) {
     *w = 1280;
     *h = 800;
     const char *env = getenv("DRAGONGL_WINDOW");
-    int ew = 0, eh = 0;
-    if (env && sscanf(env, "%dx%d", &ew, &eh) == 2 && ew >= 320 && eh >= 240 && ew <= 16384 &&
-        eh <= 16384) {
+    int wh[2] = {0, 0};
+    int got = env ? scan_ints(env, 'x', 2, wh) : 0;
+    int ew = wh[0], eh = wh[1];
+    if (got == 2 && ew >= 320 && eh >= 240 && ew <= 16384 && eh <= 16384) {
         *w = ew;
         *h = eh;
         return;
@@ -1348,10 +1635,12 @@ static void initial_window_size(int *w, int *h) {
             *h = ah * 4 / 5;
         }
     }
-    if (*w < 800)
+    if (*w < 800) {
         *w = 800;
-    if (*h < 600)
+    }
+    if (*h < 600) {
         *h = 600;
+    }
 }
 
 void render_vk_start(void) {
@@ -1391,12 +1680,14 @@ void render_vk_start(void) {
 
     while (!glfwWindowShouldClose(vk_state.window) && g_running && !vk_state.device_lost) {
         glfwPollEvents();
-        if (vk_state.swapchain_dirty && !recreate_swapchain(&vk_state))
+        if (vk_state.swapchain_dirty && !recreate_swapchain(&vk_state)) {
             break; /* swapchain not recoverable */
+        }
         draw_frame(&vk_state);
     }
-    if (vk_state.device_lost)
+    if (vk_state.device_lost) {
         printf("[VK] Rendering failed (device or window surface lost): closing.\n");
+    }
 
     vkDeviceWaitIdle(vk_state.device);
     vk_cleanup(&vk_state);

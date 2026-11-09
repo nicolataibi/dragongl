@@ -1,0 +1,45 @@
+# Dragon GL clang-tidy profile (clang-tidy 18), checked in CI: zero warnings.
+# Disabled checks and why:
+#   misc-include-cleaner              C headers here are umbrella headers on purpose
+#   readability-magic-numbers,
+#   readability-identifier-length,
+#   readability-isolate-declaration,
+#   readability-uppercase-literal-suffix,
+#   readability-function-cognitive-complexity   style, not defects (size is checked
+#                                     by tools/metrics.py instead)
+#   bugprone-easily-swappable-parameters        too many false alarms in C APIs
+#   cert-err33-c                      unchecked printf/send results: output only
+#   clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling
+#                                     asks for the Annex K *_s functions, which
+#                                     glibc does not provide
+#   clang-analyzer-optin.performance.Padding   struct layouts follow the meaning
+#                                     of the fields, not the padding
+#   cert-msc30-c, cert-msc32-c,
+#   cert-msc50-cpp, cert-msc51-cpp    rand() rolls game dice, never secrets
+#                                     (secrets come from libsodium)
+Checks: >
+  -*,
+  bugprone-*,
+  cert-*,
+  clang-analyzer-*,
+  misc-*,
+  performance-*,
+  portability-*,
+  readability-*,
+  -misc-include-cleaner,
+  -readability-magic-numbers,
+  -readability-identifier-length,
+  -readability-isolate-declaration,
+  -readability-uppercase-literal-suffix,
+  -readability-function-cognitive-complexity,
+  -bugprone-easily-swappable-parameters,
+  -cert-err33-c,
+  -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,
+  -clang-analyzer-optin.performance.Padding,
+  -cert-msc30-c,
+  -cert-msc32-c,
+  -cert-msc50-cpp,
+  -cert-msc51-cpp
+WarningsAsErrors: '*'
+# Project headers, without the vendored include/cJSON.h.
+HeaderFilterRegex: '.*/(src/(server|client)/[^/]+|include/([abd-z][^/]*|classes\.h))$'

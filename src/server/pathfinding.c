@@ -45,11 +45,11 @@
 
 typedef struct {
     int x, y;
-    int g;          /*cost from the starting node*/
-    int f;          /* g + h (heuristic) */
+    int g; /*cost from the starting node*/
+    int f; /* g + h (heuristic) */
     int parent_x;
     int parent_y;
-    int heap_pos;   /*index in the open heap, -1 if absent*/
+    int heap_pos;          /*index in the open heap, -1 if absent*/
     uint32_t open_stamp;   /*query id while in the open list*/
     uint32_t closed_stamp; /*query id once closed*/
 } AStarNode;
@@ -66,7 +66,7 @@ static uint32_t g_query_id = 0;
  * larger g, so the search prefers the deeper frontier — standard A*
  * tie-break). Index of every heap element in the array: heap_pos.*/
 static AStarNode *open_heap[MAX_ASTAR_OPEN];
-static int        heap_count;
+static int heap_count;
 
 /* ─────────────────────────── Internal functions ──────────────────────────── */
 
@@ -81,22 +81,16 @@ static inline bool tile_is_walkable(const Map *map, int x, int y) {
     }
     VoxelType v = map->data[0][y][x];
     /*Walkable if it is open floor*/
-    return (v == VOXEL_FLOOR  ||
-            v == VOXEL_DOOR   ||
-            v == VOXEL_LAVA   ||
-            v == VOXEL_WATER  ||
-            v == VOXEL_SAND   ||
-            v == VOXEL_GRASS  ||
-            v == VOXEL_EMPTY  ||
-            v == VOXEL_OBSIDIAN ||
-            v == VOXEL_MUSHROOM_GLOW ||
-            v == VOXEL_CRYSTAL_BLUE  ||
-            v == VOXEL_CRYSTAL_PURPLE);
+    return (v == VOXEL_FLOOR || v == VOXEL_DOOR || v == VOXEL_LAVA || v == VOXEL_WATER ||
+            v == VOXEL_SAND || v == VOXEL_GRASS || v == VOXEL_OBSIDIAN ||
+            v == VOXEL_MUSHROOM_GLOW || v == VOXEL_CRYSTAL_BLUE || v == VOXEL_CRYSTAL_PURPLE);
 }
 
 /*Node ordering: lower f first; on equal f, larger g first (deeper node).*/
 static inline int heap_less(const AStarNode *a, const AStarNode *b) {
-    if (a->f != b->f) return a->f < b->f;
+    if (a->f != b->f) {
+        return a->f < b->f;
+    }
     return a->g > b->g;
 }
 
@@ -180,12 +174,8 @@ static AStarNode *open_pop(void) {
 
 /* ─────────────────────────── Public API ──────────────────────────────── */
 
-int pathfind_astar(const Map *map,
-                   int sx, int sy,
-                   int tx, int ty,
-                   PathNode *out_path,
-                   int max_steps)
-{
+int pathfind_astar(const Map *map, int sx, int sy, int tx, int ty, PathNode *out_path,
+                   int max_steps) {
     /* Input validation */
     if (!map || !out_path || max_steps <= 0) {
         return 0;
@@ -214,10 +204,10 @@ int pathfind_astar(const Map *map,
 
     /*Starting node*/
     AStarNode *start = &grid[sy][sx];
-    start->x        = sx;
-    start->y        = sy;
-    start->g        = 0;
-    start->f        = heuristic(sx, sy, tx, ty);
+    start->x = sx;
+    start->y = sy;
+    start->g = 0;
+    start->f = heuristic(sx, sy, tx, ty);
     start->parent_x = -1;
     start->parent_y = -1;
     start->heap_pos = -1;
@@ -225,8 +215,8 @@ int pathfind_astar(const Map *map,
     open_push(start);
 
     /*Directions: up, down, left, right*/
-    const int dx[4] = { 0,  0, -1, 1};
-    const int dy[4] = {-1,  1,  0, 0};
+    const int dx[4] = {0, 0, -1, 1};
+    const int dy[4] = {-1, 1, 0, 0};
 
     while (heap_count > 0) {
         AStarNode *current = open_pop();
@@ -287,10 +277,10 @@ int pathfind_astar(const Map *map,
             bool in_open = (neighbor->open_stamp == g_query_id);
 
             if (!in_open || tentative_g < neighbor->g) {
-                neighbor->x        = nx;
-                neighbor->y        = ny;
-                neighbor->g        = tentative_g;
-                neighbor->f        = tentative_g + heuristic(nx, ny, tx, ty);
+                neighbor->x = nx;
+                neighbor->y = ny;
+                neighbor->g = tentative_g;
+                neighbor->f = tentative_g + heuristic(nx, ny, tx, ty);
                 neighbor->parent_x = cx;
                 neighbor->parent_y = cy;
 

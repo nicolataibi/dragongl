@@ -29,6 +29,7 @@ readonly BUILD_DIR="$ROOT/build"
 readonly UNIT_DIR="$ROOT/build-tests"
 readonly UNIT_ASAN_DIR="$ROOT/build-tests-asan"
 readonly INTEG_DIR="$ROOT/build-integration"
+readonly QUALITY_DIR="$ROOT/build-quality" # tools/quality.sh
 readonly STAGE_DIR="$ROOT/build/stage"
 
 readonly SANITIZE_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer"
@@ -144,6 +145,7 @@ ${C_BOLD}Directories${C_RESET}
   build-tests/         unit suite, Release   (build-tests-asan/ with -d)
   build-integration/   server integration suite
   build/stage/         install tree (-x)
+  build-quality/       tools/quality.sh (format, tidy, coverage, tsan, fuzz, ...)
 
 ${C_BOLD}Environment${C_RESET}
   NO_COLOR=1           disable colored output
@@ -335,7 +337,7 @@ build_dir() {
 step_clean() {
     section "Clean"
     local d
-    for d in "$BUILD_DIR" "$UNIT_DIR" "$UNIT_ASAN_DIR" "$INTEG_DIR"; do
+    for d in "$BUILD_DIR" "$UNIT_DIR" "$UNIT_ASAN_DIR" "$INTEG_DIR" "$QUALITY_DIR"; do
         if [[ -e $d ]]; then info "rm -rf ${d#"$ROOT"/}"; rm -rf -- "$d"; fi
     done
     record "clean" "${C_GREEN}ok${C_RESET}"

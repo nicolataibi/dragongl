@@ -17,7 +17,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include "../../include/game.h"
+#include "game.h"
 #include <stdio.h>
 
 static Floor *current_floor = NULL;
@@ -35,6 +35,6 @@ void game_change_floor(int new_id) {
     // Logic delegated to main_server.c master_world
 }
 
-Map* game_get_current_map(void) {
+Map *game_get_current_map(void) {
     return current_floor ? &current_floor->map : NULL;
 }

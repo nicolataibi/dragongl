@@ -1,0 +1,210 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/nicolataibi/dragongl/data/schema/bestiary.schema.json",
+  "title": "Dragon GL bestiary (data/bestiary.json)",
+  "description": "Monster templates, loaded by src/shared/data_loader.c. Monsters are referenced by index: two variants may share a name.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "monsters"
+  ],
+  "properties": {
+    "monsters": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "description",
+          "archetype",
+          "hp_avg",
+          "ac",
+          "xp",
+          "gold",
+          "speed",
+          "sight_range",
+          "damage_dice",
+          "damage_sides",
+          "floor_min",
+          "floor_max",
+          "damage_resistances",
+          "damage_immunities",
+          "damage_vulnerabilities",
+          "condition_immunities"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 63
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1
+          },
+          "archetype": {
+            "enum": [
+              "boss",
+              "brute",
+              "caster",
+              "dragon",
+              "melee",
+              "swarm"
+            ]
+          },
+          "hp_avg": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000,
+            "description": "average hit points"
+          },
+          "ac": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 30
+          },
+          "xp": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100000
+          },
+          "gold": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100000
+          },
+          "speed": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3,
+            "description": "1 slow, 2 normal, 3 fast (actions per tick, see ai.c)"
+          },
+          "sight_range": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 20,
+            "description": "tiles"
+          },
+          "damage_dice": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 20
+          },
+          "damage_sides": {
+            "enum": [
+              4,
+              6,
+              8,
+              10,
+              12,
+              20
+            ]
+          },
+          "floor_min": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 59,
+            "description": "first floor where it spawns"
+          },
+          "floor_max": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "last floor where it spawns (above 59: no limit)"
+          },
+          "damage_resistances": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "acid",
+                "bludgeoning",
+                "cold",
+                "fire",
+                "force",
+                "lightning",
+                "necrotic",
+                "piercing",
+                "poison",
+                "psychic",
+                "radiant",
+                "slashing",
+                "thunder"
+              ]
+            }
+          },
+          "damage_immunities": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "acid",
+                "bludgeoning",
+                "cold",
+                "fire",
+                "force",
+                "lightning",
+                "necrotic",
+                "piercing",
+                "poison",
+                "psychic",
+                "radiant",
+                "slashing",
+                "thunder"
+              ]
+            }
+          },
+          "damage_vulnerabilities": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "acid",
+                "bludgeoning",
+                "cold",
+                "fire",
+                "force",
+                "lightning",
+                "necrotic",
+                "piercing",
+                "poison",
+                "psychic",
+                "radiant",
+                "slashing",
+                "thunder"
+              ]
+            }
+          },
+          "condition_immunities": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "blinded",
+                "charmed",
+                "deafened",
+                "frightened",
+                "grappled",
+                "incapacitated",
+                "invisible",
+                "paralyzed",
+                "petrified",
+                "poisoned",
+                "prone",
+                "restrained",
+                "stunned",
+                "unconscious",
+                "burning",
+                "bleeding",
+                "cursed",
+                "frozen"
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}

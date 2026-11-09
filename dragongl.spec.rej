@@ -1,0 +1,11 @@
+--- dragongl.spec
++++ dragongl.spec
+@@ -4,7 +4,7 @@
+ %global toolchain clang
+ 
+ Name:           dragongl
+-Version:        2026.11.08.15
++Version:        2026.11.09.01
+ Release:        %autorelease
+ Summary:        Multi-user 3D dungeon RPG: Vulkan client
+ 

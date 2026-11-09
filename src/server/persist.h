@@ -54,16 +54,16 @@
 
 /* Format generations. Bump the version when a layout changes: an old file
  * is then refused instead of being misread. */
-#define PERSIST_SAVE_MAGIC 0x53474C44u      /* "DLGS" */
-#define PERSIST_SAVE_VERSION 3
-#define PERSIST_WORLD_MAGIC 0x57475244u     /* "DRGW" */
+#define PERSIST_SAVE_MAGIC    0x53474C44u /* "DLGS" */
+#define PERSIST_SAVE_VERSION  3
+#define PERSIST_WORLD_MAGIC   0x57475244u /* "DRGW" */
 #define PERSIST_WORLD_VERSION 4
-#define PERSIST_NPCS_MAGIC 0x43504E44u      /* "DNPC" */
-#define PERSIST_NPCS_VERSION 1
-#define PERSIST_TOMB_MAGIC 0x424D5444u      /* "DTMB" */
-#define PERSIST_TOMB_VERSION 1
-#define PERSIST_ART_MAGIC 0x54524144u       /* "DART" */
-#define PERSIST_ART_VERSION 1
+#define PERSIST_NPCS_MAGIC    0x43504E44u /* "DNPC" */
+#define PERSIST_NPCS_VERSION  2
+#define PERSIST_TOMB_MAGIC    0x424D5444u /* "DTMB" */
+#define PERSIST_TOMB_VERSION  1
+#define PERSIST_ART_MAGIC     0x54524144u /* "DART" */
+#define PERSIST_ART_VERSION   1
 
 /* --- State directory ------------------------------------------------------- */
 

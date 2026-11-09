@@ -32,55 +32,64 @@
 #include <string.h>
 
 static bool list_match(const char *list, const char *cmd, bool prefix) {
-  if (!list)
-    return false;
-  for (const char *p = list;;) {
-    const char *bar = strchr(p, '|');
-    size_t n = bar ? (size_t)(bar - p) : strlen(p);
-    if (strncmp(cmd, p, n) == 0 && (prefix || cmd[n] == '\0'))
-      return true;
-    if (!bar)
-      return false;
-    p = bar + 1;
-  }
+    if (!list) {
+        return false;
+    }
+    for (const char *p = list;;) {
+        const char *bar = strchr(p, '|');
+        size_t n = bar ? (size_t)(bar - p) : strlen(p);
+        if (strncmp(cmd, p, n) == 0 && (prefix || cmd[n] == '\0')) {
+            return true;
+        }
+        if (!bar) {
+            return false;
+        }
+        p = bar + 1;
+    }
 }
 
 bool cmd_table_run(const CmdEntry *table, size_t n, Client *c, const char *cmd, NPC *npcs) {
-  for (size_t i = 0; i < n; i++) {
-    const CmdEntry *e = &table[i];
-    bool any = !e->names && !e->prefixes;
-    if ((any || list_match(e->names, cmd, false) || list_match(e->prefixes, cmd, true)) &&
-        e->run(c, cmd, npcs))
-      return true;
-  }
-  return false;
+    for (size_t i = 0; i < n; i++) {
+        const CmdEntry *e = &table[i];
+        bool any = !e->names && !e->prefixes;
+        if ((any || list_match(e->names, cmd, false) || list_match(e->prefixes, cmd, true)) &&
+            e->run(c, cmd, npcs)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /*True if the first word of cmd (up to a space or its end) equals word[0..len).*/
 static bool first_word_is(const char *cmd, const char *word, size_t len) {
-  return len > 0 && strncmp(cmd, word, len) == 0 && (cmd[len] == '\0' || cmd[len] == ' ');
+    return len > 0 && strncmp(cmd, word, len) == 0 && (cmd[len] == '\0' || cmd[len] == ' ');
 }
 
 static bool list_has_word(const char *list, const char *cmd) {
-  if (!list)
-    return false;
-  for (const char *p = list;;) {
-    const char *bar = strchr(p, '|');
-    size_t n = bar ? (size_t)(bar - p) : strlen(p);
-    size_t word = (n > 0 && p[n - 1] == ' ') ? n - 1 : n;
-    if (first_word_is(cmd, p, word))
-      return true;
-    if (!bar)
-      return false;
-    p = bar + 1;
-  }
+    if (!list) {
+        return false;
+    }
+    for (const char *p = list;;) {
+        const char *bar = strchr(p, '|');
+        size_t n = bar ? (size_t)(bar - p) : strlen(p);
+        size_t word = (n > 0 && p[n - 1] == ' ') ? n - 1 : n;
+        if (first_word_is(cmd, p, word)) {
+            return true;
+        }
+        if (!bar) {
+            return false;
+        }
+        p = bar + 1;
+    }
 }
 
 const CmdEntry *cmd_table_find_word(const CmdEntry *table, size_t n, const char *cmd) {
-  for (size_t i = 0; i < n; i++)
-    if (list_has_word(table[i].names, cmd) || list_has_word(table[i].prefixes, cmd))
-      return &table[i];
-  return NULL;
+    for (size_t i = 0; i < n; i++) {
+        if (list_has_word(table[i].names, cmd) || list_has_word(table[i].prefixes, cmd)) {
+            return &table[i];
+        }
+    }
+    return NULL;
 }
 
 static const CmdEntry COMMANDS[] = {
@@ -149,25 +158,34 @@ static const CmdEntry COMMANDS[] = {
 };
 
 const CmdEntry *cmd_commands(size_t *n) {
-  *n = sizeof(COMMANDS) / sizeof(COMMANDS[0]);
-  return COMMANDS;
+    *n = sizeof(COMMANDS) / sizeof(COMMANDS[0]);
+    return COMMANDS;
 }
 
 void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
-  if (!c || !cmd)
-    return;
-  if (cmd[0] == '/')
-    cmd++; /*"/look" works like "look"*/
-  server_log("CMD", "%s: %s", c->username, cmd);
-  size_t n = sizeof(COMMANDS) / sizeof(COMMANDS[0]);
-  if (cmd_table_run(COMMANDS, n, c, cmd, npcs))
-    return;
-  /*A known command with missing or wrong arguments gets its usage.*/
-  const CmdEntry *e = cmd_table_find_word(COMMANDS, n, cmd);
-  const char *usage = e ? e->usage : (c->is_dm ? cmd_dm_usage(cmd) : NULL);
-  if (usage) {
-    send_text_to_client(c->sock, "[SYSTEM] Usage: %s", usage);
-    return;
-  }
-  send_text_to_client(c->sock, "[SYSTEM] Unrecognized command '%s'. Type 'help' or '?' for the list.", cmd);
+    if (!c || !cmd) {
+        return;
+    }
+    if (cmd[0] == '/') {
+        cmd++; /*"/look" works like "look"*/
+    }
+    server_log("CMD", "%s: %s", c->username, cmd);
+    size_t n = sizeof(COMMANDS) / sizeof(COMMANDS[0]);
+    if (cmd_table_run(COMMANDS, n, c, cmd, npcs)) {
+        return;
+    }
+    /*A known command with missing or wrong arguments gets its usage.*/
+    const CmdEntry *e = cmd_table_find_word(COMMANDS, n, cmd);
+    const char *usage = NULL;
+    if (e) {
+        usage = e->usage;
+    } else if (c->is_dm) {
+        usage = cmd_dm_usage(cmd);
+    }
+    if (usage) {
+        send_text_to_client(c->sock, "[SYSTEM] Usage: %s", usage);
+        return;
+    }
+    send_text_to_client(
+        c->sock, "[SYSTEM] Unrecognized command '%s'. Type 'help' or '?' for the list.", cmd);
 }

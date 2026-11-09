@@ -35,16 +35,18 @@ uint32_t crc32_data(const void *data, size_t len) {
     if (!ready) {
         for (uint32_t i = 0; i < 256; i++) {
             uint32_t c = i;
-            for (int k = 0; k < 8; k++)
+            for (int k = 0; k < 8; k++) {
                 c = (c & 1) ? (0xEDB88320u ^ (c >> 1)) : (c >> 1);
+            }
             table[i] = c;
         }
         ready = true;
     }
     const uint8_t *p = (const uint8_t *)data;
     uint32_t c = 0xFFFFFFFFu;
-    for (size_t i = 0; i < len; i++)
+    for (size_t i = 0; i < len; i++) {
         c = table[(c ^ p[i]) & 0xFFu] ^ (c >> 8);
+    }
     return c ^ 0xFFFFFFFFu;
 }
 
@@ -65,12 +67,14 @@ void bw_reset(BinWriter *w) {
 }
 
 void bw_bytes(BinWriter *w, const void *p, size_t n) {
-    if (w->failed || n == 0)
+    if (w->failed || n == 0) {
         return;
+    }
     if (w->len + n > w->cap) {
         size_t cap = w->cap ? w->cap : 4096;
-        while (cap < w->len + n)
+        while (cap < w->len + n) {
             cap *= 2;
+        }
         uint8_t *grown = realloc(w->data, cap);
         if (!grown) {
             w->failed = true;
@@ -94,15 +98,17 @@ void bw_u16(BinWriter *w, uint16_t v) {
 
 void bw_u32(BinWriter *w, uint32_t v) {
     uint8_t b[4];
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < 4; i++) {
         b[i] = (uint8_t)(v >> (8 * i));
+    }
     bw_bytes(w, b, sizeof(b));
 }
 
 void bw_u64(BinWriter *w, uint64_t v) {
     uint8_t b[8];
-    for (int i = 0; i < 8; i++)
+    for (int i = 0; i < 8; i++) {
         b[i] = (uint8_t)(v >> (8 * i));
+    }
     bw_bytes(w, b, sizeof(b));
 }
 
@@ -119,8 +125,9 @@ void bw_bool(BinWriter *w, bool v) {
 }
 
 void bw_str(BinWriter *w, const char *s, size_t field) {
-    if (field == 0)
+    if (field == 0) {
         return;
+    }
     size_t n = s ? strnlen(s, field - 1) : 0;
     bw_bytes(w, s, n);
     static const uint8_t zeros[64] = {0};
@@ -176,8 +183,9 @@ uint32_t br_u32(BinReader *r) {
     uint8_t b[4];
     br_bytes(r, b, sizeof(b));
     uint32_t v = 0;
-    for (int i = 3; i >= 0; i--)
+    for (int i = 3; i >= 0; i--) {
         v = (v << 8) | b[i];
+    }
     return v;
 }
 
@@ -185,8 +193,9 @@ uint64_t br_u64(BinReader *r) {
     uint8_t b[8];
     br_bytes(r, b, sizeof(b));
     uint64_t v = 0;
-    for (int i = 7; i >= 0; i--)
+    for (int i = 7; i >= 0; i--) {
         v = (v << 8) | b[i];
+    }
     return v;
 }
 
@@ -200,14 +209,16 @@ int64_t br_i64(BinReader *r) {
 
 bool br_bool(BinReader *r) {
     uint8_t v = br_u8(r);
-    if (v > 1)
+    if (v > 1) {
         r->failed = true;
+    }
     return v == 1;
 }
 
 void br_str(BinReader *r, char *out, size_t field) {
-    if (field == 0)
+    if (field == 0) {
         return;
+    }
     br_bytes(r, out, field);
     out[field - 1] = '\0';
 }
@@ -228,23 +239,25 @@ bool br_done(const BinReader *r) {
 /* --- Files -------------------------------------------------------------------- */
 
 static void put_le32(uint8_t *p, uint32_t v) {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < 4; i++) {
         p[i] = (uint8_t)(v >> (8 * i));
+    }
 }
 
 static uint32_t get_le32(const uint8_t *p) {
-    return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) |
-           ((uint32_t)p[3] << 24);
+    return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
 }
 
 static bool write_all(int fd, const void *buf, size_t n) {
     const uint8_t *p = (const uint8_t *)buf;
     while (n > 0) {
         ssize_t k = write(fd, p, n);
-        if (k < 0 && errno == EINTR)
+        if (k < 0 && errno == EINTR) {
             continue;
-        if (k <= 0)
+        }
+        if (k <= 0) {
             return false;
+        }
         p += k;
         n -= (size_t)k;
     }
@@ -258,12 +271,13 @@ static void fsync_parent_dir(const char *path) {
     memcpy(dir, path, n);
     dir[n] = '\0';
     char *slash = strrchr(dir, '/');
-    if (slash == dir)
+    if (slash == dir) {
         dir[1] = '\0';
-    else if (slash)
+    } else if (slash) {
         *slash = '\0';
-    else
+    } else {
         strcpy(dir, ".");
+    }
     int fd = open(dir, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
     if (fd >= 0) {
         (void)fsync(fd);
@@ -291,10 +305,11 @@ bool binfile_write_atomic(const char *path, uint32_t magic, uint16_t version,
     put_le32(hdr + 12, crc32_data(payload->data, payload->len));
 
     int fd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
-    if (fd < 0)
+    if (fd < 0) {
         return false;
-    bool ok = write_all(fd, hdr, sizeof(hdr)) &&
-              write_all(fd, payload->data, payload->len) && fsync(fd) == 0;
+    }
+    bool ok = write_all(fd, hdr, sizeof(hdr)) && write_all(fd, payload->data, payload->len) &&
+              fsync(fd) == 0;
     int saved = errno;
     if (close(fd) != 0 && ok) {
         ok = false;
@@ -314,19 +329,21 @@ bool binfile_write_atomic(const char *path, uint32_t magic, uint16_t version,
 }
 
 static BinFileStatus invalid(char *why, size_t why_len, const char *reason) {
-    if (why && why_len)
+    if (why && why_len) {
         snprintf(why, why_len, "%s", reason);
+    }
     return BINFILE_INVALID;
 }
 
-BinFileStatus binfile_read(const char *path, uint32_t magic, uint16_t version,
-                           uint8_t **payload, size_t *len, char *why, size_t why_len) {
+BinFileStatus binfile_read(const char *path, uint32_t magic, uint16_t version, uint8_t **payload,
+                           size_t *len, char *why, size_t why_len) {
     *payload = NULL;
     *len = 0;
     FILE *f = fopen(path, "rb");
     if (!f) {
-        if (errno == ENOENT)
+        if (errno == ENOENT) {
             return BINFILE_MISSING;
+        }
         return invalid(why, why_len, strerror(errno));
     }
     uint8_t hdr[BINFILE_HEADER_SIZE];

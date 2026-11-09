@@ -12,28 +12,35 @@
 #include "pathfinding.h"
 
 static int g_failures = 0;
-#define CHECK(cond) do { \
-    if (!(cond)) { \
-        printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond); \
-        g_failures++; \
-    } \
-} while (0)
+#define CHECK(cond)                                                                                \
+    do {                                                                                           \
+        if (!(cond)) {                                                                             \
+            printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);                                 \
+            g_failures++;                                                                          \
+        }                                                                                          \
+    } while (0)
 
 /*Fills the whole map with ROCK, then carves a FLOOR room at (0,0).*/
 static void make_room(Map *map, int w, int h) {
     memset(map, 0, sizeof(*map));
-    for (int y = 0; y < MAP_HEIGHT; y++)
-        for (int x = 0; x < MAP_WIDTH; x++)
+    for (int y = 0; y < MAP_HEIGHT; y++) {
+        for (int x = 0; x < MAP_WIDTH; x++) {
             map->data[0][y][x] = VOXEL_ROCK;
-    for (int y = 0; y < h; y++)
-        for (int x = 0; x < w; x++)
+        }
+    }
+    for (int y = 0; y < h; y++) {
+        for (int x = 0; x < w; x++) {
             map->data[0][y][x] = VOXEL_FLOOR;
+        }
+    }
 }
 
 static int node_at(const PathNode *path, int count, int x, int y) {
-    for (int i = 0; i < count; i++)
-        if (path[i].x == x && path[i].y == y)
+    for (int i = 0; i < count; i++) {
+        if (path[i].x == x && path[i].y == y) {
             return 1;
+        }
+    }
     return 0;
 }
 
@@ -58,23 +65,26 @@ int main(void) {
 
     /*--- vertical wall with a gap: the detour MUST go through the gap ---*/
     make_room(&map, 10, 10);
-    for (int y = 0; y < 8; y++)
+    for (int y = 0; y < 8; y++) {
         map.data[0][y][5] = VOXEL_ROCK; /*gap at y=8,9*/
+    }
     steps = pathfind_astar(&map, 1, 1, 8, 1, path, MAX_ASTAR_PATH);
     CHECK(steps > 0); /*still reachable via the gap*/
     if (steps > 0) {
         CHECK(node_at(path, steps, 5, 8) || node_at(path, steps, 5, 9));
         /*no node may stand on the wall*/
         for (int i = 0; i < steps; i++) {
-            if (path[i].x == 5)
+            if (path[i].x == 5) {
                 CHECK(path[i].y >= 8);
+            }
         }
     }
 
     /*--- fully walled target: no path ---*/
     make_room(&map, 10, 10);
-    for (int y = 0; y < 10; y++)
+    for (int y = 0; y < 10; y++) {
         map.data[0][y][5] = VOXEL_ROCK;
+    }
     steps = pathfind_astar(&map, 1, 1, 8, 1, path, MAX_ASTAR_PATH);
     CHECK(steps == 0);
 

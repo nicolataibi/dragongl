@@ -54,10 +54,7 @@
  * Call every frame (or when the player moves).
  * The function internally checks whether the position has changed
  * and rebuilds the buffer only if necessary.*/
-void minimap_update(int player_x,
-                    int player_y,
-                    TileType map[MAP_HEIGHT][MAP_WIDTH],
-                    int vision_r);
+void minimap_update(int player_x, int player_y, TileType map[MAP_HEIGHT][MAP_WIDTH], int vision_r);
 
 /**
  * minimap_get_explored — Returns true if cell (x,y) has been

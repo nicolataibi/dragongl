@@ -23,24 +23,23 @@
 #include <poll.h>
 #include "client_state.h"
 
-void* cli_thread_loop(void* arg) {
+void *cli_thread_loop(void *arg) {
     char buf[256];
     struct pollfd pfd;
     int ret;
     int len;
-    
+
     (void)arg;
-    
+
     printf("> ");
     fflush(stdout);
-    
+
     pfd.fd = STDIN_FILENO;
     pfd.events = POLLIN;
-    
+
     while (g_running) {
         ret = poll(&pfd, 1, 100);
-        if (ret > 0 && (pfd.revents & (POLLHUP | POLLERR | POLLNVAL)) &&
-            !(pfd.revents & POLLIN)) {
+        if (ret > 0 && (pfd.revents & (POLLHUP | POLLERR | POLLNVAL)) && !(pfd.revents & POLLIN)) {
             break; /* stdin closed: the window keeps running without a console */
         }
         if (ret > 0 && (pfd.revents & POLLIN)) {
@@ -50,12 +49,13 @@ void* cli_thread_loop(void* arg) {
                 break;
             }
             {
-                len = strlen(buf);
-                while (len > 0 && (buf[len - 1] == '\n' || buf[len - 1] == '\r' || buf[len - 1] == ' ')) {
+                len = (int)strlen(buf);
+                while (len > 0 &&
+                       (buf[len - 1] == '\n' || buf[len - 1] == '\r' || buf[len - 1] == ' ')) {
                     buf[len - 1] = '\0';
                     len = len - 1;
                 }
-                
+
                 if (len > 0) {
                     if (strcmp(buf, "w") == 0) {
                         client_send_move(0, -1);
@@ -71,7 +71,7 @@ void* cli_thread_loop(void* arg) {
                         client_send_text_cmd(buf);
                     }
                 }
-                
+
                 if (g_running) {
                     printf("> ");
                     fflush(stdout);
@@ -79,6 +79,6 @@ void* cli_thread_loop(void* arg) {
             }
         }
     }
-    
+
     return NULL;
 }

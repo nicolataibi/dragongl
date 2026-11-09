@@ -36,12 +36,12 @@
 //AoE projection types
 // -------------------------------------------------------
 typedef enum {
-    SPELL_TARGET_SINGLE,        //Single target
-    SPELL_TARGET_SELF,          //Self-target
-    SPELL_TARGET_AOE_CIRCLE,    //Spherical explosion (fireball)
-    SPELL_TARGET_AOE_CONE,      //Cone (dragon breath, flame jet)
-    SPELL_TARGET_AOE_LINE,      // Linea (fulmine, sputo acido)
-    SPELL_TARGET_AOE_CLOUD      //Multi-round persistent cloud (poisonous gas)
+    SPELL_TARGET_SINGLE,     //Single target
+    SPELL_TARGET_SELF,       //Self-target
+    SPELL_TARGET_AOE_CIRCLE, //Spherical explosion (fireball)
+    SPELL_TARGET_AOE_CONE,   //Cone (dragon breath, flame jet)
+    SPELL_TARGET_AOE_LINE,   // Linea (fulmine, sputo acido)
+    SPELL_TARGET_AOE_CLOUD   //Multi-round persistent cloud (poisonous gas)
 } SpellTargetType;
 
 typedef enum {
@@ -58,46 +58,46 @@ typedef enum {
 
 typedef struct {
     bool active;
-    int  cx, cy;         //Center of the cloud
-    int  radius;         //Radius in cells
-    int  floor_id;
-    int  rounds_left;    //Residual rounds before dissolving
-    int  dice_count;
-    int  dice_sides;
+    int cx, cy; //Center of the cloud
+    int radius; //Radius in cells
+    int floor_id;
+    int rounds_left; //Residual rounds before dissolving
+    int dice_count;
+    int dice_sides;
     DamageType dmg_type;
-    int  save_dc;        //Saving Throw DC (Constitution)
-    char name[32];       // Es. "Nube Acida", "Gas Velenoso"
-    char owner[32];      //Username of the caster ("" = none): kills caused
-                         //by the cloud credit XP to this player, exactly
-                         //like a direct hit. In-memory only (clouds are
-                         //never persisted), so no save-format change.
+    int save_dc;    //Saving Throw DC (Constitution)
+    char name[32];  // Es. "Nube Acida", "Gas Velenoso"
+    char owner[32]; //Username of the caster ("" = none): kills caused
+                    //by the cloud credit XP to this player, exactly
+                    //like a direct hit. In-memory only (clouds are
+                    //never persisted), so no save-format change.
 } PersistentCloud;
 
 typedef struct {
-    const char*     name;
-    int             level;
+    const char *name;
+    int level;
     SpellTargetType target_type;
     SpellEffectType effect_type;
-    int             range;
-    int             radius;         /*For AoE: radius or cone/line length*/
-    int             dice_count;
-    int             dice_sides;
-    DamageType      damage_type;    /*Damage type for future resistances*/
-    int             cloud_rounds;   /*> 0 → create PersistentCloud*/
-    ActiveEffect    status_effect;
-    bool            has_status_effect;
-    int             vfx_type;
-    float           vfx_r;
-    float           vfx_g;
-    float           vfx_b;
+    int range;
+    int radius; /*For AoE: radius or cone/line length*/
+    int dice_count;
+    int dice_sides;
+    DamageType damage_type; /*Damage type for future resistances*/
+    int cloud_rounds;       /*> 0 → create PersistentCloud*/
+    ActiveEffect status_effect;
+    bool has_status_effect;
+    int vfx_type;
+    float vfx_r;
+    float vfx_g;
+    float vfx_b;
     /*Bitmask of the classes that can learn this magic.
      * Bit N corresponds to the Nth value of ClassType (0=Barbarian … 11=Wizard).
      * 0 = no class (magic not available to players).*/
-    uint32_t        class_mask;
+    uint32_t class_mask;
 } SpellTemplate;
 
-extern SpellTemplate*   spell_database;
-extern int              spell_database_size;
-extern PersistentCloud  g_clouds[MAX_CLOUDS];
+extern SpellTemplate *spell_database;
+extern int spell_database_size;
+extern PersistentCloud g_clouds[MAX_CLOUDS];
 
 #endif // SPELLS_H

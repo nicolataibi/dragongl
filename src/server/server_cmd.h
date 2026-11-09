@@ -38,12 +38,12 @@
 typedef bool (*CmdFn)(Client *c, const char *cmd, NPC *npcs);
 
 typedef struct {
-  const char *names;    /*"a|b": the command is exactly one of them, or NULL*/
-  const char *prefixes; /*"a |b": the command starts with one of them, or NULL;
+    const char *names;    /*"a|b": the command is exactly one of them, or NULL*/
+    const char *prefixes; /*"a |b": the command starts with one of them, or NULL;
                          * every prefix ends with a space, so a prefix never
                          * matches a longer word ("train " is not "trainer")*/
-  CmdFn run;            /*names and prefixes NULL: every command reaches it*/
-  const char *usage;    /*shown when the first word is this command but no
+    CmdFn run;            /*names and prefixes NULL: every command reaches it*/
+    const char *usage;    /*shown when the first word is this command but no
                          * handler accepted the line, or NULL*/
 } CmdEntry;
 
@@ -63,7 +63,12 @@ const char *cmd_dm_usage(const char *cmd);
 
 /*Temples of the class rituals (cmd_world.c): look names them, use checks
  * that a ritual is performed inside the temple of the class.*/
-typedef struct { int cls; int x0, x1, y0, y1; const char *name; const char *ritual; } TempleInfo;
+typedef struct {
+    int cls;
+    int x0, x1, y0, y1;
+    const char *name;
+    const char *ritual;
+} TempleInfo;
 extern const TempleInfo TEMPLES[];
 extern const int TEMPLE_COUNT;
 
@@ -136,7 +141,6 @@ bool cmd_open(Client *c, const char *cmd, NPC *npcs);
 bool cmd_close(Client *c, const char *cmd, NPC *npcs);
 
 /* cmd_dm.c */
-bool cmd_dm(Client *c, const char *cmd, NPC *npcs);
 bool cmd_dm(Client *c, const char *cmd, NPC *npcs);
 
 #endif /* SERVER_CMD_H */

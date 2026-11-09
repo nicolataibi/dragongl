@@ -1,6 +1,6 @@
 # Dragon GL: The Long Descent into the Dragon's Maw
 
-[![Version](https://img.shields.io/badge/Version-2026.09.24.01-green.svg)](https://github.com/nicolataibi/dragongl)
+[![Version](https://img.shields.io/badge/Version-2026.11.09.01-green.svg)](https://github.com/nicolataibi/dragongl)
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/License-GPL%203.0--or--later-blue.svg)](LICENSE.txt)
 [![Assets: CC BY 4.0](https://img.shields.io/badge/Assets-CC%20BY%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by/4.0/)
 [![Language: C11](https://img.shields.io/badge/Language-C11-blue.svg)](CMakeLists.txt)

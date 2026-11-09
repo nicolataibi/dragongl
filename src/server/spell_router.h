@@ -47,10 +47,10 @@
  * All pointers are guaranteed non-NULL at call time.
  * ----------------------------------------------------------------------------*/
 typedef struct {
-    Client       *caster;      /*The client casting the spell*/
-    SpellTemplate *sp;         /*Current spell template*/
-    NPC          *npcs;        /*Global array of NPCs*/
-    NPC          *target;      /* Single target found (can be NULL) */
+    Client *caster;    /*The client casting the spell*/
+    SpellTemplate *sp; /*Current spell template*/
+    NPC *npcs;         /*Global array of NPCs*/
+    NPC *target;       /* Single target found (can be NULL) */
 } SpellContext;
 
 /*--------------------------------------------------------------------------
@@ -63,8 +63,8 @@ typedef bool (*SpellHandlerFn)(SpellContext *ctx);
  * Structure of a single entry in the lookup table.
  * ----------------------------------------------------------------------------*/
 typedef struct {
-    const char   *name;        /*Exact spell name (case-insensitive)*/
-    SpellHandlerFn handler;    /*Custom management function*/
+    const char *name;       /*Exact spell name (case-insensitive)*/
+    SpellHandlerFn handler; /*Custom management function*/
 } SpellHook;
 
 /* --------------------------------------------------------------------------

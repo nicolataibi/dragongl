@@ -1,0 +1,250 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/nicolataibi/dragongl/data/schema/items.schema.json",
+  "title": "Dragon GL items (data/items.json)",
+  "description": "Item templates, loaded by src/shared/data_loader.c.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "items"
+  ],
+  "properties": {
+    "items": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "description",
+          "category",
+          "cost"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 63
+          },
+          "plural_name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1
+          },
+          "image": {
+            "type": "string",
+            "description": "artwork name (not used by the engine)"
+          },
+          "category": {
+            "enum": [
+              "ADVENTURING_GEAR",
+              "ARMOR",
+              "BOOK",
+              "JUNK",
+              "OTHER",
+              "POISONS",
+              "POTIONS_OILS",
+              "RING",
+              "TOOLS",
+              "WEAPON",
+              "WONDROUS_ITEMS"
+            ]
+          },
+          "rarity": {
+            "enum": [
+              "MUNDANE",
+              "COMMON",
+              "UNCOMMON",
+              "RARE",
+              "VERY_RARE",
+              "LEGENDARY",
+              "ARTIFACT"
+            ]
+          },
+          "classification": {
+            "type": "string",
+            "description": "e.g. Martial Melee Weapons, Medium Armor, Shield"
+          },
+          "ac": {
+            "type": "string",
+            "pattern": "^(|-|\\+?[0-9]+( \\+ Dex( \\+ [0-9]+)?)?)$",
+            "description": "armor: base AC (\"12 + Dex\"); shields and bonuses: \"+2\""
+          },
+          "damage": {
+            "type": "string",
+            "pattern": "^(|-|[0-9]+(d[0-9]+)?)$"
+          },
+          "damage_type": {
+            "enum": [
+              "",
+              "acid",
+              "bludgeoning",
+              "cold",
+              "fire",
+              "force",
+              "lightning",
+              "necrotic",
+              "piercing",
+              "poison",
+              "psychic",
+              "radiant",
+              "slashing",
+              "thunder"
+            ]
+          },
+          "properties": {
+            "type": "string",
+            "description": "weapon properties (heavy, finesse, ...); books: LEVEL_X_Y"
+          },
+          "cost": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "copper pieces; the shop price is cost/100 gold, at least 1"
+          },
+          "weight": {
+            "type": "number",
+            "minimum": 0
+          },
+          "material": {
+            "enum": [
+              "cloth",
+              "leather",
+              "wood",
+              "bone",
+              "stone",
+              "iron",
+              "steel",
+              "mithril",
+              "glass",
+              "paper"
+            ]
+          },
+          "slot": {
+            "enum": [
+              "arm"
+            ]
+          },
+          "cast_spell": {
+            "type": "string",
+            "minLength": 1,
+            "description": "name of a spell in spells.json"
+          },
+          "max_charges": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "is_cursed": {
+            "type": "boolean"
+          },
+          "book_class_mask": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4095,
+            "description": "bit N = ClassType N (include/classes.h)"
+          },
+          "book_seq": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 99
+          },
+          "spells": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "names of spells in spells.json"
+          },
+          "max_stack": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000
+          },
+          "ac_base": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 30
+          },
+          "ac_bonus": {
+            "type": "integer",
+            "minimum": -10,
+            "maximum": 10
+          },
+          "damage_dice": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 20
+          },
+          "damage_sides": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 20
+          },
+          "max_durability": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "category": {
+                  "const": "BOOK"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "spells",
+                "book_class_mask",
+                "weight"
+              ]
+            },
+            "else": {
+              "not": {
+                "anyOf": [
+                  {
+                    "required": [
+                      "spells"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "book_class_mask"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "book_seq"
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "if": {
+              "required": [
+                "cast_spell"
+              ]
+            },
+            "then": {
+              "required": [
+                "max_charges"
+              ]
+            }
+          }
+        ]
+      }
+    }
+  }
+}

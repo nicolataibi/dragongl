@@ -11,12 +11,13 @@
 #include "rules.h"
 
 static int g_failures = 0;
-#define CHECK(cond) do { \
-    if (!(cond)) { \
-        printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond); \
-        g_failures++; \
-    } \
-} while (0)
+#define CHECK(cond)                                                                                \
+    do {                                                                                           \
+        if (!(cond)) {                                                                             \
+            printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);                                 \
+            g_failures++;                                                                          \
+        }                                                                                          \
+    } while (0)
 
 int main(void) {
     srand(42); /*reproducible statistical tests*/
@@ -102,8 +103,7 @@ int main(void) {
     CHECK(rules_has_condition_t(fx, 2, COND_POISONED));
 
     /*the string form is routed through the same table: same answer*/
-    CHECK(rules_has_condition(fx, 2, "Poisoned") ==
-          rules_has_condition_t(fx, 2, COND_POISONED));
+    CHECK(rules_has_condition(fx, 2, "Poisoned") == rules_has_condition_t(fx, 2, COND_POISONED));
 
     /*--- effect decay: one round per call, removed at zero ---*/
     ActiveEffect dec[1];
@@ -123,7 +123,9 @@ int main(void) {
     per[0].duration_rounds = 1;
     per[0].is_persistent = true;
     n = 1;
-    for (int i = 0; i < 10; i++) (void)rules_update_effects(per, &n);
+    for (int i = 0; i < 10; i++) {
+        (void)rules_update_effects(per, &n);
+    }
     CHECK(n == 1);
     CHECK(per[0].duration_rounds == 1);
 

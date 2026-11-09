@@ -59,7 +59,15 @@ Please ensure that:
 - Dependencies are introduced only when justified.
 - No credentials, secrets, or unrelated generated files are included.
 
-Follow any language-specific formatting, linting, and testing requirements documented by the project.
+Follow any language-specific formatting, linting, and testing requirements documented by the project. For this repository, before opening a Pull Request:
+
+```bash
+./build.sh -dwa                       # ASan/UBSan build, -Werror, cppcheck, both test suites
+tools/quality.sh format-fix           # clang-format 18
+tools/quality.sh tidy data metrics    # clang-tidy, game data, size limits
+```
+
+CI runs the same checks plus coverage, ThreadSanitizer and fuzzing; `DEVELOPMENT.md` (section 6) describes each of them.
 
 ## 6. Documentation
 

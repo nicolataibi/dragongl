@@ -13,12 +13,12 @@
 #include "wire.h"
 
 static int g_failures = 0;
-#define CHECK(cond)                                                    \
-    do {                                                               \
-        if (!(cond)) {                                                 \
-            printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);     \
-            g_failures++;                                              \
-        }                                                              \
+#define CHECK(cond)                                                                                \
+    do {                                                                                           \
+        if (!(cond)) {                                                                             \
+            printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);                                 \
+            g_failures++;                                                                          \
+        }                                                                                          \
     } while (0)
 
 /* Header of the single frame in w; returns its payload. */
@@ -38,8 +38,8 @@ static void test_header_layout(void) {
     bw_init(&w);
     CHECK(wire_put_tombstone_remove(&w, -3));
     /* u16 version, u16 type, u32 length, little-endian; then i32 id */
-    const uint8_t expect[] = {PROTOCOL_VERSION, 0, MSG_TOMBSTONE_REMOVE, 0, 4, 0, 0, 0,
-                              0xFD, 0xFF, 0xFF, 0xFF};
+    const uint8_t expect[] = {
+        PROTOCOL_VERSION, 0, MSG_TOMBSTONE_REMOVE, 0, 4, 0, 0, 0, 0xFD, 0xFF, 0xFF, 0xFF};
     CHECK(w.len == sizeof(expect));
     CHECK(memcmp(w.data, expect, sizeof(expect)) == 0);
     bw_free(&w);
@@ -113,7 +113,8 @@ static void test_move_and_text_cmd(void) {
     MsgTextCmd tc;
     CHECK(wire_get_text_cmd(p, n, &tc) && strlen(tc.cmd) == PROTO_TEXT_LEN - 1);
     CHECK(wire_client_payload_max(MSG_STATE) == 0); /* not a client message */
-    CHECK(wire_client_payload_max(MSG_LOGIN) + WIRE_HEADER_SIZE <= WIRE_HEADER_SIZE + WIRE_MAX_CLIENT_PAYLOAD);
+    CHECK(wire_client_payload_max(MSG_LOGIN) + WIRE_HEADER_SIZE <=
+          WIRE_HEADER_SIZE + WIRE_MAX_CLIENT_PAYLOAD);
     bw_free(&w);
 }
 
@@ -125,6 +126,8 @@ static void test_welcome_and_state(void) {
     uint32_t n;
     const uint8_t *p = frame(&w, MSG_WELCOME, &n);
     CHECK(wire_get_welcome(p, n, &wo));
+    /* Both are zero-initialized statics: their padding bytes are zero too. */
+    // NOLINTNEXTLINE(bugprone-suspicious-memory-comparison,cert-exp42-c,cert-flp37-c)
     CHECK(memcmp(&wi, &wo, sizeof(wi)) == 0);
 
     static MsgState si, so;
@@ -153,6 +156,7 @@ static void test_welcome_and_state(void) {
     p = frame(&w, MSG_STATE, &n);
     CHECK(n <= wire_server_payload_max(MSG_STATE));
     CHECK(wire_get_state(p, n, &so));
+    // NOLINTNEXTLINE(bugprone-suspicious-memory-comparison,cert-exp42-c,cert-flp37-c)
     CHECK(memcmp(&si, &so, sizeof(si)) == 0);
     CHECK(!wire_get_state(p, n - 1, &so));
     bw_free(&w);
@@ -161,8 +165,9 @@ static void test_welcome_and_state(void) {
 static void test_map_chunk(void) {
     enum { W = 10, H = 4 };
     uint8_t tiles[W * H];
-    for (int i = 0; i < W * H; i++)
+    for (int i = 0; i < W * H; i++) {
         tiles[i] = (uint8_t)(i % VOXEL_COUNT);
+    }
     MsgMapChunk mc = {290, 296, W, H}, back;
     BinWriter w;
     bw_init(&w);
@@ -172,7 +177,7 @@ static void test_map_chunk(void) {
     CHECK(n == 8 + W * H);
     const uint8_t *t = NULL;
     CHECK(wire_get_map_chunk(p, n, &back, &t));
-    CHECK(back.start_x == 290 && back.width == W && t && memcmp(t, tiles, W * H) == 0);
+    CHECK(back.start_x == 290 && back.width == W && t && memcmp(t, tiles, (size_t)W * H) == 0);
     /* a tile value past the voxel table, a rectangle outside the map */
     uint8_t copy[8 + W * H];
     memcpy(copy, p, n);
@@ -264,8 +269,7 @@ static void test_several_frames_in_one_buffer(void) {
     size_t second = WIRE_HEADER_SIZE + h.length;
     wire_read_header(w.data + second, &h);
     MsgText t;
-    CHECK(h.type == MSG_TEXT &&
-          wire_get_text(w.data + second + WIRE_HEADER_SIZE, h.length, &t) &&
+    CHECK(h.type == MSG_TEXT && wire_get_text(w.data + second + WIRE_HEADER_SIZE, h.length, &t) &&
           strcmp(t.text, "two") == 0);
     bw_free(&w);
 }

@@ -21,13 +21,43 @@
 #define ITEMS_H
 #include <stdint.h>
 #include <stdbool.h>
+#include <string.h>
 
 /*Maximum number of spells that a magic book can explicitly list.*/
 #define MAX_BOOK_SPELLS 64
 
-typedef enum { ITEM_MISC, ITEM_WEAPON, ITEM_SHIELD, ITEM_ARMOR, ITEM_HEAD, ITEM_NECK, ITEM_BACK, ITEM_HANDS, ITEM_FEET, ITEM_RING, ITEM_LIGHT_SOURCE, ITEM_CONSUMABLE, ITEM_FUEL, ITEM_AMMO, ITEM_BOOK, ITEM_BRACELET } ItemCategory;
+typedef enum {
+    ITEM_MISC,
+    ITEM_WEAPON,
+    ITEM_SHIELD,
+    ITEM_ARMOR,
+    ITEM_HEAD,
+    ITEM_NECK,
+    ITEM_BACK,
+    ITEM_HANDS,
+    ITEM_FEET,
+    ITEM_RING,
+    ITEM_LIGHT_SOURCE,
+    ITEM_CONSUMABLE,
+    ITEM_FUEL,
+    ITEM_AMMO,
+    ITEM_BOOK,
+    ITEM_BRACELET
+} ItemCategory;
 
-typedef enum { MAT_NONE, MAT_CLOTH, MAT_LEATHER, MAT_WOOD, MAT_BONE, MAT_STONE, MAT_IRON, MAT_STEEL, MAT_MITHRIL, MAT_GLASS, MAT_PAPER } MaterialType;
+typedef enum {
+    MAT_NONE,
+    MAT_CLOTH,
+    MAT_LEATHER,
+    MAT_WOOD,
+    MAT_BONE,
+    MAT_STONE,
+    MAT_IRON,
+    MAT_STEEL,
+    MAT_MITHRIL,
+    MAT_GLASS,
+    MAT_PAPER
+} MaterialType;
 
 typedef struct {
     const char *name;
@@ -63,11 +93,11 @@ typedef struct {
      * PG level gate: global_idx = book_seq * 10 + local_location
      * required_level = global_idx / 3 (60 spell / 20 lv = 3/lv)*/
     uint32_t book_class_mask;
-    int      book_min_level;
-    int      book_max_level;
-    int      book_seq;
-    int      book_spell_count;
-    char     book_spell_names[MAX_BOOK_SPELLS][64];
+    int book_min_level;
+    int book_max_level;
+    int book_seq;
+    int book_spell_count;
+    char book_spell_names[MAX_BOOK_SPELLS][64];
 } ItemTemplate;
 
 typedef enum { QUALITY_RUSTY = 0, QUALITY_NORMAL, QUALITY_FINE, QUALITY_MASTERWORK } ItemQuality;
@@ -86,13 +116,28 @@ typedef struct {
     ItemQuality quality;
     ItemBlessing blessing;
     ItemElement element;
-    bool is_artifact;           //true = legendary unique artifact
-    char artifact_name[64];     //proper name of the artifact (e.g. "Void Blade")
-    int artifact_str_bonus;     //Fixed bonus STR artifact
-    int artifact_dex_bonus;     //Artifact fixed DEX bonus
-    int artifact_con_bonus;     //fixed WITH bonus of the artifact
+    bool is_artifact;       //true = legendary unique artifact
+    char artifact_name[64]; //proper name of the artifact (e.g. "Void Blade")
+    int artifact_str_bonus; //Fixed bonus STR artifact
+    int artifact_dex_bonus; //Artifact fixed DEX bonus
+    int artifact_con_bonus; //fixed WITH bonus of the artifact
 } ItemInstance;
-extern ItemTemplate* item_database;
+
+/* Field by field: memcmp() would also compare the padding bytes, which
+ * struct copies need not preserve. */
+static inline bool item_instance_equal(const ItemInstance *a, const ItemInstance *b) {
+    return a->template_idx == b->template_idx && a->durability == b->durability &&
+           a->stack_count == b->stack_count && a->is_identified == b->is_identified &&
+           a->current_charges == b->current_charges && a->to_hit_bonus == b->to_hit_bonus &&
+           a->to_dam_bonus == b->to_dam_bonus && a->ac_bonus == b->ac_bonus &&
+           a->quality == b->quality && a->blessing == b->blessing && a->element == b->element &&
+           a->is_artifact == b->is_artifact &&
+           strncmp(a->artifact_name, b->artifact_name, sizeof(a->artifact_name)) == 0 &&
+           a->artifact_str_bonus == b->artifact_str_bonus &&
+           a->artifact_dex_bonus == b->artifact_dex_bonus &&
+           a->artifact_con_bonus == b->artifact_con_bonus;
+}
+extern ItemTemplate *item_database;
 extern int item_database_size;
 
 #endif // ITEMS_H

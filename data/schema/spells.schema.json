@@ -1,0 +1,163 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/nicolataibi/dragongl/data/schema/spells.schema.json",
+  "title": "Dragon GL spells (data/spells.json)",
+  "description": "Spell templates, loaded by src/shared/data_loader.c. A spell is learned and cast from a book of items.json.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "spells"
+  ],
+  "properties": {
+    "spells": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "image",
+          "description",
+          "higher_levels",
+          "level",
+          "school",
+          "classes",
+          "duration",
+          "ritual",
+          "casting_time",
+          "range",
+          "component_v",
+          "component_s",
+          "component_m",
+          "materials",
+          "vfx"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 63
+          },
+          "image": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1
+          },
+          "higher_levels": {
+            "type": "string"
+          },
+          "level": {
+            "enum": [
+              "cantrip",
+              "1",
+              "2",
+              "3",
+              "4",
+              "5",
+              "6",
+              "7",
+              "8",
+              "9"
+            ]
+          },
+          "school": {
+            "enum": [
+              "abjuration",
+              "conjuration",
+              "divination",
+              "enchantment",
+              "evocation",
+              "illusion",
+              "martial",
+              "necromancy",
+              "transmutation"
+            ]
+          },
+          "classes": {
+            "type": "string",
+            "pattern": "^(barbarian|bard|cleric|druid|fighter|monk|paladin|ranger|rogue|sorcerer|warlock|wizard)(,(barbarian|bard|cleric|druid|fighter|monk|paladin|ranger|rogue|sorcerer|warlock|wizard))*$"
+          },
+          "duration": {
+            "type": "string",
+            "minLength": 1
+          },
+          "ritual": {
+            "enum": [
+              "",
+              "1"
+            ],
+            "description": "\"1\" yes, \"\" no"
+          },
+          "casting_time": {
+            "type": "string",
+            "minLength": 1
+          },
+          "range": {
+            "type": "string",
+            "minLength": 1
+          },
+          "component_v": {
+            "enum": [
+              "",
+              "1"
+            ],
+            "description": "\"1\" yes, \"\" no"
+          },
+          "component_s": {
+            "enum": [
+              "",
+              "1"
+            ],
+            "description": "\"1\" yes, \"\" no"
+          },
+          "component_m": {
+            "enum": [
+              "",
+              "1"
+            ],
+            "description": "\"1\" yes, \"\" no"
+          },
+          "materials": {
+            "type": "string"
+          },
+          "vfx": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type",
+              "r",
+              "g",
+              "b"
+            ],
+            "properties": {
+              "type": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4,
+                "description": "particle effect (spawn_vfx, client_particles.c): 0 burst, 1 explosion, 2 aura, 3 ray, 4 storm"
+              },
+              "r": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "g": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "b": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

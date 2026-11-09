@@ -21,7 +21,7 @@
 #define SERVER_WORLD_H
 
 #include "server_entities.h"
-#include "../../include/net.h"
+#include "net.h"
 
 void update_world(Client *clients, NPC *npcs);
 /*Save world.dat + npcs.dat to the state directory (false on failure).*/

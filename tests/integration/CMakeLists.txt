@@ -31,41 +31,7 @@ find_package(Python3 REQUIRED COMPONENTS Interpreter)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(SODIUM REQUIRED IMPORTED_TARGET libsodium)
 
-set(DGL_SERVER_SRCS
-    ${DGL_ROOT}/src/server/main_server.c
-    ${DGL_ROOT}/src/server/server_net.c
-    ${DGL_ROOT}/src/server/server_conn.c
-    ${DGL_ROOT}/src/server/auth.c
-    ${DGL_ROOT}/src/server/persist.c
-    ${DGL_ROOT}/src/server/writer.c
-    ${DGL_ROOT}/src/server/login_worker.c
-    ${DGL_ROOT}/src/server/ai.c
-    ${DGL_ROOT}/src/server/aoe.c
-    ${DGL_ROOT}/src/server/combat_log.c
-    ${DGL_ROOT}/src/server/pathfinding.c
-    ${DGL_ROOT}/src/server/server_combat.c
-    ${DGL_ROOT}/src/server/server_spawn.c
-    ${DGL_ROOT}/src/server/server_world.c
-    ${DGL_ROOT}/src/server/server_move.c
-    ${DGL_ROOT}/src/server/server_commands.c
-    ${DGL_ROOT}/src/server/cmd_character.c
-    ${DGL_ROOT}/src/server/cmd_social.c
-    ${DGL_ROOT}/src/server/cmd_shop.c
-    ${DGL_ROOT}/src/server/cmd_items.c
-    ${DGL_ROOT}/src/server/cmd_magic.c
-    ${DGL_ROOT}/src/server/cmd_world.c
-    ${DGL_ROOT}/src/server/cmd_dm.c
-    ${DGL_ROOT}/src/server/spell_router.c
-    ${DGL_ROOT}/src/server/tombstone.c
-    ${DGL_ROOT}/src/shared/map.c
-    ${DGL_ROOT}/src/shared/game.c
-    ${DGL_ROOT}/src/shared/net.c
-    ${DGL_ROOT}/src/shared/rules.c
-    ${DGL_ROOT}/src/shared/cJSON.c
-    ${DGL_ROOT}/src/shared/data_loader.c
-    ${DGL_ROOT}/src/shared/binio.c
-    ${DGL_ROOT}/src/shared/wire.c
-)
+set(DGL_SERVER_SRCS ${DRAGONGL_SERVER_SRCS} ${DRAGONGL_SHARED_SRCS})
 set(DGL_INCLUDES ${DGL_ROOT}/include ${DGL_ROOT}/src/server ${DGL_ROOT}/src/client
     "${CMAKE_CURRENT_BINARY_DIR}/generated")
 
@@ -75,7 +41,7 @@ target_include_directories(dragongl_server_it PRIVATE ${DGL_INCLUDES})
 target_link_libraries(dragongl_server_it PRIVATE Threads::Threads m PkgConfig::SODIUM)
 
 # --- In-process harness: same sources, no main() ---
-add_executable(server_harness server_harness.c ${DGL_SERVER_SRCS})
+add_executable(server_harness server_harness.c fixture.c ${DGL_SERVER_SRCS})
 target_include_directories(server_harness PRIVATE ${DGL_INCLUDES})
 target_compile_definitions(server_harness PRIVATE DRAGONGL_NO_MAIN
     DGL_TEST_DATA_DIR="${DGL_ROOT}/data")

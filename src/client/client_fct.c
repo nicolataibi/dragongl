@@ -43,10 +43,10 @@ pthread_mutex_t g_fct_mutex = PTHREAD_MUTEX_INITIALIZER;
 /*----------------------------------------------------------------
  * Animation constants
  * ----------------------------------------------------------------*/
-#define FCT_RISE_SPEED   1.8f  /* units/second upward                    */
-#define FCT_DRIFT_RANGE  0.3f  /* random horizontal dispersion           */
-#define FCT_DEFAULT_LIFE 1.2f  /*standard duration in seconds*/
-#define FCT_CRIT_LIFE    1.8f  /*extended runtime for critics*/
+#define FCT_RISE_SPEED   1.8f /* units/second upward                    */
+#define FCT_DRIFT_RANGE  0.3f /* random horizontal dispersion           */
+#define FCT_DEFAULT_LIFE 1.2f /*standard duration in seconds*/
+#define FCT_CRIT_LIFE    1.8f /*extended runtime for critics*/
 
 /*----------------------------------------------------------------
 * fct_spawn — Inserts a new FCT into the first free slot.
@@ -56,32 +56,32 @@ void fct_spawn(FctType type, float wx, float wz, const char *text) {
     for (int i = 0; i < FCT_MAX_ENTRIES; i++) {
         if (!g_fct[i].active) {
             FloatingText *f = &g_fct[i];
-            f->active   = true;
-            f->type     = type;
-            f->world_x  = wx + ((float)rand() / (float)RAND_MAX - 0.5f) * FCT_DRIFT_RANGE;
-            f->world_z  = wz + ((float)rand() / (float)RAND_MAX - 0.5f) * FCT_DRIFT_RANGE;
+            f->active = true;
+            f->type = type;
+            f->world_x = wx + ((float)rand() / (float)RAND_MAX - 0.5f) * FCT_DRIFT_RANGE;
+            f->world_z = wz + ((float)rand() / (float)RAND_MAX - 0.5f) * FCT_DRIFT_RANGE;
             f->offset_y = 1.2f;
-            f->alpha    = 1.0f;
+            f->alpha = 1.0f;
 
             /*Duration and scale vary by type*/
             switch (type) {
-                case FCT_CRITICAL:
-                    f->max_life = FCT_CRIT_LIFE;
-                    f->scale    = 3.5f;
-                    break;
-                case FCT_LEVELUP:
-                    f->max_life = 2.5f;
-                    f->scale    = 4.0f;
-                    break;
-                case FCT_XP:
-                case FCT_GOLD:
-                    f->max_life = 1.5f;
-                    f->scale    = 2.0f;
-                    break;
-                default:
-                    f->max_life = FCT_DEFAULT_LIFE;
-                    f->scale    = 2.5f;
-                    break;
+            case FCT_CRITICAL:
+                f->max_life = FCT_CRIT_LIFE;
+                f->scale = 3.5f;
+                break;
+            case FCT_LEVELUP:
+                f->max_life = 2.5f;
+                f->scale = 4.0f;
+                break;
+            case FCT_XP:
+            case FCT_GOLD:
+                f->max_life = 1.5f;
+                f->scale = 2.0f;
+                break;
+            default:
+                f->max_life = FCT_DEFAULT_LIFE;
+                f->scale = 2.5f;
+                break;
             }
             f->life = f->max_life;
 
@@ -101,15 +101,15 @@ void fct_spawn(FctType type, float wx, float wz, const char *text) {
         }
     }
     FloatingText *f = &g_fct[oldest];
-    f->active   = true;
-    f->type     = type;
-    f->world_x  = wx + ((float)rand() / (float)RAND_MAX - 0.5f) * FCT_DRIFT_RANGE;
-    f->world_z  = wz + ((float)rand() / (float)RAND_MAX - 0.5f) * FCT_DRIFT_RANGE;
+    f->active = true;
+    f->type = type;
+    f->world_x = wx + ((float)rand() / (float)RAND_MAX - 0.5f) * FCT_DRIFT_RANGE;
+    f->world_z = wz + ((float)rand() / (float)RAND_MAX - 0.5f) * FCT_DRIFT_RANGE;
     f->offset_y = 1.2f;
-    f->alpha    = 1.0f;
+    f->alpha = 1.0f;
     f->max_life = (type == FCT_CRITICAL) ? FCT_CRIT_LIFE : FCT_DEFAULT_LIFE;
-    f->life     = f->max_life;
-    f->scale    = (type == FCT_CRITICAL) ? 3.5f : 2.5f;
+    f->life = f->max_life;
+    f->scale = (type == FCT_CRITICAL) ? 3.5f : 2.5f;
     strncpy(f->text, text, FCT_TEXT_LEN - 1);
     f->text[FCT_TEXT_LEN - 1] = '\0';
     pthread_mutex_unlock(&g_fct_mutex);
@@ -137,8 +137,7 @@ void fct_update(float dt) {
         float ratio = f->life / f->max_life;
         if (ratio < 0.4f) {
             f->alpha = ratio / 0.4f;
-        }
-        else {
+        } else {
             f->alpha = 1.0f;
         }
     }

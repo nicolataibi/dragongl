@@ -26,44 +26,44 @@
 #include <time.h>
 #include "items.h"
 
-#define MAX_TOMBSTONES 100
-#define TOMBSTONE_SYMBOL 'T'
+#define MAX_TOMBSTONES          100
+#define TOMBSTONE_SYMBOL        'T'
 #define TOMBSTONE_BACKPACK_SIZE 32
-#define TOMBSTONE_RINGS 10
-#define TOMBSTONE_EXPIRE_HOURS 24
+#define TOMBSTONE_RINGS         10
+#define TOMBSTONE_EXPIRE_HOURS  24
 
 /** Tombstone — Tombstone left at the player's death point.
  * Contains all inventory (backpack + equipped slots) and gold.
  * Only the owner player can recover items.
  * It is saved to disk in saves/tombstone_<owner>.dat*/
 typedef struct {
-    bool           active;
-    int            x;
-    int            y;
-    int            floor_id;
-    char           owner[32];        /*username of the dead player*/
-    uint64_t       gold;
-    time_t         death_time;
+    bool active;
+    int x;
+    int y;
+    int floor_id;
+    char owner[32]; /*username of the dead player*/
+    uint64_t gold;
+    time_t death_time;
 
     /*Backpack*/
-    ItemInstance   backpack[TOMBSTONE_BACKPACK_SIZE];
-    int            backpack_count;
+    ItemInstance backpack[TOMBSTONE_BACKPACK_SIZE];
+    int backpack_count;
 
     /*Belt*/
-    ItemInstance   belt[4];
+    ItemInstance belt[4];
 
     /* Equipment slots */
-    ItemInstance   slot_head;
-    ItemInstance   slot_neck;
-    ItemInstance   slot_body;
-    ItemInstance   slot_back;
-    ItemInstance   slot_hand_r;
-    ItemInstance   slot_hand_l;
-    ItemInstance   slot_hands;
-    ItemInstance   slot_arm_r;
-    ItemInstance   slot_arm_l;
-    ItemInstance   slot_feet;
-    ItemInstance   slot_rings[TOMBSTONE_RINGS];
+    ItemInstance slot_head;
+    ItemInstance slot_neck;
+    ItemInstance slot_body;
+    ItemInstance slot_back;
+    ItemInstance slot_hand_r;
+    ItemInstance slot_hand_l;
+    ItemInstance slot_hands;
+    ItemInstance slot_arm_r;
+    ItemInstance slot_arm_l;
+    ItemInstance slot_feet;
+    ItemInstance slot_rings[TOMBSTONE_RINGS];
 } Tombstone;
 
 #endif // SERVER_H

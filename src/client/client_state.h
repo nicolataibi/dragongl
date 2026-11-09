@@ -46,7 +46,7 @@ typedef struct {
     int floor_id;
     bool active;
     bool is_merchant;
-    int shop_spec;   /*Merchant specialization (SHOP_SPEC_* from protocol.h)*/
+    int shop_spec; /*Merchant specialization (SHOP_SPEC_* from protocol.h)*/
     bool is_tombstone;
     bool is_player;
     char username[32];
@@ -70,9 +70,9 @@ extern int g_race_id;
 extern int g_subrace_id;
 extern int g_class_id;
 extern int g_alignment;
-extern uint32_t g_bosses_defeated;  //bitmask of defeated bosses
-extern uint32_t g_status_icons;     // bitmask of active status conditions
-extern int g_hunger_level;          // current hunger (vitality) level
+extern uint32_t g_bosses_defeated; //bitmask of defeated bosses
+extern uint32_t g_status_icons;    // bitmask of active status conditions
+extern int g_hunger_level;         // current hunger (vitality) level
 extern int g_my_spell_slots[10];
 extern int g_my_spell_slots_max[10];
 extern char g_eq_head[32];

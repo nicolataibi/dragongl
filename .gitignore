@@ -25,6 +25,7 @@ _srpm_test/
 build-tests/
 build-tests-asan/
 build-integration/
+build-quality/
 
 # ignore
 npcs.dat

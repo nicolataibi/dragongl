@@ -19,6 +19,48 @@ endif()
 set(DRAGONGL_RELEASE_DATE "${CMAKE_MATCH_1}-${CMAKE_MATCH_2}-${CMAKE_MATCH_3}")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${DRAGONGL_ROOT}/dragongl.spec")
 
+# --- Source lists ----------------------------------------------------------------
+# One list each, used by the main project, the integration tests and the fuzz
+# targets, so a new translation unit is added in one place.
+set(DRAGONGL_SHARED_SRCS
+    "${DRAGONGL_ROOT}/src/shared/map.c"
+    "${DRAGONGL_ROOT}/src/shared/game.c"
+    "${DRAGONGL_ROOT}/src/shared/net.c"
+    "${DRAGONGL_ROOT}/src/shared/rules.c"
+    "${DRAGONGL_ROOT}/src/shared/cJSON.c"
+    "${DRAGONGL_ROOT}/src/shared/data_loader.c"
+    "${DRAGONGL_ROOT}/src/shared/binio.c"
+    "${DRAGONGL_ROOT}/src/shared/wire.c"
+    "${DRAGONGL_ROOT}/src/shared/strnum.c"
+)
+set(DRAGONGL_SERVER_SRCS
+    "${DRAGONGL_ROOT}/src/server/main_server.c"
+    "${DRAGONGL_ROOT}/src/server/server_net.c"
+    "${DRAGONGL_ROOT}/src/server/server_conn.c"
+    "${DRAGONGL_ROOT}/src/server/auth.c"
+    "${DRAGONGL_ROOT}/src/server/persist.c"
+    "${DRAGONGL_ROOT}/src/server/writer.c"
+    "${DRAGONGL_ROOT}/src/server/login_worker.c"
+    "${DRAGONGL_ROOT}/src/server/ai.c"
+    "${DRAGONGL_ROOT}/src/server/aoe.c"
+    "${DRAGONGL_ROOT}/src/server/combat_log.c"
+    "${DRAGONGL_ROOT}/src/server/pathfinding.c"
+    "${DRAGONGL_ROOT}/src/server/server_combat.c"
+    "${DRAGONGL_ROOT}/src/server/server_spawn.c"
+    "${DRAGONGL_ROOT}/src/server/server_world.c"
+    "${DRAGONGL_ROOT}/src/server/server_move.c"
+    "${DRAGONGL_ROOT}/src/server/server_commands.c"
+    "${DRAGONGL_ROOT}/src/server/cmd_character.c"
+    "${DRAGONGL_ROOT}/src/server/cmd_social.c"
+    "${DRAGONGL_ROOT}/src/server/cmd_shop.c"
+    "${DRAGONGL_ROOT}/src/server/cmd_items.c"
+    "${DRAGONGL_ROOT}/src/server/cmd_magic.c"
+    "${DRAGONGL_ROOT}/src/server/cmd_world.c"
+    "${DRAGONGL_ROOT}/src/server/cmd_dm.c"
+    "${DRAGONGL_ROOT}/src/server/spell_router.c"
+    "${DRAGONGL_ROOT}/src/server/tombstone.c"
+)
+
 # --- Compiler flags -----------------------------------------------------------
 # Optimization and debug information come from CMAKE_BUILD_TYPE (or from the
 # distribution's flags: the RPM build passes %optflags), never from here.

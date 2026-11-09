@@ -24,29 +24,29 @@
 #include "rules.h"
 
 typedef struct {
-    const char* name;
+    const char *name;
     int hp_avg;
     int ac;
     int xp;
     int gold;
-    const char* description;
+    const char *description;
 
     //AI type (data-driven, not hard-coded by name)
-    const char* archetype;   //"melee", "caster", "swarm", "dragon", "brute", "boss"
+    const char *archetype; //"melee", "caster", "swarm", "dragon", "brute", "boss"
 
     // Speed system (Phase 4 - Speed/Tick System)
-    int speed;               // 1=lento, 2=normale, 3=veloce
+    int speed; // 1=lento, 2=normale, 3=veloce
 
     //Visual range
-    int sight_range;         //default 5 if 0
+    int sight_range; //default 5 if 0
 
     //Basic damage die
-    int damage_dice;         //number of dice (e.g. 2)
-    int damage_sides;        //faces of the die (e.g. 6 → 2d6)
+    int damage_dice;  //number of dice (e.g. 2)
+    int damage_sides; //faces of the die (e.g. 6 → 2d6)
 
     //Spawning dungeon plan
-    int floor_min;           //minimum plan (0 = any)
-    int floor_max;           //maximum floor (0 = any)
+    int floor_min; //minimum plan (0 = any)
+    int floor_max; //maximum floor (0 = any)
 
     //Arrays mapping Damage and Conditions using Enum (Method 1)
     bool damage_resistances[MAX_DAMAGE_TYPES];
@@ -55,8 +55,7 @@ typedef struct {
     bool condition_immunities[MAX_CONDITIONS];
 } MonsterTemplate;
 
-
-extern MonsterTemplate* bestiary_data;
+extern MonsterTemplate *bestiary_data;
 extern int bestiary_size;
 
 #endif // BESTIARY_H

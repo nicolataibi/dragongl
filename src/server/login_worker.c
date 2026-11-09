@@ -40,10 +40,11 @@ static LoginJob *g_done_head, *g_done_tail;
 
 static void push(LoginJob **head, LoginJob **tail, LoginJob *j) {
     j->next = NULL;
-    if (*tail)
+    if (*tail) {
         (*tail)->next = j;
-    else
+    } else {
         *head = j;
+    }
     *tail = j;
 }
 
@@ -51,16 +52,18 @@ static LoginJob *pop(LoginJob **head, LoginJob **tail) {
     LoginJob *j = *head;
     if (j) {
         *head = j->next;
-        if (!*head)
+        if (!*head) {
             *tail = NULL;
+        }
         j->next = NULL;
     }
     return j;
 }
 
 void login_job_free(LoginJob *job) {
-    if (!job)
+    if (!job) {
         return;
+    }
     auth_wipe(job, sizeof(*job));
     free(job);
 }
@@ -77,8 +80,8 @@ void login_job_run(LoginJob *job) {
     writer_wait_for(job->save_path);
     BinFileStatus st = persist_read_player(job->save_path, &job->sd, job->why, sizeof(job->why));
     if (st == BINFILE_MISSING) {
-        job->outcome = auth_hash_password(job->ml.password, job->new_hash) ? LOGIN_NEW
-                                                                           : LOGIN_SERVER_ERROR;
+        job->outcome =
+            auth_hash_password(job->ml.password, job->new_hash) ? LOGIN_NEW : LOGIN_SERVER_ERROR;
     } else if (st != BINFILE_OK) {
         job->outcome = LOGIN_UNREADABLE;
     } else if (auth_verify_password(job->sd.password_hash, job->ml.password)) {
@@ -101,10 +104,12 @@ static void *worker_main(void *arg) {
     (void)arg;
     pthread_mutex_lock(&g_lock);
     for (;;) {
-        while (!g_todo_head && !g_stopping)
+        while (!g_todo_head && !g_stopping) {
             pthread_cond_wait(&g_work, &g_lock);
-        if (g_stopping)
+        }
+        if (g_stopping) {
             break;
+        }
         LoginJob *j = pop(&g_todo_head, &g_todo_tail);
         pthread_mutex_unlock(&g_lock);
 
@@ -119,11 +124,13 @@ static void *worker_main(void *arg) {
 }
 
 bool login_worker_start(void) {
-    if (g_running)
+    if (g_running) {
         return true;
+    }
     g_efd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
-    if (g_efd < 0)
+    if (g_efd < 0) {
         return false;
+    }
     g_stopping = false;
     if (pthread_create(&g_thread, NULL, worker_main, NULL) != 0) {
         close(g_efd);
@@ -135,8 +142,9 @@ bool login_worker_start(void) {
 }
 
 void login_worker_stop(void) {
-    if (!g_running)
+    if (!g_running) {
         return;
+    }
     pthread_mutex_lock(&g_lock);
     g_stopping = true;
     pthread_cond_broadcast(&g_work);
@@ -144,10 +152,12 @@ void login_worker_stop(void) {
     pthread_join(g_thread, NULL);
     g_running = false;
     LoginJob *j;
-    while ((j = pop(&g_todo_head, &g_todo_tail)) != NULL)
+    while ((j = pop(&g_todo_head, &g_todo_tail)) != NULL) {
         login_job_free(j);
-    while ((j = pop(&g_done_head, &g_done_tail)) != NULL)
+    }
+    while ((j = pop(&g_done_head, &g_done_tail)) != NULL) {
         login_job_free(j);
+    }
     close(g_efd);
     g_efd = -1;
 }

@@ -23,19 +23,22 @@
 #include "server_entities.h"
 
 // Function pointer for Behavior Tree nodes
-typedef AINodeStatus (*AINodeFunc)(NPC* npc, Client* clients, int num_clients, bool new_round, NPC* all_npcs);
+typedef AINodeStatus (*AINodeFunc)(NPC *npc, Client *clients, int num_clients, bool new_round,
+                                   NPC *all_npcs);
 
 // Initializes the AI of an NPC
-void ai_init_npc(NPC* npc, const char* monster_name, int floor_id);
+void ai_init_npc(NPC *npc, const char *monster_name, int floor_id);
 
 //Reattaches only the behavior tree after loading from disk (no stat reset)
-void ai_attach_behavior(NPC* npc);
+void ai_attach_behavior(NPC *npc);
 
 // Main update function called by the server
-void ai_update_npc(NPC* npc, Client* clients, int num_clients, bool new_round, NPC* all_npcs);
+void ai_update_npc(NPC *npc, Client *clients, int num_clients, bool new_round, NPC *all_npcs);
 
 //Boss-specific behaviors
-AINodeStatus ai_void_crawler_behavior(NPC* npc, Client* clients, int num_clients, bool new_round, NPC* all_npcs);
-AINodeStatus ai_mage_behavior(NPC* npc, Client* clients, int num_clients, bool new_round, NPC* all_npcs);
+AINodeStatus ai_void_crawler_behavior(NPC *npc, Client *clients, int num_clients, bool new_round,
+                                      NPC *all_npcs);
+AINodeStatus ai_mage_behavior(NPC *npc, Client *clients, int num_clients, bool new_round,
+                              NPC *all_npcs);
 
 #endif

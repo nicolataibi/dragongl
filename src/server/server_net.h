@@ -25,13 +25,21 @@
 #include <stdbool.h>
 
 void send_text_to_client(int sock, const char *fmt, ...);
+/*Queue bytes for a client (never blocks, see server_conn.h). Returns
+ * false if the client is being dropped (peer gone, queue overflow): the
+ * main loop reaps it at the end of the iteration.*/
 bool net_send_client(int sock, const void *data, int len);
 void send_map_chunk(int sock, Map *map, int cx, int cy, int size);
 void send_detailed_state(Client *c);
-void broadcast_spell_vfx(int sx, int sy, int tx, int ty, int vfx_type, float r, float g, float b, int floor_id);
+void broadcast_spell_vfx(int sx, int sy, int tx, int ty, int vfx_type, float r, float g, float b,
+                         int floor_id);
 void broadcast_nearby_entities(Client *c, NPC *npcs);
+/* Tell all clients on old_floor that c left it (hp<=0 removal message).
+ * Call it whenever a player's floor_id changes (stairs, teleport, ...).*/
 void notify_player_left_floor(Client *c, int old_floor);
+/* Broadcast c's state to all clients on c->floor_id (arrival).*/
 void broadcast_player_state(Client *c);
 
-#endif
 void client_seen_reset(int ci, int floor);
+
+#endif

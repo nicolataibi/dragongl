@@ -94,7 +94,7 @@ uint32_t br_u32(BinReader *r);
 uint64_t br_u64(BinReader *r);
 int32_t br_i32(BinReader *r);
 int64_t br_i64(BinReader *r);
-bool br_bool(BinReader *r);   /* anything but 0/1 marks the reader failed */
+bool br_bool(BinReader *r);                         /* anything but 0/1 marks the reader failed */
 void br_str(BinReader *r, char *out, size_t field); /* always NUL-terminated */
 /* A count that must lie in [0, max]; otherwise the reader fails. */
 uint32_t br_count(BinReader *r, uint32_t max);
@@ -110,14 +110,14 @@ bool binfile_write_atomic(const char *path, uint32_t magic, uint16_t version,
 
 typedef enum {
     BINFILE_OK = 1,
-    BINFILE_MISSING = 0,  /* the file does not exist */
-    BINFILE_INVALID = -1  /* unreadable, wrong kind/version, corrupt */
+    BINFILE_MISSING = 0, /* the file does not exist */
+    BINFILE_INVALID = -1 /* unreadable, wrong kind/version, corrupt */
 } BinFileStatus;
 
 /* Read and verify a container. On BINFILE_OK *payload is a malloc'ed
  * buffer (free it) of *len bytes. `why` (may be NULL) receives a short
  * reason when the result is BINFILE_INVALID. */
-BinFileStatus binfile_read(const char *path, uint32_t magic, uint16_t version,
-                           uint8_t **payload, size_t *len, char *why, size_t why_len);
+BinFileStatus binfile_read(const char *path, uint32_t magic, uint16_t version, uint8_t **payload,
+                           size_t *len, char *why, size_t why_len);
 
 #endif

@@ -197,6 +197,133 @@ jobs:
       - name: rpmlint
         run: rpmlint -r dragongl.rpmlintrc ~/rpmbuild/RPMS/*/*.rpm ~/rpmbuild/SRPMS/*.rpm
 
+  lint:
+    name: Format, game data, metrics
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang-format-18 cmake python3 python3-jsonschema
+
+      # Style of .clang-format; tools/quality.sh format-fix applies it.
+      - name: clang-format
+        run: tools/quality.sh format
+
+      # Schema (data/schema), references and canonical form of data/*.json.
+      - name: Game data
+        run: tools/quality.sh data
+
+      # Function and file length against tools/quality_limits.json.
+      - name: Metrics
+        run: tools/quality.sh metrics
+
+  clang-tidy:
+    name: Static analysis (clang-tidy)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      # The four trees are configured for their compile_commands.json, so
+      # the dependencies of every target are needed.
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang clang-tidy-18 cmake ninja-build pkg-config python3 \
+            libglfw3-dev libvulkan-dev glslc libsodium-dev
+
+      - name: clang-tidy
+        run: tools/quality.sh tidy
+
+  coverage:
+    name: Coverage (llvm-cov)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang llvm-18 cmake ninja-build pkg-config python3 \
+            libglfw3-dev libvulkan-dev glslc libsodium-dev
+
+      # Fails under the coverage_line_percent of tools/quality_limits.json;
+      # metrics then lists every number next to its limit.
+      - name: Coverage
+        run: tools/quality.sh coverage metrics
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo '### Coverage (src/server + src/shared)'
+            echo '```'
+            tail -n 1 build-quality/coverage/report.txt || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: |
+            build-quality/coverage/html
+            build-quality/coverage/report.txt
+            build-quality/coverage/summary.json
+            build-quality/metrics.json
+          if-no-files-found: ignore
+
+  tsan:
+    name: Server integration tests (ThreadSanitizer)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang libclang-rt-18-dev cmake ninja-build pkg-config libsodium-dev python3
+
+      # Recent runner kernels randomize the address space more than the
+      # TSan runtime of clang 18 accepts.
+      - name: Address-space randomization
+        run: sudo sysctl -w vm.mmap_rnd_bits=28
+
+      - name: ThreadSanitizer
+        run: tools/quality.sh tsan
+
+  fuzz:
+    name: Fuzzing (libFuzzer, 60 s per target)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang libclang-rt-18-dev cmake ninja-build pkg-config libsodium-dev python3
+
+      - name: Fuzz
+        run: tools/quality.sh fuzz 60
+
+      - name: Crash inputs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-artifacts
+          path: |
+            build-quality/fuzz/artifacts
+            build-quality/fuzz/logs
+          if-no-files-found: ignore
+
   static-analysis:
     name: Static analysis (cppcheck)
     runs-on: ubuntu-24.04

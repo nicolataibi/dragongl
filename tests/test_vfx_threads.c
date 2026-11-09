@@ -60,12 +60,13 @@
 
 /*Both threads print: serialize with a log mutex (TSan-clean output).*/
 static pthread_mutex_t g_log_mutex = PTHREAD_MUTEX_INITIALIZER;
-#define TLOG(...) do { \
-    pthread_mutex_lock(&g_log_mutex); \
-    printf(__VA_ARGS__); \
-    fflush(stdout); \
-    pthread_mutex_unlock(&g_log_mutex); \
-} while (0)
+#define TLOG(...)                                                                                  \
+    do {                                                                                           \
+        pthread_mutex_lock(&g_log_mutex);                                                          \
+        printf(__VA_ARGS__);                                                                       \
+        fflush(stdout);                                                                            \
+        pthread_mutex_unlock(&g_log_mutex);                                                        \
+    } while (0)
 
 static volatile bool g_stop = false;
 
@@ -80,7 +81,7 @@ static void *net_thread(void *arg) {
         fct_combat_event(COMBAT_EV_DAMAGE_TAKEN, 7);
         fct_combat_event(COMBAT_EV_CRITICAL, 12);
         fct_combat_event(0, 0); /* unknown kind: no FCT */
-        usleep(100); /*~10k spawn rounds/s — plenty of contention*/
+        usleep(100);            /*~10k spawn rounds/s — plenty of contention*/
     }
     return NULL;
 }
@@ -106,11 +107,19 @@ static void *render_thread(void *arg) {
         pthread_mutex_lock(&g_particles_mutex);
         for (int i = 0; i < MAX_PARTICLES; i++) {
             Particle *p = &g_particles[i];
-            if (!p->active) continue;
+            if (!p->active) {
+                continue;
+            }
             /*Every field the draw passes read:*/
             float rx = p->x, ry = p->y, rz = p->z;
             float rr = p->r, rg = p->g, rb = p->b, ra = p->a;
-            (void)rx; (void)ry; (void)rz; (void)rr; (void)rg; (void)rb; (void)ra;
+            (void)rx;
+            (void)ry;
+            (void)rz;
+            (void)rr;
+            (void)rg;
+            (void)rb;
+            (void)ra;
             g_seen_particles++;
             /*draw_particles() deactivates particles beyond the radius —
              * a WRITE to the shared pool, part of the original race.*/
@@ -123,9 +132,15 @@ static void *render_thread(void *arg) {
         pthread_mutex_lock(&g_fct_mutex);
         for (int i = 0; i < FCT_MAX_ENTRIES; i++) {
             const FloatingText *f = &g_fct[i];
-            if (!f->active) continue;
-            (void)f->offset_y; (void)f->alpha; (void)f->scale;
-            (void)f->world_x;  (void)f->world_z; (void)f->text;
+            if (!f->active) {
+                continue;
+            }
+            (void)f->offset_y;
+            (void)f->alpha;
+            (void)f->scale;
+            (void)f->world_x;
+            (void)f->world_z;
+            (void)f->text;
             g_seen_fct++;
         }
         pthread_mutex_unlock(&g_fct_mutex);
@@ -140,20 +155,18 @@ static int check_invariants(void) {
     int bad = 0;
     for (int i = 0; i < MAX_PARTICLES; i++) {
         const Particle *p = &g_particles[i];
-        if (p->active &&
-            (p->max_life <= 0.0f || p->life > p->max_life || p->life < 0.0f)) {
-            TLOG("  BAD particle %d: active with life=%.3f max_life=%.3f\n",
-                 i, p->life, p->max_life);
+        if (p->active && (p->max_life <= 0.0f || p->life > p->max_life || p->life < 0.0f)) {
+            TLOG("  BAD particle %d: active with life=%.3f max_life=%.3f\n", i, p->life,
+                 p->max_life);
             bad++;
         }
     }
     for (int i = 0; i < FCT_MAX_ENTRIES; i++) {
         const FloatingText *f = &g_fct[i];
-        if (f->active &&
-            (f->max_life <= 0.0f || f->life > f->max_life || f->life < 0.0f ||
-             f->text[FCT_TEXT_LEN - 1] != '\0')) {
-            TLOG("  BAD fct %d: active with life=%.3f max_life=%.3f text=\"%s\"\n",
-                 i, f->life, f->max_life, f->text);
+        if (f->active && (f->max_life <= 0.0f || f->life > f->max_life || f->life < 0.0f ||
+                          f->text[FCT_TEXT_LEN - 1] != '\0')) {
+            TLOG("  BAD fct %d: active with life=%.3f max_life=%.3f text=\"%s\"\n", i, f->life,
+                 f->max_life, f->text);
             bad++;
         }
     }
@@ -171,19 +184,19 @@ int main(void) {
         return 1;
     }
 
-    struct timespec ts = { RUN_SECONDS, 0 };
+    struct timespec ts = {RUN_SECONDS, 0};
     nanosleep(&ts, NULL);
     g_stop = true;
     pthread_join(net_t, NULL);
     pthread_join(rend_t, NULL);
 
     int bad = check_invariants();
-    TLOG("reader observed %ld active particles and %ld active FCTs\n",
-         (long)g_seen_particles, (long)g_seen_fct);
+    TLOG("reader observed %ld active particles and %ld active FCTs\n", (long)g_seen_particles,
+         (long)g_seen_fct);
 
     if (bad > 0) {
-        printf("FAIL: %d corrupted pool entries after %ds of concurrent access\n",
-               bad, RUN_SECONDS);
+        printf("FAIL: %d corrupted pool entries after %ds of concurrent access\n", bad,
+               RUN_SECONDS);
         return 1;
     }
     if (g_seen_particles == 0 || g_seen_fct == 0) {
@@ -191,7 +204,6 @@ int main(void) {
                "(liveness — likely deadlock)\n");
         return 1;
     }
-    printf("PASS: vfx/fct pools survived %ds of concurrent spawn/update/draw\n",
-           RUN_SECONDS);
+    printf("PASS: vfx/fct pools survived %ds of concurrent spawn/update/draw\n", RUN_SECONDS);
     return 0;
 }

@@ -52,9 +52,9 @@
 #define MAX_PENDING_PER_IP 8
 /* Failed logins from one address within LOGIN_FAIL_WINDOW_MS that trigger
  * a lockout of LOGIN_LOCKOUT_MS. */
-#define LOGIN_FAIL_LIMIT 5
+#define LOGIN_FAIL_LIMIT     5
 #define LOGIN_FAIL_WINDOW_MS 60000LL
-#define LOGIN_LOCKOUT_MS 60000LL
+#define LOGIN_LOCKOUT_MS     60000LL
 
 #define CONN_IP_MAX 64
 
@@ -66,7 +66,7 @@ typedef enum {
 
 /* Lifecycle (slot = index in g_clients). */
 void conn_open(int slot, int fd, const char *peer_ip, long long now_ms);
-void conn_release(int slot);     /* frees the buffers; the fd is closed by the caller */
+void conn_release(int slot); /* frees the buffers; the fd is closed by the caller */
 bool conn_is_open(int slot);
 int conn_fd(int slot);
 int conn_slot_for_sock(int sock); /* -1 if the socket belongs to no live slot */
@@ -87,7 +87,7 @@ void conn_wipe_message(int slot);
 
 /* Send side. */
 bool conn_queue(int slot, const void *data, size_t len); /* false = slot is being dropped */
-void conn_flush(int slot);                                /* marks the slot on a hard error */
+void conn_flush(int slot);                               /* marks the slot on a hard error */
 bool conn_tx_pending(int slot);
 
 /* Deferred removal. */

@@ -25,6 +25,6 @@
 void game_init(void);
 void game_shutdown(void);
 void game_change_floor(int new_id);
-Map* game_get_current_map(void);
+Map *game_get_current_map(void);
 
 #endif

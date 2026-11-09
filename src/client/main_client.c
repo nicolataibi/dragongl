@@ -24,6 +24,7 @@
 #include <pthread.h>
 #include <termios.h>
 #include <unistd.h>
+#include "strnum.h"
 #include "client_state.h"
 #include "net.h"
 #include "render_vk.h"
@@ -43,7 +44,7 @@ int g_my_y = 0;
 int g_my_hp = 20, g_my_max_hp = 20;
 Entity g_entities[CLIENT_MAX_ENTITIES];
 int g_game_h = 8, g_game_m = 0, g_total_turns = 0;
-int g_str=10, g_dex=10, g_con=10, g_intel=10, g_wis=10, g_cha=10;
+int g_str = 10, g_dex = 10, g_con = 10, g_intel = 10, g_wis = 10, g_cha = 10;
 int g_equipped_mask = 0;
 int g_my_level = 1, g_my_xp = 0, g_my_floor = 0;
 uint64_t g_my_gold = 0;
@@ -63,16 +64,16 @@ uint32_t g_status_icons = 0;
 int g_hunger_level = 0;
 int g_my_spell_slots[10] = {0};
 int g_my_spell_slots_max[10] = {0};
-char g_eq_head[32]   = {0};
-char g_eq_neck[32]   = {0};
-char g_eq_body[32]   = {0};
-char g_eq_back[32]   = {0};
+char g_eq_head[32] = {0};
+char g_eq_neck[32] = {0};
+char g_eq_body[32] = {0};
+char g_eq_back[32] = {0};
 char g_eq_hand_r[32] = {0};
 char g_eq_hand_l[32] = {0};
-char g_eq_hands[32]  = {0};
+char g_eq_hands[32] = {0};
 char g_eq_arm_r[32] = {0};
 char g_eq_arm_l[32] = {0};
-char g_eq_feet[32]   = {0};
+char g_eq_feet[32] = {0};
 char g_eq_ring[10][32] = {{0}};
 char g_eq_belt[4][32] = {{0}};
 char g_log_lines[MAX_LOG_LINES][256];
@@ -101,8 +102,8 @@ void frame_snapshot_acquire(FrameSnapshot *snap) {
     pthread_mutex_unlock(&g_state_mutex);
 }
 
-extern void* net_thread_loop(void* arg);
-extern void* cli_thread_loop(void* arg);
+extern void *net_thread_loop(void *arg);
+extern void *cli_thread_loop(void *arg);
 
 /*Send one encoded frame. A failed send means the connection is gone:
  * the session ends (the network thread may not notice a dead peer until
@@ -122,23 +123,27 @@ static void send_frame(BinWriter *w) {
 }
 
 void client_send_move(int dx, int dy) {
-    if (g_my_entity_id == -1) return;
+    if (g_my_entity_id == -1) {
+        return;
+    }
     MsgMove m = {dx, dy};
     BinWriter w;
     bw_init(&w);
-    if (wire_put_move(&w, &m))
+    if (wire_put_move(&w, &m)) {
         send_frame(&w);
-    else
+    } else {
         bw_free(&w);
+    }
 }
 
 void client_send_text_cmd(const char *cmd) {
     BinWriter w;
     bw_init(&w);
-    if (wire_put_text_cmd(&w, cmd))
+    if (wire_put_text_cmd(&w, cmd)) {
         send_frame(&w);
-    else
+    } else {
         bw_free(&w);
+    }
 }
 
 void client_log_add(const char *text) {
@@ -149,7 +154,7 @@ void client_log_add(const char *text) {
     } else {
         // Shift lines up (copy_str guarantees NUL termination)
         for (int i = 0; i < MAX_LOG_LINES - 1; i++) {
-            copy_str(g_log_lines[i], g_log_lines[i+1], sizeof(g_log_lines[0]));
+            copy_str(g_log_lines[i], g_log_lines[i + 1], sizeof(g_log_lines[0]));
         }
         copy_str(g_log_lines[MAX_LOG_LINES - 1], text, sizeof(g_log_lines[0]));
     }
@@ -173,17 +178,19 @@ static void read_secret(const char *prompt, char *out, size_t out_len) {
     if (fgets(line, sizeof(line), stdin)) {
         char fmt[16];
         snprintf(fmt, sizeof(fmt), "%%%zus", out_len - 1);
-        if (sscanf(line, fmt, out) != 1)
+        if (sscanf(line, fmt, out) != 1) {
             out[0] = '\0';
+        }
     }
     if (tty) {
         tcsetattr(STDIN_FILENO, TCSAFLUSH, &saved);
         printf("\n");
     }
     memset(line, 0, sizeof(line));
-    if (strlen(out) >= PROTO_SECRET_LEN)
+    if (strlen(out) >= PROTO_SECRET_LEN) {
         printf("Warning: only the first %d characters are sent to the server.\n",
                PROTO_SECRET_LEN - 1);
+    }
 }
 
 int main(int argc, char **argv) {
@@ -197,21 +204,24 @@ int main(int argc, char **argv) {
     signal(SIGPIPE, SIG_IGN);
     /*The client generates no world: the map arrives from the server as
      * MSG_MAP_CHUNK packets, so start with solid rock.*/
-    for (int y = 0; y < MAP_HEIGHT; y++)
-        for (int x = 0; x < MAP_WIDTH; x++)
+    for (int y = 0; y < MAP_HEIGHT; y++) {
+        for (int x = 0; x < MAP_WIDTH; x++) {
             g_local_map[y][x] = VOXEL_ROCK;
+        }
+    }
 
     if (argc == 2 && (strcmp(argv[1], "-V") == 0 || strcmp(argv[1], "--version") == 0)) {
         printf("dragongl_client %s\n", DRAGONGL_VERSION);
         return 0;
     }
     if (argc > 3 || (argc > 1 && (strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "--help") == 0))) {
-        printf("Usage: %s [server_host [port]] | -h | -V\n"
-               "  server_host  host name, IPv4 or IPv6 address (asked if omitted; default 127.0.0.1)\n"
-               "  port         TCP port (default 8080)\n"
-               "Environment: DRAGONGL_WINDOW=WxH (window size), DRAGONGL_GPU=<index|name>,\n"
-               "             DRAGONGL_VSYNC=0, DRAGONGL_SHADER_DIR=<dir>, VK_INSTANCE_LAYERS\n",
-               argv[0]);
+        printf(
+            "Usage: %s [server_host [port]] | -h | -V\n"
+            "  server_host  host name, IPv4 or IPv6 address (asked if omitted; default 127.0.0.1)\n"
+            "  port         TCP port (default 8080)\n"
+            "Environment: DRAGONGL_WINDOW=WxH (window size), DRAGONGL_GPU=<index|name>,\n"
+            "             DRAGONGL_VSYNC=0, DRAGONGL_SHADER_DIR=<dir>, VK_INSTANCE_LAYERS\n",
+            argv[0]);
         return argc > 3 ? 2 : 0;
     }
 
@@ -257,23 +267,25 @@ int main(int argc, char **argv) {
     read_secret("Personal Password: ", password, sizeof(password));
     printf("New character? (1=Yes, 0=No):");
     if (fgets(buf, sizeof(buf), stdin)) {
-        sscanf(buf, "%d", &is_new);
+        parse_int(buf, &is_new, NULL);
     }
     /*final_age/height/weight/social: cosmetic flavour rolls only (the
      * server never uses them; the ability scores are rolled server-side).*/
-    int final_age=20, final_height=170, final_weight=70, final_social=50;
+    int final_age = 20, final_height = 170, final_weight = 70, final_social = 50;
     char sex_char = 'M';
 
     if (is_new) {
         printf("\nAvailable Races:\n");
-        for (int i=0; i<RACE_COUNT; i++) {
+        for (int i = 0; i < RACE_COUNT; i++) {
             printf("  %2d = %-16s : %s\n", i, RACES[i].name, RACES[i].description);
         }
         printf("Race ID: ");
         if (fgets(buf, sizeof(buf), stdin)) {
-            sscanf(buf, "%d", &race_id);
+            parse_int(buf, &race_id, NULL);
         }
-        if (race_id < 0 || race_id >= RACE_COUNT) race_id = 0;
+        if (race_id < 0 || race_id >= RACE_COUNT) {
+            race_id = 0;
+        }
 
         int subrace_id = -1;
         bool has_subraces = false;
@@ -287,10 +299,12 @@ int main(int argc, char **argv) {
         if (has_subraces) {
             printf("Choose Subrace (ID) or -1 for none: ");
             if (fgets(buf, sizeof(buf), stdin)) {
-                sscanf(buf, "%d", &subrace_id);
+                parse_int(buf, &subrace_id, NULL);
             }
             if (subrace_id >= 0 && subrace_id < SUBRACE_COUNT) {
-                if (SUBRACES[subrace_id].parent_race != (RaceType)race_id) subrace_id = -1;
+                if (SUBRACES[subrace_id].parent_race != (RaceType)race_id) {
+                    subrace_id = -1;
+                }
             } else {
                 subrace_id = -1;
             }
@@ -298,30 +312,39 @@ int main(int argc, char **argv) {
         g_subrace_id = subrace_id;
 
         printf("\nAvailable Classes:\n");
-        for (int i=0; i<CLASS_COUNT; i++) {
+        for (int i = 0; i < CLASS_COUNT; i++) {
             printf("  %2d = %-12s : %s\n", i, CLASSES[i].name, CLASSES[i].description);
         }
         printf("Class ID: ");
         if (fgets(buf, sizeof(buf), stdin)) {
-            sscanf(buf, "%d", &class_id);
+            parse_int(buf, &class_id, NULL);
         }
         printf("Sex (M=Male, F=Female): ");
         if (fgets(buf, sizeof(buf), stdin)) {
-            if (buf[0] == 'f' || buf[0] == 'F') sex_char = 'F';
-            else sex_char = 'M';
+            if (buf[0] == 'f' || buf[0] == 'F') {
+                sex_char = 'F';
+            } else {
+                sex_char = 'M';
+            }
         }
         int alignment = 0;
         printf("Alignment:\n");
-        for (int i=0; i<ALIGN_COUNT; i++) {
+        for (int i = 0; i < ALIGN_COUNT; i++) {
             printf("  %d=%-16s", i, ALIGNMENTS[i].name);
-            if ((i+1)%3 == 0) printf("\n");
+            if ((i + 1) % 3 == 0) {
+                printf("\n");
+            }
         }
         printf("Choice: ");
         if (fgets(buf, sizeof(buf), stdin)) {
-            sscanf(buf, "%d", &alignment);
-            if (alignment < 0 || alignment >= ALIGN_COUNT) alignment = 0;
+            parse_int(buf, &alignment, NULL);
+            if (alignment < 0 || alignment >= ALIGN_COUNT) {
+                alignment = 0;
+            }
         }
-        if (class_id < 0 || class_id >= CLASS_COUNT) class_id = 0;
+        if (class_id < 0 || class_id >= CLASS_COUNT) {
+            class_id = 0;
+        }
         g_race_id = race_id;
         g_class_id = class_id;
         g_alignment = alignment;
@@ -332,15 +355,15 @@ int main(int argc, char **argv) {
         * The rolled STR/DEX/CON/INT/WIS/CHA arrive in-game as a
         * [CHARACTER] message right after the welcome.*/
         srand(time(NULL));
-        final_age    = rules_roll_dice(3, 6) + 15;
+        final_age = rules_roll_dice(3, 6) + 15;
         final_height = rules_roll_dice(4, 10) + 140;
         final_weight = rules_roll_dice(4, 10) + 50;
         final_social = rules_roll_dice(1, 100);
 
         char full_race[64];
         if (g_subrace_id != -1) {
-            snprintf(full_race, sizeof(full_race), "%s (%s)",
-                     RACES[race_id].name, SUBRACES[g_subrace_id].name);
+            snprintf(full_race, sizeof(full_race), "%s (%s)", RACES[race_id].name,
+                     SUBRACES[g_subrace_id].name);
         } else {
             copy_str(full_race, RACES[race_id].name, sizeof(full_race));
         }
@@ -348,13 +371,13 @@ int main(int argc, char **argv) {
         printf("\n========================================================================\n");
         printf(" Name        : %-22s Age          : %5d\n", username, final_age);
         printf(" Race        : %-22s Height (cm)  : %5d\n", full_race, final_height);
-        printf(" Sex         : %-22s Weight (kg)  : %5d\n", sex_char == 'M' ? "Male" : "Female", final_weight);
+        printf(" Sex         : %-22s Weight (kg)  : %5d\n", sex_char == 'M' ? "Male" : "Female",
+               final_weight);
         printf(" Class       : %-22s Social Status: %5d\n", CLASSES[class_id].name, final_social);
         printf("Alignment : %-46s\n", ALIGNMENTS[alignment].name);
         printf(" STR/DEX/CON/INT/WIS/CHA: rolled by the server - see the\n");
         printf(" [CHARACTER] message after login.\n\n");
-        printf(" Traits      : %s%s%s\n\n", RACES[race_id].traits,
-               (g_subrace_id != -1 ? ", " : ""),
+        printf(" Traits      : %s%s%s\n\n", RACES[race_id].traits, (g_subrace_id != -1 ? ", " : ""),
                (g_subrace_id != -1 ? SUBRACES[g_subrace_id].traits : ""));
         printf("========================================================================\n");
     }
@@ -364,8 +387,8 @@ int main(int argc, char **argv) {
     if (is_new) {
         char full_race_f[64];
         if (g_subrace_id != -1) {
-            snprintf(full_race_f, sizeof(full_race_f), "%s (%s)",
-                     RACES[race_id].name, SUBRACES[g_subrace_id].name);
+            snprintf(full_race_f, sizeof(full_race_f), "%s (%s)", RACES[race_id].name,
+                     SUBRACES[g_subrace_id].name);
         } else {
             copy_str(full_race_f, RACES[race_id].name, sizeof(full_race_f));
         }
@@ -373,14 +396,14 @@ int main(int argc, char **argv) {
         printf("\n===========================================================================\n");
         printf(" Name        : %-23s  Age          : %5d\n", username, final_age);
         printf(" Race        : %-23s  Height       : %5d\n", full_race_f, final_height);
-        printf(" Sex         : %-23s  Weight       : %5d\n", sex_char == 'M' ? "Male" : "Female", final_weight);
+        printf(" Sex         : %-23s  Weight       : %5d\n", sex_char == 'M' ? "Male" : "Female",
+               final_weight);
         printf(" Class       : %-23s  Social Status: %5d\n", CLASSES[class_id].name, final_social);
         printf("Alignment   : %-23s\n", ALIGNMENTS[g_alignment].name);
         printf(" Ability scores are rolled by the server: watch for the\n");
         printf(" [CHARACTER] line after you connect.\n");
         printf("===========================================================================\n\n");
     }
-
 
     printf("Connecting to server %s port %d...\n", server_ip, server_port);
     char why[160];
@@ -407,8 +430,9 @@ int main(int argc, char **argv) {
         BinWriter w;
         bw_init(&w);
         bool ok = wire_put_login(&w, &ml) && net_send(g_server_sock, w.data, (int)w.len);
-        if (w.data)
+        if (w.data) {
             memset(w.data, 0, w.cap); /* the frame holds the passwords */
+        }
         bw_free(&w);
         memset(&ml, 0, sizeof(ml));
         memset(password, 0, sizeof(password));
@@ -421,10 +445,10 @@ int main(int argc, char **argv) {
     }
 
     net_set_nonblocking(g_server_sock);
-    
+
     pthread_create(&net_thread, NULL, net_thread_loop, NULL);
     pthread_create(&cli_thread, NULL, cli_thread_loop, NULL);
-    
+
     /*The window and its render loop; returns when the window is closed,
      *the session ends (g_running) or Vulkan cannot run.*/
     render_vk_start();

@@ -37,8 +37,9 @@
  * IPv6. Close-on-exec, SO_REUSEADDR. */
 static int listen_on(int family, int port) {
     int sock = socket(family, SOCK_STREAM | SOCK_CLOEXEC, 0);
-    if (sock < 0)
+    if (sock < 0) {
         return -1;
+    }
     int on = 1, off = 0;
     setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
     struct sockaddr_storage ss;
@@ -69,38 +70,44 @@ static int listen_on(int family, int port) {
 
 int net_create_server(int port) {
     int sock = listen_on(AF_INET6, port);
-    if (sock < 0 && (errno == EAFNOSUPPORT || errno == EADDRNOTAVAIL))
+    if (sock < 0 && (errno == EAFNOSUPPORT || errno == EADDRNOTAVAIL)) {
         sock = listen_on(AF_INET, port);
-    if (sock < 0)
+    }
+    if (sock < 0) {
         perror("bind");
+    }
     return sock;
 }
 
 /* Non-blocking connect with a deadline. Returns 0, or an errno value. */
 static int connect_with_timeout(int sock, const struct sockaddr *addr, socklen_t len,
                                 int timeout_ms) {
-    if (connect(sock, addr, len) == 0)
+    if (connect(sock, addr, len) == 0) {
         return 0;
-    if (errno != EINPROGRESS)
+    }
+    if (errno != EINPROGRESS) {
         return errno;
+    }
     struct pollfd pfd = {.fd = sock, .events = POLLOUT};
     int r;
     do {
         r = poll(&pfd, 1, timeout_ms);
     } while (r < 0 && errno == EINTR);
-    if (r == 0)
+    if (r == 0) {
         return ETIMEDOUT;
-    if (r < 0)
+    }
+    if (r < 0) {
         return errno;
+    }
     int err = 0;
     socklen_t elen = sizeof(err);
-    if (getsockopt(sock, SOL_SOCKET, SO_ERROR, &err, &elen) != 0)
+    if (getsockopt(sock, SOL_SOCKET, SO_ERROR, &err, &elen) != 0) {
         return errno;
+    }
     return err;
 }
 
-int net_connect_to_server(const char *host, int port, int timeout_ms, char *why,
-                          size_t why_len) {
+int net_connect_to_server(const char *host, int port, int timeout_ms, char *why, size_t why_len) {
     char service[16];
     snprintf(service, sizeof(service), "%d", port);
     struct addrinfo hints, *res = NULL;
@@ -115,15 +122,16 @@ int net_connect_to_server(const char *host, int port, int timeout_ms, char *why,
     }
     int sock = -1, last_err = 0;
     for (const struct addrinfo *ai = res; ai; ai = ai->ai_next) {
-        sock = socket(ai->ai_family, ai->ai_socktype | SOCK_CLOEXEC | SOCK_NONBLOCK,
-                      ai->ai_protocol);
+        sock =
+            socket(ai->ai_family, ai->ai_socktype | SOCK_CLOEXEC | SOCK_NONBLOCK, ai->ai_protocol);
         if (sock < 0) {
             last_err = errno;
             continue;
         }
         last_err = connect_with_timeout(sock, ai->ai_addr, ai->ai_addrlen, timeout_ms);
-        if (last_err == 0)
+        if (last_err == 0) {
             break;
+        }
         close(sock);
         sock = -1;
     }
@@ -157,8 +165,9 @@ bool net_send(int sock, const void *data, int len) {
     const char *buf = (const char *)data;
     int total = 0;
     int waited_ms = 0;
-    if (sock < 0 || len < 0)
+    if (sock < 0 || len < 0) {
         return false;
+    }
     while (total < len) {
         /*MSG_NOSIGNAL: a peer that already closed yields EPIPE instead of
          * a SIGPIPE that would terminate the process.*/
@@ -167,8 +176,9 @@ bool net_send(int sock, const void *data, int len) {
             total += (int)sent;
             continue;
         }
-        if (sent < 0 && errno == EINTR)
+        if (sent < 0 && errno == EINTR) {
             continue;
+        }
         if (sent < 0 && (errno == EAGAIN || errno == EWOULDBLOCK) && waited_ms < 2000) {
             struct pollfd pfd = {.fd = sock, .events = POLLOUT};
             poll(&pfd, 1, 50);
@@ -185,13 +195,15 @@ bool net_send(int sock, const void *data, int len) {
  * that SHRINKS between two calls cannot leave the old tail behind —
  * setting only dst[cap-1] would do exactly that.*/
 void copy_str(char *dst, const char *src, size_t cap) {
-    if (cap == 0)
+    if (cap == 0) {
         return;
+    }
     size_t n = 0;
     if (src) {
         n = strlen(src);
-        if (n >= cap)
+        if (n >= cap) {
             n = cap - 1;
+        }
         memcpy(dst, src, n);
     }
     dst[n] = '\0';

@@ -52,17 +52,17 @@ typedef struct {
  * case. 2513 = CLIENT_MAX_ENTITIES(512) + player + MAX_PARTICLES(2000).
  * Capacity: worst visible window = (2*55+1)^2 tiles, each up to 72
  * vertices (double door), + dynamic worst case -> 880000 keeps slack. */
-#define VKD_MAP_INST_MAX     (2u * 300u * 300u)
-#define VKD_DYN_INST_MAX     2513u
-#define VKD_ORIENTED_MAX     8u
-#define VKD_VERTEX_CAPACITY  880000u
-#define VKD_HUD_VERTS        100000u
-#define VKD_CULL_RADIUS_MAX  55.0f
-#define VKD_WORKGROUP        256u
+#define VKD_MAP_INST_MAX    (2u * 300u * 300u)
+#define VKD_DYN_INST_MAX    2513u
+#define VKD_ORIENTED_MAX    8u
+#define VKD_VERTEX_CAPACITY 880000u
+#define VKD_HUD_VERTS       100000u
+#define VKD_CULL_RADIUS_MAX 55.0f
+#define VKD_WORKGROUP       256u
 /* GLSL GpdVertex stride (vec3 pos; vec4 color; vec3 normal -> 48 B).
  * Must match the struct in shaders/gpd_mesh.glsl. The CPU never writes
  * the vertex SSBO — this constant only sizes it. */
-#define VKD_VERTEX_STRIDE    48u
+#define VKD_VERTEX_STRIDE 48u
 
 /* Instance descriptor (48 B == vec4 x3, layout matches GpdInstance in
  * shaders/gpd_mesh.glsl — keep them in sync). a.w = type: 0=box, 1=pyramid,
@@ -97,8 +97,8 @@ typedef struct {
     float player_x;
     float player_z;
     float time;
-    uint32_t count;     /* instances in the dispatch's input buffer */
-    uint32_t capacity;  /* max vertices in the frame vertex SSBO */
+    uint32_t count;    /* instances in the dispatch's input buffer */
+    uint32_t capacity; /* max vertices in the frame vertex SSBO */
 } GpdPush;
 
 /* GPU-side per-frame counters (16 B buffer == the GLSL `Counts` block
@@ -132,14 +132,25 @@ typedef struct {
     VkDeviceMemory vertex_memory;
     void *mapped_vertex_data;
 
-    VkBuffer gpd_map_inst; VkDeviceMemory gpd_map_mem; void *gpd_map_ptr;
-    VkBuffer gpd_dyn_inst; VkDeviceMemory gpd_dyn_mem; void *gpd_dyn_ptr;
-    VkBuffer gpd_oriented; VkDeviceMemory gpd_ori_mem; void *gpd_ori_ptr;
-    VkBuffer gpd_map_visible; VkDeviceMemory gpd_mvis_mem;
-    VkBuffer gpd_dyn_visible; VkDeviceMemory gpd_dvis_mem;
-    VkBuffer gpd_verts;    VkDeviceMemory gpd_vert_mem;
-    VkBuffer gpd_indirect; VkDeviceMemory gpd_ind_mem;
-    VkBuffer gpd_counts;   VkDeviceMemory gpd_cnt_mem;
+    VkBuffer gpd_map_inst;
+    VkDeviceMemory gpd_map_mem;
+    void *gpd_map_ptr;
+    VkBuffer gpd_dyn_inst;
+    VkDeviceMemory gpd_dyn_mem;
+    void *gpd_dyn_ptr;
+    VkBuffer gpd_oriented;
+    VkDeviceMemory gpd_ori_mem;
+    void *gpd_ori_ptr;
+    VkBuffer gpd_map_visible;
+    VkDeviceMemory gpd_mvis_mem;
+    VkBuffer gpd_dyn_visible;
+    VkDeviceMemory gpd_dvis_mem;
+    VkBuffer gpd_verts;
+    VkDeviceMemory gpd_vert_mem;
+    VkBuffer gpd_indirect;
+    VkDeviceMemory gpd_ind_mem;
+    VkBuffer gpd_counts;
+    VkDeviceMemory gpd_cnt_mem;
     /* One descriptor set per compute/scene pipeline use (7 total),
      * written once at creation — the buffers are stable per slot. */
     VkDescriptorSet gpd_desc_cull_map;
@@ -149,10 +160,10 @@ typedef struct {
     VkDescriptorSet gpd_desc_exp_ori;
     VkDescriptorSet gpd_desc_final;
     VkDescriptorSet gpd_desc_scene;
-    uint32_t gpd_map_count;   /* valid instances in gpd_map_inst */
+    uint32_t gpd_map_count; /* valid instances in gpd_map_inst */
     uint32_t gpd_dyn_count;
     uint32_t gpd_ori_count;
-    uint32_t gpd_slot_map_gen;/* generation of the map in gpd_map_inst */
+    uint32_t gpd_slot_map_gen; /* generation of the map in gpd_map_inst */
 } VkFrameResources;
 
 typedef struct {
@@ -180,8 +191,8 @@ typedef struct {
     VkImageView depth_image_view;
     VkPipelineLayout pipeline_layout; /* HUD: 80 B push constants */
     VkPipeline pipeline_hud;
-    VkFormat pipelines_format;        /* colour format the pipelines target */
-    bool swapchain_dirty;             /* resize / OUT_OF_DATE / SUBOPTIMAL */
+    VkFormat pipelines_format; /* colour format the pipelines target */
+    bool swapchain_dirty;      /* resize / OUT_OF_DATE / SUBOPTIMAL */
     bool device_lost;
 
     VkCommandPool command_pool;
@@ -198,16 +209,16 @@ typedef struct {
      * Each has its own set layout (different binding shapes), pipeline
      * layout (set 0 + 24 B compute push constants) and pipeline.
      */
-    VkDescriptorSetLayout gpd_ds_layout_cull;     /* {0 in, 1 vis, 2 cnt} */
-    VkDescriptorSetLayout gpd_ds_layout_exp;      /* {0 in, 1 vis, 2 cnt, 3 verts} */
-    VkDescriptorSetLayout gpd_ds_layout_exp_ori;  /* {0 in, 2 cnt, 3 verts} */
-    VkDescriptorSetLayout gpd_ds_layout_final;    /* {0 indirect, 1 cnt} */
+    VkDescriptorSetLayout gpd_ds_layout_cull;    /* {0 in, 1 vis, 2 cnt} */
+    VkDescriptorSetLayout gpd_ds_layout_exp;     /* {0 in, 1 vis, 2 cnt, 3 verts} */
+    VkDescriptorSetLayout gpd_ds_layout_exp_ori; /* {0 in, 2 cnt, 3 verts} */
+    VkDescriptorSetLayout gpd_ds_layout_final;   /* {0 indirect, 1 cnt} */
     VkPipelineLayout gpd_pl_cull;
     VkPipelineLayout gpd_pl_exp;
     VkPipelineLayout gpd_pl_exp_ori;
     VkPipelineLayout gpd_pl_final;
-    VkPipelineLayout gpd_scene_layout;            /* PC 80B + set 0 (1 binding) */
-    VkDescriptorSetLayout gpd_scene_ds_layout;    /* 1 storage binding */
+    VkPipelineLayout gpd_scene_layout;         /* PC 80B + set 0 (1 binding) */
+    VkDescriptorSetLayout gpd_scene_ds_layout; /* 1 storage binding */
     VkDescriptorPool gpd_desc_pool;
     VkPipeline gpd_pipe_cull_map;
     VkPipeline gpd_pipe_cull_dyn;

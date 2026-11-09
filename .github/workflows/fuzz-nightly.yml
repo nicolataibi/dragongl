@@ -1,0 +1,55 @@
+name: Fuzz (nightly)
+
+# The CI job fuzzes each target for 60 s on every push; this one runs them
+# for 20 minutes each every night, on a corpus kept between runs.
+on:
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+    inputs:
+      seconds:
+        description: "Seconds per target"
+        default: "1200"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fuzz-nightly
+  cancel-in-progress: false
+
+jobs:
+  fuzz:
+    name: libFuzzer (${{ inputs.seconds || '1200' }} s per target)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang libclang-rt-18-dev cmake ninja-build pkg-config libsodium-dev python3
+
+      # The corpus grows across nights; a new key every run, restored from
+      # the most recent one.
+      - name: Corpus
+        uses: actions/cache@v4
+        with:
+          path: build-quality/fuzz/corpus
+          key: fuzz-corpus-${{ github.run_id }}
+          restore-keys: fuzz-corpus-
+
+      - name: Fuzz
+        run: tools/quality.sh fuzz "${{ inputs.seconds || '1200' }}"
+
+      - name: Crash inputs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-artifacts
+          path: |
+            build-quality/fuzz/artifacts
+            build-quality/fuzz/logs
+          if-no-files-found: ignore

@@ -52,10 +52,10 @@ bool tombstone_is_expired(const Tombstone *t) {
     if (!t || !t->active) {
         return true;
     }
-    
+
     time_t now = time(NULL);
     double hours_diff = difftime(now, t->death_time) / 3600.0;
-    
+
     return hours_diff > TOMBSTONE_EXPIRE_HOURS;
 }
 
@@ -69,15 +69,17 @@ static bool tombstone_path(const Tombstone *t, char *out, size_t out_len) {
  * tombstone_save: write one tombstone to the state directory.
  * ---------------------------------------------------------------*/
 void tombstone_save(const Tombstone *t) {
-    if (!t || !t->active)
+    if (!t || !t->active) {
         return;
+    }
     char path[STATE_DIR_MAX + 128];
     if (!tombstone_path(t, path, sizeof(path))) {
         server_log("TOMB", "ERROR: tombstone path too long for %s", t->owner);
         return;
     }
-    if (persist_write_tombstone(path, t)) /*queued: failures are logged by the writer*/
+    if (persist_write_tombstone(path, t)) { /*queued: failures are logged by the writer*/
         server_log("TOMB", "Tombstone of %s saved to %s", t->owner, path);
+    }
 }
 
 /*---------------------------------------------------------------
@@ -87,8 +89,9 @@ static void tombstone_delete_file(const Tombstone *t) {
     char path[STATE_DIR_MAX + 128];
     /*Through the writer: ordered after a write of the same file that may
      * still be queued, so a recovered tombstone never reappears.*/
-    if (tombstone_path(t, path, sizeof(path)) && writer_submit_unlink(path))
+    if (tombstone_path(t, path, sizeof(path)) && writer_submit_unlink(path)) {
         server_log("TOMB", "Tombstone file of %s removed", t->owner);
+    }
 }
 
 /*---------------------------------------------------------------
@@ -103,8 +106,9 @@ void tombstone_load_all(void) {
     }
 
     char dir_path[STATE_DIR_MAX + 16];
-    if (!state_path(dir_path, sizeof(dir_path), "saves"))
+    if (!state_path(dir_path, sizeof(dir_path), "saves")) {
         return;
+    }
     DIR *dir = opendir(dir_path);
     if (!dir) {
         return;
@@ -116,46 +120,47 @@ void tombstone_load_all(void) {
             continue;
         }
         char path[STATE_DIR_MAX + 300];
-        if (snprintf(path, sizeof(path), "%s/%s", dir_path, entry->d_name) >= (int)sizeof(path))
+        if (snprintf(path, sizeof(path), "%s/%s", dir_path, entry->d_name) >= (int)sizeof(path)) {
             continue;
+        }
         Tombstone tmp;
         char why[96];
         if (persist_read_tombstone(path, &tmp, why, sizeof(why)) != BINFILE_OK) {
             server_log("TOMB", "Unreadable tombstone file: %s (%s, skip)", path, why);
             continue;
         }
-        
+
         /* Check if the tombstone has expired */
         if (tombstone_is_expired(&tmp)) {
             remove(path);
             server_log("TOMB", "Expired tombstone deleted: %s", path);
             continue;
         }
-        
+
         /*Validation of tombstone data: upper bounds matter as well —
          * a corrupted file with floor_id=5000 or x=99999 would index
          * the world out of bounds whenever the tombstone is drawn or
          * queried.*/
-        if (tmp.x < 0 || tmp.y < 0 || tmp.floor_id < 0 ||
-            tmp.x >= MAP_WIDTH || tmp.y >= MAP_HEIGHT ||
-            tmp.floor_id >= MAX_FLOORS) {
-            server_log("TOMB", "Invalid tombstone file (coordinates out of range): %s (skip)", path);
+        if (tmp.x < 0 || tmp.y < 0 || tmp.floor_id < 0 || tmp.x >= MAP_WIDTH ||
+            tmp.y >= MAP_HEIGHT || tmp.floor_id >= MAX_FLOORS) {
+            server_log("TOMB", "Invalid tombstone file (coordinates out of range): %s (skip)",
+                       path);
             continue;
         }
-        
+
         if (strlen(tmp.owner) == 0) {
             server_log("TOMB", "Invalid tombstone file (empty owner name): %s (skip)", path);
             continue;
         }
-        
+
         /*Find a free slot*/
         for (int i = 0; i < MAX_TOMBSTONES; i++) {
             if (!g_tombstones[i].active) {
                 g_tombstones[i] = tmp;
                 g_tombstones[i].active = true;
                 loaded++;
-                server_log("TOMB", "Loaded tombstone of %s (floor %d, %d,%d)",
-                           tmp.owner, tmp.floor_id, tmp.x, tmp.y);
+                server_log("TOMB", "Loaded tombstone of %s (floor %d, %d,%d)", tmp.owner,
+                           tmp.floor_id, tmp.x, tmp.y);
                 break;
             }
         }
@@ -173,10 +178,11 @@ void tombstone_create(Client *c) {
     if (!c) {
         return;
     }
-    
+
     /*Do not create tombstones on floor 0 (city)*/
     if (c->floor_id <= 0) {
-        server_log("TOMB", "WARNING: attempt to create tombstone in city for %s, ignored", c->username);
+        server_log("TOMB", "WARNING: attempt to create tombstone in city for %s, ignored",
+                   c->username);
         return;
     }
 
@@ -206,34 +212,34 @@ void tombstone_create(Client *c) {
 
     Tombstone *t = &g_tombstones[slot];
     memset(t, 0, sizeof(Tombstone));
-    t->active       = true;
-    t->x            = c->x;
-    t->y            = c->y;
-    t->floor_id     = c->floor_id;
-    t->death_time   = time(NULL);
+    t->active = true;
+    t->x = c->x;
+    t->y = c->y;
+    t->floor_id = c->floor_id;
+    t->death_time = time(NULL);
     copy_str(t->owner, c->username, sizeof(t->owner));
 
-    t->gold         = c->gold;
+    t->gold = c->gold;
     t->backpack_count = c->backpack_count;
     memcpy(t->backpack, c->backpack, sizeof(c->backpack));
-    memcpy(t->belt,    c->belt,    sizeof(c->belt));
+    memcpy(t->belt, c->belt, sizeof(c->belt));
 
-    t->slot_head    = c->slot_head;
-    t->slot_neck    = c->slot_neck;
-    t->slot_body    = c->slot_body;
-    t->slot_back    = c->slot_back;
-    t->slot_hand_r  = c->slot_hand_r;
-    t->slot_hand_l  = c->slot_hand_l;
-    t->slot_hands   = c->slot_hands;
-    t->slot_arm_r   = c->slot_arm_r;
-    t->slot_arm_l   = c->slot_arm_l;
-    t->slot_feet    = c->slot_feet;
+    t->slot_head = c->slot_head;
+    t->slot_neck = c->slot_neck;
+    t->slot_body = c->slot_body;
+    t->slot_back = c->slot_back;
+    t->slot_hand_r = c->slot_hand_r;
+    t->slot_hand_l = c->slot_hand_l;
+    t->slot_hands = c->slot_hands;
+    t->slot_arm_r = c->slot_arm_r;
+    t->slot_arm_l = c->slot_arm_l;
+    t->slot_feet = c->slot_feet;
     memcpy(t->slot_rings, c->slot_rings, sizeof(c->slot_rings));
 
     tombstone_save(t);
 
-    server_log("TOMB", "Tombstone created for %s on floor %d (%d,%d)",
-               c->username, c->floor_id, c->x, c->y);
+    server_log("TOMB", "Tombstone created for %s on floor %d (%d,%d)", c->username, c->floor_id,
+               c->x, c->y);
 }
 
 /*---------------------------------------------------------------
@@ -263,15 +269,11 @@ void tombstone_list(Client *c) {
         struct tm *tm_info = localtime(&t->death_time);
         strftime(timestr, sizeof(timestr), "%d/%m/%Y %H:%M", tm_info);
 
-        send_text_to_client(c->sock,
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        send_text_to_client(c->sock,
-            "⚰  TOMBSTONE — %s", t->owner);
-        send_text_to_client(c->sock,
-            "Floor %d | Position (%d,%d) | Died on: %s",
-            t->floor_id, t->x, t->y, timestr);
-        send_text_to_client(c->sock,
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        send_text_to_client(c->sock, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        send_text_to_client(c->sock, "⚰  TOMBSTONE — %s", t->owner);
+        send_text_to_client(c->sock, "Floor %d | Position (%d,%d) | Died on: %s", t->floor_id, t->x,
+                            t->y, timestr);
+        send_text_to_client(c->sock, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
         if (t->gold > 0) {
             send_text_to_client(c->sock, "[GOLD] %lu gp", (unsigned long)t->gold);
@@ -289,20 +291,16 @@ void tombstone_list(Client *c) {
             }
             char name[128];
             get_full_item_name(&t->backpack[j], name, sizeof(name));
-            send_text_to_client(c->sock, "   [%2d] %s (x%d)",
-                j + 1, name, t->backpack[j].stack_count > 0 ? t->backpack[j].stack_count : 1);
+            send_text_to_client(c->sock, "   [%2d] %s (x%d)", j + 1, name,
+                                t->backpack[j].stack_count > 0 ? t->backpack[j].stack_count : 1);
         }
 
         /* Equipment */
         const ItemInstance *eq[] = {
-            &t->slot_head, &t->slot_neck, &t->slot_body,
-            &t->slot_back, &t->slot_hand_r, &t->slot_hand_l,
-            &t->slot_hands, &t->slot_arm_r, &t->slot_arm_l, &t->slot_feet
-        };
-        const char *eq_names[] = {
-            "HEAD", "NECK", "BODY", "BACK",
-            "R.HAND", "L.HAND", "HANDS", "R.ARM", "L.ARM", "FEET"
-        };
+            &t->slot_head,   &t->slot_neck,  &t->slot_body,  &t->slot_back,  &t->slot_hand_r,
+            &t->slot_hand_l, &t->slot_hands, &t->slot_arm_r, &t->slot_arm_l, &t->slot_feet};
+        const char *eq_names[] = {"HEAD",   "NECK",  "BODY",  "BACK",  "R.HAND",
+                                  "L.HAND", "HANDS", "R.ARM", "L.ARM", "FEET"};
         bool has_eq = false;
         for (int j = 0; j < 10; j++) {
             if (eq[j]->template_idx < 0) {
@@ -339,14 +337,11 @@ void tombstone_list(Client *c) {
             send_text_to_client(c->sock, "   [SLOT %d] %s", j + 1, name);
         }
 
-        send_text_to_client(c->sock,
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        send_text_to_client(c->sock, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         if (strcmp(c->username, t->owner) == 0) {
-            send_text_to_client(c->sock,
-                "Type 'pickup' to recover your items.");
+            send_text_to_client(c->sock, "Type 'pickup' to recover your items.");
         } else {
-            send_text_to_client(c->sock,
-                "[WARNING] Only %s can recover these items.", t->owner);
+            send_text_to_client(c->sock, "[WARNING] Only %s can recover these items.", t->owner);
         }
         return;
     }
@@ -378,8 +373,8 @@ bool tombstone_pickup(Client *c) {
 
         /*Found a nearby tombstone*/
         if (strcmp(c->username, t->owner) != 0) {
-            send_text_to_client(c->sock,
-                "[WARNING] This tombstone belongs to %s. You cannot take items from it.",
+            send_text_to_client(
+                c->sock, "[WARNING] This tombstone belongs to %s. You cannot take items from it.",
                 t->owner);
             return false;
         }
@@ -407,7 +402,7 @@ bool tombstone_pickup(Client *c) {
             c->backpack_count++;
             t->backpack_count--;
             t->backpack[j].template_idx = -1;
-            t->backpack[j].stack_count  = 0;
+            t->backpack[j].stack_count = 0;
         }
 
         /*Recover belt (fill free slots)*/
@@ -419,23 +414,53 @@ bool tombstone_pickup(Client *c) {
                 if (c->belt[k].template_idx < 0) {
                     c->belt[k] = t->belt[j];
                     t->belt[j].template_idx = -1;
-                    t->belt[j].stack_count  = 0;
+                    t->belt[j].stack_count = 0;
                     break;
                 }
             }
         }
 
         /*Recovers equipment slots (only if empty in the character)*/
-        if (c->slot_head.template_idx < 0)    { c->slot_head    = t->slot_head;    t->slot_head.template_idx    = -1; }
-        if (c->slot_neck.template_idx < 0)    { c->slot_neck    = t->slot_neck;    t->slot_neck.template_idx    = -1; }
-        if (c->slot_body.template_idx < 0)    { c->slot_body    = t->slot_body;    t->slot_body.template_idx    = -1; }
-        if (c->slot_back.template_idx < 0)    { c->slot_back    = t->slot_back;    t->slot_back.template_idx    = -1; }
-        if (c->slot_hand_r.template_idx < 0)  { c->slot_hand_r  = t->slot_hand_r;  t->slot_hand_r.template_idx  = -1; }
-        if (c->slot_hand_l.template_idx < 0)  { c->slot_hand_l  = t->slot_hand_l;  t->slot_hand_l.template_idx  = -1; }
-        if (c->slot_hands.template_idx < 0)   { c->slot_hands   = t->slot_hands;   t->slot_hands.template_idx   = -1; }
-        if (c->slot_arm_r.template_idx < 0)   { c->slot_arm_r   = t->slot_arm_r;   t->slot_arm_r.template_idx   = -1; }
-        if (c->slot_arm_l.template_idx < 0)   { c->slot_arm_l   = t->slot_arm_l;   t->slot_arm_l.template_idx   = -1; }
-        if (c->slot_feet.template_idx < 0)    { c->slot_feet    = t->slot_feet;    t->slot_feet.template_idx    = -1; }
+        if (c->slot_head.template_idx < 0) {
+            c->slot_head = t->slot_head;
+            t->slot_head.template_idx = -1;
+        }
+        if (c->slot_neck.template_idx < 0) {
+            c->slot_neck = t->slot_neck;
+            t->slot_neck.template_idx = -1;
+        }
+        if (c->slot_body.template_idx < 0) {
+            c->slot_body = t->slot_body;
+            t->slot_body.template_idx = -1;
+        }
+        if (c->slot_back.template_idx < 0) {
+            c->slot_back = t->slot_back;
+            t->slot_back.template_idx = -1;
+        }
+        if (c->slot_hand_r.template_idx < 0) {
+            c->slot_hand_r = t->slot_hand_r;
+            t->slot_hand_r.template_idx = -1;
+        }
+        if (c->slot_hand_l.template_idx < 0) {
+            c->slot_hand_l = t->slot_hand_l;
+            t->slot_hand_l.template_idx = -1;
+        }
+        if (c->slot_hands.template_idx < 0) {
+            c->slot_hands = t->slot_hands;
+            t->slot_hands.template_idx = -1;
+        }
+        if (c->slot_arm_r.template_idx < 0) {
+            c->slot_arm_r = t->slot_arm_r;
+            t->slot_arm_r.template_idx = -1;
+        }
+        if (c->slot_arm_l.template_idx < 0) {
+            c->slot_arm_l = t->slot_arm_l;
+            t->slot_arm_l.template_idx = -1;
+        }
+        if (c->slot_feet.template_idx < 0) {
+            c->slot_feet = t->slot_feet;
+            t->slot_feet.template_idx = -1;
+        }
         for (int j = 0; j < TOMBSTONE_RINGS; j++) {
             if (t->slot_rings[j].template_idx < 0) {
                 continue;
@@ -444,7 +469,7 @@ bool tombstone_pickup(Client *c) {
                 if (c->slot_rings[k].template_idx < 0) {
                     c->slot_rings[k] = t->slot_rings[j];
                     t->slot_rings[j].template_idx = -1;
-                    t->slot_rings[j].stack_count  = 0;
+                    t->slot_rings[j].stack_count = 0;
                     break;
                 }
             }
@@ -454,23 +479,29 @@ bool tombstone_pickup(Client *c) {
          *its reduced contents — no item is destroyed.*/
         bool anything_left = false;
         for (int j = 0; j < TOMBSTONE_BACKPACK_SIZE && !anything_left; j++) {
-            if (t->backpack[j].template_idx >= 0) anything_left = true;
+            if (t->backpack[j].template_idx >= 0) {
+                anything_left = true;
+            }
         }
         for (int j = 0; j < 4 && !anything_left; j++) {
-            if (t->belt[j].template_idx >= 0) anything_left = true;
+            if (t->belt[j].template_idx >= 0) {
+                anything_left = true;
+            }
         }
         if (!anything_left) {
             const ItemInstance *eq[] = {
-                &t->slot_head, &t->slot_neck, &t->slot_body, &t->slot_back,
-                &t->slot_hand_r, &t->slot_hand_l, &t->slot_hands,
-                &t->slot_arm_r, &t->slot_arm_l, &t->slot_feet
-            };
+                &t->slot_head,   &t->slot_neck,  &t->slot_body,  &t->slot_back,  &t->slot_hand_r,
+                &t->slot_hand_l, &t->slot_hands, &t->slot_arm_r, &t->slot_arm_l, &t->slot_feet};
             for (int j = 0; j < 10 && !anything_left; j++) {
-                if (eq[j]->template_idx >= 0) anything_left = true;
+                if (eq[j]->template_idx >= 0) {
+                    anything_left = true;
+                }
             }
         }
         for (int j = 0; j < TOMBSTONE_RINGS && !anything_left; j++) {
-            if (t->slot_rings[j].template_idx >= 0) anything_left = true;
+            if (t->slot_rings[j].template_idx >= 0) {
+                anything_left = true;
+            }
         }
 
         if (anything_left) {
@@ -480,12 +511,15 @@ bool tombstone_pickup(Client *c) {
              *STILL on the map for everyone.*/
             tombstone_save(t);
             send_text_to_client(c->sock,
-                "[WARNING] You cannot carry everything — only PART of "
-                "your belongings could be recovered (gold: %lu gp). The "
-                "rest still waits in the tombstone: come back with free "
-                "space (backpack, belt or empty equipment slots).",
-                (unsigned long)gold_recovered);
-            server_log("TOMB", "%s partially recovered their tombstone on floor %d (%d,%d) — items left behind", c->username, t->floor_id, t->x, t->y);
+                                "[WARNING] You cannot carry everything — only PART of "
+                                "your belongings could be recovered (gold: %lu gp). The "
+                                "rest still waits in the tombstone: come back with free "
+                                "space (backpack, belt or empty equipment slots).",
+                                (unsigned long)gold_recovered);
+            server_log(
+                "TOMB",
+                "%s partially recovered their tombstone on floor %d (%d,%d) — items left behind",
+                c->username, t->floor_id, t->x, t->y);
             return true;
         }
 
@@ -506,15 +540,14 @@ bool tombstone_pickup(Client *c) {
             send_tombstone_remove(g_clients[ci].sock, tomb_entity_id);
         }
 
-        send_text_to_client(c->sock,
+        send_text_to_client(
+            c->sock,
             "[SYSTEM] You have recovered your items from the tombstone. Gold recovered: %lu gp.",
             (unsigned long)gold_recovered);
-        server_log("TOMB", "%s recovered their tombstone on floor %d (%d,%d)",
-                   c->username, t->floor_id, t->x, t->y);
+        server_log("TOMB", "%s recovered their tombstone on floor %d (%d,%d)", c->username,
+                   t->floor_id, t->x, t->y);
         return true;
-
     }
-    send_text_to_client(c->sock,
-        "[SYSTEM] No gravestone of yours nearby.");
+    send_text_to_client(c->sock, "[SYSTEM] No gravestone of yours nearby.");
     return false;
 }

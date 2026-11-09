@@ -8,13 +8,13 @@
  * Links every server translation unit (built with -DDRAGONGL_NO_MAIN) and
  * drives the real functions directly. Each test is selected by name on
  * the command line and returns 0 on success, 1 on failure, so CTest can
- * register one test per scenario.
- *
- * Clients are backed by socketpair()s: the server writes its text
- * replies into one end and the harness drains the other, exactly as a
- * TCP peer would.
+ * register one test per scenario. The world, the NPC table and the
+ * socketpair-backed players come from fixture.h.
  */
 
+#include "fixture.h"
+
+#include "binio.h"
 #include "classes.h"
 #include "data_loader.h"
 #include "items.h"
@@ -31,138 +31,45 @@
 #include "server_world.h"
 #include "writer.h"
 
-#include <fcntl.h>
 #include <poll.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/socket.h>
 #include <unistd.h>
 
-void save_player_data(Client *c);
-int load_player_data(Client *c, const char *password);
-
-#define CHECK(cond, ...)                                                   \
-    do {                                                                   \
-        if (!(cond)) {                                                     \
-            fprintf(stderr, "FAIL %s:%d: ", __FILE__, __LINE__);           \
-            fprintf(stderr, __VA_ARGS__);                                  \
-            fputc('\n', stderr);                                           \
-            return 1;                                                      \
-        }                                                                  \
+#define CHECK(cond, ...)                                                                           \
+    do {                                                                                           \
+        if (!(cond)) {                                                                             \
+            fprintf(stderr, "FAIL %s:%d: ", __FILE__, __LINE__);                                   \
+            fprintf(stderr, __VA_ARGS__);                                                          \
+            fputc('\n', stderr);                                                                   \
+            return 1;                                                                              \
+        }                                                                                          \
     } while (0)
 
-/* --- Fixture -------------------------------------------------------- */
-
-static Client g_test_clients[MAX_CLIENTS];
-static int g_peer_fd[MAX_CLIENTS]; /* harness side of each socketpair */
-
-static void reset_item(ItemInstance *it) {
-    memset(it, 0, sizeof(*it));
-    it->template_idx = -1;
-}
-
-static int fixture_init(const char *test_name) {
-    if (!auth_init()) {
-        fprintf(stderr, "libsodium initialization failed\n");
-        return 1;
-    }
-    char err[256], dir[160];
-    /* One state directory per test: each process locks its own. */
-    snprintf(dir, sizeof(dir), "state-%s", test_name);
-    if (!persist_init_state_dir(dir, err, sizeof(err))) {
-        fprintf(stderr, "state directory: %s\n", err);
-        return 1;
-    }
-    if (!init_data_loaders(DGL_TEST_DATA_DIR)) {
-        fprintf(stderr, "cannot load game data from %s\n", DGL_TEST_DATA_DIR);
-        return 1;
-    }
-    master_world = calloc(1, sizeof(World));
-    g_npcs = calloc(MAX_NPCS, sizeof(NPC));
-    if (!master_world || !g_npcs)
-        return 1;
-    for (int i = 0; i < MAX_NPCS; i++)
-        g_npcs[i].respawn_timer = -1;
-    memset(g_test_clients, 0, sizeof(g_test_clients));
-    g_clients = g_test_clients;
-    for (int i = 0; i < MAX_CLIENTS; i++)
-        g_peer_fd[i] = -1;
-    return 0;
-}
-
-/* A fresh, authenticated level-1 character on floor 0, with an empty
- * inventory and a live socket. */
-static Client *make_player(int slot, const char *name) {
-    Client *c = &g_test_clients[slot];
-    memset(c, 0, sizeof(*c));
-    int sv[2];
-    if (socketpair(AF_UNIX, SOCK_STREAM, 0, sv) != 0)
-        return NULL;
-    fcntl(sv[0], F_SETFL, fcntl(sv[0], F_GETFL, 0) | O_NONBLOCK);
-    fcntl(sv[1], F_SETFL, fcntl(sv[1], F_GETFL, 0) | O_NONBLOCK);
-    c->sock = sv[0];
-    g_peer_fd[slot] = sv[1];
-    conn_open(slot, sv[0], "127.0.0.1", 0);
-    c->active = true;
-    c->authenticated = true;
-    c->entity_id = 1000 + slot;
-    snprintf(c->username, sizeof(c->username), "%s", name);
-    char pwd[40];
-    snprintf(pwd, sizeof(pwd), "pw-%s", name);
-    if (!auth_hash_password(pwd, c->password_hash))
-        return NULL;
-    c->level = 1;
-    c->hp = c->max_hp = 20;
-    c->str = c->dex = c->con = c->intel = c->wis = c->cha = 10;
-    c->x = MAP_CENTER_X;
-    c->y = MAP_CENTER_Y;
-    c->floor_id = 0;
-    c->pending_trade_merchant_id = -1;
-    c->trade_offer_item_idx = -1;
-    for (int i = 0; i < MAX_BACKPACK; i++)
-        reset_item(&c->backpack[i]);
-    for (int i = 0; i < MAX_BELT; i++)
-        reset_item(&c->belt[i]);
-    for (int i = 0; i < 10; i++)
-        reset_item(&c->slot_rings[i]);
-    ItemInstance *slots[] = {&c->slot_head,   &c->slot_neck,   &c->slot_body,
-                             &c->slot_back,   &c->slot_hand_r, &c->slot_hand_l,
-                             &c->slot_hands,  &c->slot_arm_r,  &c->slot_arm_l,
-                             &c->slot_feet};
-    for (size_t i = 0; i < sizeof(slots) / sizeof(slots[0]); i++)
-        reset_item(slots[i]);
-    return c;
-}
+/* --- Fixture: fixture.h ---------------------------------------------- */
 
 static void give_item(Client *c, int template_idx) {
     ItemInstance *it = &c->backpack[c->backpack_count++];
-    reset_item(it);
+    fx_reset_item(it);
     it->template_idx = template_idx;
     it->stack_count = 1;
     it->is_identified = true;
 }
 
-/* Discard whatever the server wrote to this client. */
-static void drain(int slot) {
-    char buf[4096];
-    conn_flush(slot);
-    while (g_peer_fd[slot] >= 0 && read(g_peer_fd[slot], buf, sizeof(buf)) > 0) {
-    }
-}
-
 static void cmd(Client *c, const char *text) {
     handle_text_cmd(c, text, g_npcs);
-    drain((int)(c - g_test_clients));
+    fx_drain((int)(c - g_test_clients));
 }
 
 /* --- Persistence ------------------------------------------------------ */
 
 static int backpack_roundtrip(int count) {
-    Client *c = make_player(0, count == MAX_BACKPACK ? "fullpack" : "partpack");
+    Client *c = fx_player(0, count == MAX_BACKPACK ? "fullpack" : "partpack");
     CHECK(c != NULL, "socketpair failed");
-    for (int i = 0; i < count; i++)
+    for (int i = 0; i < count; i++) {
         give_item(c, i % item_database_size);
+    }
     save_player_data(c);
 
     static Client loaded;
@@ -173,12 +80,12 @@ static int backpack_roundtrip(int count) {
     CHECK(load_player_data(&loaded, "wrong-password") == -1, "wrong password accepted");
     int status = load_player_data(&loaded, pwd);
     CHECK(status == 1, "load_player_data returned %d", status);
-    CHECK(loaded.backpack_count == count,
-          "backpack_count after reload: expected %d, got %d", count,
+    CHECK(loaded.backpack_count == count, "backpack_count after reload: expected %d, got %d", count,
           loaded.backpack_count);
-    for (int i = 0; i < count; i++)
+    for (int i = 0; i < count; i++) {
         CHECK(loaded.backpack[i].template_idx == c->backpack[i].template_idx,
               "item %d changed on reload", i);
+    }
     CHECK(strncmp(loaded.password_hash, "$argon2id$", 10) == 0,
           "password not stored as an Argon2id string");
     return 0;
@@ -201,8 +108,8 @@ static int test_partial_backpack_roundtrip(void) {
  * item she owns and accepts. The trade must not hand bob an item alice
  * no longer has, and alice's inventory must stay consistent. */
 static int test_trade_offer_revalidated_on_accept(void) {
-    Client *alice = make_player(0, "alice");
-    Client *bob = make_player(1, "bob");
+    Client *alice = fx_player(0, "alice");
+    Client *bob = fx_player(1, "bob");
     CHECK(alice && bob, "socketpair failed");
     give_item(alice, 0);
     give_item(alice, 1);
@@ -233,8 +140,8 @@ static int test_trade_offer_revalidated_on_accept(void) {
 /* Control case: a plain exchange moves the item one way and the gold the
  * other, and nothing is created or destroyed. */
 static int test_trade_moves_item_and_gold(void) {
-    Client *alice = make_player(0, "alice");
-    Client *bob = make_player(1, "bob");
+    Client *alice = fx_player(0, "alice");
+    Client *bob = fx_player(1, "bob");
     CHECK(alice && bob, "socketpair failed");
     give_item(alice, 0);
     give_item(alice, 1);
@@ -260,12 +167,13 @@ static int test_trade_moves_item_and_gold(void) {
 /* A receiver with a full backpack: the trade is cancelled, nothing is
  * overwritten (the old code replaced backpack slot 31). */
 static int test_trade_into_full_backpack_is_cancelled(void) {
-    Client *alice = make_player(0, "alice");
-    Client *bob = make_player(1, "bob");
+    Client *alice = fx_player(0, "alice");
+    Client *bob = fx_player(1, "bob");
     CHECK(alice && bob, "socketpair failed");
     give_item(alice, 2);
-    for (int i = 0; i < MAX_BACKPACK; i++)
+    for (int i = 0; i < MAX_BACKPACK; i++) {
         give_item(bob, 3);
+    }
     int last = bob->backpack[MAX_BACKPACK - 1].template_idx;
 
     cmd(alice, "trade bob");
@@ -284,8 +192,9 @@ static int test_trade_into_full_backpack_is_cancelled(void) {
 
 static void flip_byte(const char *path, long offset) {
     FILE *f = fopen(path, "r+b");
-    if (!f)
+    if (!f) {
         return;
+    }
     fseek(f, offset, SEEK_SET);
     int ch = fgetc(f);
     fseek(f, offset, SEEK_SET);
@@ -300,18 +209,30 @@ static int test_world_roundtrip(void) {
     memset(&saved, 0, sizeof(saved));
     for (int f = 0; f < MAX_FLOORS; f++) {
         saved.floors[f].id = f;
-        for (int y = 0; y < MAP_HEIGHT; y++)
-            for (int x = 0; x < MAP_WIDTH; x++)
+        for (int y = 0; y < MAP_HEIGHT; y++) {
+            for (int x = 0; x < MAP_WIDTH; x++) {
                 saved.floors[f].map.data[0][y][x] = (VoxelType)((x * 7 + y * 13 + f) % 22);
+            }
+        }
     }
     Trap *t = &saved.floors[5].traps[0];
     saved.floors[5].trap_count = 1;
     t->type = TRAP_COUNT - 1;
-    t->x = 10; t->y = 20; t->floor_id = 5; t->detection_dc = 12; t->save_dc = 14;
-    t->damage_dice = 2; t->damage_sides = 6; t->damage_type = DMG_FIRE;
-    t->respawn_timer = 33; t->active = true; t->detected = false; t->wall_dir = 3;
+    t->x = 10;
+    t->y = 20;
+    t->floor_id = 5;
+    t->detection_dc = 12;
+    t->save_dc = 14;
+    t->damage_dice = 2;
+    t->damage_sides = 6;
+    t->damage_type = DMG_FIRE;
+    t->respawn_timer = 33;
+    t->active = true;
+    t->detected = false;
+    t->wall_dir = 3;
     saved.floors[7].crystal_respawn_count = 1;
-    saved.floors[7].crystal_respawns[0] = (CrystalRespawn){.x = 1, .y = 2, .type = 17, .respawn_timer = 99};
+    saved.floors[7].crystal_respawns[0] =
+        (CrystalRespawn){.x = 1, .y = 2, .type = 17, .respawn_timer = 99};
 
     char path[512];
     CHECK(state_path(path, sizeof(path), "world.dat"), "state path");
@@ -322,16 +243,19 @@ static int test_world_roundtrip(void) {
     for (int f = 0; f < MAX_FLOORS; f++) {
         CHECK(loaded.floors[f].id == f, "floor id");
         CHECK(memcmp(loaded.floors[f].map.data, saved.floors[f].map.data,
-                     sizeof(saved.floors[f].map.data)) == 0, "tiles of floor %d", f);
+                     sizeof(saved.floors[f].map.data)) == 0,
+              "tiles of floor %d", f);
         CHECK(loaded.floors[f].entity_grid[0][0] == 0, "entity grid not cleared");
     }
     const Trap *lt = &loaded.floors[5].traps[0];
     CHECK(loaded.floors[5].trap_count == 1 && lt->type == t->type && lt->x == 10 && lt->y == 20 &&
-          lt->save_dc == 14 && lt->damage_type == DMG_FIRE && lt->active && !lt->detected &&
-          lt->wall_dir == 3, "trap fields");
+              lt->save_dc == 14 && lt->damage_type == DMG_FIRE && lt->active && !lt->detected &&
+              lt->wall_dir == 3,
+          "trap fields");
     CHECK(loaded.floors[7].crystal_respawn_count == 1 &&
-          loaded.floors[7].crystal_respawns[0].type == 17 &&
-          loaded.floors[7].crystal_respawns[0].respawn_timer == 99, "crystal respawn");
+              loaded.floors[7].crystal_respawns[0].type == 17 &&
+              loaded.floors[7].crystal_respawns[0].respawn_timer == 99,
+          "crystal respawn");
 
     flip_byte(path, BINFILE_HEADER_SIZE + 1000);
     CHECK(persist_read_world(path, &loaded, why, sizeof(why)) == BINFILE_INVALID,
@@ -341,19 +265,59 @@ static int test_world_roundtrip(void) {
 
 /* npcs.dat: records keep their slot and their fields; transient state
  * (effects, template pointer) is not stored. */
+/* Overwrite the little-endian u32 at payload offset `at` of a container
+ * file (binio.h) and fix its CRC, as a writer of other data would have. */
+static bool rewrite_payload_u32(const char *path, size_t at, uint32_t v) {
+    FILE *f = fopen(path, "r+b");
+    if (!f) {
+        return false;
+    }
+    static uint8_t buf[1 << 20];
+    size_t n = fread(buf, 1, sizeof(buf), f);
+    bool ok = n >= BINFILE_HEADER_SIZE + at + 4;
+    if (ok) {
+        uint8_t *p = buf + BINFILE_HEADER_SIZE;
+        for (int i = 0; i < 4; i++) {
+            p[at + (size_t)i] = (uint8_t)(v >> (8 * i));
+        }
+        uint32_t crc = crc32_data(p, n - BINFILE_HEADER_SIZE);
+        for (int i = 0; i < 4; i++) {
+            buf[12 + i] = (uint8_t)(crc >> (8 * i));
+        }
+        ok = fseek(f, 0, SEEK_SET) == 0 && fwrite(buf, 1, n, f) == n;
+    }
+    return fclose(f) == 0 && ok;
+}
+
 static int test_npcs_roundtrip(void) {
     memset(g_npcs, 0, sizeof(NPC) * MAX_NPCS);
     NPC *a = &g_npcs[3];
-    a->entity_id = 42; a->x = 11; a->y = 12; a->floor_id = 4; a->hp = 30; a->max_hp = 40;
-    a->active = true; a->archetype = ARCH_MERCHANT; a->template_idx = 2; a->gold_drop = 77;
-    a->ai_ctx.behavior = AI_BEHAVIOR_MAGE; a->merchant.item_count = 2;
-    a->merchant.item_templates[1] = 9; a->merchant.item_stock[1] = 5;
+    a->entity_id = 42;
+    a->x = 11;
+    a->y = 12;
+    a->floor_id = 4;
+    a->hp = 30;
+    a->max_hp = 40;
+    a->active = true;
+    a->archetype = ARCH_MERCHANT;
+    a->template_idx = 2;
+    a->gold_drop = 77;
+    a->ai_ctx.behavior = AI_BEHAVIOR_MAGE;
+    a->merchant.item_count = 2;
+    a->merchant.item_templates[1] = 9;
+    a->merchant.item_stock[1] = 5;
     snprintf(a->merchant.shop_name, sizeof(a->merchant.shop_name), "The Iron Anvil");
-    a->merchant.spec = BOOKS_MARTIAL; a->respawn_timer = -1; a->energy = 3;
-    a->ghost_loot[29].template_idx = 1; a->ghost_loot[29].stack_count = 2;
+    a->merchant.spec = BOOKS_MARTIAL;
+    a->respawn_timer = -1;
+    a->energy = 3;
+    a->ghost_loot[29].template_idx = 1;
+    a->ghost_loot[29].stack_count = 2;
     a->effect_count = 1; /* transient: must not survive */
     NPC *b = &g_npcs[MAX_NPCS - 1];
-    b->entity_id = 43; b->floor_id = 100; b->x = 299; b->y = 299;
+    b->entity_id = 43;
+    b->floor_id = 100;
+    b->x = 299;
+    b->y = 299;
     b->template = (const MonsterTemplate *)1; /* inactive but kept (respawning) */
     b->respawn_timer = 50;
 
@@ -364,11 +328,16 @@ static int test_npcs_roundtrip(void) {
     CHECK(loaded != NULL, "out of memory");
     int next = 0, turns = 0, count = 0;
     char why[96];
-    BinFileStatus st = persist_read_npcs(path, loaded, MAX_NPCS, &next, &turns, &count, why, sizeof(why));
+    BinFileStatus st =
+        persist_read_npcs(path, loaded, MAX_NPCS, &next, &turns, &count, why, sizeof(why));
     int rc = 0;
-    if (st != BINFILE_OK) { fprintf(stderr, "FAIL read: %s\n", why); rc = 1; }
-    else if (count != 2 || next != 1234 || turns != 5678) { fprintf(stderr, "FAIL header\n"); rc = 1; }
-    else {
+    if (st != BINFILE_OK) {
+        fprintf(stderr, "FAIL read: %s\n", why);
+        rc = 1;
+    } else if (count != 2 || next != 1234 || turns != 5678) {
+        fprintf(stderr, "FAIL header\n");
+        rc = 1;
+    } else {
         const NPC *la = &loaded[3], *lb = &loaded[MAX_NPCS - 1];
         if (la->entity_id != 42 || la->x != 11 || la->hp != 30 || !la->active ||
             la->archetype != ARCH_MERCHANT || la->ai_ctx.behavior != AI_BEHAVIOR_MAGE ||
@@ -376,10 +345,26 @@ static int test_npcs_roundtrip(void) {
             strcmp(la->merchant.shop_name, "The Iron Anvil") != 0 ||
             la->merchant.spec != BOOKS_MARTIAL || la->ghost_loot[29].stack_count != 2 ||
             la->effect_count != 0 || la->template != NULL) {
-            fprintf(stderr, "FAIL npc 3 fields\n"); rc = 1;
+            fprintf(stderr, "FAIL npc 3 fields\n");
+            rc = 1;
         }
         if (lb->entity_id != 43 || lb->active || lb->respawn_timer != 50 || lb->floor_id != 100) {
-            fprintf(stderr, "FAIL npc last fields\n"); rc = 1;
+            fprintf(stderr, "FAIL npc last fields\n");
+            rc = 1;
+        }
+    }
+    /* Saved NPCs refer to monsters by index: a file written for another
+     * bestiary (a monster added, removed or renamed) is refused. The
+     * fingerprint follows the NPC capacity in the payload. */
+    if (rc == 0 && !rewrite_payload_u32(path, 4, bestiary_fingerprint() ^ 1U)) {
+        fprintf(stderr, "FAIL: cannot rewrite npcs.dat\n");
+        rc = 1;
+    } else if (rc == 0) {
+        memset(loaded, 0, sizeof(NPC) * MAX_NPCS);
+        st = persist_read_npcs(path, loaded, MAX_NPCS, &next, &turns, &count, why, sizeof(why));
+        if (st != BINFILE_INVALID || strstr(why, "another bestiary") == NULL) {
+            fprintf(stderr, "FAIL: npcs.dat of another bestiary accepted (%d)\n", (int)st);
+            rc = 1;
         }
     }
     free(loaded);
@@ -390,10 +375,16 @@ static int test_npcs_roundtrip(void) {
 static int test_tombstone_and_flags_roundtrip(void) {
     Tombstone t;
     memset(&t, 0, sizeof(t));
-    t.active = true; t.x = 5; t.y = 6; t.floor_id = 7; t.gold = 1ULL << 40;
-    t.death_time = 1700000000; t.backpack_count = 1;
+    t.active = true;
+    t.x = 5;
+    t.y = 6;
+    t.floor_id = 7;
+    t.gold = 1ULL << 40;
+    t.death_time = 1700000000;
+    t.backpack_count = 1;
     snprintf(t.owner, sizeof(t.owner), "fallen");
-    t.backpack[0].template_idx = 3; t.backpack[0].is_artifact = true;
+    t.backpack[0].template_idx = 3;
+    t.backpack[0].is_artifact = true;
     snprintf(t.backpack[0].artifact_name, sizeof(t.backpack[0].artifact_name), "Void Blade");
     t.slot_rings[9].template_idx = 4;
     char path[512];
@@ -401,10 +392,12 @@ static int test_tombstone_and_flags_roundtrip(void) {
     CHECK(persist_write_tombstone(path, &t), "tombstone write");
     Tombstone l;
     char why[96];
-    CHECK(persist_read_tombstone(path, &l, why, sizeof(why)) == BINFILE_OK, "tombstone read: %s", why);
+    CHECK(persist_read_tombstone(path, &l, why, sizeof(why)) == BINFILE_OK, "tombstone read: %s",
+          why);
     CHECK(l.gold == t.gold && l.death_time == t.death_time && strcmp(l.owner, "fallen") == 0 &&
-          l.backpack[0].is_artifact && strcmp(l.backpack[0].artifact_name, "Void Blade") == 0 &&
-          l.slot_rings[9].template_idx == 4, "tombstone fields");
+              l.backpack[0].is_artifact && strcmp(l.backpack[0].artifact_name, "Void Blade") == 0 &&
+              l.slot_rings[9].template_idx == 4,
+          "tombstone fields");
     remove(path);
 
     bool flags[5] = {true, false, true, true, false}, back[5] = {false};
@@ -423,8 +416,9 @@ static int test_tombstone_and_flags_roundtrip(void) {
 static int read_flag0(const char *path, bool *value) {
     bool f[1] = {false};
     char why[96];
-    if (persist_read_flags(path, f, 1, why, sizeof(why)) != BINFILE_OK)
+    if (persist_read_flags(path, f, 1, why, sizeof(why)) != BINFILE_OK) {
         return -1;
+    }
     *value = f[0];
     return 0;
 }
@@ -456,7 +450,7 @@ static int test_writer_queue(void) {
     CHECK(access(path, F_OK) == 0, "file missing after unlink+write");
 
     /* A save followed at once by a load sees the new contents. */
-    Client *c = make_player(0, "quick");
+    Client *c = fx_player(0, "quick");
     CHECK(c != NULL, "socketpair failed");
     for (int round = 1; round <= 5; round++) {
         c->gold = (uint64_t)round * 1000;
@@ -491,8 +485,9 @@ static int test_writer_queue(void) {
 
 static LoginJob *new_job(const char *user, const char *password) {
     LoginJob *j = calloc(1, sizeof(*j));
-    if (!j)
+    if (!j) {
         return NULL;
+    }
     snprintf(j->ml.username, sizeof(j->ml.username), "%s", user);
     snprintf(j->ml.password, sizeof(j->ml.password), "%s", password);
     if (!state_path(j->save_path, sizeof(j->save_path), "saves/%s.save", user)) {
@@ -504,9 +499,11 @@ static LoginJob *new_job(const char *user, const char *password) {
 
 static bool all_zero(const void *p, size_t n) {
     const unsigned char *b = p;
-    for (size_t i = 0; i < n; i++)
-        if (b[i])
+    for (size_t i = 0; i < n; i++) {
+        if (b[i]) {
             return false;
+        }
+    }
     return true;
 }
 
@@ -521,7 +518,7 @@ static int test_login_job_outcomes(void) {
     login_job_free(j);
 
     /* Existing character: right and wrong password. */
-    Client *c = make_player(0, "veteran");
+    Client *c = fx_player(0, "veteran");
     CHECK(c != NULL, "socketpair failed");
     c->level = 7;
     save_player_data(c);
@@ -595,23 +592,13 @@ static int test_login_worker_async(void) {
     return 0;
 }
 
-/* Everything the server wrote to this client since the last call. */
-static size_t output(int slot, char *buf, size_t cap) {
-    size_t n = 0;
-    conn_flush(slot);
-    ssize_t r;
-    while (n + 1 < cap && g_peer_fd[slot] >= 0 &&
-           (r = read(g_peer_fd[slot], buf + n, cap - 1 - n)) > 0)
-        n += (size_t)r;
-    buf[n] = '\0';
-    return n;
-}
-
 static bool output_has(const char *buf, size_t n, const char *needle) {
     size_t k = strlen(needle);
-    for (size_t i = 0; i + k <= n; i++)
-        if (memcmp(buf + i, needle, k) == 0)
+    for (size_t i = 0; i + k <= n; i++) {
+        if (memcmp(buf + i, needle, k) == 0) {
             return true;
+        }
+    }
     return false;
 }
 
@@ -620,24 +607,24 @@ static bool output_has(const char *buf, size_t n, const char *needle) {
 /* Every command of the table answers, prefixes match as before, and the
  * DM commands exist only for the dm account. */
 static int test_command_table(void) {
-    Client *c = make_player(0, "tabler");
+    Client *c = fx_player(0, "tabler");
     CHECK(c != NULL, "socketpair failed");
     static char buf[1 << 16];
-    static const char *const known[] = {"help", "?", "stats", "status", "inventory", "i",
-                                        "spells", "who", "party", "event", "look", "l",
-                                        "/look", "search", "blocks", "save", "rest"};
+    static const char *const known[] = {"help",   "?",      "stats",  "status", "inventory", "i",
+                                        "spells", "who",    "party",  "event",  "look",      "l",
+                                        "/look",  "search", "blocks", "save",   "rest"};
     for (size_t k = 0; k < sizeof(known) / sizeof(known[0]); k++) {
-        drain(0);
+        fx_drain(0);
         handle_text_cmd(c, known[k], g_npcs);
-        size_t n = output(0, buf, sizeof(buf));
+        size_t n = fx_output(0, buf, sizeof(buf));
         CHECK(n > 0, "'%s': no answer", known[k]);
         CHECK(!output_has(buf, n, "Unrecognized command"), "'%s' not recognized", known[k]);
     }
     static const char *const unknown[] = {"xyzzy", "helpme", "dm_gold 100", "", "stat"};
     for (size_t k = 0; k < sizeof(unknown) / sizeof(unknown[0]); k++) {
-        drain(0);
+        fx_drain(0);
         handle_text_cmd(c, unknown[k], g_npcs);
-        size_t n = output(0, buf, sizeof(buf));
+        size_t n = fx_output(0, buf, sizeof(buf));
         CHECK(output_has(buf, n, "Unrecognized command"), "'%s' was accepted", unknown[k]);
     }
     /* dm_* runs only for the DM, and does not hide the player commands. */
@@ -645,27 +632,27 @@ static int test_command_table(void) {
     c->is_dm = true;
     cmd(c, "dm_gold 100");
     CHECK(c->gold == gold + 100, "dm_gold: gold %llu", (unsigned long long)c->gold);
-    drain(0);
+    fx_drain(0);
     handle_text_cmd(c, "who", g_npcs);
-    size_t n = output(0, buf, sizeof(buf));
+    size_t n = fx_output(0, buf, sizeof(buf));
     CHECK(output_has(buf, n, "[WHO]"), "'who' not reached by the DM");
-    drain(0);
+    fx_drain(0);
     handle_text_cmd(c, "dm_goto", g_npcs);
-    n = output(0, buf, sizeof(buf));
+    n = fx_output(0, buf, sizeof(buf));
     CHECK(output_has(buf, n, "Usage: dm_goto"), "dm_goto without arguments: no usage");
     c->is_dm = false;
-    drain(0);
+    fx_drain(0);
     handle_text_cmd(c, "dm_goto", g_npcs);
-    n = output(0, buf, sizeof(buf));
+    n = fx_output(0, buf, sizeof(buf));
     CHECK(output_has(buf, n, "Unrecognized command"), "dm_goto known to a player");
     return 0;
 }
 
 static bool answer_has(Client *c, const char *text, const char *needle) {
     static char buf[1 << 16];
-    drain(0);
+    fx_drain(0);
     handle_text_cmd(c, text, g_npcs);
-    size_t n = output(0, buf, sizeof(buf));
+    size_t n = fx_output(0, buf, sizeof(buf));
     return output_has(buf, n, needle);
 }
 
@@ -683,12 +670,13 @@ static int test_command_words(void) {
             p = bar ? bar + 1 : NULL;
         }
     }
-    Client *c = make_player(0, "worder");
+    Client *c = fx_player(0, "worder");
     CHECK(c != NULL, "socketpair failed");
-    static const char *const words[] = {"trainer", "prayer", "useless", "getaway", "lorem",
+    static const char *const words[] = {"trainer", "prayer",    "useless", "getaway", "lorem",
                                         "repairs", "identifyx", "unbeltx", "studying"};
-    for (size_t k = 0; k < sizeof(words) / sizeof(words[0]); k++)
+    for (size_t k = 0; k < sizeof(words) / sizeof(words[0]); k++) {
         CHECK(answer_has(c, words[k], "Unrecognized command"), "'%s' was accepted", words[k]);
+    }
     CHECK(answer_has(c, "buy", "Usage: buy"), "'buy': no usage");
     CHECK(answer_has(c, "cast", "Usage: cast"), "'cast': no usage");
     CHECK(answer_has(c, "talk", "no merchant"), "'talk' far from merchants");
@@ -715,7 +703,7 @@ static int test_command_words(void) {
 /* "open <dir>" and "close <dir>": the direction used to be unreachable
  * (only the bare words matched, and they ask for a direction). */
 static int test_doors(void) {
-    Client *c = make_player(0, "doorman");
+    Client *c = fx_player(0, "doorman");
     CHECK(c != NULL, "socketpair failed");
     c->floor_id = 2;
     c->x = 60;
@@ -735,16 +723,20 @@ static int test_doors(void) {
 }
 
 static int item_named(const char *name) {
-    for (int i = 0; i < item_database_size; i++)
-        if (strcmp(item_database[i].name, name) == 0)
+    for (int i = 0; i < item_database_size; i++) {
+        if (strcmp(item_database[i].name, name) == 0) {
             return i;
+        }
+    }
     return -1;
 }
 
 static int spell_named(const char *name) {
-    for (int i = 0; i < spell_database_size; i++)
-        if (strcmp(spell_database[i].name, name) == 0)
+    for (int i = 0; i < spell_database_size; i++) {
+        if (strcmp(spell_database[i].name, name) == 0) {
             return i;
+        }
+    }
     return -1;
 }
 
@@ -752,19 +744,21 @@ static int spell_named(const char *name) {
  * temple, and cast only with the book at hand, like every other spell. */
 static int test_transit_cantrips_need_a_book(void) {
     static const char *const cantrips[] = {
-        "Ancestral Totem Call", "The Last Refrain", "Divine Recall", "The Green Path",
-        "Warrior's March", "Flowing Step", "Oathbound Passage", "Hunter's Trail",
-        "The Back Door", "Bloodline Rift", "Pact Passage", "Arcane Transit"};
+        "Ancestral Totem Call", "The Last Refrain", "Divine Recall",     "The Green Path",
+        "Warrior's March",      "Flowing Step",     "Oathbound Passage", "Hunter's Trail",
+        "The Back Door",        "Bloodline Rift",   "Pact Passage",      "Arcane Transit"};
     for (size_t k = 0; k < sizeof(cantrips) / sizeof(cantrips[0]); k++) {
         int si = spell_named(cantrips[k]);
         CHECK(si >= 0, "spell '%s' missing", cantrips[k]);
         int books = 0;
         for (int i = 0; i < item_database_size; i++) {
             const ItemTemplate *t = &item_database[i];
-            if (t->category != ITEM_BOOK || !(t->book_class_mask & spell_database[si].class_mask))
+            if (t->category != ITEM_BOOK || !(t->book_class_mask & spell_database[si].class_mask)) {
                 continue;
-            for (int b = 0; b < t->book_spell_count; b++)
+            }
+            for (int b = 0; b < t->book_spell_count; b++) {
                 books += strcmp(t->book_spell_names[b], cantrips[k]) == 0;
+            }
         }
         CHECK(books == 1, "'%s' is in %d books of its class", cantrips[k], books);
     }
@@ -778,8 +772,9 @@ static int test_transit_cantrips_need_a_book(void) {
         bool sold = false;
         for (int i = 0; i < MAX_NPCS && !sold; i++) {
             const NPC *m = &g_npcs[i];
-            if (!m->active || m->archetype != ARCH_MERCHANT)
+            if (!m->active || m->archetype != ARCH_MERCHANT) {
                 continue;
+            }
             for (int s = 0; s < m->merchant.item_count && !sold; s++) {
                 const ItemTemplate *t = &item_database[m->merchant.item_templates[s]];
                 sold = t->category == ITEM_BOOK && t->book_spell_count == 1 &&
@@ -790,7 +785,7 @@ static int test_transit_cantrips_need_a_book(void) {
     }
     memset(g_npcs, 0, sizeof(NPC) * MAX_NPCS);
 
-    Client *c = make_player(0, "wayfarer");
+    Client *c = fx_player(0, "wayfarer");
     CHECK(c != NULL, "socketpair failed");
     c->class_id = CLASS_WIZARD;
     int si = spell_named("Arcane Transit");
@@ -804,9 +799,11 @@ static int test_transit_cantrips_need_a_book(void) {
     cmd(c, "study 1");
     CHECK(!spell_known_get(c, si), "learned outside the temple");
     const TempleInfo *tw = NULL;
-    for (int i = 0; i < TEMPLE_COUNT; i++)
-        if (TEMPLES[i].cls == CLASS_WIZARD)
+    for (int i = 0; i < TEMPLE_COUNT; i++) {
+        if (TEMPLES[i].cls == CLASS_WIZARD) {
             tw = &TEMPLES[i];
+        }
+    }
     CHECK(tw != NULL, "no wizard temple");
     c->floor_id = 0;
     c->x = (tw->x0 + tw->x1) / 2;
@@ -816,16 +813,16 @@ static int test_transit_cantrips_need_a_book(void) {
 
     /* Casting: refused without the book. */
     c->backpack_count = 0;
-    reset_item(&c->backpack[0]);
-    drain(0);
+    fx_reset_item(&c->backpack[0]);
+    fx_drain(0);
     handle_text_cmd(c, "cast Arcane Transit", g_npcs);
-    size_t n = output(0, buf, sizeof(buf));
+    size_t n = fx_output(0, buf, sizeof(buf));
     CHECK(output_has(buf, n, "the book containing it is not in your inventory"),
           "cast without the book was not refused");
     give_item(c, book);
-    drain(0);
+    fx_drain(0);
     handle_text_cmd(c, "cast Arcane Transit", g_npcs);
-    n = output(0, buf, sizeof(buf));
+    n = fx_output(0, buf, sizeof(buf));
     CHECK(!output_has(buf, n, "the book containing it is not in your inventory"),
           "cast with the book was refused");
     return 0;
@@ -835,17 +832,20 @@ static int test_transit_cantrips_need_a_book(void) {
 
 static int scan_floor(int f, int *out) {
     int n = 0;
-    for (int i = 0; i < MAX_NPCS; i++)
-        if (g_npcs[i].active && g_npcs[i].floor_id == f)
+    for (int i = 0; i < MAX_NPCS; i++) {
+        if (g_npcs[i].active && g_npcs[i].floor_id == f) {
             out[n++] = i;
+        }
+    }
     return n;
 }
 
 static int walk_floor(int f, int *out) {
     int n = 0;
     FloorIter it = floor_iter(g_npcs, f);
-    for (int i; (i = floor_iter_next(&it)) >= 0;)
+    for (int i; (i = floor_iter_next(&it)) >= 0;) {
         out[n++] = i;
+    }
     return n;
 }
 
@@ -876,23 +876,28 @@ static int test_floor_walk_matches_scan(void) {
     int next = 1;
     for (int k = 0; k < 6000; k++) {
         int s = rand() % MAX_NPCS;
-        if (!g_npcs[s].active)
+        if (!g_npcs[s].active) {
             spawn_at(s, rand() % MAX_FLOORS, next++);
+        }
     }
-    if (compare_all_floors("spawned before any rebuild"))
+    if (compare_all_floors("spawned before any rebuild")) {
         return 1;
+    }
     floor_index_rebuild(g_npcs);
-    if (compare_all_floors("after the rebuild"))
+    if (compare_all_floors("after the rebuild")) {
         return 1;
+    }
     for (int k = 0; k < 4000; k++) {
         int s = rand() % MAX_NPCS;
-        if (g_npcs[s].active && rand() % 2)
+        if (g_npcs[s].active && rand() % 2) {
             npc_set_active(&g_npcs[s], false);
-        else if (!g_npcs[s].active)
+        } else if (!g_npcs[s].active) {
             spawn_at(s, rand() % MAX_FLOORS, next++);
+        }
     }
-    if (compare_all_floors("spawns and deaths since the rebuild"))
+    if (compare_all_floors("spawns and deaths since the rebuild")) {
         return 1;
+    }
 
     /* Spawned during the walk: a higher slot is met, a lower one is not. */
     memset(g_npcs, 0, sizeof(NPC) * MAX_NPCS);
@@ -905,26 +910,31 @@ static int test_floor_walk_matches_scan(void) {
     spawn_at(50, 3, next++);
     spawn_at(200, 3, next++);
     int seen[4], n = 0;
-    for (int i; (i = floor_iter_next(&it)) >= 0 && n < 4;)
+    for (int i; (i = floor_iter_next(&it)) >= 0 && n < 4;) {
         seen[n++] = i;
+    }
     CHECK(n == 2 && seen[0] == 200 && seen[1] == 300, "walk after spawns: %d slots", n);
 
     /* More NPCs on one floor than the index holds. */
     memset(g_npcs, 0, sizeof(NPC) * MAX_NPCS);
-    for (int s = 0; s < 5000; s++)
+    for (int s = 0; s < 5000; s++) {
         spawn_at(s * 7 % MAX_NPCS, 5, next++);
-    if (compare_all_floors("overflowing floor, before the rebuild"))
+    }
+    if (compare_all_floors("overflowing floor, before the rebuild")) {
         return 1;
+    }
     floor_index_rebuild(g_npcs);
-    if (compare_all_floors("overflowing floor, after the rebuild"))
+    if (compare_all_floors("overflowing floor, after the rebuild")) {
         return 1;
+    }
     return 0;
 }
 
 static int test_entity_lookup(void) {
     memset(g_npcs, 0, sizeof(NPC) * MAX_NPCS);
-    for (int s = 0; s < 3000; s++)
+    for (int s = 0; s < 3000; s++) {
         spawn_at(s * 13 % MAX_NPCS, s % MAX_FLOORS, 10 + s);
+    }
     floor_index_rebuild(g_npcs);
     for (int s = 0; s < 3000; s++) {
         NPC *n = npc_by_entity_id(g_npcs, 10 + s);
@@ -944,16 +954,18 @@ static int test_entity_lookup(void) {
 /* --- Movement ------------------------------------------------------------- */
 
 static void open_ground(int floor_id, int x0, int y0, int x1, int y1) {
-    for (int y = y0; y <= y1; y++)
-        for (int x = x0; x <= x1; x++)
+    for (int y = y0; y <= y1; y++) {
+        for (int x = x0; x <= x1; x++) {
             master_world->floors[floor_id].map.data[0][y][x] = VOXEL_FLOOR;
+        }
+    }
 }
 
 /* A step walks onto open ground, stops at a wall and at a merchant, and
  * picks up a gold pile on the way. */
 static int test_player_move(void) {
     memset(g_npcs, 0, sizeof(NPC) * MAX_NPCS);
-    Client *c = make_player(0, "walker");
+    Client *c = fx_player(0, "walker");
     CHECK(c != NULL, "socketpair failed");
     c->floor_id = 1; /* no city doors, no fountain */
     c->x = 50;
@@ -993,10 +1005,10 @@ static int test_player_move(void) {
     m->y = 50;
     spawn_at(43, 1, 5001);
     fl->entity_grid[50][53] = m->entity_id;
-    drain(0);
+    fx_drain(0);
     c->last_action_ms = 0;
     player_move(c, &east, g_test_clients, g_npcs);
-    size_t n = output(0, buf, sizeof(buf));
+    size_t n = fx_output(0, buf, sizeof(buf));
     CHECK(c->x == 52, "walked into the merchant: at %d", c->x);
     CHECK(output_has(buf, n, "[Test Shop] Welcome!"), "no greeting");
 
@@ -1039,12 +1051,16 @@ static const TestCase k_tests[] = {
 int main(int argc, char **argv) {
     if (argc != 2) {
         fprintf(stderr, "usage: %s <test>\n", argv[0]);
-        for (size_t i = 0; i < sizeof(k_tests) / sizeof(k_tests[0]); i++)
+        for (size_t i = 0; i < sizeof(k_tests) / sizeof(k_tests[0]); i++) {
             fprintf(stderr, "  %s\n", k_tests[i].name);
+        }
         return 2;
     }
-    if (fixture_init(argv[1]) != 0)
+    char state_dir[160]; /* one per test: each process locks its own */
+    snprintf(state_dir, sizeof(state_dir), "state-%s", argv[1]);
+    if (fx_init(state_dir, DGL_TEST_DATA_DIR) != 0) {
         return 1;
+    }
     for (size_t i = 0; i < sizeof(k_tests) / sizeof(k_tests[0]); i++) {
         if (strcmp(argv[1], k_tests[i].name) == 0) {
             int rc = k_tests[i].fn();

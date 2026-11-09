@@ -41,37 +41,41 @@ bool auth_init(void) {
 }
 
 void auth_wipe(void *p, size_t n) {
-    if (p && n)
+    if (p && n) {
         sodium_memzero(p, n);
+    }
 }
 
 /* --- Character passwords --------------------------------------------- */
 
 bool auth_password_acceptable(const char *pwd) {
-    if (!pwd)
+    if (!pwd) {
         return false;
+    }
     size_t n = strlen(pwd);
-    if (n < 1 || n > AUTH_SECRET_MAX)
+    if (n < 1 || n > AUTH_SECRET_MAX) {
         return false;
+    }
     for (size_t i = 0; i < n; i++) {
         unsigned char ch = (unsigned char)pwd[i];
-        if (ch < 0x20 || ch == 0x7F)
+        if (ch < 0x20 || ch == 0x7F) {
             return false;
+        }
     }
     return true;
 }
 
 bool auth_hash_password(const char *pwd, char out[AUTH_HASH_LEN]) {
-    return crypto_pwhash_str(out, pwd, strlen(pwd),
-                             crypto_pwhash_OPSLIMIT_INTERACTIVE,
+    return crypto_pwhash_str(out, pwd, strlen(pwd), crypto_pwhash_OPSLIMIT_INTERACTIVE,
                              crypto_pwhash_MEMLIMIT_INTERACTIVE) == 0;
 }
 
 bool auth_verify_password(const char *stored_hash, const char *pwd) {
     /* A stored value that is not NUL-terminated inside its field is
      * corrupt: never hand it to the parser. */
-    if (!stored_hash || !memchr(stored_hash, '\0', AUTH_HASH_LEN))
+    if (!stored_hash || !memchr(stored_hash, '\0', AUTH_HASH_LEN)) {
         return false;
+    }
     return crypto_pwhash_str_verify(stored_hash, pwd, strlen(pwd)) == 0;
 }
 
@@ -79,21 +83,24 @@ bool auth_verify_password(const char *stored_hash, const char *pwd) {
 
 const char *auth_secret_problem(const char *pwd) {
     size_t n = strlen(pwd);
-    if (n < AUTH_SECRET_MIN)
+    if (n < AUTH_SECRET_MIN) {
         return "too short (at least 8 characters)";
-    if (n > AUTH_SECRET_MAX)
+    }
+    if (n > AUTH_SECRET_MAX) {
         return "too long (at most 63 characters)";
+    }
     for (size_t i = 0; i < n; i++) {
         unsigned char ch = (unsigned char)pwd[i];
-        if (ch <= 0x20 || ch >= 0x7F)
+        if (ch <= 0x20 || ch >= 0x7F) {
             return "only printable ASCII without spaces is allowed";
+        }
     }
     return NULL;
 }
 
 static void gate_digest(const char *pwd, unsigned char out[crypto_generichash_BYTES]) {
-    crypto_generichash(out, crypto_generichash_BYTES, (const unsigned char *)pwd,
-                       strlen(pwd), g_gate_key, sizeof(g_gate_key));
+    crypto_generichash(out, crypto_generichash_BYTES, (const unsigned char *)pwd, strlen(pwd),
+                       g_gate_key, sizeof(g_gate_key));
 }
 
 void auth_set_gate_secret(const char *pwd) {
@@ -103,8 +110,9 @@ void auth_set_gate_secret(const char *pwd) {
 }
 
 bool auth_check_gate(const char *pwd) {
-    if (!g_gate_set || !pwd)
+    if (!g_gate_set || !pwd) {
         return false;
+    }
     unsigned char d[crypto_generichash_BYTES];
     gate_digest(pwd, d);
     bool ok = sodium_memcmp(d, g_gate_digest, sizeof(d)) == 0;
@@ -129,12 +137,13 @@ bool auth_check_dm(const char *pwd) {
 
 static void strip_eol(char *s) {
     size_t n = strlen(s);
-    while (n > 0 && (s[n - 1] == '\n' || s[n - 1] == '\r'))
+    while (n > 0 && (s[n - 1] == '\n' || s[n - 1] == '\r')) {
         s[--n] = '\0';
+    }
 }
 
-int auth_load_secret(const char *file, const char *env_name, char *out,
-                     size_t out_len, char *err, size_t err_len) {
+int auth_load_secret(const char *file, const char *env_name, char *out, size_t out_len, char *err,
+                     size_t err_len) {
     err[0] = '\0';
     out[0] = '\0';
     if (file) {
@@ -160,13 +169,15 @@ int auth_load_secret(const char *file, const char *env_name, char *out,
         }
         memcpy(out, line, strlen(line) + 1);
         sodium_memzero(line, sizeof(line));
-        if (loose)
+        if (loose) {
             snprintf(err, err_len, "%s is readable by group/others (chmod 600 it)", file);
+        }
         return 1;
     }
     char *value = getenv(env_name);
-    if (!value || !value[0])
+    if (!value || !value[0]) {
         return 0;
+    }
     size_t n = strlen(value);
     int rc = 1;
     if (n >= out_len) {

@@ -21,6 +21,8 @@ BuildRequires:  pkgconfig(glfw3)
 BuildRequires:  pkgconfig(vulkan)
 BuildRequires:  pkgconfig(libsodium)
 BuildRequires:  python3
+# %check: tools/check_data.py validates data/*.json against data/schema.
+BuildRequires:  python3-jsonschema
 BuildRequires:  systemd-rpm-macros
 
 # The client renders with Vulkan 1.3: it needs a Vulkan driver.
@@ -96,6 +98,7 @@ security documentation, game lore and the changelog of Dragon GL.
 
 %check
 python3 tools/check_release.py
+python3 tools/check_data.py
 # Unit tests (the Vulkan compute test skips itself without a Vulkan driver).
 cmake -S tests -B %{_vpath_builddir}-tests -DCMAKE_BUILD_TYPE=Release \
       -DDRAGONGL_HARDENING=OFF -DCMAKE_C_FLAGS="%{optflags}" \

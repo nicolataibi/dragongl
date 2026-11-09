@@ -28,7 +28,7 @@
 #define SERVER_COMBAT_H
 
 #include <stdbool.h>
-#include "../../include/net.h"
+#include "net.h"
 #include "server_entities.h"
 
 /**
@@ -44,17 +44,5 @@ void perform_attack(Client *c, NPC *t, NPC *npcs);
  * @c: Pointer to the target client.
  * @npcs: Array of all NPCs.*/
 void perform_attack_npc(NPC *n, Client *c, NPC *npcs);
-
-/**
- * send_text_to_client - Send a text message to a client.
- * @sock: Socket of the recipient client.
- * @fmt: Printf format of the message.*/
-void send_text_to_client(int sock, const char *fmt, ...);
-
-/**
- * broadcast_spell_vfx - Broadcast VFX spell to all clients on the plan.*/
-void broadcast_spell_vfx(int sx, int sy, int tx, int ty,
-                          int vfx_type, float r, float g, float b,
-                          int floor_id);
 
 #endif /* SERVER_COMBAT_H */

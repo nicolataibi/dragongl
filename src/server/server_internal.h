@@ -20,8 +20,10 @@
 #ifndef SERVER_INTERNAL_H
 #define SERVER_INTERNAL_H
 
-#include "../../include/net.h"
+#include "net.h"
 #include "server_entities.h"
+#include "server_net.h"
+#include "server_world.h"
 #include "server.h"
 #include "items.h"
 #include "rules.h"
@@ -41,15 +43,15 @@ long long get_time_ms(void);
  * at 1 client or 64. NOTE: every in-game timer expressed in rounds
  * (hunger, light, trap respawns, ...) inherits this scale — when tuning
  * a constant, convert it: 1 round = 0.2 s real.*/
-#define TICK_MS 200LL
+#define TICK_MS             200LL
 #define MAX_TICK_CATCHUP_MS (5LL * TICK_MS)
 
 // Global constants
 /*Population/respawn tuning, defined only here: do not redefine them
  * anywhere else.*/
-#define RESPAWN_TICKS 120       //~2 min at 6s/tick
-#define DENSITY_CHECK 50        //every N global rounds
-#define DENSITY_MIN_PCT 40      //emergency spawn if < 40% active
+#define RESPAWN_TICKS       120 //~2 min at 6s/tick
+#define DENSITY_CHECK       50  //every N global rounds
+#define DENSITY_MIN_PCT     40  //emergency spawn if < 40% active
 #define RESPAWN_TRAPS_TICKS 300 // ~30 min
 /*% chance that a kill will generate a loot item*/
 #define LOOT_DROP_CHANCE 60
@@ -92,7 +94,7 @@ void sync_entity_grid(NPC *npcs);
  * error the temp file is removed and the last good file is kept.*/
 /*Delete leftover *.tmp files in dir (stale from a crashed run).*/
 
-void save_bones(Client* c);
+void save_bones(Client *c);
 void drop_loot_from_monster(Client *c, NPC *killer);
 void check_level_up(Client *c);
 int get_xp_threshold(int level);
@@ -100,11 +102,6 @@ void damage_item(ItemInstance *it, int amt);
 void save_player_data(Client *c);
 /*1 loaded, 0 no save (new character), -1 wrong password, -2 unreadable.*/
 int load_player_data(Client *c, const char *password);
-void send_text_to_client(int sock, const char *fmt, ...);
-/*Queue bytes for a client (never blocks, see server_conn.h). Returns
- * false if the client is being dropped (peer gone, queue overflow): the
- * main loop reaps it at the end of the iteration.*/
-bool net_send_client(int sock, const void *data, int len);
 /*Queue a MSG_AUTH_FAIL for the client on `sock`.*/
 void send_auth_fail(int sock, const char *reason);
 /*Structured events for the floating combat text (CombatEventKind).*/
@@ -112,10 +109,7 @@ void send_combat_event(int sock, int kind, int entity_id, int amount);
 bool send_welcome(int sock, const MsgWelcome *m);
 void send_time_sync(int sock, const MsgTimeSync *m);
 void send_tombstone_remove(int sock, int entity_id);
-void send_detailed_state(Client *c);
 void server_log(const char *cat, const char *fmt, ...);
-void broadcast_spell_vfx(int sx, int sy, int tx, int ty, int vfx_type, float r, float g, float b, int floor_id);
-void send_map_chunk(int sock, Map *map, int cx, int cy, int size);
 void get_full_item_name(const ItemInstance *inst, char *buf, size_t max_len);
 float get_current_weight(Client *c);
 void print_merchant_inventory(Client *c, NPC *merchant);
@@ -125,14 +119,7 @@ void check_traps(Client *c, NPC *npcs);
 /* Update the character's deepest floor ever reached (class transit cantrips).
 * Call it every time a client's floor_id changes.*/
 void client_track_explored_floor(Client *c);
-void broadcast_nearby_entities(Client *c, NPC *npcs);
-/* Tell all clients on old_floor that c left it (hp<=0 removal message).
-* Call it whenever a player's floor_id changes (stairs, teleport, ...).*/
-void notify_player_left_floor(Client *c, int old_floor);
-/* Broadcast c's state to all clients on c->floor_id (arrival).*/
-void broadcast_player_state(Client *c);
 void handle_boss_death(Client *c, NPC *boss);
-void sync_entity_grid(NPC *npcs);
 void give_starting_gear(Client *c);
 /*NULL-safe display name for NPC messages/logs: custom_name (ghosts,
  * summons, dominated) > template name > archetype fallback. NEVER
@@ -146,11 +133,8 @@ const char *npc_name(const NPC *n);
  * entity_grid and left the client showing the dungeon).*/
 void player_respawn_town(Client *c);
 
-
-
 void get_game_time(int *h, int *m);
 float get_movement_cooldown(Client *c);
 int get_equipped_mask(Client *c);
-const int *floor_index_for(int floor_id, int *out_count);
 
 #endif // SERVER_INTERNAL_H

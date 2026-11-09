@@ -63,7 +63,7 @@ typedef uint16_t MsgType;
 #define WIRE_HEADER_SIZE 8
 /*Largest payload either side accepts (a map chunk is the biggest
  * message: 8 + 256*256 tile bytes).*/
-#define WIRE_MAX_PAYLOAD (72u * 1024u)
+#define WIRE_MAX_PAYLOAD 73728u /*72 KiB*/
 /*Largest payload a client may send (MSG_LOGIN): the server's receive
  * buffer is sized from it.*/
 #define WIRE_MAX_CLIENT_PAYLOAD 256u
@@ -76,10 +76,10 @@ typedef struct {
 } MsgHeader;
 
 /*Text field sizes, NUL included (the wire carries at most size-1 bytes).*/
-#define PROTO_NAME_LEN     32  /* username, equipment and item names */
-#define PROTO_SECRET_LEN   64  /* personal and server passwords */
-#define PROTO_TEXT_LEN     256 /* MSG_TEXT, MSG_TEXT_CMD */
-#define PROTO_REASON_LEN   128 /* MSG_AUTH_FAIL */
+#define PROTO_NAME_LEN   32  /* username, equipment and item names */
+#define PROTO_SECRET_LEN 64  /* personal and server passwords */
+#define PROTO_TEXT_LEN   256 /* MSG_TEXT, MSG_TEXT_CMD */
+#define PROTO_REASON_LEN 128 /* MSG_AUTH_FAIL */
 
 /*MSG_LOGIN. Creation fields (race..alignment) are used only when the
  * character does not exist yet; the ability scores are rolled by the
@@ -223,13 +223,13 @@ typedef struct {
 typedef enum {
     COMBAT_EV_DAMAGE_TAKEN = 1, /* the player lost `amount` HP */
     COMBAT_EV_DAMAGE_DEALT = 2, /* the player hit a monster for `amount` */
-    COMBAT_EV_CRITICAL     = 3, /* ... with a critical hit */
-    COMBAT_EV_MISS_TAKEN   = 4, /* a monster missed the player */
-    COMBAT_EV_MISS_DEALT   = 5, /* the player missed */
-    COMBAT_EV_HEAL         = 6, /* the player recovered `amount` HP */
-    COMBAT_EV_GOLD         = 7, /* the player picked up `amount` gold */
-    COMBAT_EV_LEVEL_UP     = 8, /* the player reached level `amount` */
-    COMBAT_EV_MAX          = 8
+    COMBAT_EV_CRITICAL = 3,     /* ... with a critical hit */
+    COMBAT_EV_MISS_TAKEN = 4,   /* a monster missed the player */
+    COMBAT_EV_MISS_DEALT = 5,   /* the player missed */
+    COMBAT_EV_HEAL = 6,         /* the player recovered `amount` HP */
+    COMBAT_EV_GOLD = 7,         /* the player picked up `amount` gold */
+    COMBAT_EV_LEVEL_UP = 8,     /* the player reached level `amount` */
+    COMBAT_EV_MAX = 8
 } CombatEventKind;
 
 typedef struct {

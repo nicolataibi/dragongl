@@ -75,8 +75,8 @@ static void on_welcome(const MsgWelcome *w) {
     g_class_id = w->class_id;
     g_alignment = w->alignment;
     pthread_mutex_unlock(&g_state_mutex);
-    printf("\n[NET] Authentication completed!\n[STAT] HP: %d/%d | Gold: %lu\n>", w->hp,
-           w->max_hp, (unsigned long)w->gold);
+    printf("\n[NET] Authentication completed!\n[STAT] HP: %d/%d | Gold: %lu\n>", w->hp, w->max_hp,
+           (unsigned long)w->gold);
     fflush(stdout);
 }
 
@@ -98,9 +98,11 @@ static void on_state(const MsgState *s) {
     static int last_floor = -1;
     pthread_mutex_lock(&g_state_mutex);
     if (last_floor != -1 && last_floor != s->floor_id) {
-        for (int ly = 0; ly < MAP_HEIGHT; ly++)
-            for (int lx = 0; lx < MAP_WIDTH; lx++)
+        for (int ly = 0; ly < MAP_HEIGHT; ly++) {
+            for (int lx = 0; lx < MAP_WIDTH; lx++) {
                 g_local_map[ly][lx] = VOXEL_ROCK;
+            }
+        }
         /*Floor change: every cached entity belongs to the old floor.*/
         for (int li = 0; li < CLIENT_MAX_ENTITIES; li++) {
             g_entities[li].active = false;
@@ -153,10 +155,12 @@ static void on_state(const MsgState *s) {
         copy_str(g_eq_arm_r, s->eq_arm_r, sizeof(g_eq_arm_r));
         copy_str(g_eq_arm_l, s->eq_arm_l, sizeof(g_eq_arm_l));
         copy_str(g_eq_feet, s->eq_feet, sizeof(g_eq_feet));
-        for (int i = 0; i < 10; i++)
+        for (int i = 0; i < 10; i++) {
             copy_str(g_eq_ring[i], s->eq_ring[i], sizeof(g_eq_ring[0]));
-        for (int i = 0; i < 4; i++)
+        }
+        for (int i = 0; i < 4; i++) {
             copy_str(g_eq_belt[i], s->eq_belt[i], sizeof(g_eq_belt[0]));
+        }
     } else if (s->floor_id == g_my_floor) {
         /*An NPC, tombstone or other player. hp <= 0: it died or left this
          * floor (stairs, teleport, disconnect), so it is removed.*/
@@ -177,11 +181,14 @@ static void on_state(const MsgState *s) {
             /*FEATURE LIMIT (see CLIENT_MAX_ENTITIES in client_state.h):
              * with every cache slot in use a new entity is not drawn on
              * this client. The cache is flushed on every floor change.*/
-            for (int i = 0; !slot && i < CLIENT_MAX_ENTITIES; i++)
-                if (!g_entities[i].active)
+            for (int i = 0; !slot && i < CLIENT_MAX_ENTITIES; i++) {
+                if (!g_entities[i].active) {
                     slot = &g_entities[i];
-            if (slot)
+                }
+            }
+            if (slot) {
                 set_entity(slot, s);
+            }
         }
     }
     pthread_mutex_unlock(&g_state_mutex);
@@ -220,16 +227,16 @@ static void on_map_chunk(const MsgMapChunk *mc, const uint8_t *tiles) {
             i++;
         }
     }
-    if (changed)
+    if (changed) {
         g_map_dirty = true;
+    }
     pthread_mutex_unlock(&g_state_mutex);
 }
 
 static void on_tombstone_remove(int entity_id) {
     pthread_mutex_lock(&g_state_mutex);
     for (int i = 0; i < CLIENT_MAX_ENTITIES; i++) {
-        if (g_entities[i].active && g_entities[i].id == entity_id &&
-            g_entities[i].is_tombstone) {
+        if (g_entities[i].active && g_entities[i].id == entity_id && g_entities[i].is_tombstone) {
             g_entities[i].active = false;
             g_entities[i].is_tombstone = false;
             break;
@@ -243,53 +250,60 @@ static bool handle_frame(MsgType type, const uint8_t *p, size_t n) {
     switch (type) {
     case MSG_WELCOME: {
         MsgWelcome w;
-        if (!wire_get_welcome(p, n, &w))
+        if (!wire_get_welcome(p, n, &w)) {
             return false;
+        }
         on_welcome(&w);
         return true;
     }
     case MSG_AUTH_FAIL: {
         MsgAuthFail f;
-        if (!wire_get_auth_fail(p, n, &f))
+        if (!wire_get_auth_fail(p, n, &f)) {
             return false;
+        }
         session_end("Authentication failed: %s", f.reason);
         return true;
     }
     case MSG_STATE: {
         static MsgState s; /* ~1.3 KB: not on the thread's stack every time */
-        if (!wire_get_state(p, n, &s))
+        if (!wire_get_state(p, n, &s)) {
             return false;
+        }
         on_state(&s);
         return true;
     }
     case MSG_ENTITY_UPDATE: {
         static EntityUpdateRec recs[WIRE_MAX_ENTITY_RECS];
         int count = 0;
-        if (!wire_get_entity_update(p, n, recs, WIRE_MAX_ENTITY_RECS, &count))
+        if (!wire_get_entity_update(p, n, recs, WIRE_MAX_ENTITY_RECS, &count)) {
             return false;
+        }
         on_entity_update(recs, count);
         return true;
     }
     case MSG_MAP_CHUNK: {
         MsgMapChunk mc;
         const uint8_t *tiles = NULL;
-        if (!wire_get_map_chunk(p, n, &mc, &tiles))
+        if (!wire_get_map_chunk(p, n, &mc, &tiles)) {
             return false;
+        }
         on_map_chunk(&mc, tiles);
         return true;
     }
     case MSG_SPELL_VFX: {
         MsgSpellVFX v;
-        if (!wire_get_spell_vfx(p, n, &v))
+        if (!wire_get_spell_vfx(p, n, &v)) {
             return false;
+        }
         spawn_vfx(v.vfx_type, (float)v.start_x, (float)v.start_y, (float)v.target_x,
                   (float)v.target_y, v.color_r, v.color_g, v.color_b);
         return true;
     }
     case MSG_TEXT: {
         MsgText t;
-        if (!wire_get_text(p, n, &t))
+        if (!wire_get_text(p, n, &t)) {
             return false;
+        }
         client_log_add(t.text);
         printf("\r\033[K%s\n> ", t.text);
         fflush(stdout);
@@ -297,15 +311,17 @@ static bool handle_frame(MsgType type, const uint8_t *p, size_t n) {
     }
     case MSG_COMBAT_EVENT: {
         MsgCombatEvent ev;
-        if (!wire_get_combat_event(p, n, &ev))
+        if (!wire_get_combat_event(p, n, &ev)) {
             return false;
+        }
         fct_combat_event(ev.kind, ev.amount);
         return true;
     }
     case MSG_TIME_SYNC: {
         MsgTimeSync ts;
-        if (!wire_get_time_sync(p, n, &ts))
+        if (!wire_get_time_sync(p, n, &ts)) {
             return false;
+        }
         pthread_mutex_lock(&g_state_mutex);
         g_game_h = ts.game_hour;
         g_game_m = ts.game_min;
@@ -315,8 +331,9 @@ static bool handle_frame(MsgType type, const uint8_t *p, size_t n) {
     }
     case MSG_TOMBSTONE_REMOVE: {
         MsgTombstoneRemove rm;
-        if (!wire_get_tombstone_remove(p, n, &rm))
+        if (!wire_get_tombstone_remove(p, n, &rm)) {
             return false;
+        }
         on_tombstone_remove(rm.entity_id);
         return true;
     }
@@ -346,8 +363,9 @@ static long consume_frames(const uint8_t *buf, size_t len) {
             session_end("Protocol error: unexpected message (%s).", d);
             return -1;
         }
-        if (len - off < WIRE_HEADER_SIZE + (size_t)h.length)
+        if (len - off < WIRE_HEADER_SIZE + (size_t)h.length) {
             break; /* the rest of this frame has not arrived yet */
+        }
         if (!handle_frame(h.type, buf + off + WIRE_HEADER_SIZE, h.length)) {
             char d[24];
             snprintf(d, sizeof(d), "type %u", (unsigned)h.type);
@@ -367,28 +385,32 @@ void *net_thread_loop(void *arg) {
         struct pollfd pfd = {.fd = g_server_sock, .events = POLLIN};
         int ready = poll(&pfd, 1, 100);
         if (ready < 0) {
-            if (errno == EINTR)
+            if (errno == EINTR) {
                 continue;
+            }
             session_end("Connection to the server lost (%s).", strerror(errno));
             break;
         }
-        if (ready == 0)
+        if (ready == 0) {
             continue;
+        }
         ssize_t got = recv(g_server_sock, rx + rx_len, sizeof(rx) - rx_len, 0);
         if (got == 0) {
             session_end("%s", "Server disconnected.");
             break;
         }
         if (got < 0) {
-            if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR)
+            if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) {
                 continue;
+            }
             session_end("Connection to the server lost (%s).", strerror(errno));
             break;
         }
         rx_len += (size_t)got;
         long used = consume_frames(rx, rx_len);
-        if (used < 0)
+        if (used < 0) {
             break;
+        }
         memmove(rx, rx + used, rx_len - (size_t)used);
         rx_len -= (size_t)used;
     }

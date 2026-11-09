@@ -145,11 +145,53 @@ cmake --build build-integration --parallel $(nproc)
 ctest --test-dir build-integration --output-on-failure
 ```
 
-CI (`.github/workflows/ci.yml`) runs seven jobs on every push and pull request: Release builds with clang and gcc and `-Werror`, the unit tests (Release and ASan/UBSan), the server integration tests under ASan/UBSan, the client smoke test under ASan/UBSan (Xvfb, lavapipe, Vulkan validation layer), a server-only build without any graphics package, the RPM build with rpmlint in a Fedora container, and static analysis (cppcheck and `tools/check_release.py`). cppcheck false positives are suppressed inline with `// cppcheck-suppress <id>` and a comment explaining why.
+The in-process harness (`tests/integration/server_harness.c`) and the command fuzzer share `tests/integration/fixture.h`: game data, an empty world, NPC table and socketpair-backed players. `tests/fuzz/` holds the libFuzzer targets (clang only, see below). The source lists of the server and of the shared code are defined once, in `cmake/DragonGL.cmake` (`DRAGONGL_SERVER_SRCS`, `DRAGONGL_SHARED_SRCS`), and used by the main project, the integration tests and the fuzz targets: a new translation unit is added there.
+
+### Quality checks: `tools/quality.sh`
+
+Every quality gate of CI runs locally with one command; build trees go to `build-quality/`. The clang tools must be version 18, the version CI pins (Ubuntu 24.04).
+
+| Check | What it does | Fails when |
+| --- | --- | --- |
+| `format` / `format-fix` | clang-format 18 with `.clang-format` on every C file except vendored cJSON | a file is not in the style (`format-fix` rewrites them) |
+| `tidy` | clang-tidy 18 with `.clang-tidy` on the main project, the unit and integration tests and the fuzz targets, one process per file | any finding (`WarningsAsErrors: '*'`) |
+| `data` | `tools/check_data.py`: `data/schema/*.schema.json` (JSON Schema 2020-12), references resolved by name (book spells, `cast_spell`), unique names, class consistency of books, canonical form (2-space indent, UTF-8) | any error (`tools/check_data.py --fix` rewrites the form) |
+| `metrics` | `tools/metrics.py`: function and file length, coverage | a value over `tools/quality_limits.json` |
+| `coverage` | unit + integration suites built with `-fprofile-instr-generate -fcoverage-mapping`, every process (servers spawned by the network tests included) writes its profile; `llvm-cov` report of `src/server` + `src/shared` in `build-quality/coverage/` (`report.txt`, `html/`) | line coverage under `coverage_line_percent` |
+| `tsan` | the integration suite under ThreadSanitizer: the in-process harness and the network tests with a TSan server | any report |
+| `fuzz [S]` | the libFuzzer targets of `tests/fuzz` (wire decoders, save-file readers, text commands), S seconds each (default 60), with seeds written by the targets themselves | a crash, leak or timeout; the input goes to `build-quality/fuzz/artifacts/` |
+| `all` | all of the above, fuzzing 30 s per target | |
+
+```bash
+tools/quality.sh format-fix         # before a commit that touches C code
+tools/quality.sh format tidy data   # the static checks
+tools/quality.sh coverage metrics   # numbers next to their limits
+tools/quality.sh fuzz 300           # a longer fuzzing session
+```
+
+`tools/quality_limits.json` is a ratchet: a change may tighten a limit (more coverage, shorter functions), never loosen it. A sanitizer report in a server started by `test_server.py` fails the test that started it (the server log is scanned), so the ASan/UBSan and TSan runs of the network tests are real gates.
+
+A fuzz crash is replayed with the target binary: `build-quality/fuzz/build/fuzz_text_cmd build-quality/fuzz/artifacts/fuzz_text_cmd-crash-…`. Fix it, then add the case to the integration harness or the unit tests so it stays fixed.
+
+### CI
+
+`.github/workflows/ci.yml` runs on every push and pull request:
+
+* Release builds with clang and gcc and `-Werror`;
+* the unit tests (Release and ASan/UBSan), the server integration tests under ASan/UBSan, the client smoke test under ASan/UBSan (Xvfb, lavapipe, Vulkan validation layer);
+* a server-only build without any graphics package, the RPM build with rpmlint in a Fedora container;
+* static analysis: cppcheck and `tools/check_release.py`; clang-tidy; format, game data and metrics;
+* coverage (report uploaded as an artifact and summarized on the run page), ThreadSanitizer, fuzzing 60 s per target.
+
+`.github/workflows/fuzz-nightly.yml` fuzzes each target for 20 minutes every night on a corpus kept between runs; `.github/workflows/codeql.yml` runs GitHub code scanning (security-and-quality) on `main` and weekly.
+
+False positives are suppressed where they occur, with the reason: `// cppcheck-suppress <id>` and `// NOLINT(<check>)` / `// NOLINTNEXTLINE(<check>)`. A clang-tidy check that does not fit the code base is disabled in `.clang-tidy`, with a comment that says why.
 
 ### Guidelines for Contributions:
-1. **Warning-Clean Build:** All C code must compile cleanly with `-Wall -Wextra -Wpedantic` using clang.
+1. **Warning-Clean Build:** All C code must compile cleanly with `-Wall -Wextra -Wpedantic` using clang and gcc, pass clang-tidy, and be formatted with clang-format (`tools/quality.sh format-fix`).
 2. **Data Structure Bounds:** Enum-indexed arrays must be sized using `MAX_*` sentinels to guarantee type safety without bitmask overflow.
 3. **Wire and file formats:** a message is changed in one place, its encoder/decoder pair in `src/shared/wire.c` (plus `tests/test_protocol.c`, `tests/integration/dglproto.py` and `PROTOCOL.md`), and every change increments `PROTOCOL_VERSION` in `include/protocol.h`. On-disk formats have their own version numbers in `src/server/persist.h`.
-4. **Function size:** no function longer than 300 lines; split by responsibility (see `update_world`, `check_traps`, the item and spell loaders).
+4. **Function size:** within the limits of `tools/quality_limits.json` (`tools/quality.sh metrics`); split by responsibility (see `update_world`, `check_traps`, the item and spell loaders).
 5. **Comments say why the code is the way it is now.** The history of a change (what was wrong, which defect it fixed) belongs to `CHANGELOG.md`, not to the source.
+6. **Numbers from text** go through `include/strnum.h` (`parse_int`, `parse_ll`, `parse_double`, `str_to_int`, `scan_ints`): they detect overflow and missing digits, where `atoi`/`sscanf` have undefined behavior or silently return 0.
+7. **Game data** follows `data/schema/`; a new field is added to the schema in the same change (`tools/quality.sh data`).

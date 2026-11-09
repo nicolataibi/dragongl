@@ -18,12 +18,12 @@
  */
 
 /**
- * pathfinding.h — Modulo A* per Dragon GL Server
+ * pathfinding.h — A* path search for the Dragon GL server
  *
- * Calcola il percorso ottimale su mappa 2D a tiles tra due coordinate,
- * rispettando i muri (VOXEL_WALL, VOXEL_SOLID, VOXEL_ROCK ecc.).
+ * Shortest path on the 2D tile map between two points,
+ * respecting the walls (VOXEL_WALL, VOXEL_ROCK, ...).
  *
- * Uso:
+ * Use:
  *   PathNode path[MAX_ASTAR_PATH];
  *   int steps = pathfind_astar(map, sx, sy, tx, ty, path, MAX_ASTAR_PATH);
  *   if (steps > 0) {
@@ -34,7 +34,7 @@
 #ifndef PATHFINDING_H
 #define PATHFINDING_H
 
-#include "../../include/map.h"
+#include "map.h"
 
 #define MAX_ASTAR_PATH 128
 #define MAX_ASTAR_OPEN 1024
@@ -57,10 +57,7 @@ typedef struct {
  *
  * NOTE: out_path[0] is the starting position (sx,sy).
  * out_path[1] is the first step to take.*/
-int pathfind_astar(const Map *map,
-                   int sx, int sy,
-                   int tx, int ty,
-                   PathNode *out_path,
+int pathfind_astar(const Map *map, int sx, int sy, int tx, int ty, PathNode *out_path,
                    int max_steps);
 
 #endif /* PATHFINDING_H */

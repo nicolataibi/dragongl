@@ -24,8 +24,9 @@
 /* --- Helpers ----------------------------------------------------------------- */
 
 static void put_le32(uint8_t *p, uint32_t v) {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < 4; i++) {
         p[i] = (uint8_t)(v >> (8 * i));
+    }
 }
 
 void wire_read_header(const uint8_t *buf, MsgHeader *h) {
@@ -37,10 +38,14 @@ void wire_read_header(const uint8_t *buf, MsgHeader *h) {
 
 uint32_t wire_client_payload_max(MsgType type) {
     switch (type) {
-    case MSG_LOGIN:    return 4 + 3 + (PROTO_NAME_LEN - 1) + 2 * (PROTO_SECRET_LEN - 1);
-    case MSG_MOVE:     return 2;
-    case MSG_TEXT_CMD: return 1 + (PROTO_TEXT_LEN - 1);
-    default:           return 0;
+    case MSG_LOGIN:
+        return 4 + 3 + (PROTO_NAME_LEN - 1) + 2 * (PROTO_SECRET_LEN - 1);
+    case MSG_MOVE:
+        return 2;
+    case MSG_TEXT_CMD:
+        return 1 + (PROTO_TEXT_LEN - 1);
+    default:
+        return 0;
     }
 }
 
@@ -75,8 +80,9 @@ static size_t frame_begin(BinWriter *w, MsgType type) {
 }
 
 static bool frame_end(BinWriter *w, size_t at) {
-    if (w->failed)
+    if (w->failed) {
         return false;
+    }
     size_t payload = w->len - at - WIRE_HEADER_SIZE;
     if (payload > WIRE_MAX_PAYLOAD) {
         w->len = at; /* drop the frame, keep what was there before */
@@ -89,8 +95,9 @@ static bool frame_end(BinWriter *w, size_t at) {
 /* String: u8 length + bytes. Longer strings are cut to cap-1 bytes. */
 static void put_str(BinWriter *w, const char *s, size_t cap) {
     size_t n = s ? strnlen(s, cap - 1) : 0;
-    if (n > 255)
+    if (n > 255) {
         n = 255;
+    }
     bw_u8(w, (uint8_t)n);
     bw_bytes(w, s, n);
 }
@@ -104,8 +111,9 @@ static void get_str(BinReader *r, char *out, size_t cap) {
     }
     br_bytes(r, out, n);
     out[n] = '\0';
-    if (r->failed)
+    if (r->failed) {
         out[0] = '\0';
+    }
 }
 
 static void put_i8(BinWriter *w, int v) {
@@ -139,10 +147,12 @@ static float get_f32(BinReader *r) {
 
 /* A colour channel 0..1 as a byte. */
 static void put_unit(BinWriter *w, float f) {
-    if (!(f > 0.0f))
+    if (!(f > 0.0f)) {
         f = 0.0f;
-    if (f > 1.0f)
+    }
+    if (f > 1.0f) {
         f = 1.0f;
+    }
     bw_u8(w, (uint8_t)(f * 255.0f + 0.5f));
 }
 
@@ -278,10 +288,12 @@ bool wire_put_state(BinWriter *w, const MsgState *m) {
     bw_i32(w, m->to_dmg);
     bw_u32(w, m->bosses_defeated);
     bw_i32(w, m->hunger_level);
-    for (int i = 0; i < 10; i++)
+    for (int i = 0; i < 10; i++) {
         bw_i32(w, m->spell_slots[i]);
-    for (int i = 0; i < 10; i++)
+    }
+    for (int i = 0; i < 10; i++) {
         bw_i32(w, m->spell_slots_max[i]);
+    }
     put_str(w, m->eq_head, PROTO_NAME_LEN);
     put_str(w, m->eq_neck, PROTO_NAME_LEN);
     put_str(w, m->eq_body, PROTO_NAME_LEN);
@@ -292,10 +304,12 @@ bool wire_put_state(BinWriter *w, const MsgState *m) {
     put_str(w, m->eq_arm_r, PROTO_NAME_LEN);
     put_str(w, m->eq_arm_l, PROTO_NAME_LEN);
     put_str(w, m->eq_feet, PROTO_NAME_LEN);
-    for (int i = 0; i < 10; i++)
+    for (int i = 0; i < 10; i++) {
         put_str(w, m->eq_ring[i], PROTO_NAME_LEN);
-    for (int i = 0; i < 4; i++)
+    }
+    for (int i = 0; i < 4; i++) {
         put_str(w, m->eq_belt[i], PROTO_NAME_LEN);
+    }
     bw_bool(w, m->is_merchant != 0);
     put_i8(w, m->shop_spec);
     bw_bool(w, m->is_tombstone != 0);
@@ -336,10 +350,12 @@ bool wire_get_state(const void *p, size_t n, MsgState *m) {
     m->to_dmg = br_i32(&r);
     m->bosses_defeated = br_u32(&r);
     m->hunger_level = br_i32(&r);
-    for (int i = 0; i < 10; i++)
+    for (int i = 0; i < 10; i++) {
         m->spell_slots[i] = br_i32(&r);
-    for (int i = 0; i < 10; i++)
+    }
+    for (int i = 0; i < 10; i++) {
         m->spell_slots_max[i] = br_i32(&r);
+    }
     get_str(&r, m->eq_head, PROTO_NAME_LEN);
     get_str(&r, m->eq_neck, PROTO_NAME_LEN);
     get_str(&r, m->eq_body, PROTO_NAME_LEN);
@@ -350,10 +366,12 @@ bool wire_get_state(const void *p, size_t n, MsgState *m) {
     get_str(&r, m->eq_arm_r, PROTO_NAME_LEN);
     get_str(&r, m->eq_arm_l, PROTO_NAME_LEN);
     get_str(&r, m->eq_feet, PROTO_NAME_LEN);
-    for (int i = 0; i < 10; i++)
+    for (int i = 0; i < 10; i++) {
         get_str(&r, m->eq_ring[i], PROTO_NAME_LEN);
-    for (int i = 0; i < 4; i++)
+    }
+    for (int i = 0; i < 4; i++) {
         get_str(&r, m->eq_belt[i], PROTO_NAME_LEN);
+    }
     m->is_merchant = br_bool(&r) ? 1 : 0;
     m->shop_spec = get_i8(&r);
     m->is_tombstone = br_bool(&r) ? 1 : 0;
@@ -364,8 +382,9 @@ bool wire_get_state(const void *p, size_t n, MsgState *m) {
 
 bool wire_put_map_chunk(BinWriter *w, const MsgMapChunk *m, const uint8_t *tiles) {
     if (m->width <= 0 || m->height <= 0 || m->width > WIRE_MAX_CHUNK_SIDE ||
-        m->height > WIRE_MAX_CHUNK_SIDE)
+        m->height > WIRE_MAX_CHUNK_SIDE) {
         return false;
+    }
     size_t at = frame_begin(w, MSG_MAP_CHUNK);
     put_i16(w, m->start_x);
     put_i16(w, m->start_y);
@@ -385,15 +404,19 @@ bool wire_get_map_chunk(const void *p, size_t n, MsgMapChunk *m, const uint8_t *
     m->height = (int16_t)get_i16(&r);
     if (r.failed || m->width <= 0 || m->height <= 0 || m->width > WIRE_MAX_CHUNK_SIDE ||
         m->height > WIRE_MAX_CHUNK_SIDE || m->start_x < 0 || m->start_y < 0 ||
-        m->start_x + m->width > MAP_WIDTH || m->start_y + m->height > MAP_HEIGHT)
+        m->start_x + m->width > MAP_WIDTH || m->start_y + m->height > MAP_HEIGHT) {
         return false;
+    }
     size_t count = (size_t)m->width * (size_t)m->height;
     const uint8_t *t = br_view(&r, count);
-    if (!t || !br_done(&r))
+    if (!t || !br_done(&r)) {
         return false;
-    for (size_t i = 0; i < count; i++)
-        if (t[i] >= VOXEL_COUNT)
+    }
+    for (size_t i = 0; i < count; i++) {
+        if (t[i] >= VOXEL_COUNT) {
             return false;
+        }
+    }
     *tiles = t;
     return true;
 }
@@ -482,8 +505,9 @@ bool wire_get_time_sync(const void *p, size_t n, MsgTimeSync *m) {
 }
 
 bool wire_put_entity_update(BinWriter *w, const EntityUpdateRec *recs, int count) {
-    if (count <= 0 || count > WIRE_MAX_ENTITY_RECS)
+    if (count <= 0 || count > WIRE_MAX_ENTITY_RECS) {
         return false;
+    }
     size_t at = frame_begin(w, MSG_ENTITY_UPDATE);
     bw_u16(w, (uint16_t)count);
     for (int i = 0; i < count; i++) {
@@ -495,30 +519,32 @@ bool wire_put_entity_update(BinWriter *w, const EntityUpdateRec *recs, int count
     return frame_end(w, at);
 }
 
-bool wire_get_entity_update(const void *p, size_t n, EntityUpdateRec *out, int cap,
-                            int *count) {
+bool wire_get_entity_update(const void *p, size_t n, EntityUpdateRec *out, int cap, int *count) {
     BinReader r;
     br_init(&r, p, n);
     *count = 0;
     uint32_t c = br_u16(&r);
     if (r.failed || c == 0 || c > WIRE_MAX_ENTITY_RECS || (int)c > cap ||
-        n != 2 + (size_t)c * WIRE_ENTITY_REC_SIZE)
+        n != 2 + (size_t)c * WIRE_ENTITY_REC_SIZE) {
         return false;
+    }
     for (uint32_t i = 0; i < c; i++) {
         out[i].entity_id = br_i32(&r);
         out[i].x = (int16_t)get_i16(&r);
         out[i].y = (int16_t)get_i16(&r);
         out[i].hp = br_i32(&r);
     }
-    if (!br_done(&r))
+    if (!br_done(&r)) {
         return false;
+    }
     *count = (int)c;
     return true;
 }
 
 bool wire_put_combat_event(BinWriter *w, const MsgCombatEvent *m) {
-    if (m->kind < 1 || m->kind > COMBAT_EV_MAX)
+    if (m->kind < 1 || m->kind > COMBAT_EV_MAX) {
         return false;
+    }
     size_t at = frame_begin(w, MSG_COMBAT_EVENT);
     bw_u8(w, (uint8_t)m->kind);
     bw_i32(w, m->entity_id);

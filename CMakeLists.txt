@@ -97,48 +97,11 @@ endif()
 # --- Targets ----------------------------------------------------------------------
 set(COMMON_LIBS Threads::Threads m)
 
-# Shared sources (networking, rules, map, data loading, wire protocol)
-set(SHARED_SRCS
-    src/shared/map.c
-    src/shared/game.c
-    src/shared/net.c
-    src/shared/rules.c
-    src/shared/cJSON.c
-    src/shared/data_loader.c
-    src/shared/binio.c
-    src/shared/wire.c
-)
-set_source_files_properties(src/shared/cJSON.c PROPERTIES COMPILE_OPTIONS "-Wno-keyword-macro")
+# Source lists: cmake/DragonGL.cmake
+set_source_files_properties("${DRAGONGL_ROOT}/src/shared/cJSON.c" PROPERTIES COMPILE_OPTIONS "-Wno-keyword-macro")
 
 if(DRAGONGL_BUILD_SERVER)
-    add_executable(dragongl_server
-        src/server/main_server.c
-        src/server/server_net.c
-        src/server/server_conn.c
-        src/server/auth.c
-        src/server/persist.c
-        src/server/writer.c
-        src/server/login_worker.c
-        src/server/ai.c
-        src/server/aoe.c
-        src/server/combat_log.c
-        src/server/pathfinding.c
-        src/server/server_combat.c
-        src/server/server_spawn.c
-        src/server/server_world.c
-        src/server/server_move.c
-        src/server/server_commands.c
-        src/server/cmd_character.c
-        src/server/cmd_social.c
-        src/server/cmd_shop.c
-        src/server/cmd_items.c
-        src/server/cmd_magic.c
-        src/server/cmd_world.c
-        src/server/cmd_dm.c
-        src/server/spell_router.c
-        src/server/tombstone.c
-        ${SHARED_SRCS}
-    )
+    add_executable(dragongl_server ${DRAGONGL_SERVER_SRCS} ${DRAGONGL_SHARED_SRCS})
     target_link_libraries(dragongl_server ${COMMON_LIBS} PkgConfig::SODIUM)
 endif()
 
@@ -153,7 +116,7 @@ if(DRAGONGL_BUILD_CLIENT)
         src/client/client_tome.c
         src/client/render_vk.c
         src/client/vk_init.c
-        ${SHARED_SRCS}
+        ${DRAGONGL_SHARED_SRCS}
     )
     target_include_directories(dragongl_client PRIVATE src/client)
     target_link_libraries(dragongl_client ${COMMON_LIBS} Vulkan::Vulkan PkgConfig::GLFW)

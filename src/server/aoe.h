@@ -28,11 +28,11 @@
 //Narrative texts by AoE type - used in send_text
 // -------------------------------------------------------
 typedef struct {
-    const char *cast_msg;   //Launch message
-    const char *hit_msg;    //Message for each target hit
-    const char *save_msg;   //Message when target resists (saves)
-    const char *kill_msg;   //Kill message
-    const char *cloud_msg;  //Persistent cloud creation message
+    const char *cast_msg;  //Launch message
+    const char *hit_msg;   //Message for each target hit
+    const char *save_msg;  //Message when target resists (saves)
+    const char *kill_msg;  //Kill message
+    const char *cloud_msg; //Persistent cloud creation message
 } AoeNarrative;
 
 // -------------------------------------------------------
@@ -44,26 +44,14 @@ void aoe_init_clouds(void);
 
 //Process all AoE spells
 //Returns the total number of targets hit
-int aoe_resolve_spell(
-    SpellTemplate *sp,
-    Client        *caster,
-    NPC           *npcs,
-    int            npc_count,
-    int            origin_x,
-    int            origin_y
-);
+int aoe_resolve_spell(SpellTemplate *sp, Client *caster, NPC *npcs, int npc_count, int origin_x,
+                      int origin_y);
 
 //Per-tick update: persistent cloud damage, countdown
 void aoe_update_clouds(NPC *npcs, int npc_count, Client *clients, int client_count);
 
 //Helper: Apply damage to a single NPC with narrative message
-void aoe_apply_damage_to_npc(
-    NPC           *npc,
-    Client        *caster,
-    int            dmg,
-    bool           saved,
-    const char    *effect_name,
-    const char    *kill_msg
-);
+void aoe_apply_damage_to_npc(NPC *npc, Client *caster, int dmg, bool saved, const char *effect_name,
+                             const char *kill_msg);
 
 #endif // AOE_H

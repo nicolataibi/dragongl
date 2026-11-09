@@ -1,0 +1,29 @@
+# Dragon GL C style, checked in CI with clang-format 18:
+# tools/quality.sh format verifies, tools/quality.sh format-fix applies it.
+# src/shared/cJSON.* is vendored and keeps its upstream style.
+BasedOnStyle: LLVM
+Language: Cpp
+Standard: Latest
+IndentWidth: 4
+ContinuationIndentWidth: 4
+ColumnLimit: 100
+# Include order can matter (feature macros, config headers): never reorder.
+SortIncludes: Never
+# Comments and string literals are kept as written.
+ReflowComments: false
+BreakStringLiterals: false
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortBlocksOnASingleLine: Never
+AllowShortCaseLabelsOnASingleLine: false
+AlignConsecutiveMacros: Consecutive
+AlignTrailingComments: true
+PointerAlignment: Right
+IndentCaseLabels: false
+SpaceAfterCStyleCast: false
+MaxEmptyLinesToKeep: 1
+KeepEmptyLinesAtTheStartOfBlocks: false
+InsertNewlineAtEOF: true
+# Every if/else/for/while body in braces (clang-tidy checks it too).
+InsertBraces: true

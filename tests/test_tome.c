@@ -20,36 +20,43 @@
 #include "client_tome.h"
 
 static int g_failures = 0;
-#define CHECK(cond) do { \
-    if (!(cond)) { \
-        printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond); \
-        g_failures++; \
-    } \
-} while (0)
+#define CHECK(cond)                                                                                \
+    do {                                                                                           \
+        if (!(cond)) {                                                                             \
+            printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);                                 \
+            g_failures++;                                                                          \
+        }                                                                                          \
+    } while (0)
 
 /* Shop identical to the city stores in map.c: 9x9 rock shell, 7x7 wood
  * floor, 3x2 ash chest, one door in the shell facing the city. */
 static void build_shop_map(TileType *map, int cx, int cy) {
     memset(map, VOXEL_ROCK, sizeof(TileType) * MAP_HEIGHT * MAP_WIDTH);
-    for (int y = cy - 3; y <= cy + 3; y++)
-        for (int x = cx - 3; x <= cx + 3; x++)
+    for (int y = cy - 3; y <= cy + 3; y++) {
+        for (int x = cx - 3; x <= cx + 3; x++) {
             map[y * MAP_WIDTH + x] = VOXEL_WOOD;
-    for (int y = cy - 1; y <= cy; y++)
-        for (int x = cx - 1; x <= cx + 1; x++)
+        }
+    }
+    for (int y = cy - 1; y <= cy; y++) {
+        for (int x = cx - 1; x <= cx + 1; x++) {
             map[y * MAP_WIDTH + x] = VOXEL_ASH;
+        }
+    }
     map[cy * MAP_WIDTH + (cx + 4)] = VOXEL_DOOR;
 }
 
 static void mat4_check_orthonormal(const float m[16]) {
     for (int col = 0; col < 3; col++) {
         float len2 = 0.0f;
-        for (int row = 0; row < 3; row++)
+        for (int row = 0; row < 3; row++) {
             len2 += m[col * 4 + row] * m[col * 4 + row];
+        }
         CHECK(fabsf(len2 - 1.0f) < 1e-3f);
         if (col > 0) {
             float dot = 0.0f;
-            for (int row = 0; row < 3; row++)
+            for (int row = 0; row < 3; row++) {
                 dot += m[col * 4 + row] * m[(col - 1) * 4 + row];
+            }
             CHECK(fabsf(dot) < 1e-3f);
         }
     }
@@ -58,9 +65,15 @@ static void mat4_check_orthonormal(const float m[16]) {
 /* Angle (rad) between two 3D rotation matrices, via the trace. */
 static float mat4_rot_angle(const float a[16], const float b[16]) {
     float tr = 0.0f;
-    for (int i = 0; i < 3; i++) tr += a[i * 4 + i] * b[i * 4 + i];
-    if (tr > 3.0f) tr = 3.0f;
-    if (tr < 1.0f) tr = 1.0f;
+    for (int i = 0; i < 3; i++) {
+        tr += a[i * 4 + i] * b[i * 4 + i];
+    }
+    if (tr > 3.0f) {
+        tr = 3.0f;
+    }
+    if (tr < 1.0f) {
+        tr = 1.0f;
+    }
     return acosf((tr - 1.0f) / 2.0f);
 }
 
@@ -97,13 +110,24 @@ int main(void) {
         CHECK(fabsf(dz) < 2.6f);
         CHECK(pos[1] > 0.8f && pos[1] < 2.2f);
 
-        if (fabsf(dx) > max_dx) max_dx = fabsf(dx);
-        if (fabsf(dz) > max_dz) max_dz = fabsf(dz);
-        if (pos[1] > max_h) max_h = pos[1];
-        if (pos[1] < min_h) min_h = pos[1];
+        if (fabsf(dx) > max_dx) {
+            max_dx = fabsf(dx);
+        }
+        if (fabsf(dz) > max_dz) {
+            max_dz = fabsf(dz);
+        }
+        if (pos[1] > max_h) {
+            max_h = pos[1];
+        }
+        if (pos[1] < min_h) {
+            min_h = pos[1];
+        }
 
         int cell = (int)floorf(pos[0] * 2.0f) * 100000 + (int)floorf(pos[2] * 2.0f);
-        if (cell != last_cell) { distinct_cells++; last_cell = cell; }
+        if (cell != last_cell) {
+            distinct_cells++;
+            last_cell = cell;
+        }
     }
 
     /* The trajectory must actually move around (not hover in place) */

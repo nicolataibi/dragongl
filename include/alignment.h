@@ -34,19 +34,14 @@ typedef enum {
 } AlignmentType;
 
 typedef struct {
-    const char* name;
+    const char *name;
 } AlignmentTemplate;
 
 static const AlignmentTemplate ALIGNMENTS[ALIGN_COUNT] = {
-    [ALIGN_LAWFUL_GOOD]    = { "Lawful Good" },
-    [ALIGN_NEUTRAL_GOOD]   = { "Neutral Good" },
-    [ALIGN_CHAOTIC_GOOD]   = { "Chaotic Good" },
-    [ALIGN_LAWFUL_NEUTRAL] = { "Lawful Neutral" },
-    [ALIGN_TRUE_NEUTRAL]   = { "True Neutral" },
-    [ALIGN_CHAOTIC_NEUTRAL]= { "Chaotic Neutral" },
-    [ALIGN_LAWFUL_EVIL]    = { "Lawful Evil" },
-    [ALIGN_NEUTRAL_EVIL]   = { "Neutral Evil" },
-    [ALIGN_CHAOTIC_EVIL]   = { "Chaotic Evil" }
-};
+    [ALIGN_LAWFUL_GOOD] = {"Lawful Good"},   [ALIGN_NEUTRAL_GOOD] = {"Neutral Good"},
+    [ALIGN_CHAOTIC_GOOD] = {"Chaotic Good"}, [ALIGN_LAWFUL_NEUTRAL] = {"Lawful Neutral"},
+    [ALIGN_TRUE_NEUTRAL] = {"True Neutral"}, [ALIGN_CHAOTIC_NEUTRAL] = {"Chaotic Neutral"},
+    [ALIGN_LAWFUL_EVIL] = {"Lawful Evil"},   [ALIGN_NEUTRAL_EVIL] = {"Neutral Evil"},
+    [ALIGN_CHAOTIC_EVIL] = {"Chaotic Evil"}};
 
 #endif // ALIGNMENT_H

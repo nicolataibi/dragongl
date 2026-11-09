@@ -49,8 +49,9 @@ static char g_busy_path[WRITER_PATH_MAX]; /* job in progress, "" if none */
 static unsigned g_failures;
 
 static void job_free(WriterJob *j) {
-    if (!j)
+    if (!j) {
         return;
+    }
     bw_free(&j->payload);
     free(j);
 }
@@ -58,17 +59,19 @@ static void job_free(WriterJob *j) {
 /* The disk operation itself. Returns true on success. */
 static bool job_perform(const WriterJob *j) {
     if (j->unlink_only) {
-        if (unlink(j->path) == 0 || errno == ENOENT)
+        if (unlink(j->path) == 0 || errno == ENOENT) {
             return true;
+        }
     } else if (binfile_write_atomic(j->path, j->magic, j->version, &j->payload)) {
         return true;
     }
     int saved = errno;
     char msg[128];
-    if (strerror_r(saved, msg, sizeof(msg)) != 0)
+    if (strerror_r(saved, msg, sizeof(msg)) != 0) {
         copy_str(msg, "unknown error", sizeof(msg));
-    server_log("SAVE", "Failed to %s %s (%s)%s", j->unlink_only ? "remove" : "save", j->path,
-               msg, j->unlink_only ? "." : " — previous file kept.");
+    }
+    server_log("SAVE", "Failed to %s %s (%s)%s", j->unlink_only ? "remove" : "save", j->path, msg,
+               j->unlink_only ? "." : " — previous file kept.");
     errno = saved;
     return false;
 }
@@ -77,14 +80,17 @@ static void *writer_main(void *arg) {
     (void)arg;
     pthread_mutex_lock(&g_lock);
     for (;;) {
-        while (!g_head && !g_stopping)
+        while (!g_head && !g_stopping) {
             pthread_cond_wait(&g_work, &g_lock);
-        if (!g_head)
+        }
+        if (!g_head) {
             break; /* stopping and drained */
+        }
         WriterJob *j = g_head;
         g_head = j->next;
-        if (!g_head)
+        if (!g_head) {
             g_tail = NULL;
+        }
         copy_str(g_busy_path, j->path, sizeof(g_busy_path));
         pthread_mutex_unlock(&g_lock);
 
@@ -92,8 +98,9 @@ static void *writer_main(void *arg) {
         job_free(j);
 
         pthread_mutex_lock(&g_lock);
-        if (!ok)
+        if (!ok) {
             g_failures++;
+        }
         g_busy_path[0] = '\0';
         pthread_cond_broadcast(&g_done);
     }
@@ -111,9 +118,10 @@ bool writer_start(void) {
     int rc = pthread_create(&g_thread, NULL, writer_main, NULL);
     g_running = (rc == 0);
     pthread_mutex_unlock(&g_lock);
-    if (rc != 0)
+    if (rc != 0) {
         server_log("SYS", "Cannot start the writer thread (%s): saves stay synchronous.",
                    strerror(rc));
+    }
     return rc == 0;
 }
 
@@ -148,20 +156,23 @@ bool writer_running(void) {
 static void enqueue_locked(WriterJob *j) {
     for (WriterJob **pp = &g_head; *pp; pp = &(*pp)->next) {
         WriterJob *old = *pp;
-        if (strcmp(old->path, j->path) != 0)
+        if (strcmp(old->path, j->path) != 0) {
             continue;
+        }
         j->next = old->next;
         *pp = j;
-        if (g_tail == old)
+        if (g_tail == old) {
             g_tail = j;
+        }
         job_free(old);
         return;
     }
     j->next = NULL;
-    if (g_tail)
+    if (g_tail) {
         g_tail->next = j;
-    else
+    } else {
         g_head = j;
+    }
     g_tail = j;
     pthread_cond_signal(&g_work);
 }
@@ -188,8 +199,9 @@ static WriterJob *job_new(const char *path) {
         return NULL;
     }
     WriterJob *j = calloc(1, sizeof(*j));
-    if (!j)
+    if (!j) {
         return NULL;
+    }
     copy_str(j->path, path, sizeof(j->path));
     return j;
 }
@@ -209,27 +221,33 @@ bool writer_submit(const char *path, uint32_t magic, uint16_t version, BinWriter
 
 bool writer_submit_unlink(const char *path) {
     WriterJob *j = job_new(path);
-    if (!j)
+    if (!j) {
         return false;
+    }
     j->unlink_only = true;
     return submit(j);
 }
 
 static bool pending_locked(const char *path) {
-    if (strcmp(g_busy_path, path) == 0)
+    if (strcmp(g_busy_path, path) == 0) {
         return true;
-    for (const WriterJob *j = g_head; j; j = j->next)
-        if (strcmp(j->path, path) == 0)
+    }
+    for (const WriterJob *j = g_head; j; j = j->next) {
+        if (strcmp(j->path, path) == 0) {
             return true;
+        }
+    }
     return false;
 }
 
 void writer_wait_for(const char *path) {
-    if (!path)
+    if (!path) {
         return;
+    }
     pthread_mutex_lock(&g_lock);
-    while (pending_locked(path))
+    while (pending_locked(path)) {
         pthread_cond_wait(&g_done, &g_lock);
+    }
     pthread_mutex_unlock(&g_lock);
 }
 

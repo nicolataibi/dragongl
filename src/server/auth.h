@@ -79,8 +79,8 @@ const char *auth_secret_problem(const char *pwd);
  *  -1  error (message in err).
  * A file readable by group or others is accepted with a warning in err
  * (return value 1, err non-empty). */
-int auth_load_secret(const char *file, const char *env_name, char *out,
-                     size_t out_len, char *err, size_t err_len);
+int auth_load_secret(const char *file, const char *env_name, char *out, size_t out_len, char *err,
+                     size_t err_len);
 
 void auth_wipe(void *p, size_t n);
 

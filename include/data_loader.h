@@ -21,11 +21,20 @@
 #define DATA_LOADER_H
 
 #include <stdbool.h>
+#include <stdint.h>
 
-//Initialize data structures by reading JSON files from the given directory
-bool init_data_loaders(const char* data_dir);
+/* Load bestiary.json, spells.json and items.json from data_dir. False if
+ * any of them cannot be read or parsed (the reason is on stderr): the
+ * server refuses to start without its data. */
+bool init_data_loaders(const char *data_dir);
 
 //Frees memory allocated by loaders
 void cleanup_data_loaders(void);
+
+/* CRC-32 of the monster names of the loaded bestiary, in order (computed
+ * by init_data_loaders). Saved NPCs
+ * refer to their template by index: npcs.dat stores this value and is
+ * refused by a bestiary where a monster was added, removed or moved. */
+uint32_t bestiary_fingerprint(void);
 
 #endif // DATA_LOADER_H

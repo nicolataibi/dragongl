@@ -67,25 +67,25 @@ typedef enum {
 
 //Types of events that can trigger effects or reactions
 typedef enum {
-    EVENT_ON_ATTACK,      //Before the attack roll
-    EVENT_ON_HIT,         //After a successful shot
-    EVENT_ON_DAMAGE,      //During damage calculation
-    EVENT_ON_SAVE,        //During a saving throw
+    EVENT_ON_ATTACK, //Before the attack roll
+    EVENT_ON_HIT,    //After a successful shot
+    EVENT_ON_DAMAGE, //During damage calculation
+    EVENT_ON_SAVE,   //During a saving throw
     EVENT_ON_TURN_START,
     EVENT_ON_TURN_END
 } RuleEventType;
 
 //Applicable modifier types
 typedef enum {
-    MOD_ADDITIVE,         //Add a fixed value (e.g. +1)
-    MOD_MULTIPLIER,       // Multiplies (e.g. x2 for vulnerability)
-    MOD_ADVANTAGE,        // Garantisce vantaggio
-    MOD_DISADVANTAGE      // Garantisce svantaggio
+    MOD_ADDITIVE,    //Add a fixed value (e.g. +1)
+    MOD_MULTIPLIER,  // Multiplies (e.g. x2 for vulnerability)
+    MOD_ADVANTAGE,   // Garantisce vantaggio
+    MOD_DISADVANTAGE // Garantisce svantaggio
 } ModifierType;
 
 //Definition of an active effect
 typedef struct {
-    const char* name;
+    const char *name;
     RuleEventType trigger;
     ModifierType mod_type;
     int value;
@@ -100,7 +100,7 @@ typedef struct {
     int final_value;
     bool has_advantage;
     bool has_disadvantage;
-    
+
     // References to involved entities (IDs or pointers)
     int source_id;
     int target_id;
@@ -126,28 +126,29 @@ typedef struct {
 } ActionEconomy;
 
 //Rules engine functions
-void rules_apply_modifiers(RuleContext* ctx, ActiveEffect* effects, int effect_count);
+void rules_apply_modifiers(RuleContext *ctx, ActiveEffect *effects, int effect_count);
 int rules_roll_dice(int count, int sides);
-bool rules_update_effects(ActiveEffect* effects, int* effect_count);
+bool rules_update_effects(ActiveEffect *effects, int *effect_count);
 int rules_get_modifier(int score);
 
 /*Canonical ConditionType <-> display-name table (single source of truth:
  * renaming an effect is a one-line change in rules.c, and every consumer
  * keeps working because comparisons go through the table).*/
-const char* condition_to_name(ConditionType cond);
+const char *condition_to_name(ConditionType cond);
 /*Returns the ConditionType for a display name (case-insensitive), or
  * MAX_CONDITIONS when the name is not a known condition.*/
-ConditionType condition_from_name(const char* condition_name);
+ConditionType condition_from_name(const char *condition_name);
 /*Enum-based condition test (PREFERRED): compares by value, so a renamed
  * effect string can no longer break the logic silently.*/
-bool rules_has_condition_t(ActiveEffect* effects, int effect_count, ConditionType cond);
-bool rules_has_condition(ActiveEffect* effects, int effect_count, const char* condition_name);
+bool rules_has_condition_t(ActiveEffect *effects, int effect_count, ConditionType cond);
+bool rules_has_condition(ActiveEffect *effects, int effect_count, const char *condition_name);
 
 //Extended functions
 int rules_roll_d20(bool advantage, bool disadvantage);
 bool rules_roll_attack(int bonus, int ac, bool advantage, bool disadvantage, bool *is_crit);
-bool rules_roll_attack_detailed(int bonus, int ac, bool advantage, bool disadvantage, bool *is_crit, int *out_roll);
-bool rules_roll_save(int modifier, int dc, bool advantage, bool disadvantage, int* out_roll);
+bool rules_roll_attack_detailed(int bonus, int ac, bool advantage, bool disadvantage, bool *is_crit,
+                                int *out_roll);
+bool rules_roll_save(int modifier, int dc, bool advantage, bool disadvantage, int *out_roll);
 int rules_calculate_damage(int raw_damage, DamageModifier dmg_mod);
 
 #endif // RULES_H

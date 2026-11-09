@@ -29,8 +29,7 @@ int net_create_server(int port);
 /* Connect to host (name, IPv4 or IPv6 address) within timeout_ms per
  * address tried. The socket is non-blocking, close-on-exec, with TCP
  * keepalive. Returns -1 with a reason in why on failure. */
-int net_connect_to_server(const char *host, int port, int timeout_ms, char *why,
-                          size_t why_len);
+int net_connect_to_server(const char *host, int port, int timeout_ms, char *why, size_t why_len);
 void net_set_nonblocking(int sock);
 /* Send all len bytes; false if the peer is gone (or stays full ~2 s). */
 bool net_send(int sock, const void *data, int len);

@@ -65,10 +65,7 @@ void tome_anim_reset_slot(int slot);
  * merchant is not loaded yet (VOXEL_ROCK everywhere), a conservative
  * default box around the merchant is used until the chunk arrives.
  */
-void tome_anim_update(int slot, int entity_id, int floor_id,
-                      int mx, int my,
-                      const TileType *map,
-                      float dt,
-                      float out_pos[3], float out_orient[16]);
+void tome_anim_update(int slot, int entity_id, int floor_id, int mx, int my, const TileType *map,
+                      float dt, float out_pos[3], float out_orient[16]);
 
 #endif /* CLIENT_TOME_H */

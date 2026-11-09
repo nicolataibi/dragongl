@@ -50,16 +50,16 @@ typedef enum {
 
 /*Single floating text*/
 typedef struct {
-    bool   active;
+    bool active;
     FctType type;
-    char   text[FCT_TEXT_LEN]; /* e.g. "-15", "+5", "CRIT!", "MISS"          */
-    float  world_x;            /*world position (relative to player)*/
-    float  world_z;            /*world position (relative to player)*/
-    float  offset_y;           /*current height (rises over time)*/
-    float  alpha;              /* current opacity (1.0 → 0.0)              */
-    float  life;               /*remaining time in seconds*/
-    float  max_life;           /*total duration (to calculate alpha)*/
-    float  scale;              /*text scale*/
+    char text[FCT_TEXT_LEN]; /* e.g. "-15", "+5", "CRIT!", "MISS"          */
+    float world_x;           /*world position (relative to player)*/
+    float world_z;           /*world position (relative to player)*/
+    float offset_y;          /*current height (rises over time)*/
+    float alpha;             /* current opacity (1.0 → 0.0)              */
+    float life;              /*remaining time in seconds*/
+    float max_life;          /*total duration (to calculate alpha)*/
+    float scale;             /*text scale*/
 } FloatingText;
 
 /*Global array of FCTs — read by renderers*/

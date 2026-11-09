@@ -19,6 +19,8 @@
 
 #include "persist.h"
 
+#include "data_loader.h"
+
 #include "writer.h"
 
 #include <dirent.h>
@@ -33,7 +35,7 @@
 #include <unistd.h>
 
 #define CRYSTAL_RESPAWN_MAX 100
-#define GHOST_LOOT_MAX 30
+#define GHOST_LOOT_MAX      30
 
 static char g_state_dir[STATE_DIR_MAX];
 
@@ -55,8 +57,9 @@ static bool make_dirs(const char *path, char *err, size_t err_len) {
                 return false;
             }
             *p = saved;
-            if (saved == '\0')
+            if (saved == '\0') {
                 break;
+            }
         }
     }
     struct stat st;
@@ -77,15 +80,15 @@ bool persist_init_state_dir(const char *explicit_dir, char *err, size_t err_len)
     const char *xdg = getenv("XDG_STATE_HOME");
     const char *home = getenv("HOME");
     int n;
-    if (explicit_dir && explicit_dir[0])
+    if (explicit_dir && explicit_dir[0]) {
         n = snprintf(dir, sizeof(dir), "%s", explicit_dir);
-    else if (env && env[0])
+    } else if (env && env[0]) {
         n = snprintf(dir, sizeof(dir), "%s", env);
-    else if (xdg && xdg[0] == '/')
+    } else if (xdg && xdg[0] == '/') {
         n = snprintf(dir, sizeof(dir), "%s/dragongl", xdg);
-    else if (home && home[0] == '/')
+    } else if (home && home[0] == '/') {
         n = snprintf(dir, sizeof(dir), "%s/.local/state/dragongl", home);
-    else {
+    } else {
         snprintf(err, err_len, "no state directory: use --state-dir or set DRAGONGL_STATE_DIR");
         return false;
     }
@@ -94,17 +97,21 @@ bool persist_init_state_dir(const char *explicit_dir, char *err, size_t err_len)
         return false;
     }
     /* Drop trailing slashes so the joined paths stay clean. */
-    while (n > 1 && dir[n - 1] == '/')
+    while (n > 1 && dir[n - 1] == '/') {
         dir[--n] = '\0';
+    }
     char sub[STATE_DIR_MAX + 32]; /* dir is at most STATE_DIR_MAX - 32 */
-    if (!make_dirs(dir, err, err_len))
+    if (!make_dirs(dir, err, err_len)) {
         return false;
+    }
     snprintf(sub, sizeof(sub), "%s/saves", dir);
-    if (!make_dirs(sub, err, err_len))
+    if (!make_dirs(sub, err, err_len)) {
         return false;
+    }
     snprintf(sub, sizeof(sub), "%s/maps", dir);
-    if (!make_dirs(sub, err, err_len))
+    if (!make_dirs(sub, err, err_len)) {
         return false;
+    }
     /*One server per state directory: two would overwrite each other's
      * world and saves. The lock lives as long as the process.*/
     snprintf(sub, sizeof(sub), "%s/server.lock", dir);
@@ -134,8 +141,9 @@ bool state_path(char *out, size_t out_len, const char *fmt, ...) {
     va_end(ap);
     if (n < 0 || n >= (int)sizeof(rel) ||
         snprintf(out, out_len, "%s/%s", g_state_dir, rel) >= (int)out_len) {
-        if (out_len)
+        if (out_len) {
             out[0] = '\0';
+        }
         return false;
     }
     return true;
@@ -143,15 +151,17 @@ bool state_path(char *out, size_t out_len, const char *fmt, ...) {
 
 static void cleanup_tmp_in(const char *dir) {
     DIR *d = opendir(dir);
-    if (!d)
+    if (!d) {
         return;
+    }
     struct dirent *e;
     while ((e = readdir(d)) != NULL) {
         size_t n = strlen(e->d_name);
         if (n > 4 && strcmp(e->d_name + n - 4, ".tmp") == 0) {
             char p[STATE_DIR_MAX + 300];
-            if (snprintf(p, sizeof(p), "%s/%s", dir, e->d_name) < (int)sizeof(p))
+            if (snprintf(p, sizeof(p), "%s/%s", dir, e->d_name) < (int)sizeof(p)) {
                 unlink(p);
+            }
         }
     }
     closedir(d);
@@ -160,8 +170,9 @@ static void cleanup_tmp_in(const char *dir) {
 void persist_cleanup_tmp(void) {
     char p[STATE_DIR_MAX + 16];
     cleanup_tmp_in(g_state_dir);
-    if (state_path(p, sizeof(p), "saves"))
+    if (state_path(p, sizeof(p), "saves")) {
         cleanup_tmp_in(p);
+    }
 }
 
 /* --- Shared records ------------------------------------------------------------- */
@@ -185,10 +196,14 @@ static void put_item(BinWriter *w, const ItemInstance *it) {
     bw_i32(w, it->artifact_con_bonus);
 }
 
+/*An enum value in [lo, hi]; anything else fails the read (and yields lo,
+ * so no out-of-range value is ever stored in an enum).*/
 static int32_t get_enum(BinReader *r, int32_t lo, int32_t hi) {
     int32_t v = br_i32(r);
-    if (v < lo || v > hi)
+    if (v < lo || v > hi) {
         r->failed = true;
+        return lo;
+    }
     return v;
 }
 
@@ -214,8 +229,9 @@ static void get_item(BinReader *r, ItemInstance *it) {
 
 static void put_items(BinWriter *w, const ItemInstance *items, int n) {
     bw_u32(w, (uint32_t)n);
-    for (int i = 0; i < n; i++)
+    for (int i = 0; i < n; i++) {
         put_item(w, &items[i]);
+    }
 }
 
 /* Arrays are stored with their length; the reader requires exactly `n`. */
@@ -224,8 +240,9 @@ static void get_items(BinReader *r, ItemInstance *items, int n) {
         r->failed = true;
         return;
     }
-    for (int i = 0; i < n && !r->failed; i++)
+    for (int i = 0; i < n && !r->failed; i++) {
         get_item(r, &items[i]);
+    }
 }
 
 /* Sparse form for mostly empty arrays (an NPC's ghost loot): only the
@@ -234,14 +251,16 @@ static void get_items(BinReader *r, ItemInstance *items, int n) {
  * were. Keeps npcs.dat at a few MB instead of ~120 MB. */
 static bool item_is_zero(const ItemInstance *it) {
     static const ItemInstance zero;
-    return memcmp(it, &zero, sizeof(zero)) == 0;
+    return item_instance_equal(it, &zero);
 }
 
 static void put_sparse_items(BinWriter *w, const ItemInstance *items, int n) {
     uint32_t used = 0;
-    for (int i = 0; i < n; i++)
-        if (!item_is_zero(&items[i]))
+    for (int i = 0; i < n; i++) {
+        if (!item_is_zero(&items[i])) {
             used++;
+        }
+    }
     bw_u32(w, (uint32_t)n);
     bw_u32(w, used);
     for (int i = 0; i < n; i++) {
@@ -273,8 +292,9 @@ static void get_sparse_items(BinReader *r, ItemInstance *items, int n) {
 
 static void put_i32s(BinWriter *w, const int *v, int n) {
     bw_u32(w, (uint32_t)n);
-    for (int i = 0; i < n; i++)
+    for (int i = 0; i < n; i++) {
         bw_i32(w, v[i]);
+    }
 }
 
 static void get_i32s(BinReader *r, int *v, int n) {
@@ -282,16 +302,18 @@ static void get_i32s(BinReader *r, int *v, int n) {
         r->failed = true;
         return;
     }
-    for (int i = 0; i < n; i++)
+    for (int i = 0; i < n; i++) {
         v[i] = br_i32(r);
+    }
 }
 
-static BinFileStatus read_payload(const char *path, uint32_t magic, uint16_t version,
-                                  BinReader *r, uint8_t **buf, char *why, size_t why_len) {
+static BinFileStatus read_payload(const char *path, uint32_t magic, uint16_t version, BinReader *r,
+                                  uint8_t **buf, char *why, size_t why_len) {
     size_t len = 0;
     BinFileStatus st = binfile_read(path, magic, version, buf, &len, why, why_len);
-    if (st == BINFILE_OK)
+    if (st == BINFILE_OK) {
         br_init(r, *buf, len);
+    }
     return st;
 }
 
@@ -299,8 +321,9 @@ static BinFileStatus finish_read(BinReader *r, uint8_t *buf, char *why, size_t w
     bool ok = br_done(r);
     free(buf);
     if (!ok) {
-        if (why && why_len)
+        if (why && why_len) {
             snprintf(why, why_len, "malformed content");
+        }
         return BINFILE_INVALID;
     }
     return BINFILE_OK;
@@ -338,12 +361,13 @@ bool persist_write_player(const char *path, const SaveData *sd) {
     bw_i32(&w, sd->backpack_count);
     put_items(&w, sd->backpack, MAX_BACKPACK);
     put_items(&w, sd->belt, MAX_BELT);
-    const ItemInstance *slots[] = {&sd->s_head,   &sd->s_neck,   &sd->s_body, &sd->s_back,
+    const ItemInstance *slots[] = {&sd->s_head,   &sd->s_neck,   &sd->s_body,  &sd->s_back,
                                    &sd->s_hand_r, &sd->s_hand_l, &sd->s_hands, &sd->s_arm_r,
                                    &sd->s_arm_l,  &sd->s_feet};
     bw_u32(&w, (uint32_t)(sizeof(slots) / sizeof(slots[0])));
-    for (size_t i = 0; i < sizeof(slots) / sizeof(slots[0]); i++)
+    for (size_t i = 0; i < sizeof(slots) / sizeof(slots[0]); i++) {
         put_item(&w, slots[i]);
+    }
     put_items(&w, sd->s_rings, 10);
     put_i32s(&w, sd->spell_slots, MAX_SPELL_LEVEL + 1);
     put_i32s(&w, sd->spell_slots_max, MAX_SPELL_LEVEL + 1);
@@ -365,23 +389,26 @@ bool persist_write_player(const char *path, const SaveData *sd) {
     bw_i32(&w, sd->total_steps);
     bw_i32(&w, sd->max_floor_explored);
     bw_u32(&w, KNOWN_SPELLS_WORDS);
-    for (int i = 0; i < KNOWN_SPELLS_WORDS; i++)
+    for (int i = 0; i < KNOWN_SPELLS_WORDS; i++) {
         bw_u64(&w, sd->known_spells[i]);
+    }
     bw_u32(&w, sd->bosses_defeated);
     bw_i32(&w, sd->unspent_stat_points);
     bw_u32(&w, (uint32_t)sd->blocked_count);
-    for (int i = 0; i < sd->blocked_count && i < MAX_BLOCKED_PLAYERS; i++)
+    for (int i = 0; i < sd->blocked_count && i < MAX_BLOCKED_PLAYERS; i++) {
         bw_str(&w, sd->blocked_players[i], sizeof(sd->blocked_players[i]));
+    }
     return write_and_free(path, PERSIST_SAVE_MAGIC, PERSIST_SAVE_VERSION, &w);
 }
 
 BinFileStatus persist_read_player(const char *path, SaveData *sd, char *why, size_t why_len) {
     BinReader r;
     uint8_t *buf = NULL;
-    BinFileStatus st = read_payload(path, PERSIST_SAVE_MAGIC, PERSIST_SAVE_VERSION, &r, &buf,
-                                    why, why_len);
-    if (st != BINFILE_OK)
+    BinFileStatus st =
+        read_payload(path, PERSIST_SAVE_MAGIC, PERSIST_SAVE_VERSION, &r, &buf, why, why_len);
+    if (st != BINFILE_OK) {
         return st;
+    }
     memset(sd, 0, sizeof(*sd));
     br_str(&r, sd->password_hash, sizeof(sd->password_hash));
     sd->x = br_i32(&r);
@@ -404,13 +431,14 @@ BinFileStatus persist_read_player(const char *path, SaveData *sd, char *why, siz
     sd->backpack_count = br_i32(&r);
     get_items(&r, sd->backpack, MAX_BACKPACK);
     get_items(&r, sd->belt, MAX_BELT);
-    ItemInstance *slots[] = {&sd->s_head,   &sd->s_neck,   &sd->s_body, &sd->s_back,
-                             &sd->s_hand_r, &sd->s_hand_l, &sd->s_hands, &sd->s_arm_r,
-                             &sd->s_arm_l,  &sd->s_feet};
-    if (br_u32(&r) != (uint32_t)(sizeof(slots) / sizeof(slots[0])))
+    ItemInstance *slots[] = {&sd->s_head,   &sd->s_neck,  &sd->s_body,  &sd->s_back,  &sd->s_hand_r,
+                             &sd->s_hand_l, &sd->s_hands, &sd->s_arm_r, &sd->s_arm_l, &sd->s_feet};
+    if (br_u32(&r) != (uint32_t)(sizeof(slots) / sizeof(slots[0]))) {
         r.failed = true;
-    for (size_t i = 0; i < sizeof(slots) / sizeof(slots[0]) && !r.failed; i++)
+    }
+    for (size_t i = 0; i < sizeof(slots) / sizeof(slots[0]) && !r.failed; i++) {
         get_item(&r, slots[i]);
+    }
     get_items(&r, sd->s_rings, 10);
     get_i32s(&r, sd->spell_slots, MAX_SPELL_LEVEL + 1);
     get_i32s(&r, sd->spell_slots_max, MAX_SPELL_LEVEL + 1);
@@ -431,15 +459,18 @@ BinFileStatus persist_read_player(const char *path, SaveData *sd, char *why, siz
     sd->total_kills = br_i32(&r);
     sd->total_steps = br_i32(&r);
     sd->max_floor_explored = br_i32(&r);
-    if (br_u32(&r) != KNOWN_SPELLS_WORDS)
+    if (br_u32(&r) != KNOWN_SPELLS_WORDS) {
         r.failed = true;
-    for (int i = 0; i < KNOWN_SPELLS_WORDS && !r.failed; i++)
+    }
+    for (int i = 0; i < KNOWN_SPELLS_WORDS && !r.failed; i++) {
         sd->known_spells[i] = br_u64(&r);
+    }
     sd->bosses_defeated = br_u32(&r);
     sd->unspent_stat_points = br_i32(&r);
     sd->blocked_count = (int)br_count(&r, MAX_BLOCKED_PLAYERS);
-    for (int i = 0; i < sd->blocked_count && !r.failed; i++)
+    for (int i = 0; i < sd->blocked_count && !r.failed; i++) {
         br_str(&r, sd->blocked_players[i], sizeof(sd->blocked_players[i]));
+    }
     return finish_read(&r, buf, why, why_len);
 }
 
@@ -458,8 +489,9 @@ bool persist_write_world(const char *path, const World *wd) {
         /* One byte per tile: VoxelType is uint8_t, no byte order involved. */
         bw_bytes(&w, fl->map.data, sizeof(fl->map.data));
         int traps = fl->trap_count < 0 ? 0 : fl->trap_count;
-        if (traps > MAX_TRAPS_PER_FLOOR)
+        if (traps > MAX_TRAPS_PER_FLOOR) {
             traps = MAX_TRAPS_PER_FLOOR;
+        }
         bw_u32(&w, (uint32_t)traps);
         for (int t = 0; t < traps; t++) {
             const Trap *tr = &fl->traps[t];
@@ -478,8 +510,9 @@ bool persist_write_world(const char *path, const World *wd) {
             bw_i32(&w, tr->wall_dir);
         }
         int crystals = fl->crystal_respawn_count < 0 ? 0 : fl->crystal_respawn_count;
-        if (crystals > CRYSTAL_RESPAWN_MAX)
+        if (crystals > CRYSTAL_RESPAWN_MAX) {
             crystals = CRYSTAL_RESPAWN_MAX;
+        }
         bw_u32(&w, (uint32_t)crystals);
         for (int c = 0; c < crystals; c++) {
             const CrystalRespawn *cr = &fl->crystal_respawns[c];
@@ -495,15 +528,17 @@ bool persist_write_world(const char *path, const World *wd) {
 BinFileStatus persist_read_world(const char *path, World *wd, char *why, size_t why_len) {
     BinReader r;
     uint8_t *buf = NULL;
-    BinFileStatus st = read_payload(path, PERSIST_WORLD_MAGIC, PERSIST_WORLD_VERSION, &r, &buf,
-                                    why, why_len);
-    if (st != BINFILE_OK)
+    BinFileStatus st =
+        read_payload(path, PERSIST_WORLD_MAGIC, PERSIST_WORLD_VERSION, &r, &buf, why, why_len);
+    if (st != BINFILE_OK) {
         return st;
+    }
     if (br_u32(&r) != MAX_FLOORS || br_u32(&r) != MAP_WIDTH || br_u32(&r) != MAP_HEIGHT ||
         br_u32(&r) != MAP_DEPTH) {
         free(buf);
-        if (why && why_len)
+        if (why && why_len) {
             snprintf(why, why_len, "world dimensions differ from this build");
+        }
         return BINFILE_INVALID;
     }
     for (int f = 0; f < MAX_FLOORS && !r.failed; f++) {
@@ -527,8 +562,9 @@ BinFileStatus persist_read_world(const char *path, World *wd, char *why, size_t 
             tr->active = br_bool(&r);
             tr->detected = br_bool(&r);
             tr->wall_dir = br_i32(&r);
-            if (tr->x < 0 || tr->x >= MAP_WIDTH || tr->y < 0 || tr->y >= MAP_HEIGHT)
+            if (tr->x < 0 || tr->x >= MAP_WIDTH || tr->y < 0 || tr->y >= MAP_HEIGHT) {
                 r.failed = true;
+            }
         }
         fl->crystal_respawn_count = (int)br_count(&r, CRYSTAL_RESPAWN_MAX);
         for (int c = 0; c < fl->crystal_respawn_count && !r.failed; c++) {
@@ -537,8 +573,9 @@ BinFileStatus persist_read_world(const char *path, World *wd, char *why, size_t 
             cr->y = br_i32(&r);
             cr->type = br_u8(&r);
             cr->respawn_timer = br_i32(&r);
-            if (cr->x < 0 || cr->x >= MAP_WIDTH || cr->y < 0 || cr->y >= MAP_HEIGHT)
+            if (cr->x < 0 || cr->x >= MAP_WIDTH || cr->y < 0 || cr->y >= MAP_HEIGHT) {
                 r.failed = true;
+            }
         }
         /* The entity grid is runtime state, rebuilt by sync_entity_grid(). */
         memset(fl->entity_grid, 0, sizeof(fl->entity_grid));
@@ -577,7 +614,13 @@ static void put_npc(BinWriter *w, uint32_t slot, const NPC *n) {
     bw_i32(w, n->ai_ctx.legendary_actions_spent);
     bw_i32(w, (int32_t)n->ai_ctx.behavior);
     const MerchantData *m = &n->merchant;
-    int items = m->item_count < 0 ? 0 : (m->item_count > MAX_SHOP_ITEMS ? MAX_SHOP_ITEMS : m->item_count);
+    int items = m->item_count;
+    if (items < 0) {
+        items = 0;
+    }
+    if (items > MAX_SHOP_ITEMS) {
+        items = MAX_SHOP_ITEMS;
+    }
     bw_u32(w, (uint32_t)items);
     for (int i = 0; i < items; i++) {
         bw_i32(w, m->item_templates[i]);
@@ -629,7 +672,7 @@ static void get_npc(BinReader *r, NPC *n) {
     }
     m->restock_timer = br_i32(r);
     br_str(r, m->shop_name, sizeof(m->shop_name));
-    m->spec = (MerchantSpecialization)get_enum(r, -1, SPEC_COUNT - 1);
+    m->spec = (MerchantSpecialization)get_enum(r, 0, SPEC_COUNT - 1);
     n->is_ghost = br_bool(r);
     br_str(r, n->custom_name, sizeof(n->custom_name));
     get_sparse_items(r, n->ghost_loot, GHOST_LOOT_MAX);
@@ -637,26 +680,32 @@ static void get_npc(BinReader *r, NPC *n) {
     n->spawn_y = br_i32(r);
     n->respawn_timer = br_i32(r);
     n->energy = br_i32(r);
-    if (n->floor_id < 0 || n->floor_id >= MAX_FLOORS || n->x < 0 || n->x >= MAP_WIDTH ||
-        n->y < 0 || n->y >= MAP_HEIGHT)
+    if (n->floor_id < 0 || n->floor_id >= MAX_FLOORS || n->x < 0 || n->x >= MAP_WIDTH || n->y < 0 ||
+        n->y >= MAP_HEIGHT) {
         r->failed = true;
+    }
 }
 
 bool persist_write_npcs(const char *path, const NPC *npcs, int max_npcs, int next_id,
                         int total_turns) {
     uint32_t count = 0;
-    for (int i = 0; i < max_npcs; i++)
-        if (npc_is_persistent(&npcs[i]))
+    for (int i = 0; i < max_npcs; i++) {
+        if (npc_is_persistent(&npcs[i])) {
             count++;
+        }
+    }
     BinWriter w;
     bw_init(&w);
     bw_u32(&w, (uint32_t)max_npcs);
+    bw_u32(&w, bestiary_fingerprint());
     bw_i32(&w, next_id);
     bw_i32(&w, total_turns);
     bw_u32(&w, count);
-    for (int i = 0; i < max_npcs; i++)
-        if (npc_is_persistent(&npcs[i]))
+    for (int i = 0; i < max_npcs; i++) {
+        if (npc_is_persistent(&npcs[i])) {
             put_npc(&w, (uint32_t)i, &npcs[i]);
+        }
+    }
     return write_and_free(path, PERSIST_NPCS_MAGIC, PERSIST_NPCS_VERSION, &w);
 }
 
@@ -665,14 +714,23 @@ BinFileStatus persist_read_npcs(const char *path, NPC *npcs, int max_npcs, int *
     BinReader r;
     uint8_t *buf = NULL;
     *loaded = 0;
-    BinFileStatus st = read_payload(path, PERSIST_NPCS_MAGIC, PERSIST_NPCS_VERSION, &r, &buf,
-                                    why, why_len);
-    if (st != BINFILE_OK)
+    BinFileStatus st =
+        read_payload(path, PERSIST_NPCS_MAGIC, PERSIST_NPCS_VERSION, &r, &buf, why, why_len);
+    if (st != BINFILE_OK) {
         return st;
+    }
     if (br_u32(&r) != (uint32_t)max_npcs) {
         free(buf);
-        if (why && why_len)
+        if (why && why_len) {
             snprintf(why, why_len, "NPC capacity differs from this build");
+        }
+        return BINFILE_INVALID;
+    }
+    if (br_u32(&r) != bestiary_fingerprint()) {
+        free(buf);
+        if (why && why_len) {
+            snprintf(why, why_len, "written for another bestiary (data/bestiary.json changed)");
+        }
         return BINFILE_INVALID;
     }
     int nid = br_i32(&r);
@@ -688,8 +746,9 @@ BinFileStatus persist_read_npcs(const char *path, NPC *npcs, int max_npcs, int *
         get_npc(&r, &npcs[slot]);
         (*loaded)++;
     }
-    if (nid < 1)
+    if (nid < 1) {
         r.failed = true;
+    }
     st = finish_read(&r, buf, why, why_len);
     if (st == BINFILE_OK) {
         *next_id = nid;
@@ -713,13 +772,13 @@ bool persist_write_tombstone(const char *path, const Tombstone *t) {
     bw_i32(&w, t->backpack_count);
     put_items(&w, t->backpack, TOMBSTONE_BACKPACK_SIZE);
     put_items(&w, t->belt, 4);
-    const ItemInstance *slots[] = {&t->slot_head,   &t->slot_neck,   &t->slot_body,
-                                   &t->slot_back,   &t->slot_hand_r, &t->slot_hand_l,
-                                   &t->slot_hands,  &t->slot_arm_r,  &t->slot_arm_l,
-                                   &t->slot_feet};
+    const ItemInstance *slots[] = {&t->slot_head,   &t->slot_neck,   &t->slot_body,  &t->slot_back,
+                                   &t->slot_hand_r, &t->slot_hand_l, &t->slot_hands, &t->slot_arm_r,
+                                   &t->slot_arm_l,  &t->slot_feet};
     bw_u32(&w, (uint32_t)(sizeof(slots) / sizeof(slots[0])));
-    for (size_t i = 0; i < sizeof(slots) / sizeof(slots[0]); i++)
+    for (size_t i = 0; i < sizeof(slots) / sizeof(slots[0]); i++) {
         put_item(&w, slots[i]);
+    }
     put_items(&w, t->slot_rings, TOMBSTONE_RINGS);
     return write_and_free(path, PERSIST_TOMB_MAGIC, PERSIST_TOMB_VERSION, &w);
 }
@@ -727,10 +786,11 @@ bool persist_write_tombstone(const char *path, const Tombstone *t) {
 BinFileStatus persist_read_tombstone(const char *path, Tombstone *t, char *why, size_t why_len) {
     BinReader r;
     uint8_t *buf = NULL;
-    BinFileStatus st = read_payload(path, PERSIST_TOMB_MAGIC, PERSIST_TOMB_VERSION, &r, &buf,
-                                    why, why_len);
-    if (st != BINFILE_OK)
+    BinFileStatus st =
+        read_payload(path, PERSIST_TOMB_MAGIC, PERSIST_TOMB_VERSION, &r, &buf, why, why_len);
+    if (st != BINFILE_OK) {
         return st;
+    }
     memset(t, 0, sizeof(*t));
     t->active = br_bool(&r);
     t->x = br_i32(&r);
@@ -742,16 +802,19 @@ BinFileStatus persist_read_tombstone(const char *path, Tombstone *t, char *why, 
     t->backpack_count = br_i32(&r);
     get_items(&r, t->backpack, TOMBSTONE_BACKPACK_SIZE);
     get_items(&r, t->belt, 4);
-    ItemInstance *slots[] = {&t->slot_head,  &t->slot_neck,   &t->slot_body,  &t->slot_back,
+    ItemInstance *slots[] = {&t->slot_head,   &t->slot_neck,   &t->slot_body,  &t->slot_back,
                              &t->slot_hand_r, &t->slot_hand_l, &t->slot_hands, &t->slot_arm_r,
-                             &t->slot_arm_l, &t->slot_feet};
-    if (br_u32(&r) != (uint32_t)(sizeof(slots) / sizeof(slots[0])))
+                             &t->slot_arm_l,  &t->slot_feet};
+    if (br_u32(&r) != (uint32_t)(sizeof(slots) / sizeof(slots[0]))) {
         r.failed = true;
-    for (size_t i = 0; i < sizeof(slots) / sizeof(slots[0]) && !r.failed; i++)
+    }
+    for (size_t i = 0; i < sizeof(slots) / sizeof(slots[0]) && !r.failed; i++) {
         get_item(&r, slots[i]);
+    }
     get_items(&r, t->slot_rings, TOMBSTONE_RINGS);
-    if (t->backpack_count < 0 || t->backpack_count > TOMBSTONE_BACKPACK_SIZE)
+    if (t->backpack_count < 0 || t->backpack_count > TOMBSTONE_BACKPACK_SIZE) {
         r.failed = true;
+    }
     return finish_read(&r, buf, why, why_len);
 }
 
@@ -761,8 +824,9 @@ bool persist_write_flags(const char *path, const bool *flags, int count) {
     BinWriter w;
     bw_init(&w);
     bw_u32(&w, (uint32_t)count);
-    for (int i = 0; i < count; i++)
+    for (int i = 0; i < count; i++) {
         bw_bool(&w, flags[i]);
+    }
     return write_and_free(path, PERSIST_ART_MAGIC, PERSIST_ART_VERSION, &w);
 }
 
@@ -770,14 +834,16 @@ BinFileStatus persist_read_flags(const char *path, bool *flags, int count, char 
                                  size_t why_len) {
     BinReader r;
     uint8_t *buf = NULL;
-    BinFileStatus st = read_payload(path, PERSIST_ART_MAGIC, PERSIST_ART_VERSION, &r, &buf,
-                                    why, why_len);
-    if (st != BINFILE_OK)
+    BinFileStatus st =
+        read_payload(path, PERSIST_ART_MAGIC, PERSIST_ART_VERSION, &r, &buf, why, why_len);
+    if (st != BINFILE_OK) {
         return st;
+    }
     if (br_u32(&r) != (uint32_t)count) {
         free(buf);
-        if (why && why_len)
+        if (why && why_len) {
             snprintf(why, why_len, "artifact count differs from this build");
+        }
         return BINFILE_INVALID;
     }
     bool tmp[256];
@@ -785,10 +851,12 @@ BinFileStatus persist_read_flags(const char *path, bool *flags, int count, char 
         free(buf);
         return BINFILE_INVALID;
     }
-    for (int i = 0; i < count; i++)
+    for (int i = 0; i < count; i++) {
         tmp[i] = br_bool(&r);
+    }
     st = finish_read(&r, buf, why, why_len);
-    if (st == BINFILE_OK)
+    if (st == BINFILE_OK) {
         memcpy(flags, tmp, sizeof(bool) * (size_t)count);
+    }
     return st;
 }

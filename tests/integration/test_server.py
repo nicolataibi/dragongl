@@ -35,6 +35,11 @@ MAX_PENDING_PER_IP = 8    # src/server/server_conn.h
 LOGIN_TIMEOUT_S = 10      # LOGIN_TIMEOUT_MS in src/server/server_conn.h
 LOGIN_FAIL_LIMIT = 5      # src/server/server_conn.h
 READY_MARK = "Server ready!"
+# A sanitizer build (ASan/UBSan/TSan) reports into the server log and keeps
+# running; any of these lines fails the test that owned the process.
+SANITIZER_MARKS = ("ERROR: AddressSanitizer", "WARNING: ThreadSanitizer",
+                   "ERROR: ThreadSanitizer", "runtime error:",
+                   "ERROR: LeakSanitizer")
 
 
 def free_port():
@@ -101,11 +106,23 @@ class ServerProcess:
         if self.alive():
             self.proc.send_signal(signal.SIGTERM)
             try:
-                self.proc.wait(timeout=20)
+                self.proc.wait(timeout=60)
             except subprocess.TimeoutExpired:
                 self.proc.kill()
                 self.proc.wait()
-        self._log.close()
+        if not self._log.closed:
+            self._log.close()
+        self.check_sanitizers()
+
+    def check_sanitizers(self):
+        with open(self.log_path, errors="replace") as f:
+            f.seek(self._log_start)
+            log = f.read()
+        for mark in SANITIZER_MARKS:
+            at = log.find(mark)
+            if at >= 0:
+                raise AssertionError("sanitizer report in the server log:\n"
+                                     + log[max(0, at - 200):at + 4000])
 
     def log_tail(self, lines=30):
         with open(self.log_path, errors="replace") as f:
@@ -163,7 +180,10 @@ class ServerTest(unittest.TestCase):
         proc = subprocess.run(server_command(self.workdir, free_port(), extra_args),
                               cwd=self.workdir, env=env, timeout=60,
                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        return proc.returncode, proc.stdout.decode(errors="replace")
+        out = proc.stdout.decode(errors="replace")
+        for mark in SANITIZER_MARKS:
+            self.assertNotIn(mark, out)
+        return proc.returncode, out
 
     def tearDown(self):
         for c in self.clients:
@@ -441,6 +461,19 @@ class ServerTest(unittest.TestCase):
         status, out = self.run_server_expecting_exit(server_env(), ("--state-dir", blocker))
         self.assertEqual(status, 2, out)
         self.assertIn("State directory", out)
+
+    def test_unreadable_game_data_is_refused(self):
+        """A data file that does not parse stops the server with the file
+        name and the position of the error (it used to start without it)."""
+        data = os.path.join(self.workdir, "bad-data")
+        shutil.copytree(DATA, data, ignore=shutil.ignore_patterns("schema"))
+        with open(os.path.join(data, "spells.json"), "w") as f:
+            f.write('{\n  "spells": [\n    {"name": }\n  ]\n}\n')
+        status, out = self.run_server_expecting_exit(
+            server_env(), ("--data-dir", data, "--state-dir", os.path.join(self.workdir, "s2")))
+        self.assertEqual(status, 1, out)
+        self.assertIn("spells.json: invalid JSON at line 3, column", out)
+        self.assertIn("cannot be loaded", out)
 
     def test_second_server_on_the_same_state_is_refused(self):
         status, out = self.run_server_expecting_exit(server_env())

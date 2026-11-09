@@ -37,10 +37,10 @@
 #define CLOG_FLUSH_EVERY  16                   /*events per forced flush*/
 #define CLOG_PATH_MAX     256
 
-static FILE*     g_log_file = NULL;
-static char      g_log_path[CLOG_PATH_MAX] = {0};
-static long      g_file_entries = 0;   /*entries in the CURRENT file*/
-static long      g_unflushed = 0;      /*entries since last fflush*/
+static FILE *g_log_file = NULL;
+static char g_log_path[CLOG_PATH_MAX] = {0};
+static long g_file_entries = 0; /*entries in the CURRENT file*/
+static long g_unflushed = 0;    /*entries since last fflush*/
 static long long g_last_flush_ms = 0;
 
 static long long clog_now_ms(void) {
@@ -58,18 +58,33 @@ static void write_json_string(const char *s) {
     fputc('"', g_log_file);
     while (*p) {
         switch (*p) {
-        case '"':  fputs("\\\"", g_log_file); break;
-        case '\\': fputs("\\\\", g_log_file); break;
-        case '\b': fputs("\\b", g_log_file);  break;
-        case '\f': fputs("\\f", g_log_file);  break;
-        case '\n': fputs("\\n", g_log_file);  break;
-        case '\r': fputs("\\r", g_log_file);  break;
-        case '\t': fputs("\\t", g_log_file);  break;
+        case '"':
+            fputs("\\\"", g_log_file);
+            break;
+        case '\\':
+            fputs("\\\\", g_log_file);
+            break;
+        case '\b':
+            fputs("\\b", g_log_file);
+            break;
+        case '\f':
+            fputs("\\f", g_log_file);
+            break;
+        case '\n':
+            fputs("\\n", g_log_file);
+            break;
+        case '\r':
+            fputs("\\r", g_log_file);
+            break;
+        case '\t':
+            fputs("\\t", g_log_file);
+            break;
         default:
-            if (*p < 0x20)
+            if (*p < 0x20) {
                 fprintf(g_log_file, "\\u%04x", (unsigned)*p);
-            else
+            } else {
                 fputc(*p, g_log_file);
+            }
         }
         p++;
     }
@@ -79,12 +94,14 @@ static void write_json_string(const char *s) {
 /*Flush if the policy says so, then rotate if the file grew past the
  * limit. Called at the end of every logged entry.*/
 static void clog_maybe_flush_and_rotate(void) {
-    if (!g_log_file)
+    if (!g_log_file) {
         return;
+    }
     long long now_ms = clog_now_ms();
     if (g_unflushed >= CLOG_FLUSH_EVERY || now_ms - g_last_flush_ms >= 1000) {
-        if (fflush(g_log_file) == 0)
+        if (fflush(g_log_file) == 0) {
             g_unflushed = 0;
+        }
         g_last_flush_ms = now_ms;
     }
     if (ftell(g_log_file) >= CLOG_ROTATE_BYTES) {
@@ -93,9 +110,9 @@ static void clog_maybe_flush_and_rotate(void) {
         fflush(g_log_file);
         fclose(g_log_file);
         g_log_file = NULL;
-        char old[CLOG_PATH_MAX + 8];
-        snprintf(old, sizeof(old), "%s.1", g_log_path);
-        rename(g_log_path, old); /*overwrites the previous rotation*/
+        char rotated[CLOG_PATH_MAX + 8];
+        snprintf(rotated, sizeof(rotated), "%s.1", g_log_path);
+        rename(g_log_path, rotated); /*overwrites the previous rotation*/
         g_log_file = fopen(g_log_path, "we");
         if (g_log_file) {
             g_file_entries = 0;
@@ -116,7 +133,7 @@ static void write_timestamp(void) {
     write_json_string(buf);
 }
 
-void clog_init(const char* filepath) {
+void clog_init(const char *filepath) {
     if (g_log_file) {
         fclose(g_log_file);
     }
@@ -134,7 +151,9 @@ void clog_init(const char* filepath) {
 }
 
 void clog_close(void) {
-    if (!g_log_file) return;
+    if (!g_log_file) {
+        return;
+    }
     fprintf(g_log_file, "\n]\n");
     fflush(g_log_file);
     fclose(g_log_file);
@@ -143,7 +162,7 @@ void clog_close(void) {
 
 /*Internal helper for JSON entry separator (per CURRENT file: the first
  * entry of a rotated file must not start with a comma).*/
-static void begin_entry(const char* type) {
+static void begin_entry(const char *type) {
     if (g_file_entries > 0) {
         fprintf(g_log_file, ",\n");
     }
@@ -155,43 +174,43 @@ static void begin_entry(const char* type) {
     g_unflushed++;
 }
 
-void clog_attack(const char* attacker, const char* target,
-                 int roll, int bonus, int ac,
-                 bool hit, bool crit, int damage) {
-    if (!g_log_file) return;
+void clog_attack(const char *attacker, const char *target, int roll, int bonus, int ac, bool hit,
+                 bool crit, int damage) {
+    if (!g_log_file) {
+        return;
+    }
     begin_entry("attack");
     fputs(",\"attacker\":", g_log_file);
     write_json_string(attacker);
     fputs(",\"target\":", g_log_file);
     write_json_string(target);
     fprintf(g_log_file,
-        ",\"d20\":%d,\"bonus\":%d,\"ac\":%d"
-        ",\"hit\":%s,\"crit\":%s,\"damage\":%d}",
-        roll, bonus, ac,
-        hit  ? "true" : "false",
-        crit ? "true" : "false",
-        damage);
+            ",\"d20\":%d,\"bonus\":%d,\"ac\":%d"
+            ",\"hit\":%s,\"crit\":%s,\"damage\":%d}",
+            roll, bonus, ac, hit ? "true" : "false", crit ? "true" : "false", damage);
     clog_maybe_flush_and_rotate();
 }
 
-void clog_save(const char* entity, const char* effect,
-               int roll, int modifier, int dc, bool passed) {
-    if (!g_log_file) return;
+void clog_save(const char *entity, const char *effect, int roll, int modifier, int dc,
+               bool passed) {
+    if (!g_log_file) {
+        return;
+    }
     begin_entry("save");
     fputs(",\"entity\":", g_log_file);
     write_json_string(entity);
     fputs(",\"effect\":", g_log_file);
     write_json_string(effect);
-    fprintf(g_log_file,
-        ",\"d20\":%d,\"modifier\":%d,\"dc\":%d,\"passed\":%s}",
-        roll, modifier, dc,
-        passed ? "true" : "false");
+    fprintf(g_log_file, ",\"d20\":%d,\"modifier\":%d,\"dc\":%d,\"passed\":%s}", roll, modifier, dc,
+            passed ? "true" : "false");
     clog_maybe_flush_and_rotate();
 }
 
-void clog_spell(const char* caster, const char* spell_name,
-                const char* target, int damage_or_heal, bool saved) {
-    if (!g_log_file) return;
+void clog_spell(const char *caster, const char *spell_name, const char *target, int damage_or_heal,
+                bool saved) {
+    if (!g_log_file) {
+        return;
+    }
     begin_entry("spell");
     fputs(",\"caster\":", g_log_file);
     write_json_string(caster);
@@ -199,22 +218,19 @@ void clog_spell(const char* caster, const char* spell_name,
     write_json_string(spell_name);
     fputs(",\"target\":", g_log_file);
     write_json_string(target);
-    fprintf(g_log_file,
-        ",\"value\":%d,\"saved\":%s}",
-        damage_or_heal,
-        saved ? "true" : "false");
+    fprintf(g_log_file, ",\"value\":%d,\"saved\":%s}", damage_or_heal, saved ? "true" : "false");
     clog_maybe_flush_and_rotate();
 }
 
-void clog_death(const char* entity, const char* killer, int floor_id) {
-    if (!g_log_file) return;
+void clog_death(const char *entity, const char *killer, int floor_id) {
+    if (!g_log_file) {
+        return;
+    }
     begin_entry("death");
     fputs(",\"entity\":", g_log_file);
     write_json_string(entity);
     fputs(",\"killer\":", g_log_file);
     write_json_string(killer);
-    fprintf(g_log_file,
-        ",\"floor\":%d}",
-        floor_id);
+    fprintf(g_log_file, ",\"floor\":%d}", floor_id);
     clog_maybe_flush_and_rotate();
 }
