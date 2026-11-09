@@ -721,6 +721,18 @@ static void respawn_traps_and_crystals(void) {
     }
 }
 
+static bool npc_cannot_act(NPC *n) {
+    static const ConditionType k_blocking[] = {COND_PARALYZED,   COND_STUNNED,
+                                               COND_PETRIFIED,   COND_FROZEN,
+                                               COND_UNCONSCIOUS, COND_INCAPACITATED};
+    for (size_t i = 0; i < sizeof(k_blocking) / sizeof(k_blocking[0]); i++) {
+        if (rules_has_condition_t(n->effects, n->effect_count, k_blocking[i])) {
+            return true;
+        }
+    }
+    return false;
+}
+
 /*One tick of an NPC: on a new round its effects, saving throws and
  * periodic damage, then as many AI cycles as its energy allows; a dead
  * NPC counts down to its respawn instead.*/
@@ -733,8 +745,6 @@ static void npc_round(Client *clients, NPC *npcs, NPC *n, bool new_round) {
     if (n->active) {
         /* Living NPC: update effects and AI */
         if (new_round) {
-            rules_update_effects(n->effects, &n->effect_count);
-
             /* --- Periodic effects: NPC poison --- */
             if (rules_has_condition_t(n->effects, n->effect_count, COND_POISONED)) {
                 n->hp -= 1;
@@ -806,12 +816,12 @@ static void npc_round(Client *clients, NPC *npcs, NPC *n, bool new_round) {
             }
         } /*end new_round for NPC*/
 
-        /*--- Block actions for debilitating conditions ---*/
-        if (rules_has_condition_t(n->effects, n->effect_count, COND_PARALYZED) ||
-            rules_has_condition_t(n->effects, n->effect_count, COND_STUNNED) ||
-            rules_has_condition_t(n->effects, n->effect_count, COND_PETRIFIED) ||
-            rules_has_condition_t(n->effects, n->effect_count, COND_FROZEN) ||
-            rules_has_condition_t(n->effects, n->effect_count, COND_UNCONSCIOUS)) {
+        /*--- Debilitating conditions take the turn; the effects then age by
+         * one round, so an effect of N rounds costs the NPC N turns. ---*/
+        if (npc_cannot_act(n)) {
+            if (new_round) {
+                rules_update_effects(n->effects, &n->effect_count);
+            }
             return;
         }
 
@@ -830,6 +840,9 @@ static void npc_round(Client *clients, NPC *npcs, NPC *n, bool new_round) {
             n->energy -= ENERGY_THRESHOLD;
             ai_update_npc(n, clients, MAX_CLIENTS, new_round && first_cycle, npcs);
             first_cycle = false;
+        }
+        if (new_round) {
+            rules_update_effects(n->effects, &n->effect_count);
         }
 
     } else if (n->template != NULL && !n->is_ghost && n->archetype != ARCH_TREASURE &&
@@ -974,7 +987,7 @@ void update_world(Client *clients, NPC *npcs) {
         rebalance_floor_density(npcs);
     }
     if (new_round) {
-        aoe_update_clouds(npcs, MAX_NPCS, clients, MAX_CLIENTS);
+        aoe_update_clouds(npcs, clients, MAX_CLIENTS);
     }
 }
 

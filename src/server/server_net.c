@@ -190,7 +190,8 @@ void send_detailed_state(Client *c) {
         }
         int a_mod =
             (w2 && w2->damage_dice_sides <= 6) ? rules_get_modifier(td2) : rules_get_modifier(ts2);
-        s.to_hit = (w2 ? w2->attack_bonus : 0) + a_mod + (c->level / 2);
+        s.to_hit = (w2 ? w2->attack_bonus : 0) + a_mod + (c->level / 2) +
+                   rules_event_bonus(c->effects, c->effect_count, EVENT_ON_ATTACK);
     }
 
     //--- POPULATION OF STATUS ICONS (BITMASK) ---

@@ -54,6 +54,40 @@ void rules_apply_modifiers(RuleContext *ctx, ActiveEffect *effects, int effect_c
     }
 }
 
+int rules_event_bonus(const ActiveEffect *effects, int effect_count, RuleEventType type) {
+    int bonus = 0;
+    for (int i = 0; i < effect_count; i++) {
+        const ActiveEffect *e = &effects[i];
+        if (e->trigger == type && e->mod_type == MOD_ADDITIVE &&
+            (e->duration_rounds > 0 || e->is_persistent)) {
+            bonus += e->value;
+        }
+    }
+    return bonus;
+}
+
+bool rules_add_effect(ActiveEffect *effects, int *effect_count, int max_effects,
+                      const ActiveEffect *effect) {
+    for (int i = 0; i < *effect_count; i++) {
+        ActiveEffect *e = &effects[i];
+        if (e->name && effect->name && strcasecmp(e->name, effect->name) == 0) {
+            if (effect->duration_rounds > e->duration_rounds) {
+                e->duration_rounds = effect->duration_rounds;
+            }
+            if (effect->value > e->value) {
+                e->value = effect->value;
+            }
+            e->is_persistent = e->is_persistent || effect->is_persistent;
+            return true;
+        }
+    }
+    if (*effect_count >= max_effects) {
+        return false;
+    }
+    effects[(*effect_count)++] = *effect;
+    return true;
+}
+
 int rules_roll_dice(int count, int sides) {
     int total = 0;
     for (int i = 0; i < count; i++) {
@@ -91,7 +125,16 @@ int rules_get_modifier(int score) {
     return q;
 }
 
+static int g_forced_d20; /*0: real rolls (rules_force_d20)*/
+
+void rules_force_d20(int value) {
+    g_forced_d20 = (value >= 1 && value <= 20) ? value : 0;
+}
+
 int rules_roll_d20(bool advantage, bool disadvantage) {
+    if (g_forced_d20) {
+        return g_forced_d20;
+    }
     int roll1 = (rand() % 20) + 1;
     int roll2 = (rand() % 20) + 1;
 
@@ -219,4 +262,46 @@ int rules_calculate_damage(int raw_damage, DamageModifier dmg_mod) {
     default:
         return raw_damage;
     }
+}
+
+static const char *const g_damage_type_names[MAX_DAMAGE_TYPES] = {
+    [DMG_SLASHING] = "slashing",   [DMG_PIERCING] = "piercing", [DMG_BLUDGEONING] = "bludgeoning",
+    [DMG_POISON] = "poison",       [DMG_ACID] = "acid",         [DMG_FIRE] = "fire",
+    [DMG_COLD] = "cold",           [DMG_RADIANT] = "radiant",   [DMG_NECROTIC] = "necrotic",
+    [DMG_LIGHTNING] = "lightning", [DMG_THUNDER] = "thunder",   [DMG_FORCE] = "force",
+    [DMG_PSYCHIC] = "psychic",
+};
+
+const char *damage_type_to_name(DamageType type) {
+    if ((int)type < 0 || type >= MAX_DAMAGE_TYPES) {
+        return "unknown";
+    }
+    return g_damage_type_names[type];
+}
+
+DamageType damage_type_from_name(const char *name) {
+    for (int t = 0; name && t < MAX_DAMAGE_TYPES; t++) {
+        if (strcasecmp(name, g_damage_type_names[t]) == 0) {
+            return (DamageType)t;
+        }
+    }
+    return MAX_DAMAGE_TYPES;
+}
+
+static const char *const g_ability_names[] = {"str", "dex", "con", "int", "wis", "cha", "spell"};
+
+const char *ability_to_name(Ability a) {
+    if ((int)a < 0 || a > ABILITY_SPELL) {
+        return "none";
+    }
+    return g_ability_names[a];
+}
+
+Ability ability_from_name(const char *name) {
+    for (int a = 0; name && a <= ABILITY_SPELL; a++) {
+        if (strcasecmp(name, g_ability_names[a]) == 0) {
+            return (Ability)a;
+        }
+    }
+    return ABILITY_NONE;
 }

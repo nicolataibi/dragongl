@@ -18,559 +18,230 @@
  */
 
 /*
- * aoe.c — Area of Effect engine for DragonGL
+ * aoe.c - Areas of effect: geometry, terrain chemistry and clouds.
  *
- * Implemented projection types:
- *  - AOE_CIRCLE  : Spherical explosion (Fireball, Ice Storm)
- *  - AOE_CONE    : Cone (Dragon Breath, Burning Spray, Cone of Cold)
- *  - AOE_LINE    : Line (Lightning Bolt, Acid Spit, Gas Jet)
- *  - AOE_CLOUD   : Persistent multi-round cloud (Poison Gas, Acid Cloud)
- *
- * Each type has unique narrative text for textual immersion.
+ * The effect of a spell on each creature is resolved by spell_cast.c;
+ * this file only answers "which cells", "what happens to the ground" and
+ * "what stays on the map".
  */
 
 #include "aoe.h"
-#include "combat_log.h"
 #include "map.h"
 #include "server_internal.h"
 #include "server_world.h"
+#include "spell_cast.h"
 #include <math.h>
-#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-//Global pool of persistent clouds
 PersistentCloud g_clouds[MAX_CLOUDS];
 
-// -------------------------------------------------------
-// NARRATIVE text for damage type
-// -------------------------------------------------------
-static const char *dmg_type_name(DamageType t) {
-    switch (t) {
-    case DMG_FIRE:
-        return "fire";
-    case DMG_ACID:
-        return "acid";
-    case DMG_POISON:
-        return "poison";
-    case DMG_COLD:
-        return "ice";
-    case DMG_LIGHTNING:
-        return "lightning";
-    case DMG_THUNDER:
-        return "thunder";
-    case DMG_NECROTIC:
-        return "necrotic energy";
-    case DMG_RADIANT:
-        return "radiant light";
-    case DMG_FORCE:
-        return "arcane force";
-    case DMG_PSYCHIC:
-        return "psychic power";
-    case DMG_SLASHING:
-        return "slashing";
-    case DMG_PIERCING:
-        return "piercing";
-    case DMG_BLUDGEONING:
-        return "bludgeoning";
-    default:
-        return "dark energy";
-    }
-}
+/* --- Geometry -------------------------------------------------------- */
 
-// -------------------------------------------------------
-// INITIALIZATION
-// -------------------------------------------------------
-void aoe_init_clouds(void) {
-    memset(g_clouds, 0, sizeof(g_clouds));
-}
-
-// -------------------------------------------------------
-// HELPER: apply damage to a single NPC with narrative text
-// -------------------------------------------------------
-void aoe_apply_damage_to_npc(NPC *npc, Client *caster, int dmg, bool saved, const char *effect_name,
-                             const char *kill_msg) {
-    if (!npc || !npc->active || !caster) {
-        return;
-    }
-
-    npc->hp -= dmg;
-
-    send_text_to_client(caster->sock, "  > %s: %d %s damage%s (HP: %d/%d)",
-                        npc->template ? npc->template->name : "???", dmg, effect_name,
-                        saved ? " [Save! -half]" : "", npc->hp, npc->max_hp);
-
-    if (npc->hp <= 0) {
-        npc_set_active(npc, false);
-        npc->respawn_timer = 120; //RESPAWN_TICKS
-        int xp_gained = npc->template ? npc->template->xp : 10;
-        caster->xp += xp_gained;
-        /*A magical kill is a kill: check the level-up now, like the melee
-         * path in server_combat.c.*/
-        check_level_up(caster);
-        send_text_to_client(caster->sock, kill_msg, npc->template ? npc->template->name : "???",
-                            xp_gained);
-        clog_death(npc->template ? npc->template->name : "???", caster->username, npc->floor_id);
-        if (npc->archetype == ARCH_BOSS) {
-            handle_boss_death(caster, npc);
-        }
-    }
-}
-
-// -------------------------------------------------------
-//HELPER: create persistent cloud
-// -------------------------------------------------------
-static void spawn_cloud(SpellTemplate *sp, int cx, int cy, int floor_id, int save_dc,
-                        const char *owner_name) {
-    for (int i = 0; i < MAX_CLOUDS; i++) {
-        if (!g_clouds[i].active) {
-            g_clouds[i].active = true;
-            g_clouds[i].cx = cx;
-            g_clouds[i].cy = cy;
-            g_clouds[i].radius = sp->radius > 0 ? sp->radius : 3;
-            g_clouds[i].floor_id = floor_id;
-            g_clouds[i].rounds_left = sp->cloud_rounds > 0 ? sp->cloud_rounds : 3;
-            g_clouds[i].dice_count = sp->dice_count > 0 ? sp->dice_count : 1;
-            g_clouds[i].dice_sides = sp->dice_sides > 0 ? sp->dice_sides : 6;
-            g_clouds[i].dmg_type = sp->damage_type;
-            g_clouds[i].save_dc = save_dc;
-            strncpy(g_clouds[i].name, sp->name, 31);
-            g_clouds[i].owner[0] = '\0';
-            if (owner_name && owner_name[0] != '\0') {
-                copy_str(g_clouds[i].owner, owner_name, sizeof(g_clouds[i].owner));
-            }
-            break;
-        }
-    }
-}
-
-// -------------------------------------------------------
-//HELPER: Manhattan distance
-// -------------------------------------------------------
-static int mdist(int x1, int y1, int x2, int y2) {
-    return abs(x1 - x2) + abs(y1 - y2);
-}
-
-// -------------------------------------------------------
-//HELPER: squared Euclidean distance
-// -------------------------------------------------------
-static float edist_sq(int x1, int y1, int x2, int y2) {
+static float dist_sq(int x1, int y1, int x2, int y2) {
     float dx = (float)(x1 - x2);
     float dy = (float)(y1 - y2);
     return dx * dx + dy * dy;
 }
 
-// -------------------------------------------------------
-//HELPER: point falls within cone (90° angle, origin -> target)
-// -------------------------------------------------------
-static bool in_cone(int ox, int oy, int tx, int ty, int px, int py, int length) {
-    // Direction vector of the cone (from origin to first target)
-    float dx = (float)(tx - ox);
-    float dy = (float)(ty - oy);
+/*90-degree cone from the origin towards the target, `length` cells long.*/
+static bool in_cone(const AoeArea *a, int px, int py) {
+    float dx = (float)(a->tx - a->ox);
+    float dy = (float)(a->ty - a->oy);
     float len = sqrtf(dx * dx + dy * dy);
-    if (len < 0.001f) {
-        return false;
-    }
-    dx /= len;
-    dy /= len;
-
-    // Vector toward the point being tested
-    float px2 = (float)(px - ox);
-    float py2 = (float)(py - oy);
-    float pdist = sqrtf(px2 * px2 + py2 * py2);
-    if (pdist > (float)length) {
+    float ex = (float)(px - a->ox);
+    float ey = (float)(py - a->oy);
+    float pdist = sqrtf(ex * ex + ey * ey);
+    if (len < 0.001f || pdist > (float)a->radius) {
         return false;
     }
     if (pdist < 0.001f) {
-        return true; // Same as origin
+        return false; /*the caster's own cell*/
     }
-
-    float px_n = px2 / pdist;
-    float py_n = py2 / pdist;
-
-    // Cosine of angle = dot product
-    float cosangle = dx * px_n + dy * py_n;
-    // Cone 90° -> half-angle 45° -> cos(45°) ≈ 0.707
-    return cosangle >= 0.707f;
+    float cosangle = (dx * ex + dy * ey) / (len * pdist);
+    return cosangle >= 0.707f; /*half-angle 45 degrees*/
 }
 
-// -------------------------------------------------------
-//HELPER: point falls online (width 1 cell)
-// -------------------------------------------------------
-static bool on_line(int ox, int oy, int tx, int ty, int px, int py, int length) {
-    float dx = (float)(tx - ox);
-    float dy = (float)(ty - oy);
+/*Line one cell wide from the origin towards the target.*/
+static bool on_line(const AoeArea *a, int px, int py) {
+    float dx = (float)(a->tx - a->ox);
+    float dy = (float)(a->ty - a->oy);
     float len = sqrtf(dx * dx + dy * dy);
     if (len < 0.001f) {
         return false;
     }
-
-    // Project the point onto the line
-    float ex = (float)(px - ox);
-    float ey = (float)(py - oy);
-
+    float ex = (float)(px - a->ox);
+    float ey = (float)(py - a->oy);
     float proj = (ex * dx + ey * dy) / len;
-    if (proj < 0.0f || proj > (float)length) {
+    if (proj <= 0.0f || proj > (float)a->radius) {
         return false;
     }
-
-    // Perpendicular distance
-    float cross = fabsf(ex * (dy / len) - ey * (dx / len));
-    return cross <= 1.5f; // Width ~1 cell
+    float cross = fabsf(ex * dy - ey * dx) / len;
+    return cross <= 0.75f;
 }
 
-// -------------------------------------------------------
-// MAIN RESOLUTION
-// -------------------------------------------------------
-int aoe_resolve_spell(SpellTemplate *sp, Client *caster, NPC *npcs, int npc_count, int origin_x,
-                      int origin_y) {
-    if (!sp || !caster || !npcs) {
-        return 0;
-    }
-
-    int spell_save_dc = 8 + 2 + rules_get_modifier(caster->intel);
-    int radius = sp->radius > 0 ? sp->radius : 4;
-    int length = sp->radius > 0 ? sp->radius : 8;
-    int dc_count = sp->dice_count > 0 ? sp->dice_count : 2;
-    int dc_sides = sp->dice_sides > 0 ? sp->dice_sides : 6;
-    int hits = 0;
-
-    // Find the nearest NPC to orient cone/line
-    NPC *nearest = NULL;
-    int min_d = 9999;
-    for (int i = 0; i < npc_count; i++) {
-        if (!npcs[i].active || npcs[i].archetype == ARCH_MERCHANT) {
-            continue;
-        }
-        if (npcs[i].floor_id != caster->floor_id) {
-            continue;
-        }
-        int d = mdist(origin_x, origin_y, npcs[i].x, npcs[i].y);
-        if (d < min_d) {
-            min_d = d;
-            nearest = &npcs[i];
-        }
-    }
-
-    int target_x = nearest ? nearest->x : origin_x + 1;
-    int target_y = nearest ? nearest->y : origin_y;
-
-    // Launch narrative by projection type
-    switch (sp->target_type) {
+bool aoe_contains(const AoeArea *a, int x, int y) {
+    switch (a->shape) {
     case SPELL_TARGET_AOE_CIRCLE:
-        send_text_to_client(
-            caster->sock,
-            "[ACTION] Spherical vortices of %s explode in a radius of %d cells around the impact point!",
-            dmg_type_name(sp->damage_type), radius);
-        break;
-
-    case SPELL_TARGET_AOE_CONE:
-        if (sp->damage_type == DMG_FIRE) {
-            send_text_to_client(
-                caster->sock,
-                "[ACTION] You open your maw and a wave of DRACONIC FIRE incinerates everything in a %d-cell cone!",
-                length);
-        } else if (sp->damage_type == DMG_COLD) {
-            send_text_to_client(
-                caster->sock,
-                "[ACTION] A frigid blast of arcane frost sweeps the cone ahead of you for %d cells!",
-                length);
-        } else if (sp->damage_type == DMG_ACID) {
-            send_text_to_client(
-                caster->sock,
-                "[ACTION] You spit a trail of corrosive acid that drains everything in a %d-cell cone!",
-                length);
-        } else {
-            send_text_to_client(caster->sock, "[ACTION] A cone of %s surges forward over %d cells!",
-                                dmg_type_name(sp->damage_type), length);
-        }
-        break;
-
-    case SPELL_TARGET_AOE_LINE:
-        if (sp->damage_type == DMG_LIGHTNING) {
-            send_text_to_client(
-                caster->sock,
-                "[ACTION] A bolt of pure LIGHTNING streaks across the room in a straight line for %d cells!",
-                length);
-        } else if (sp->damage_type == DMG_ACID) {
-            send_text_to_client(
-                caster->sock,
-                "[ACTION] You launch a corrosive acid spit that eats through everything in its path (%d cells)!",
-                length);
-        } else {
-            send_text_to_client(caster->sock,
-                                "[ACTION] A jet of %s cuts in a straight line for %d cells!",
-                                dmg_type_name(sp->damage_type), length);
-        }
-        break;
-
     case SPELL_TARGET_AOE_CLOUD:
-        if (sp->damage_type == DMG_POISON) {
-            send_text_to_client(
-                caster->sock,
-                "[ACTION] A dense cloud of POISON GAS forms and lingers for %d rounds!",
-                sp->cloud_rounds > 0 ? sp->cloud_rounds : 3);
-        } else if (sp->damage_type == DMG_ACID) {
-            send_text_to_client(
-                caster->sock,
-                "[ACTION] A pungent ACID CLOUD corrodes the air and persists for %d rounds!",
-                sp->cloud_rounds > 0 ? sp->cloud_rounds : 3);
-        } else {
-            send_text_to_client(
-                caster->sock, "[ACTION] A cloud of %s expands and will linger for %d rounds!",
-                dmg_type_name(sp->damage_type), sp->cloud_rounds > 0 ? sp->cloud_rounds : 3);
-        }
-        //Create persistent cloud (remembering the caster, so kills it
-        //causes later still credit XP), then apply first-round damage
-        spawn_cloud(sp, origin_x, origin_y, caster->floor_id, spell_save_dc, caster->username);
-        break;
-
+        return dist_sq(a->ox, a->oy, x, y) <= (float)(a->radius * a->radius);
+    case SPELL_TARGET_AOE_CONE:
+        return in_cone(a, x, y);
+    case SPELL_TARGET_AOE_LINE:
+        return on_line(a, x, y);
     default:
-        break;
+        return x == a->ox && y == a->oy;
     }
-
-    // --- TERRAFORMING (Voxel Chemistry) ---
-    if (master_world && caster->floor_id >= 0 && caster->floor_id < MAX_FLOORS) {
-        Floor *fl = &master_world->floors[caster->floor_id];
-        int min_x = origin_x - length;
-        if (min_x < 1) {
-            min_x = 1;
-        }
-        int max_x = origin_x + length;
-        if (max_x >= MAP_WIDTH - 1) {
-            max_x = MAP_WIDTH - 2;
-        }
-        int min_y = origin_y - length;
-        if (min_y < 1) {
-            min_y = 1;
-        }
-        int max_y = origin_y + length;
-        if (max_y >= MAP_HEIGHT - 1) {
-            max_y = MAP_HEIGHT - 2;
-        }
-
-        for (int y = min_y; y <= max_y; y++) {
-            for (int x = min_x; x <= max_x; x++) {
-                bool in_zone = false;
-                switch (sp->target_type) {
-                case SPELL_TARGET_AOE_CIRCLE:
-                    in_zone = edist_sq(origin_x, origin_y, x, y) <= (float)(radius * radius);
-                    break;
-                case SPELL_TARGET_AOE_CONE:
-                    in_zone = in_cone(origin_x, origin_y, target_x, target_y, x, y, length);
-                    break;
-                case SPELL_TARGET_AOE_LINE:
-                    in_zone = on_line(origin_x, origin_y, target_x, target_y, x, y, length);
-                    break;
-                case SPELL_TARGET_AOE_CLOUD:
-                    in_zone = edist_sq(origin_x, origin_y, x, y) <= (float)(radius * radius);
-                    break;
-                default:
-                    break;
-                }
-
-                if (in_zone) {
-                    VoxelType t = fl->map.data[0][y][x];
-                    if (sp->damage_type == DMG_FIRE) {
-                        if (t == VOXEL_ICE) {
-                            fl->map.data[0][y][x] = VOXEL_WATER;
-                        } else if (t == VOXEL_WOOD) {
-                            fl->map.data[0][y][x] = VOXEL_ASH;
-                        } else if (t == VOXEL_WATER) {
-                            fl->map.data[0][y][x] = VOXEL_MUD;
-                        }
-                    } else if (sp->damage_type == DMG_COLD) {
-                        if (t == VOXEL_WATER) {
-                            fl->map.data[0][y][x] = VOXEL_ICE;
-                        } else if (t == VOXEL_LAVA) {
-                            fl->map.data[0][y][x] = VOXEL_OBSIDIAN;
-                        } else if (t == VOXEL_MUD) {
-                            fl->map.data[0][y][x] = VOXEL_FLOOR;
-                        }
-                    } else if (sp->damage_type == DMG_ACID) {
-                        if (t == VOXEL_WOOD || t == VOXEL_DOOR) {
-                            fl->map.data[0][y][x] = VOXEL_FLOOR;
-                        }
-                    } else if (sp->damage_type == DMG_FORCE || sp->damage_type == DMG_BLUDGEONING) {
-                        if (t == VOXEL_WALL || t == VOXEL_COBBLE) {
-                            fl->map.data[0][y][x] = VOXEL_ROCK;
-                        } else if (t == VOXEL_CRYSTAL_BLUE || t == VOXEL_CRYSTAL_PURPLE) {
-                            fl->map.data[0][y][x] = VOXEL_FLOOR;
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    //--- Iterate through all NPCs and apply damage if in the area ---
-    for (int i = 0; i < npc_count; i++) {
-        NPC *n = &npcs[i];
-        if (!n->active || n->archetype == ARCH_MERCHANT) {
-            continue;
-        }
-        if (n->floor_id != caster->floor_id) {
-            continue;
-        }
-
-        bool in_zone = false;
-
-        switch (sp->target_type) {
-        case SPELL_TARGET_AOE_CIRCLE:
-            in_zone = edist_sq(origin_x, origin_y, n->x, n->y) <= (float)(radius * radius);
-            break;
-
-        case SPELL_TARGET_AOE_CONE:
-            in_zone = in_cone(origin_x, origin_y, target_x, target_y, n->x, n->y, length);
-            break;
-
-        case SPELL_TARGET_AOE_LINE:
-            in_zone = on_line(origin_x, origin_y, target_x, target_y, n->x, n->y, length);
-            break;
-
-        case SPELL_TARGET_AOE_CLOUD:
-            in_zone = edist_sq(origin_x, origin_y, n->x, n->y) <= (float)(radius * radius);
-            break;
-
-        default:
-            break;
-        }
-
-        if (!in_zone) {
-            continue;
-        }
-
-        //Saving Throw (CON/DEX depending on type)
-        bool saved = rules_roll_save(0, spell_save_dc, false, false, NULL);
-        int raw = rules_roll_dice(dc_count, dc_sides);
-        int dmg = saved ? raw / 2 : raw;
-        if (dmg < 1) {
-            dmg = 1;
-        }
-
-        aoe_apply_damage_to_npc(n, caster, dmg, saved, dmg_type_name(sp->damage_type),
-                                "[VICTORY] %s is reduced to ashes by %s! (+%d XP)");
-
-        clog_spell(caster->username, sp->name, n->template ? n->template->name : "???", dmg, saved);
-        hits++;
-    }
-
-    if (hits == 0) {
-        send_text_to_client(caster->sock,
-                            "> The effect dissipates into the void... no target hit.");
-    } else {
-        send_text_to_client(caster->sock, "  > %d bersagli colpiti!", hits);
-    }
-
-    return hits;
 }
 
-// -------------------------------------------------------
-//PERSISTENT CLOUDS UPDATE (called every round)
-// -------------------------------------------------------
-void aoe_update_clouds(NPC *npcs, int npc_count, Client *clients, int client_count) {
+/* --- Terrain chemistry ------------------------------------------------ */
+
+/*What each damage type turns a voxel into.*/
+static const struct {
+    DamageType type;
+    VoxelType from, to;
+} k_reactions[] = {
+    {DMG_FIRE, VOXEL_ICE, VOXEL_WATER},
+    {DMG_FIRE, VOXEL_WOOD, VOXEL_ASH},
+    {DMG_FIRE, VOXEL_WATER, VOXEL_MUD},
+    {DMG_COLD, VOXEL_WATER, VOXEL_ICE},
+    {DMG_COLD, VOXEL_LAVA, VOXEL_OBSIDIAN},
+    {DMG_COLD, VOXEL_MUD, VOXEL_FLOOR},
+    {DMG_ACID, VOXEL_WOOD, VOXEL_FLOOR},
+    {DMG_ACID, VOXEL_DOOR, VOXEL_FLOOR},
+    {DMG_FORCE, VOXEL_WALL, VOXEL_ROCK},
+    {DMG_FORCE, VOXEL_COBBLE, VOXEL_ROCK},
+    {DMG_FORCE, VOXEL_CRYSTAL_BLUE, VOXEL_FLOOR},
+    {DMG_FORCE, VOXEL_CRYSTAL_PURPLE, VOXEL_FLOOR},
+    {DMG_BLUDGEONING, VOXEL_WALL, VOXEL_ROCK},
+    {DMG_BLUDGEONING, VOXEL_COBBLE, VOXEL_ROCK},
+    {DMG_BLUDGEONING, VOXEL_CRYSTAL_BLUE, VOXEL_FLOOR},
+    {DMG_BLUDGEONING, VOXEL_CRYSTAL_PURPLE, VOXEL_FLOOR},
+};
+
+static VoxelType react(VoxelType t, DamageType type) {
+    for (size_t i = 0; i < sizeof(k_reactions) / sizeof(k_reactions[0]); i++) {
+        if (k_reactions[i].type == type && k_reactions[i].from == t) {
+            return k_reactions[i].to;
+        }
+    }
+    return t;
+}
+
+void aoe_terraform(const AoeArea *a, int floor_id, DamageType type) {
+    if (!master_world || floor_id < 0 || floor_id >= MAX_FLOORS) {
+        return;
+    }
+    Map *map = &master_world->floors[floor_id].map;
+    int r = a->radius;
+    for (int y = a->oy - r; y <= a->oy + r; y++) {
+        for (int x = a->ox - r; x <= a->ox + r; x++) {
+            if (x < 1 || x >= MAP_WIDTH - 1 || y < 1 || y >= MAP_HEIGHT - 1 ||
+                !aoe_contains(a, x, y)) {
+                continue;
+            }
+            map->data[0][y][x] = react(map->data[0][y][x], type);
+        }
+    }
+}
+
+void aoe_announce(const Client *caster, const SpellTemplate *sp) {
+    const SpellEffect *e = &sp->effect;
+    const char *what =
+        e->kind == SPELL_KIND_DAMAGE ? damage_type_to_name(e->damage_type) : "arcane power";
+    switch (e->target) {
+    case SPELL_TARGET_AOE_CONE:
+        send_text_to_client(caster->sock, "[ACTION] %s: a cone of %s surges forward over %d cells!",
+                            sp->name, what, e->radius);
+        break;
+    case SPELL_TARGET_AOE_LINE:
+        send_text_to_client(caster->sock, "[ACTION] %s: a line of %s cuts %d cells ahead!",
+                            sp->name, what, e->radius);
+        break;
+    case SPELL_TARGET_AOE_CLOUD:
+        send_text_to_client(caster->sock,
+                            "[ACTION] %s: a cloud of %s spreads over %d cells and lingers for %d"
+                            " rounds!",
+                            sp->name, what, e->radius, e->rounds);
+        break;
+    default:
+        send_text_to_client(caster->sock, "[ACTION] %s: %s bursts in a radius of %d cells!",
+                            sp->name, what, e->radius);
+        break;
+    }
+}
+
+/* --- Clouds ------------------------------------------------------------ */
+
+void aoe_init_clouds(void) {
+    memset(g_clouds, 0, sizeof(g_clouds));
+}
+
+bool aoe_spawn_cloud(const SpellTemplate *sp, const SpellCaster *caster, const char *owner,
+                     int floor_id, int cx, int cy) {
+    for (int i = 0; i < MAX_CLOUDS; i++) {
+        PersistentCloud *cl = &g_clouds[i];
+        if (cl->active) {
+            continue;
+        }
+        memset(cl, 0, sizeof(*cl));
+        cl->active = true;
+        cl->cx = cx;
+        cl->cy = cy;
+        cl->floor_id = floor_id;
+        cl->rounds_left = sp->effect.rounds - 1; /*the cast itself is the first round*/
+        if (cl->rounds_left <= 0) {
+            cl->active = false;
+            return true;
+        }
+        cl->spell = sp;
+        cl->caster = *caster;
+        if (owner) {
+            copy_str(cl->owner, owner, sizeof(cl->owner));
+        }
+        return true;
+    }
+    return false;
+}
+
+/*The caster of the cloud, if still online.*/
+static Client *cloud_owner(const PersistentCloud *cl, Client *clients, int client_count) {
+    for (int i = 0; cl->owner[0] && i < client_count; i++) {
+        if (clients[i].active && clients[i].authenticated &&
+            strcmp(clients[i].username, cl->owner) == 0) {
+            return &clients[i];
+        }
+    }
+    return NULL;
+}
+
+static void cloud_round(PersistentCloud *cl, NPC *npcs, Client *owner) {
+    AoeArea area = {
+        SPELL_TARGET_AOE_CLOUD, cl->spell->effect.radius, cl->cx, cl->cy, cl->cx, cl->cy};
+    FloorIter walk = floor_iter(npcs, cl->floor_id);
+    for (int i; (i = floor_iter_next(&walk)) >= 0;) {
+        NPC *n = &npcs[i];
+        if (spell_can_affect_npc(n) && aoe_contains(&area, n->x, n->y)) {
+            spell_affect_npc(cl->spell, &cl->caster, n, owner, 1);
+        }
+    }
+}
+
+void aoe_update_clouds(NPC *npcs, Client *clients, int client_count) {
     for (int ci = 0; ci < MAX_CLOUDS; ci++) {
-        PersistentCloud *cloud = &g_clouds[ci];
-        if (!cloud->active) {
+        PersistentCloud *cl = &g_clouds[ci];
+        if (!cl->active) {
             continue;
         }
-
-        cloud->rounds_left--;
-
-        //Notify all clients on that plan
-        for (int p = 0; p < client_count; p++) {
-            if (!clients[p].active || !clients[p].authenticated) {
-                continue;
-            }
-            if (clients[p].floor_id != cloud->floor_id) {
-                continue;
-            }
-            if (cloud->rounds_left <= 0) {
-                send_text_to_client(clients[p].sock, "[ENVIRONMENT] The %s dissolves in the air.",
-                                    cloud->name);
-            } else {
-                send_text_to_client(clients[p].sock,
-                                    "[ENVIRONMENT] The %s continues to burn! (%d rounds remaining)",
-                                    cloud->name, cloud->rounds_left);
-            }
-        }
-
-        if (cloud->rounds_left <= 0) {
-            cloud->active = false;
-            continue;
-        }
-
-        //Apply damage to all NPCs in the cloud
-        for (int ni = 0; ni < npc_count; ni++) {
-            NPC *n = &npcs[ni];
-            if (!n->active || n->archetype == ARCH_MERCHANT) {
-                continue;
-            }
-            if (n->floor_id != cloud->floor_id) {
-                continue;
-            }
-            float dsq = edist_sq(cloud->cx, cloud->cy, n->x, n->y);
-            if (dsq > (float)(cloud->radius * cloud->radius)) {
-                continue;
-            }
-
-            bool saved = rules_roll_save(0, cloud->save_dc, false, false, NULL);
-            int raw = rules_roll_dice(cloud->dice_count, cloud->dice_sides);
-            int dmg = saved ? raw / 2 : raw;
-            if (dmg < 1) {
-                dmg = 1;
-            }
-
-            n->hp -= dmg;
-
-            // Notify the nearest client (cloud owner not available)
-            for (int p = 0; p < client_count; p++) {
-                if (!clients[p].active || !clients[p].authenticated) {
-                    continue;
-                }
-                if (clients[p].floor_id != cloud->floor_id) {
-                    continue;
-                }
-                send_text_to_client(clients[p].sock,
-                                    "[CLOUD] %s takes %d damage from %s%s (HP: %d/%d)",
-                                    n->template ? n->template->name : "???", dmg, cloud->name,
-                                    saved ? "[Salvation!]" : "", n->hp, n->max_hp);
-
-                if (n->hp <= 0) {
-                    npc_set_active(n, false);
-                    n->respawn_timer = 120;
-                    /*A1 (clouds): the cloud knows its owner now, so a kill
-                     *caused by it credits XP + level-up check to the caster,
-                     *like a direct hit. If the caster logged out during the
-                     *cloud's few rounds of life there is no slot to credit
-                     *— the XP is simply lost (accepted edge case).*/
-                    if (cloud->owner[0] != '\0') {
-                        for (int o = 0; o < client_count; o++) {
-                            if (!clients[o].active || !clients[o].authenticated) {
-                                continue;
-                            }
-                            if (strcmp(clients[o].username, cloud->owner) == 0) {
-                                int xp_gained = n->template ? n->template->xp : 10;
-                                clients[o].xp += xp_gained;
-                                check_level_up(&clients[o]);
-                                send_text_to_client(
-                                    clients[o].sock,
-                                    "[VICTORY] %s is destroyed by your %s! (+%d XP)",
-                                    n->template ? n->template->name : "???", cloud->name,
-                                    xp_gained);
-                                break;
-                            }
-                        }
-                    }
-                    send_text_to_client(clients[p].sock, "[CLOUDS] %s succumbs to lethal fumes!",
-                                        n->template ? n->template->name : "???");
-                    clog_death(n->template ? n->template->name : "???", cloud->name, n->floor_id);
-                    if (n->archetype == ARCH_BOSS) {
-                        handle_boss_death(NULL, n);
-                    }
-                }
-                break; //Notify only the first client on the plan
+        Client *owner = cloud_owner(cl, clients, client_count);
+        cloud_round(cl, npcs, owner);
+        cl->rounds_left--;
+        if (cl->rounds_left <= 0) {
+            cl->active = false;
+            if (owner) {
+                send_text_to_client(owner->sock, "[ENVIRONMENT] Your %s dissolves.",
+                                    cl->spell->name);
             }
         }
     }

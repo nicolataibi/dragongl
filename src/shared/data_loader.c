@@ -25,6 +25,7 @@
 #include "items.h"
 #include "spells.h"
 #include "classes.h"
+#include "spell_effect.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -91,118 +92,6 @@ static char *read_file_to_string(const char *filepath) {
     }
     fclose(f);
     return buffer;
-}
-
-//Helper for mapping strings to damage types
-static DamageType string_to_damage_type(const char *str) {
-    if (!str) {
-        return MAX_DAMAGE_TYPES;
-    }
-    if (strcasecmp(str, "slashing") == 0 || strcasecmp(str, "taglio") == 0) {
-        return DMG_SLASHING;
-    }
-    if (strcasecmp(str, "piercing") == 0 || strcasecmp(str, "perforante") == 0) {
-        return DMG_PIERCING;
-    }
-    if (strcasecmp(str, "bludgeoning") == 0 || strcasecmp(str, "contundente") == 0) {
-        return DMG_BLUDGEONING;
-    }
-    if (strcasecmp(str, "poison") == 0 || strcasecmp(str, "veleno") == 0) {
-        return DMG_POISON;
-    }
-    if (strcasecmp(str, "acid") == 0 || strcasecmp(str, "acido") == 0) {
-        return DMG_ACID;
-    }
-    if (strcasecmp(str, "fire") == 0 || strcasecmp(str, "fuoco") == 0) {
-        return DMG_FIRE;
-    }
-    if (strcasecmp(str, "cold") == 0 || strcasecmp(str, "freddo") == 0) {
-        return DMG_COLD;
-    }
-    if (strcasecmp(str, "radiant") == 0 || strcasecmp(str, "radiante") == 0) {
-        return DMG_RADIANT;
-    }
-    if (strcasecmp(str, "necrotic") == 0 || strcasecmp(str, "necrotico") == 0) {
-        return DMG_NECROTIC;
-    }
-    if (strcasecmp(str, "lightning") == 0 || strcasecmp(str, "fulmine") == 0) {
-        return DMG_LIGHTNING;
-    }
-    if (strcasecmp(str, "thunder") == 0 || strcasecmp(str, "tuono") == 0) {
-        return DMG_THUNDER;
-    }
-    if (strcasecmp(str, "force") == 0 || strcasecmp(str, "forza") == 0) {
-        return DMG_FORCE;
-    }
-    if (strcasecmp(str, "psychic") == 0 || strcasecmp(str, "psichico") == 0) {
-        return DMG_PSYCHIC;
-    }
-    return MAX_DAMAGE_TYPES;
-}
-
-//Helper for mapping strings to conditions
-static ConditionType string_to_condition_type(const char *str) {
-    if (!str) {
-        return MAX_CONDITIONS;
-    }
-    if (strcasecmp(str, "blinded") == 0 || strcasecmp(str, "accecato") == 0) {
-        return COND_BLINDED;
-    }
-    if (strcasecmp(str, "charmed") == 0 || strcasecmp(str, "affascinato") == 0) {
-        return COND_CHARMED;
-    }
-    if (strcasecmp(str, "deafened") == 0 || strcasecmp(str, "assordato") == 0) {
-        return COND_DEAFENED;
-    }
-    if (strcasecmp(str, "frightened") == 0 || strcasecmp(str, "spaventato") == 0) {
-        return COND_FRIGHTENED;
-    }
-    if (strcasecmp(str, "grappled") == 0 || strcasecmp(str, "afferrato") == 0) {
-        return COND_GRAPPLED;
-    }
-    if (strcasecmp(str, "incapacitated") == 0 || strcasecmp(str, "incapace") == 0) {
-        return COND_INCAPACITATED;
-    }
-    if (strcasecmp(str, "invisible") == 0 || strcasecmp(str, "invisibile") == 0) {
-        return COND_INVISIBLE;
-    }
-    if (strcasecmp(str, "paralyzed") == 0 || strcasecmp(str, "paralizzato") == 0) {
-        return COND_PARALYZED;
-    }
-    if (strcasecmp(str, "petrified") == 0 || strcasecmp(str, "pietrificato") == 0) {
-        return COND_PETRIFIED;
-    }
-    if (strcasecmp(str, "poisoned") == 0 || strcasecmp(str, "avvelenato") == 0) {
-        return COND_POISONED;
-    }
-    if (strcasecmp(str, "prone") == 0 || strcasecmp(str, "attonito") == 0) {
-        return COND_PRONE;
-    }
-    if (strcasecmp(str, "restrained") == 0 || strcasecmp(str, "trattenuto") == 0) {
-        return COND_RESTRAINED;
-    }
-    if (strcasecmp(str, "stunned") == 0 || strcasecmp(str, "stordito") == 0) {
-        return COND_STUNNED;
-    }
-    if (strcasecmp(str, "unconscious") == 0 || strcasecmp(str, "incosciente") == 0) {
-        return COND_UNCONSCIOUS;
-    }
-    if (strcasecmp(str, "burning") == 0 || strcasecmp(str, "on fire") == 0) {
-        return COND_BURNING;
-    }
-    if (strcasecmp(str, "bleeding") == 0 || strcasecmp(str, "sanguinante") == 0) {
-        return COND_BLEEDING;
-    }
-    if (strcasecmp(str, "petrified") == 0 || strcasecmp(str, "pietrificato") == 0) {
-        return COND_PETRIFIED;
-    }
-    if (strcasecmp(str, "cursed") == 0 || strcasecmp(str, "maledetto") == 0) {
-        return COND_CURSED;
-    }
-    if (strcasecmp(str, "frozen") == 0 || strcasecmp(str, "congelato") == 0) {
-        return COND_FROZEN;
-    }
-    return MAX_CONDITIONS;
 }
 
 /* The parsed document of a JSON file, or NULL after an error message that
@@ -303,12 +192,12 @@ static bool load_bestiary_json(const char *filepath) {
         bestiary_data[i].floor_min = cJSON_IsNumber(fl_min) ? fl_min->valueint : 0;
         bestiary_data[i].floor_max = cJSON_IsNumber(fl_max) ? fl_max->valueint : 99;
 
-        // Parsing resistenze ai danni
+        // Parse damage resistances
         if (cJSON_IsArray(d_res)) {
             cJSON *item = NULL;
             cJSON_ArrayForEach(item, d_res) {
                 if (cJSON_IsString(item)) {
-                    DamageType dt = string_to_damage_type(item->valuestring);
+                    DamageType dt = damage_type_from_name(item->valuestring);
                     if (dt < MAX_DAMAGE_TYPES) {
                         bestiary_data[i].damage_resistances[dt] = true;
                     }
@@ -320,7 +209,7 @@ static bool load_bestiary_json(const char *filepath) {
             cJSON *item = NULL;
             cJSON_ArrayForEach(item, d_imm) {
                 if (cJSON_IsString(item)) {
-                    DamageType dt = string_to_damage_type(item->valuestring);
+                    DamageType dt = damage_type_from_name(item->valuestring);
                     if (dt < MAX_DAMAGE_TYPES) {
                         bestiary_data[i].damage_immunities[dt] = true;
                     }
@@ -332,7 +221,7 @@ static bool load_bestiary_json(const char *filepath) {
             cJSON *item = NULL;
             cJSON_ArrayForEach(item, d_vul) {
                 if (cJSON_IsString(item)) {
-                    DamageType dt = string_to_damage_type(item->valuestring);
+                    DamageType dt = damage_type_from_name(item->valuestring);
                     if (dt < MAX_DAMAGE_TYPES) {
                         bestiary_data[i].damage_vulnerabilities[dt] = true;
                     }
@@ -344,7 +233,7 @@ static bool load_bestiary_json(const char *filepath) {
             cJSON *item = NULL;
             cJSON_ArrayForEach(item, c_imm) {
                 if (cJSON_IsString(item)) {
-                    ConditionType ct = string_to_condition_type(item->valuestring);
+                    ConditionType ct = condition_from_name(item->valuestring);
                     if (ct < MAX_CONDITIONS) {
                         bestiary_data[i].condition_immunities[ct] = true;
                     }
@@ -844,16 +733,7 @@ static void parse_item(ItemTemplate *t, cJSON *item) {
             if (my_strcasestr(n_str, "Strength")) {
                 t->str_bonus = 2;
             }
-            if (my_strcasestr(n_str, "Forza")) {
-                t->str_bonus = 2;
-            }
             if (my_strcasestr(n_str, "Dexterity")) {
-                t->dex_bonus = 2;
-            }
-            if (my_strcasestr(n_str, "Destrezza")) {
-                t->dex_bonus = 2;
-            }
-            if (my_strcasestr(n_str, "Speed")) {
                 t->dex_bonus = 2;
             }
             if (my_strcasestr(n_str, "Speed")) {
@@ -862,34 +742,19 @@ static void parse_item(ItemTemplate *t, cJSON *item) {
             if (my_strcasestr(n_str, "Constitution")) {
                 t->con_bonus = 2;
             }
-            if (my_strcasestr(n_str, "Salute")) {
-                t->con_bonus = 2;
-            }
             if (my_strcasestr(n_str, "Health")) {
                 t->con_bonus = 2;
             }
             if (my_strcasestr(n_str, "Intelligence")) {
                 t->int_bonus = 2;
             }
-            if (my_strcasestr(n_str, "Intelligenza")) {
-                t->int_bonus = 2;
-            }
             if (my_strcasestr(n_str, "Wisdom")) {
-                t->wis_bonus = 2;
-            }
-            if (my_strcasestr(n_str, "Saggezza")) {
                 t->wis_bonus = 2;
             }
             if (my_strcasestr(n_str, "Charisma")) {
                 t->cha_bonus = 2;
             }
-            if (my_strcasestr(n_str, "Carisma")) {
-                t->cha_bonus = 2;
-            }
             if (my_strcasestr(n_str, "Protection")) {
-                t->ac_bonus = 1;
-            }
-            if (my_strcasestr(n_str, "Protezione")) {
                 t->ac_bonus = 1;
             }
         }
@@ -940,203 +805,6 @@ static bool load_items_json(const char *filepath) {
     return true;
 }
 
-//Loading spells from JSON
-/*"range": "Self", "Touch", "<n> feet" (and its sight/unlimited forms).*/
-static void spell_range(SpellTemplate *sp, cJSON *range) {
-    if (cJSON_IsString(range)) {
-        const char *r_str = range->valuestring;
-        if (my_strcasestr(r_str, "Self")) {
-            bool has_aoe = false;
-            if (my_strcasestr(r_str, "cone")) {
-                sp->target_type = SPELL_TARGET_AOE_CONE;
-                has_aoe = true;
-            } else if (my_strcasestr(r_str, "line")) {
-                sp->target_type = SPELL_TARGET_AOE_LINE;
-                has_aoe = true;
-            } else if (my_strcasestr(r_str, "sphere") || my_strcasestr(r_str, "cube") ||
-                       my_strcasestr(r_str, "radius")) {
-                sp->target_type = SPELL_TARGET_AOE_CIRCLE;
-                has_aoe = true;
-            }
-            if (!has_aoe) {
-                sp->target_type = SPELL_TARGET_SELF;
-            }
-            sp->range = 0;
-        } else if (my_strcasestr(r_str, "Touch")) {
-            sp->target_type = SPELL_TARGET_SINGLE;
-            sp->range = 1;
-        } else {
-            int r_val = 30;
-            const char *p_range = r_str;
-            while (*p_range) {
-                if (isdigit((unsigned char)*p_range)) {
-                    r_val = str_to_int(p_range);
-                    break;
-                }
-                p_range++;
-            }
-            sp->range = r_val;
-
-            if (my_strcasestr(r_str, "cone")) {
-                sp->target_type = SPELL_TARGET_AOE_CONE;
-            } else if (my_strcasestr(r_str, "line")) {
-                sp->target_type = SPELL_TARGET_AOE_LINE;
-            } else if (my_strcasestr(r_str, "sphere") || my_strcasestr(r_str, "cube") ||
-                       my_strcasestr(r_str, "radius")) {
-                sp->target_type = SPELL_TARGET_AOE_CIRCLE;
-            } else {
-                sp->target_type = SPELL_TARGET_SINGLE;
-            }
-        }
-    }
-}
-
-/*Target, effect, dice, damage type and condition, read from the English
- * description of the spell.*/
-static void spell_from_description(SpellTemplate *sp, cJSON *desc) {
-    if (cJSON_IsString(desc)) {
-        const char *d_str = desc->valuestring;
-        bool is_heal = false;
-        if (my_strcasestr(d_str, "regain")) {
-            is_heal = true;
-        }
-        if (my_strcasestr(d_str, "healing")) {
-            is_heal = true;
-        }
-        if (my_strcasestr(d_str, "heals")) {
-            is_heal = true;
-        }
-        if (my_strcasestr(d_str, "restore")) {
-            is_heal = true;
-        }
-
-        if (is_heal) {
-            sp->effect_type = SPELL_EFFECT_HEAL;
-        } else {
-            bool is_dmg = false;
-            if (my_strcasestr(d_str, "damage")) {
-                is_dmg = true;
-            }
-            if (my_strcasestr(d_str, "deals")) {
-                is_dmg = true;
-            }
-            if (my_strcasestr(d_str, "takes")) {
-                is_dmg = true;
-            }
-
-            if (is_dmg) {
-                sp->effect_type = SPELL_EFFECT_DAMAGE;
-            } else {
-                bool is_buf = false;
-                if (my_strcasestr(d_str, "bonus")) {
-                    is_buf = true;
-                }
-                if (my_strcasestr(d_str, "resistance")) {
-                    is_buf = true;
-                }
-                if (my_strcasestr(d_str, "advantage")) {
-                    is_buf = true;
-                }
-
-                if (is_buf) {
-                    sp->effect_type = SPELL_EFFECT_BUFF;
-                } else {
-                    sp->effect_type = SPELL_EFFECT_DEBUFF;
-                }
-            }
-        }
-
-        const char *p_desc = d_str;
-        while (*p_desc) {
-            if (isdigit((unsigned char)*p_desc)) {
-                char *end_ptr = NULL;
-                long c = strtol(p_desc, &end_ptr, 10);
-                if (*end_ptr == 'd' || *end_ptr == 'D') {
-                    end_ptr++;
-                    if (isdigit((unsigned char)*end_ptr)) {
-                        long s = strtol(end_ptr, NULL, 10);
-                        sp->dice_count = (int)c;
-                        sp->dice_sides = (int)s;
-                        break;
-                    }
-                }
-            }
-            p_desc++;
-        }
-
-        if (sp->target_type == SPELL_TARGET_AOE_CIRCLE ||
-            sp->target_type == SPELL_TARGET_AOE_CONE || sp->target_type == SPELL_TARGET_AOE_LINE ||
-            sp->target_type == SPELL_TARGET_AOE_CLOUD) {
-            sp->radius = 4; //default
-            if (my_strcasestr(d_str, "30-foot") || my_strcasestr(d_str, "30 foot")) {
-                sp->radius = 6;
-            } else if (my_strcasestr(d_str, "20-foot") || my_strcasestr(d_str, "20 foot")) {
-                sp->radius = 4;
-            } else if (my_strcasestr(d_str, "10-foot") || my_strcasestr(d_str, "10 foot")) {
-                sp->radius = 3;
-            } else if (my_strcasestr(d_str, "5-foot") || my_strcasestr(d_str, "5 foot")) {
-                sp->radius = 2;
-            }
-        }
-
-        //Damage type detection from description
-        sp->damage_type = DMG_FORCE; //default
-        if (my_strcasestr(d_str, "fire")) {
-            sp->damage_type = DMG_FIRE;
-        } else if (my_strcasestr(d_str, "acid")) {
-            sp->damage_type = DMG_ACID;
-        } else if (my_strcasestr(d_str, "poison")) {
-            sp->damage_type = DMG_POISON;
-        } else if (my_strcasestr(d_str, "cold") || my_strcasestr(d_str, "ice")) {
-            sp->damage_type = DMG_COLD;
-        } else if (my_strcasestr(d_str, "lightning") || my_strcasestr(d_str, "thunder")) {
-            sp->damage_type = DMG_LIGHTNING;
-        } else if (my_strcasestr(d_str, "necrotic")) {
-            sp->damage_type = DMG_NECROTIC;
-        } else if (my_strcasestr(d_str, "radiant")) {
-            sp->damage_type = DMG_RADIANT;
-        } else if (my_strcasestr(d_str, "psychic")) {
-            sp->damage_type = DMG_PSYCHIC;
-        } else if (my_strcasestr(d_str, "slashing")) {
-            sp->damage_type = DMG_SLASHING;
-        } else if (my_strcasestr(d_str, "piercing")) {
-            sp->damage_type = DMG_PIERCING;
-        } else if (my_strcasestr(d_str, "bludgeoning")) {
-            sp->damage_type = DMG_BLUDGEONING;
-        }
-
-        //Persistent cloud: keywords cloud/fog/mist/gas
-        sp->cloud_rounds = 0;
-        if (my_strcasestr(d_str, "cloud") || my_strcasestr(d_str, "fog") ||
-            my_strcasestr(d_str, "mist") || my_strcasestr(d_str, "gas")) {
-            sp->target_type = SPELL_TARGET_AOE_CLOUD;
-            sp->cloud_rounds = 3;
-        }
-
-        bool is_status = false;
-        if (sp->effect_type == SPELL_EFFECT_BUFF) {
-            is_status = true;
-        }
-        if (sp->effect_type == SPELL_EFFECT_DEBUFF) {
-            is_status = true;
-        }
-        if (is_status) {
-            sp->has_status_effect = true;
-            sp->status_effect.name = sp->name;
-            sp->status_effect.trigger = EVENT_ON_TURN_START;
-            sp->status_effect.duration_rounds = 5;
-            sp->status_effect.is_persistent = false;
-            if (sp->effect_type == SPELL_EFFECT_BUFF) {
-                sp->status_effect.mod_type = MOD_ADDITIVE;
-                sp->status_effect.value = 2;
-            } else {
-                sp->status_effect.mod_type = MOD_ADDITIVE;
-                sp->status_effect.value = -2;
-            }
-        }
-    }
-}
-
 /*"classes": "sorcerer,wizard" -> bit N set for ClassType N (classes.h).*/
 static void spell_class_mask(SpellTemplate *sp, cJSON *classes_node) {
     sp->class_mask = 0;
@@ -1158,7 +826,7 @@ static void spell_class_mask(SpellTemplate *sp, cJSON *classes_node) {
         cls_buf[sizeof(cls_buf) - 1] = '\0';
         char *tok = strtok(cls_buf, ",");
         while (tok) {
-            /* Trim spazi iniziali */
+            /*Skip the leading spaces*/
             while (*tok == ' ') {
                 tok++;
             }
@@ -1173,76 +841,52 @@ static void spell_class_mask(SpellTemplate *sp, cJSON *classes_node) {
     }
 }
 
-/*One spell of spells.json.*/
-static void parse_spell(SpellTemplate *sp, cJSON *spell) {
-    cJSON *name = cJSON_GetObjectItem(spell, "name");
-    cJSON *level = cJSON_GetObjectItem(spell, "level");
-    cJSON *range = cJSON_GetObjectItem(spell, "range");
-    cJSON *desc = cJSON_GetObjectItem(spell, "description");
-    cJSON *classes_node = cJSON_GetObjectItem(spell, "classes");
-
-    if (cJSON_IsString(name)) {
-        sp->name = strdup(name->valuestring);
+static void spell_vfx(SpellTemplate *sp, const cJSON *vfx) {
+    sp->vfx_type = 0;
+    sp->vfx_r = 0.8f;
+    sp->vfx_g = 0.8f;
+    sp->vfx_b = 0.8f;
+    if (!cJSON_IsObject(vfx)) {
+        return;
     }
+    const cJSON *type = cJSON_GetObjectItem(vfx, "type");
+    const cJSON *r = cJSON_GetObjectItem(vfx, "r");
+    const cJSON *g = cJSON_GetObjectItem(vfx, "g");
+    const cJSON *b = cJSON_GetObjectItem(vfx, "b");
+    if (cJSON_IsNumber(type)) {
+        sp->vfx_type = type->valueint;
+    }
+    if (cJSON_IsNumber(r)) {
+        sp->vfx_r = (float)r->valuedouble;
+    }
+    if (cJSON_IsNumber(g)) {
+        sp->vfx_g = (float)g->valuedouble;
+    }
+    if (cJSON_IsNumber(b)) {
+        sp->vfx_b = (float)b->valuedouble;
+    }
+}
 
-    // Defaults
+/*One spell of spells.json; false (after the message) when its effect is
+ * not valid.*/
+static bool parse_spell(SpellTemplate *sp, cJSON *spell, const char *filepath) {
+    const cJSON *name = cJSON_GetObjectItem(spell, "name");
+    const cJSON *level = cJSON_GetObjectItem(spell, "level");
+    const cJSON *school = cJSON_GetObjectItem(spell, "school");
+    sp->name = strdup(cJSON_IsString(name) ? name->valuestring : "");
     sp->level = 0;
-    sp->target_type = SPELL_TARGET_SINGLE;
-    sp->effect_type = SPELL_EFFECT_DAMAGE;
-    sp->range = 30;
-    sp->radius = 0;
-    sp->dice_count = 0;
-    sp->dice_sides = 0;
-    sp->has_status_effect = false;
-
-    if (level) {
-        if (cJSON_IsString(level)) {
-            if (my_strcasestr(level->valuestring, "cantrip")) {
-                sp->level = 0;
-            } else {
-                sp->level = str_to_int(level->valuestring);
-            }
-        } else if (cJSON_IsNumber(level)) {
-            sp->level = level->valueint;
-        }
+    if (cJSON_IsString(level) && strcmp(level->valuestring, "cantrip") != 0) {
+        sp->level = str_to_int(level->valuestring);
     }
-
-    if (range) {
-        spell_range(sp, range);
+    sp->martial = cJSON_IsString(school) && strcmp(school->valuestring, "martial") == 0;
+    char err[160];
+    if (!spell_effect_parse(&sp->effect, cJSON_GetObjectItem(spell, "effect"), err, sizeof(err))) {
+        fprintf(stderr, "[Data Loader] Error: %s: spell '%s': %s\n", filepath, sp->name, err);
+        return false;
     }
-
-    if (desc) {
-        spell_from_description(sp, desc);
-    }
-
-    cJSON *vfx = cJSON_GetObjectItem(spell, "vfx");
-    if (vfx && cJSON_IsObject(vfx)) {
-        cJSON *vfx_type = cJSON_GetObjectItem(vfx, "type");
-        cJSON *vfx_r = cJSON_GetObjectItem(vfx, "r");
-        cJSON *vfx_g = cJSON_GetObjectItem(vfx, "g");
-        cJSON *vfx_b = cJSON_GetObjectItem(vfx, "b");
-
-        if (cJSON_IsNumber(vfx_type)) {
-            sp->vfx_type = vfx_type->valueint;
-        }
-        if (cJSON_IsNumber(vfx_r)) {
-            sp->vfx_r = (float)vfx_r->valuedouble;
-        }
-        if (cJSON_IsNumber(vfx_g)) {
-            sp->vfx_g = (float)vfx_g->valuedouble;
-        }
-        if (cJSON_IsNumber(vfx_b)) {
-            sp->vfx_b = (float)vfx_b->valuedouble;
-        }
-    } else {
-        /* Default generic VFX */
-        sp->vfx_type = 0;
-        sp->vfx_r = 0.8f;
-        sp->vfx_g = 0.8f;
-        sp->vfx_b = 0.8f;
-    }
-
-    spell_class_mask(sp, classes_node);
+    spell_vfx(sp, cJSON_GetObjectItem(spell, "vfx"));
+    spell_class_mask(sp, cJSON_GetObjectItem(spell, "classes"));
+    return true;
 }
 
 static bool load_spells_json(const char *filepath) {
@@ -1259,16 +903,27 @@ static bool load_spells_json(const char *filepath) {
     }
 
     spell_database_size = cJSON_GetArraySize(spells);
+    if (spell_database_size > MAX_SPELL_DB_SIZE) {
+        fprintf(stderr, "[Data Loader] Error: %s: %d spells, at most %d\n", filepath,
+                spell_database_size, MAX_SPELL_DB_SIZE);
+        spell_database_size = 0;
+        cJSON_Delete(root);
+        return false;
+    }
     spell_database = calloc(spell_database_size, sizeof(SpellTemplate));
 
     int i = 0;
+    bool ok = true;
     cJSON *spell = NULL;
     cJSON_ArrayForEach(spell, spells) {
-        parse_spell(&spell_database[i], spell);
+        ok = parse_spell(&spell_database[i], spell, filepath) && ok;
         i++;
     }
 
     cJSON_Delete(root);
+    if (!ok) {
+        return false;
+    }
     printf("[Data Loader] Successfully loaded %d spells from %s\n", spell_database_size, filepath);
     return true;
 }

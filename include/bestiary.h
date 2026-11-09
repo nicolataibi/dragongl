@@ -35,7 +35,7 @@ typedef struct {
     const char *archetype; //"melee", "caster", "swarm", "dragon", "brute", "boss"
 
     // Speed system (Phase 4 - Speed/Tick System)
-    int speed; // 1=lento, 2=normale, 3=veloce
+    int speed; // 1=slow, 2=normal, 3=fast
 
     //Visual range
     int sight_range; //default 5 if 0

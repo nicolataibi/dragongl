@@ -42,7 +42,7 @@ target_include_directories(dragongl_server_it PRIVATE ${DGL_INCLUDES})
 target_link_libraries(dragongl_server_it PRIVATE Threads::Threads m PkgConfig::SODIUM OpenSSL::SSL OpenSSL::Crypto)
 
 # --- In-process harness: same sources, no main() ---
-add_executable(server_harness server_harness.c fixture.c ${DGL_SERVER_SRCS})
+add_executable(server_harness server_harness.c harness_spells.c fixture.c ${DGL_SERVER_SRCS})
 target_include_directories(server_harness PRIVATE ${DGL_INCLUDES})
 target_compile_definitions(server_harness PRIVATE DRAGONGL_NO_MAIN
     DGL_TEST_DATA_DIR="${DGL_ROOT}/data")
@@ -67,7 +67,9 @@ foreach(t trade_offer_revalidated_on_accept trade_moves_item_and_gold
           tombstone_and_flags_roundtrip writer_queue login_job_outcomes
           login_worker_async command_table command_words doors
           transit_cantrips_need_a_book
-          floor_walk_matches_scan entity_lookup player_move)
+          floor_walk_matches_scan entity_lookup player_move
+          spell_attack spell_save_area spell_cone_and_line spell_conditions spell_self
+          spell_cloud spell_special_and_terrain spell_refusals spell_every_effect)
     add_test(NAME ${t} COMMAND server_harness ${t} WORKING_DIRECTORY "${DGL_WORK}")
 endforeach()
 

@@ -17,41 +17,60 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+/*
+ * aoe.h - Areas of effect: which cells a spell covers, what its damage
+ * does to the terrain there, and the clouds that stay on the map.
+ */
+
 #ifndef AOE_H
 #define AOE_H
 
 #include <stdbool.h>
 #include "server_entities.h"
+#include "spell_rules.h"
 #include "spells.h"
 
-// -------------------------------------------------------
-//Narrative texts by AoE type - used in send_text
-// -------------------------------------------------------
+/*A spell area on the map: centred on (ox, oy) for a circle or a cloud;
+ * from (ox, oy) towards (tx, ty) for a cone or a line.*/
 typedef struct {
-    const char *cast_msg;  //Launch message
-    const char *hit_msg;   //Message for each target hit
-    const char *save_msg;  //Message when target resists (saves)
-    const char *kill_msg;  //Kill message
-    const char *cloud_msg; //Persistent cloud creation message
-} AoeNarrative;
+    SpellTargetType shape;
+    int radius;
+    int ox, oy;
+    int tx, ty;
+} AoeArea;
 
-// -------------------------------------------------------
-//AoE engine features
-// -------------------------------------------------------
+/*True if the cell (x, y) lies in the area.*/
+bool aoe_contains(const AoeArea *a, int x, int y);
 
-//Initialize the cloud pool
+/*The voxel chemistry of a damage type over the area: fire melts ice and
+ * burns wood, cold freezes water, acid eats doors, force breaks walls.*/
+void aoe_terraform(const AoeArea *a, int floor_id, DamageType type);
+
+/*The line the caster sees when the area spell goes off.*/
+void aoe_announce(const Client *caster, const SpellTemplate *sp);
+
+#define MAX_CLOUDS 32
+
+/*A cloud spell that stays on the map: each round it resolves its effect
+ * again against every creature inside it.*/
+typedef struct {
+    bool active;
+    int cx, cy;
+    int floor_id;
+    int rounds_left;
+    const SpellTemplate *spell;
+    SpellCaster caster; /*the caster's numbers at cast time*/
+    char owner[32];     /*caster's username: kills by the cloud credit him*/
+} PersistentCloud;
+
+extern PersistentCloud g_clouds[MAX_CLOUDS];
+
 void aoe_init_clouds(void);
+/*A new cloud of sp at (cx, cy); false when all MAX_CLOUDS are in use.*/
+bool aoe_spawn_cloud(const SpellTemplate *sp, const SpellCaster *caster, const char *owner,
+                     int floor_id, int cx, int cy);
+/*One round of every cloud: its effect on the NPCs inside, then the
+ * countdown.*/
+void aoe_update_clouds(NPC *npcs, Client *clients, int client_count);
 
-//Process all AoE spells
-//Returns the total number of targets hit
-int aoe_resolve_spell(SpellTemplate *sp, Client *caster, NPC *npcs, int npc_count, int origin_x,
-                      int origin_y);
-
-//Per-tick update: persistent cloud damage, countdown
-void aoe_update_clouds(NPC *npcs, int npc_count, Client *clients, int client_count);
-
-//Helper: Apply damage to a single NPC with narrative message
-void aoe_apply_damage_to_npc(NPC *npc, Client *caster, int dmg, bool saved, const char *effect_name,
-                             const char *kill_msg);
-
-#endif // AOE_H
+#endif /* AOE_H */

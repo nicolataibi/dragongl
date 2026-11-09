@@ -1,3 +1,111 @@
+* Mon Nov 09 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.09.03
+- DATA: every spell of data/spells.json has an explicit "effect": kind
+  (damage, heal, condition, buff, utility, special), target (single, self,
+  circle, cone, line, cloud), range and radius in cells of 5 feet, roll
+  (auto, attack, save), save, on_save, fixed dc (martial maneuvers), dice
+  (count, sides, bonus, ability added), damage_type, cantrip_scaling,
+  condition and rounds, buff stat and value, handler, terrain.
+  data/schema/spells.schema.json documents and validates every field. The
+  effects were generated once from the descriptions and then checked one
+  by one; where the old keyword deduction contradicted the description,
+  the description won.
+- SERVER: the deduction of the spell from its description is gone
+  (spell_range, spell_from_description and the defaults it filled in); the
+  server refuses to start on an invalid effect, naming the spell and the
+  field. The magic router dispatches on the effect's handler, not on the
+  spell's name.
+- GAMEPLAY: 551 spells: 175 damage, 16 heal, 44 condition, 31 buff, 22
+  special, 263 utility. Of the 171 spells that were and still are damage,
+  54 changed dice and 43 their damage type (the old parser took the first
+  dice of the text and the first word of a fixed list found in it:
+  Thunderwave dealt lightning, Shatter cold). 199 spells changed target
+  (Fireball and Ice Storm were single-target spells). The old "debuff" (a
+  -2 that no rule read) was 196 spells: 26 are conditions, 147 utility (no
+  combat effect), the rest damage, buff, heal or special; 75 old "damage"
+  spells (no damage in the text) are utility.
+- GAMEPLAY: a spell resolves as its record says. Spell attack: proficiency
+  + casting ability modifier against AC, a natural 20 doubles the dice;
+  saving throws against 8 + proficiency (+2 at levels 1-4 ... +6 at 17) +
+  casting ability modifier, where the casting ability is the class's (INT
+  wizard; WIS cleric, druid, ranger, monk; CHA bard, sorcerer, warlock,
+  paladin; DEX rogue; STR barbarian, fighter) instead of INT for
+  everybody; martial maneuvers use their printed DC. "half" damage only
+  for the spells that say so (it was every spell). NPC saving throws: +2,
+  +1 every 10 floors, +2 for a boss (they were +0). Resistances,
+  immunities and vulnerabilities of the bestiary, and its condition
+  immunities, apply to spells.
+- GAMEPLAY: cantrips scale at character levels 5, 11 and 17 (Fire Bolt
+  2d10 at 5). Condition riders: Thunderous Smite knocks prone, Blinding
+  Smite blinds, Searing Smite burns, Ray of Sickness poisons, Sunburst
+  blinds, Weird frightens, each with the save of the text. Buffs work:
+  Mage Armor and Barkskin +3 AC, Haste and Holy Aura +2 AC, defensive
+  maneuvers (Ki Shield, Total Defense, ...) their bonus, Bless +2 to
+  attack, Divine Favor, Hex, Hunter's Mark, Crusader's Mantle and Absorb
+  Elements add damage to weapon attacks. Casting a buff again refreshes
+  it.
+- GAMEPLAY: areas. A circle or cloud with a range is centred on the
+  nearest enemy within range, not on the caster (Cloudkill used to go off
+  at the caster's feet); cones and lines start at the caster towards the
+  nearest enemy within their length. Ranges are cells (they were feet read
+  as cells: Fire Bolt reached 120 cells, now 24). Clouds last 3 rounds (2
+  for a cantrip): the engine has no concentration, and a 1-minute cloud
+  dealt several times the damage of any other spell of its level; a
+  condition from a cloud lasts one round and is renewed each round.
+- GAMEPLAY: Ice Storm deals its damage and then ices the ground (its
+  terrain hook used to swallow the damage); Wall of Stone raises walls,
+  Transmute Rock turns the ground to mud. Conjure Elemental and Conjure
+  Minor Elementals summon an elemental, Dimension Door teleports, Mislead
+  makes invisible. Charm Person and Dominate Monster use the caster's DC
+  against the NPC's save (Charm Person gave the NPC +10).
+- GAMEPLAY: a spell with no enemy to aim at is not cast and keeps its slot
+  (the slot used to be spent first). Utility spells say they have no
+  combat effect. Paralyzed, stunned, unconscious, petrified, frozen and
+  incapacitated players cannot cast or attack; incapacitated NPCs lose
+  their turn. A condition of N rounds now costs an NPC N turns (effects
+  aged before the turn: a 1-round stun did nothing). Spells never hit
+  summoned or dominated allies, treasure chests or gold piles. A kill by a
+  spell or a cloud gives the same rewards as a melee kill (party XP, event
+  progress, loot); the cloud credits its caster while he is online.
+- DATA: spelling. Cordon of Arrows (was "Cordon Of Arrows"), the name of
+  the Planar Mischievous Sprite (misspelled) and 23 misspelled words in
+  descriptions (energy, within, receive, ...). The NPC file is tied to
+  the monster names: an existing world is generated anew at the first
+  start of this version; characters are kept.
+- TESTS: unit test test_spell_rules: the effect parser (valid records and
+  one error per field) and the resolution with a forced d20 (attack, crit,
+  miss, save, half, none, rider save, immunity, resistance, cantrip tiers,
+  DC). Integration harness: one test per kind of effect through the real
+  cast command (attack, save area, cone and line, conditions, heal and
+  buffs, cloud, handler and terrain, refusals) and spell_every_effect,
+  which casts each of the 551 spells and checks the outcome against its
+  record. rules_force_d20() fixes the d20 for tests.
+- TESTS: balance check spell_balance (CTest): every damage spell is
+  simulated 4000 times with the game's own loader and resolution, by the
+  reference caster of its level against the reference target of its level;
+  the expected damage per target, heals, buff values and unresisted
+  control must stay within tests/spell_balance.json, so a data change that
+  breaks the balance fails CI. --report prints the table.
+- TESTS: line coverage 54.5% (was 49.6%): the coverage floor is 54.0%;
+  34 functions over 120 lines (was 37): the limit follows.
+- TOOLS: tools/check_data.py checks that the schema and the engine list
+  the same conditions and handlers, that only cantrips scale, that only
+  maneuvers have a fixed DC and that a rider save has a condition.
+  tools/quality.sh spelling runs codespell (.codespellrc) on the data, the
+  documentation, the man pages, the sources and the tools, in the CI lint
+  job. The Data Studio shows the effect of a spell (column, filter, detail
+  line) and edits it as validated JSON.
+- CODE: the Italian left in the code is gone: comments, the Italian
+  aliases of damage types, conditions and item bonuses in the data loader
+  (the data is English), "Arco Corto", "Scheletro", "Nube Acida".
+  Damage-type and ability names have canonical tables in rules.c, like
+  conditions. src/server/spell_cast.c casts, src/shared/spell_rules.c
+  resolves, src/shared/spell_effect.c parses; aoe.c keeps the geometry,
+  the terrain chemistry and the clouds. The kill rewards of melee and
+  magic are one function, npc_killed().
+- DOCS: DEVELOPMENT.md "Spells: data, resolution, balance" and the
+  spelling check; LORE.md describes the effect records, the handlers and
+  the terrain spells.
+
 * Mon Nov 09 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.09.02
 - SECURITY: every connection is TLS 1.3 (OpenSSL 3): passwords, chat and
   game state no longer travel in clear. TLS 1.2 and older, compression and
@@ -1356,6 +1464,6 @@
 - README aligned with the code: 11 city shops, 8 errant traders,
   temple names/positions and shop book references.
 * Mon Aug 31 2026 nicolataibi <nicola.taibi.1967@gmail.com> - 2026.09.01.01
-- First realease.
+- First release.
 * Tue May 26 2026 nicolataibi <nicola.taibi.1967@gmail.com> - 2026.05.26.01
 - DRAGON GL, the beginning!

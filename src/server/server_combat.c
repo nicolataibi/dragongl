@@ -51,8 +51,94 @@ const char *npc_name(const NPC *n) {
     return "???";
 }
 
+/*Party share of a kill: the members of the killer's party on his floor.*/
+static int party_members_on_floor(const Client *c) {
+    if (c->party_leader[0] == '\0') {
+        return 0;
+    }
+    int members = 0;
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        if (g_clients[i].active && strcmp(g_clients[i].party_leader, c->party_leader) == 0 &&
+            g_clients[i].floor_id == c->floor_id) {
+            members++;
+        }
+    }
+    return members;
+}
+
+static void award_kill_xp(Client *c, const NPC *t, int xp_gained, int party_members) {
+    if (party_members <= 1) {
+        c->xp += xp_gained;
+        check_level_up(c);
+        return;
+    }
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        Client *m = &g_clients[i];
+        if (m->active && strcmp(m->party_leader, c->party_leader) == 0 &&
+            m->floor_id == c->floor_id) {
+            m->xp += xp_gained;
+            check_level_up(m);
+            if (m != c) {
+                send_text_to_client(m->sock, "[PARTY] Receive %d XP for killing %s.", xp_gained,
+                                    npc_name(t));
+            }
+        }
+    }
+}
+
+bool client_can_act(Client *c) {
+    static const ConditionType k_blocking[] = {COND_PARALYZED, COND_STUNNED, COND_UNCONSCIOUS,
+                                               COND_PETRIFIED, COND_FROZEN,  COND_INCAPACITATED};
+    for (size_t i = 0; i < sizeof(k_blocking) / sizeof(k_blocking[0]); i++) {
+        if (rules_has_condition_t(c->effects, c->effect_count, k_blocking[i])) {
+            send_text_to_client(c->sock, "[SYSTEM] You are %s and cannot act!",
+                                condition_to_name(k_blocking[i]));
+            return false;
+        }
+    }
+    return true;
+}
+
+int npc_killed(Client *c, NPC *t, const char *by) {
+    npc_set_active(t, false); /*also updates the floor caches*/
+    t->respawn_timer = RESPAWN_TICKS;
+    if (t->floor_id >= 0 && t->floor_id < MAX_FLOORS && t->x >= 0 && t->x < MAP_WIDTH &&
+        t->y >= 0 && t->y < MAP_HEIGHT) {
+        master_world->floors[t->floor_id].entity_grid[t->y][t->x] = 0;
+    }
+    if (!c) {
+        clog_death(npc_name(t), "the environment", t->floor_id);
+        if (t->archetype == ARCH_BOSS) {
+            handle_boss_death(NULL, t);
+        }
+        return 0;
+    }
+    int party_members = party_members_on_floor(c);
+    int xp_gained = party_members > 1 ? t->xp_reward / party_members : t->xp_reward;
+    award_kill_xp(c, t, xp_gained, party_members);
+    if (by) {
+        send_text_to_client(c->sock, "[VICTORY] %s falls to your %s! (+%d XP)", npc_name(t), by,
+                            xp_gained);
+    } else {
+        send_text_to_client(c->sock, "[VICTORY] With a fatal blow, you take %s' life! (+%d XP)",
+                            npc_name(t), xp_gained);
+    }
+    if (active_event_type == 1 && t->floor_id == event_floor_id && t->template &&
+        strcasestr(t->template->name, "Skeleton")) {
+        event_progress++;
+        send_text_to_client(c->sock, "[EVENT] You destroyed a minion of darkness! Progress: %d/%d",
+                            event_progress, event_goal);
+    }
+    clog_death(npc_name(t), c->username, t->floor_id);
+    drop_loot_from_monster(c, t);
+    if (t->archetype == ARCH_BOSS) {
+        handle_boss_death(c, t);
+    }
+    return xp_gained;
+}
+
 void perform_attack(Client *c, NPC *t, NPC *npcs) {
-    if (!c || !t) {
+    if (!c || !t || !client_can_act(c)) {
         return;
     }
     int ts, td, tc, ti, tw, th;
@@ -61,7 +147,7 @@ void perform_attack(Client *c, NPC *t, NPC *npcs) {
     ItemInstance *weapon = (c->slot_hand_r.template_idx != -1) ? &c->slot_hand_r : &c->slot_hand_l;
     const ItemTemplate *w =
         (weapon->template_idx != -1) ? &item_database[weapon->template_idx] : NULL;
-    if (w && (strcmp(w->name, "Arco Corto") == 0 || strcmp(w->name, "Shortbow") == 0)) {
+    if (w && strcmp(w->name, "Shortbow") == 0) {
         bool has_ammo = false;
         for (int i = 0; i < MAX_BELT; i++) {
             if (c->belt[i].template_idx != -1 &&
@@ -141,7 +227,8 @@ void perform_attack(Client *c, NPC *t, NPC *npcs) {
         if (weapon->template_idx != -1 && weapon->is_artifact) {
             inst_dam += weapon->artifact_str_bonus;
         }
-        int mod_d = rules_get_modifier(ts) + inst_dam;
+        int mod_d = rules_get_modifier(ts) + inst_dam +
+                    rules_event_bonus(c->effects, c->effect_count, EVENT_ON_DAMAGE);
         int element_d = 0;
         if (weapon->template_idx != -1 && weapon->element != ELEM_NONE) {
             element_d = rules_roll_dice(1, 6);
@@ -199,58 +286,7 @@ void perform_attack(Client *c, NPC *t, NPC *npcs) {
             }
         }
         if (t->hp <= 0) {
-            npc_set_active(t, false); /*also updates the floor caches*/
-            t->respawn_timer = RESPAWN_TICKS;
-            master_world->floors[t->floor_id].entity_grid[t->y][t->x] = 0;
-            int party_members = 0;
-            if (strlen(c->party_leader) > 0) {
-                for (int i = 0; i < MAX_CLIENTS; i++) {
-                    if (g_clients[i].active &&
-                        strcmp(g_clients[i].party_leader, c->party_leader) == 0 &&
-                        g_clients[i].floor_id == c->floor_id) {
-                        party_members++;
-                    }
-                }
-            }
-
-            int xp_gained = t->xp_reward;
-            if (party_members > 1) {
-                xp_gained = t->xp_reward / party_members;
-                for (int i = 0; i < MAX_CLIENTS; i++) {
-                    if (g_clients[i].active &&
-                        strcmp(g_clients[i].party_leader, c->party_leader) == 0 &&
-                        g_clients[i].floor_id == c->floor_id) {
-                        g_clients[i].xp += xp_gained;
-                        check_level_up(&g_clients[i]);
-                        if (&g_clients[i] != c) {
-                            send_text_to_client(g_clients[i].sock,
-                                                "[PARTY] Receive %d XP for killing %s.", xp_gained,
-                                                npc_name(t));
-                        }
-                    }
-                }
-            } else {
-                c->xp += xp_gained;
-                check_level_up(c);
-            }
-
-            if (active_event_type == 1 && t->floor_id == event_floor_id && t->template) {
-                if (strcasestr(t->template->name, "Skeleton") ||
-                    strcasestr(t->template->name, "Scheletro")) {
-                    event_progress++;
-                    send_text_to_client(
-                        c->sock, "[EVENT] You destroyed a minion of darkness! Progress: %d/%d",
-                        event_progress, event_goal);
-                }
-            }
-
-            send_text_to_client(c->sock, "[VICTORY] With a fatal blow, you take %s' life! (+%d XP)",
-                                npc_name(t), xp_gained);
-            clog_death(npc_name(t), c->username, t->floor_id);
-            drop_loot_from_monster(c, t);
-            if (t->archetype == ARCH_BOSS) {
-                handle_boss_death(c, t);
-            }
+            npc_killed(c, t, NULL);
         }
     } else {
         clog_attack(c->username, npc_name(t), roll_v, ctx.final_value, t->ac, false, false, 0);

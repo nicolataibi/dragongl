@@ -198,7 +198,7 @@ jobs:
         run: rpmlint -r dragongl.rpmlintrc ~/rpmbuild/RPMS/*/*.rpm ~/rpmbuild/SRPMS/*.rpm
 
   lint:
-    name: Format, game data, metrics
+    name: Format, game data, spelling, metrics
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -208,6 +208,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             clang-format-18 cmake python3 python3-jsonschema
+          # codespell of PyPI: the dictionary of Ubuntu's 2.2 misses words.
+          pipx install codespell==2.4.3
 
       # Style of .clang-format; tools/quality.sh format-fix applies it.
       - name: clang-format
@@ -216,6 +218,10 @@ jobs:
       # Schema (data/schema), references and canonical form of data/*.json.
       - name: Game data
         run: tools/quality.sh data
+
+      # codespell (.codespellrc) on data, documentation, man pages and sources.
+      - name: Spelling
+        run: tools/quality.sh spelling
 
       # Function and file length against tools/quality_limits.json.
       - name: Metrics

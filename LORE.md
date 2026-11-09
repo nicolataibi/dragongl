@@ -627,7 +627,7 @@ The same pattern is applied uniformly across the engine for every discrete class
 // Damage types — used as array index in resistance/immunity tables
 typedef enum { DMG_FIRE, DMG_ACID, DMG_POISON, ..., MAX_DAMAGE_TYPES } DamageType;
 
-// AoE spell shapes — used as dispatch index in aoe_resolve_spell()
+// Spell targets — the "target" of a spell effect (spell_cast.c, aoe.c)
 typedef enum { SPELL_TARGET_SINGLE, SPELL_TARGET_AOE_CIRCLE,
                SPELL_TARGET_AOE_CONE, SPELL_TARGET_AOE_LINE,
                SPELL_TARGET_AOE_CLOUD, ... } SpellTargetType;
@@ -665,7 +665,7 @@ The complete world of Dragon GL is composed of discrete voxels. Every cell of ev
 - **Grid geometry.** A floor is a three-dimensional lattice of `VoxelType` cells with dimensions `MAP_WIDTH × MAP_HEIGHT × MAP_DEPTH` = `300 × 300 × 1` (the depth axis is reserved for future verticality and is not currently exercised). The world comprises `MAX_FLOORS = 101` floors: Floor 0 is the sanctuary city; Floors 1–100 constitute the dungeon.
 - **Server authority.** The master copy of the world resides on the server (`master_world`, of type `World`). Clients never mutate voxel state; they receive incremental map chunks (`send_map_chunk`, initial view radius `INITIAL_VIEW_RADIUS = 100`) purely for rendering and minimap display.
 - **Generation.** Initial topology is produced by `generate_procedural_dungeon()` in `src/shared/map.c`. Rooms are carved out of a `VOXEL_ROCK` substrate: perimeter cells become `VOXEL_WALL` (the four corners are deliberately retained as `VOXEL_ROCK` so that digging can never pierce the structure at a corner), interiors become `VOXEL_FLOOR`, and navigation (stairs), doors, liquids, flora, resources, and the themed decorations of the 21 room archetypes are then stamped on top.
-- **Runtime mutation.** Voxel state is modified permanently during play by: mining (`tunnel`), door operation (`open`/`close`), terrain spells (Wall of Stone, Mud Field, Ice Storm), elemental area effects (§8.1), environmental traps (Flood, Ceiling Collapse, Stone Tomb), and trap detection/disarmal (`VOXEL_TRAP` markers).
+- **Runtime mutation.** Voxel state is modified permanently during play by: mining (`tunnel`), door operation (`open`/`close`), terrain spells (Wall of Stone, Ice Storm, Transmute Rock), elemental area effects (§8.1), environmental traps (Flood, Ceiling Collapse, Stone Tomb), and trap detection/disarmal (`VOXEL_TRAP` markers).
 - **Persistence.** `persist_write_world()` stores every voxel cell (one byte each), every trap table and every crystal-respawn queue in `world.dat`, in the server state directory. The numeric values of the enumeration are part of the on-disk contract: renumbering or reordering `VoxelType` requires a new world format version.
 - **Textual dumps.** The map dump (format v2) encodes each tile as a two-digit hexadecimal voxel identifier — `00` (`VOXEL_ROCK`) through `1B` (`VOXEL_CRYSTAL_WHITE`) — and is consumed by `tools/generate_pdf_map.py` to render pixel-accurate paper maps.
 
@@ -802,7 +802,7 @@ Pale yellow floor tile (0.8, 0.7, 0.4); minimap (200, 180, 100). Traversable by 
 Dark grey floor tile (0.25, 0.25, 0.25); minimap (65, 65, 65). Traversable by players; a valid spawn cell; not traversed by the AI; a soft ground surface for downward digging. Together with mud it is the exclusive host substrate of the *Gas Vein* trap. Fire area effects reduce wood to ash; standing on ash (or lava) manifests a Fire Elemental.
 
 #### 4.9 `VOXEL_MUD` (15) — "Mud"
-Dark brown floor tile (0.3, 0.2, 0.1); minimap (75, 50, 25). Traversable by players; a valid spawn cell; not traversed by the AI; a soft ground surface for downward digging; a host substrate for gas-vein traps; the target of the *Mud Field* spell, which is designed to slow enemies crossing it. Cold area effects harden mud back to ordinary floor.
+Dark brown floor tile (0.3, 0.2, 0.1); minimap (75, 50, 25). Traversable by players; a valid spawn cell; not traversed by the AI; a soft ground surface for downward digging; a host substrate for gas-vein traps; the terrain of the *Transmute Rock* spell, which is designed to slow enemies crossing it. Cold area effects harden mud back to ordinary floor.
 
 #### 4.10 `VOXEL_MARBLE` (16) — "Marble floor"
 Near-white floor tile (0.9, 0.9, 0.9); minimap (230, 230, 230). Traversable by players; a valid spawn cell; not traversed by the AI. The premium paving of vaults, thrones, observatories, and the Sunken Temple.
@@ -877,7 +877,7 @@ Area-of-effect spell and projectile resolution applies a fixed chemical conversi
 Three spells rewrite terrain through the shared `spell_terrain_stamp()` primitive (default radii in parentheses):
 
 - **Wall of Stone** — floor → `VOXEL_WALL` (r = 2). The caster's own cell is explicitly preserved, and the modification is permanent in the voxel map.
-- **Mud Field** — floor → `VOXEL_MUD` (r = 3); designed to slow enemies crossing the affected cells.
+- **Transmute Rock** — floor → `VOXEL_MUD` (r = 4); designed to slow enemies crossing the affected cells.
 - **Ice Storm** — floor → `VOXEL_ICE` (r = 4), in addition to the spell's standard area damage.
 
 #### 8.3 Voxel-based traps
@@ -3659,7 +3659,7 @@ Each spellcasting class channels power from a different source, and their magic 
 
 - 🔮 **Beast Sense** `S`  
   > You touch a willing beast. For the duration of the spell, you can use your action to see through the beast’s eyes and hear what it hears, and continue to do so until you use your action to return t...
-- 🔮 **Cordon Of Arrows** `V,S,M`  
+- 🔮 **Cordon of Arrows** `V,S,M`  
   > You plant four pieces of nonmagical ammunition—arrows or crossbow bolts—in the ground within range and lay magic upon them to protect an area. Until the spell ends, whenever a creature other than y...
 - 🔮 **Darkvision** `V,S,M`  
   > You touch a willing creature to grant it the ability to see in the dark. For the duration, that creature has darkvision out to a range of 60 feet.
@@ -4307,34 +4307,28 @@ These visual effects dynamically account for **Fog of War** and **Vision Radius*
 
 ---
 
-## 🔮 Special Magic Router (`spell_router`)
+## 🔮 Spell Effects and the Magic Router
 
-Dragon GL's 480 spells are no longer generic "damage" or "buff" effects. A system of **specialized hooks** ensures that each unique spell does *exactly* what the rules and lore describe.
+Every one of the 551 spells carries an explicit **`effect`** in `data/spells.json`: what it does (damage, heal, condition, buff, utility, special), where it lands (single, self, circle, cone, line, cloud), how a target resists (attack roll, saving throw, or not at all), its dice, damage type, condition and duration. The engine reads that record and does exactly that; nothing is guessed from the text of the description (see `DEVELOPMENT.md`, *Spells*).
 
-### Architecture
+### Handlers (`spell_router.c`)
 
-The module is contained in `src/server/spell_router.h` and `spell_router.c`.
+Spells of kind `special` name their handler in the record (`"handler": "blink"`); the router calls it through a table indexed by the handler, in O(1).
 
-- **`SpellHook[]` Table:** A static alphabetically-ordered table of hooks, each with a `spell_name` and `handler_fn`.
-- **`spell_router_init()`:** Called at startup; sorts the table with `qsort` to enable binary search.
-- **`spell_router_dispatch()`:** Uses `bsearch` to find the handler in **O(log N)**. If not found, returns `false` and the fallback to generic logic is transparent.
+| Handler | Spells | Special Effect |
+| :--- | :--- | :--- |
+| `summon_elemental` | Conjure Elemental, Conjure Minor Elementals | Summons one of 4 elementals (Fire/Water/Earth/Air) based on the `VOXEL_*` beneath the caster's feet. |
+| `animate_dead` | Animate Dead | Reactivates the nearest NPC corpse as an undead ally. |
+| `charm_person` | Charm Person | Wisdom saving throw against the caster's DC; on failure the target is Charmed and stops attacking. |
+| `dominate_monster` | Dominate Monster | Wisdom saving throw; on failure the creature fights as the caster's ally for the duration. |
+| `teleport` | Teleport, Dimension Door | Instant displacement to a random free cell on the same floor. |
+| `invisibility` | Invisibility, Mislead | The `Invisible` condition for the spell's rounds. |
+| `blink` | Blink | Short-range teleport: 5–10 cells in a random direction. |
+| `class_transit` | the 12 class transit cantrips | Surface ↔ deepest explored floor. |
 
-### Spells Implemented with Specialized Logic
+### Terrain
 
-| Spell | Special Effect |
-| :--- | :--- |
-| **Wall of Stone** | Transforms `VOXEL_FLOOR` cells into `VOXEL_WALL` in the target area. The change is **permanent** in the voxel map. |
-| **Mud Field** | Converts the floor to `VOXEL_MUD` (slows all enemies walking through it, AI speed reduction). |
-| **Ice Storm** | Covers the ground with `VOXEL_ICE` (slip risk: DEX saving throw or the *Prone* condition is applied). |
-| **Summon Elemental** | Summons one of 4 elementals (Fire/Water/Earth/Air) based on the `VOXEL_*` beneath the caster's feet. |
-| **Animate Dead** | Reactivates the nearest NPC corpse as an undead ally with an allied faction. |
-| **Charm Person** | Wisdom Saving Throw; on failure, resets `current_target_id` in the AI: the target stops attacking. |
-| **Dominate Monster** | Saving Throw with Disadvantage; the creature fights as the caster's ally for the duration. |
-| **Teleport** | Instant displacement to a random free cell on the same dungeon floor. |
-| **Invisibility** | Applies the `Invisible` status with a round duration; blocks AI aggro (not detected). |
-| **Blink** | Short-range teleport: the caster moves 5–10 cells in a random direction. |
-
-> **Technical Note:** The `spell_terrain_stamp()` function is reusable internally for all spells that modify terrain voxels, centralizing the logic in a single tested function.
+The `terrain` field leaves a mark on the map around the spell's origin, after its effect: **Wall of Stone** raises `VOXEL_WALL`, **Ice Storm** covers the ground with `VOXEL_ICE` (after its damage), **Transmute Rock** turns it to `VOXEL_MUD`. The caster's own cell always stays free.
 
 ---
 

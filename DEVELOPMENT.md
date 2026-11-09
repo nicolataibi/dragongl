@@ -79,6 +79,21 @@ NPC lifecycle events (`floor_stats_npc_died()`, `floor_stats_npc_spawned()`) upd
 
 A new command is one handler `bool cmd_x(Client *c, const char *cmd, NPC *npcs)` (true when it handled the command) and one row of `COMMANDS[]`: exact names and/or prefixes separated by `|`, and a usage line. Every prefix ends with a space, so it matches the whole word followed by arguments (`"train "` never matches `trainer`); list the bare word among the names when the command also works without arguments. The table is walked in order and the first match whose handler returns true wins, so a prefix row covers every later row it matches (`"c <n>"` is cast, `"c"` alone is close). When no handler accepts the line, the player gets the usage of the row named by the first word, otherwise "Unrecognized command". The `command_table` and `command_words` tests of the harness check all this.
 
+### Spells: data, resolution, balance
+A spell does what the `effect` object of its record in `data/spells.json` says; nothing is read from the description. `data/schema/spells.schema.json` documents every field:
+
+```json
+"effect": {"kind": "damage", "target": "circle", "range": 30, "radius": 4,
+           "roll": "save", "save": "dex", "on_save": "half",
+           "dice": {"count": 8, "sides": 6}, "damage_type": "fire"}
+```
+
+- **kind**: `damage` (with an optional `condition` rider), `heal`, `condition`, `buff` (`stat` ac/attack/damage, `value`, `rounds`), `utility` (no combat mechanic), `special` (a `handler` of `spell_router.c`). **target**: `single`, `self`, `circle`, `cone`, `line`, `cloud`. Ranges and radii are cells of 5 feet. **roll**: `auto`, `attack` (spell attack against AC) or `save`; with an attack or no roll, `save` names the saving throw that resists only the rider. `dc` (fixed) is for martial maneuvers; spells use 8 + proficiency + the class casting ability. `cantrip_scaling` multiplies the dice at levels 5, 11 and 17. `terrain` (wall, ice, mud) is left at the origin after the effect.
+- **Code**: `src/shared/spell_effect.c` parses the object (the server refuses to start on an invalid one), `src/shared/spell_rules.c` resolves an effect against one target with no world (attack, save, crit, half damage, rider, resistances), `src/server/spell_cast.c` picks the target and the area, applies the outcome and the rewards, `src/server/aoe.c` holds the area geometry, the terrain chemistry and the clouds.
+- **A new handler**: a `SpellHandler` value (`include/spells.h`), its name in `k_handlers` (`spell_effect.c`), the function in `g_handlers[]` (`spell_router.c`), the name in the schema enum; `tools/check_data.py` checks that the schema and the engine list the same handlers and conditions.
+- **Tests**: `tests/test_spell_rules.c` (parser and resolution, forced d20), the `spell_*` cases of the integration harness (one per kind of effect through the real `cast` command, and `spell_every_effect`: every spell of the data cast once, checked against its record), `tests/spell_balance.c` (below).
+- **Balance**: `spell_balance` simulates every damage spell with the game's loader and resolution against the reference target of its level and checks the expected damage, heals, buffs and unresisted control against `tests/spell_balance.json`; `build-tests/spell_balance data tests/spell_balance.json --report` prints the whole table. A change of the data that breaks a limit fails CI: fix the spell, or move the limit in the same change with the reason in the changelog.
+
 ---
 
 ## 4. Threading & Synchronization Model
@@ -117,7 +132,7 @@ The `tools/web/` directory contains self-contained HTML/JS workbenches for datas
 - `tools/web/menu.html`: Main navigation hub.
 - `tools/web/bestiary.html`: Monster stats, archetypes, and abilities editor.
 - `tools/web/items.html`: Weapon, armor, and magic artifact editor.
-- `tools/web/spells.html`: Spell mechanics, progression tiers, and grimoires editor.
+- `tools/web/spells.html`: Spell mechanics, progression tiers, and grimoires editor; the engine `effect` of a spell is edited as JSON and summarized in its detail view.
 
 ### 3. Dungeon Master (DM) Runtime Telemetry
 Administrators logged in with DM credentials can monitor engine performance directly from the in-game console:
@@ -158,6 +173,7 @@ Every quality gate of CI runs locally with one command; build trees go to `build
 | `tidy` | clang-tidy 18 with `.clang-tidy` on the main project, the unit and integration tests and the fuzz targets, one process per file | any finding (`WarningsAsErrors: '*'`) |
 | `protocol` | `tools/gen_protocol.py --check`: the files generated from `protocol/messages.json` (`include/protocol_gen.h`, `include/wire.h`, `src/shared/wire.c`, `tests/test_protocol_conformance.c`, `tests/protocol_vectors.json`, sections 2-3 of `PROTOCOL.md`) are up to date | a generated file differs from what the table gives |
 | `data` | `tools/check_data.py`: `data/schema/*.schema.json` (JSON Schema 2020-12), references resolved by name (book spells, `cast_spell`), unique names, class consistency of books, canonical form (2-space indent, UTF-8) | any error (`tools/check_data.py --fix` rewrites the form) |
+| `spelling` | codespell (`.codespellrc`: the game words it would take for typos) on the game data, the documentation, the man pages, the sources and the tools; `LORE.md` is left out, its catalogue cuts texts mid-word | a known misspelling |
 | `metrics` | `tools/metrics.py`: function and file length, coverage | a value over `tools/quality_limits.json` |
 | `coverage` | unit + integration suites built with `-fprofile-instr-generate -fcoverage-mapping`, every process (servers spawned by the network tests included) writes its profile; `llvm-cov` report of `src/server` + `src/shared` in `build-quality/coverage/` (`report.txt`, `html/`) | line coverage under `coverage_line_percent` |
 | `tsan` | the integration suite under ThreadSanitizer: the in-process harness and the network tests with a TSan server | any report |
@@ -182,7 +198,7 @@ A fuzz crash is replayed with the target binary: `build-quality/fuzz/build/fuzz_
 * Release builds with clang and gcc and `-Werror`;
 * the unit tests (Release and ASan/UBSan), the server integration tests under ASan/UBSan, the client smoke test under ASan/UBSan (Xvfb, lavapipe, Vulkan validation layer);
 * a server-only build without any graphics package, the RPM build with rpmlint in a Fedora container;
-* static analysis: cppcheck and `tools/check_release.py`; clang-tidy; format, game data and metrics;
+* static analysis: cppcheck and `tools/check_release.py`; clang-tidy; format, game data, spelling and metrics;
 * coverage (report uploaded as an artifact and summarized on the run page), ThreadSanitizer, fuzzing 60 s per target.
 
 `.github/workflows/fuzz-nightly.yml` fuzzes each target for 20 minutes every night on a corpus kept between runs; `.github/workflows/codeql.yml` runs GitHub code scanning (security-and-quality) on `main` and weekly.

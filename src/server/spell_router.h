@@ -18,21 +18,13 @@
  */
 
 /**
- * spell_router.h — Magic Router: Dispatcher for special spells
+ * spell_router.h — Magic Router: the handlers of the special spells
  *
- * Architecture:
- *   - A static table of SpellHook entries (name -> function) is initialized
- *     only once at startup by spell_router_init().
- *   - The spell_router_dispatch() dispatcher performs an O(log N) binary
- *     search in the table to find a custom handler for the current spell.
- *   - If found, the custom handler is executed and the function returns true,
- *     signaling to the caller that the spell has been handled.
- *   - If not found, it returns false and the generic logic takes over.
- *
- * To add a new special spell:
- *   1. Write the handler function in spell_router.c (signature: SpellHandlerFn).
- *   2. Add an entry {name, handler} to the g_spell_hooks[] array.
- *   3. The table is automatically sorted at runtime by spell_router_init().
+ * A spell of kind "special" names its handler in data/spells.json
+ * ("handler": "teleport"); spell_router_dispatch() calls it. Adding a
+ * handler: a SpellHandler value (spells.h), its name (spell_effect.c), the
+ * function and its slot in g_handlers[] (spell_router.c), and the name in
+ * the schema enum (data/schema/spells.schema.json).
  */
 
 #ifndef SPELL_ROUTER_H
@@ -47,10 +39,10 @@
  * All pointers are guaranteed non-NULL at call time.
  * ----------------------------------------------------------------------------*/
 typedef struct {
-    Client *caster;    /*The client casting the spell*/
-    SpellTemplate *sp; /*Current spell template*/
-    NPC *npcs;         /*Global array of NPCs*/
-    NPC *target;       /* Single target found (can be NULL) */
+    Client *caster;          /*The client casting the spell*/
+    const SpellTemplate *sp; /*Current spell template*/
+    NPC *npcs;               /*Global array of NPCs*/
+    NPC *target;             /* Single target found (can be NULL) */
 } SpellContext;
 
 /*--------------------------------------------------------------------------
@@ -59,29 +51,14 @@ typedef struct {
  * ----------------------------------------------------------------------------*/
 typedef bool (*SpellHandlerFn)(SpellContext *ctx);
 
-/*--------------------------------------------------------------------------
- * Structure of a single entry in the lookup table.
- * ----------------------------------------------------------------------------*/
-typedef struct {
-    const char *name;       /*Exact spell name (case-insensitive)*/
-    SpellHandlerFn handler; /*Custom management function*/
-} SpellHook;
-
-/* --------------------------------------------------------------------------
- * Public API
- * -------------------------------------------------------------------------- */
-
-/**
- * spell_router_init - Sort hook table by binary search.
- * Must only be called once after loading the spell database.*/
+/*Logs the number of handlers; called once after loading the spells.*/
 void spell_router_init(void);
 
-/**
- * spell_router_dispatch - Search and invoke the custom handler for the spell.
- *
- * @ctx: Context of the current spell.
- * Returns true if a handler handled the spell (skip generic logic).
- * Returns false if no hook exists (uses standard generic logic).*/
+/*Calls the handler of ctx->sp; false if the spell has none.*/
 bool spell_router_dispatch(SpellContext *ctx);
+
+/*Stamps the spell's terrain (wall, ice, mud) around (x, y), radius the
+ * effect's radius (2 if it has none). The caster's cell stays free.*/
+void spell_router_terrain(Client *c, const SpellTemplate *sp, int x, int y);
 
 #endif /* SPELL_ROUTER_H */

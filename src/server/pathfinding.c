@@ -41,7 +41,7 @@
 #include <string.h>
 #include <math.h>
 
-/* ───────────────────────────── Strutture interne ───────────────────────── */
+/* ───────────────────────────── Internal structures ───────────────────────── */
 
 typedef struct {
     int x, y;

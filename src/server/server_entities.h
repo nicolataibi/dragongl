@@ -228,8 +228,8 @@ typedef struct {
  * in-memory ActiveEffect.name is a POINTER (into the saving process's
  * memory) and must never reach the disk. cond is the canonical
  * ConditionType (see condition_to_name/_from_name in rules.c); a name
- * that is not a known condition (spell bookkeeping effects like
- * "Nube Acida" or "Confused") saves as MAX_CONDITIONS and is dropped
+ * that is not a known condition (spell buffs and handler effects like
+ * "Bless" or "Dominated") saves as MAX_CONDITIONS and is dropped
  * on load — only canonical conditions drive real mechanics (HP ticks,
  * saves, action locks), so losing the cosmetic ones across a logout is
  * safe (they are 3-5 round transients anyway).*/

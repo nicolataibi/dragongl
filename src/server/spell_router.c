@@ -24,8 +24,11 @@
  * or a category of spells that does not reduce to "general damage" or
  * "generic buff".
  *
+ * A spell reaches its handler through the "handler" field of its effect
+ * (data/spells.json), never through its name.
+ *
  * Categories implemented:
- * 1. TERRAIN — Edit voxels on the map (Wall of Stone, Mud, Ice)
+ * 1. TERRAIN — Edit voxels on the map (the "terrain" field of an effect)
  * 2. SUMMON — Summons a new NPC ally next to the caster
  * 3. CHARM — Change the faction of a target NPC
  * 4. UTILITY — Teleport, Invisibility and other special effects*/
@@ -38,6 +41,8 @@
 #include "map.h"
 #include "rules.h"
 #include "bestiary.h"
+#include "spell_cast.h"
+#include "spell_rules.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -49,9 +54,6 @@
 /* =========================================================================
  * Internal prototypes
  * ========================================================================= */
-static bool handle_wall_of_stone(SpellContext *ctx);
-static bool handle_mud_field(SpellContext *ctx);
-static bool handle_ice_storm_terrain(SpellContext *ctx);
 static bool handle_summon_elemental(SpellContext *ctx);
 static bool handle_animate_dead(SpellContext *ctx);
 static bool handle_charm_person(SpellContext *ctx);
@@ -61,78 +63,35 @@ static bool handle_invisibility(SpellContext *ctx);
 static bool handle_blink(SpellContext *ctx);
 static bool handle_class_transit(SpellContext *ctx);
 
-/*============================================================================
- * Lookup table hook: {exact_spell_name, handler}
-* MUST be kept in alphabetical order (spell_router_init() sorts it)
- * ==========================================================================*/
-static SpellHook g_spell_hooks[] = {
-    {"Animate Dead", handle_animate_dead},
-    {"Arcane Transit", handle_class_transit},
-    {"Ancestral Totem Call", handle_class_transit},
-    {"Bloodline Rift", handle_class_transit},
-    {"Blink", handle_blink},
-    {"Charm Person", handle_charm_person},
-    {"Divine Recall", handle_class_transit},
-    {"Flowing Step", handle_class_transit},
-    {"Dominate Monster", handle_dominate_monster},
-    {"Ice Storm", handle_ice_storm_terrain},
-    {"Hunter's Trail", handle_class_transit},
-    {"Invisibility", handle_invisibility},
-    {"Mud Field", handle_mud_field},
-    {"Oathbound Passage", handle_class_transit},
-    {"Pact Passage", handle_class_transit},
-    {"Summon Elemental", handle_summon_elemental},
-    {"Teleport", handle_teleport},
-    {"The Back Door", handle_class_transit},
-    {"The Green Path", handle_class_transit},
-    {"The Last Refrain", handle_class_transit},
-    {"Warrior's March", handle_class_transit},
-    {"Wall of Stone", handle_wall_of_stone},
+/*One handler per SpellHandler value (spell_effect.c names them).*/
+static const SpellHandlerFn g_handlers[SPELL_HANDLER_COUNT] = {
+    [SPELL_HANDLER_ANIMATE_DEAD] = handle_animate_dead,
+    [SPELL_HANDLER_BLINK] = handle_blink,
+    [SPELL_HANDLER_CHARM_PERSON] = handle_charm_person,
+    [SPELL_HANDLER_CLASS_TRANSIT] = handle_class_transit,
+    [SPELL_HANDLER_DOMINATE_MONSTER] = handle_dominate_monster,
+    [SPELL_HANDLER_INVISIBILITY] = handle_invisibility,
+    [SPELL_HANDLER_SUMMON_ELEMENTAL] = handle_summon_elemental,
+    [SPELL_HANDLER_TELEPORT] = handle_teleport,
 };
 
-static int g_hook_count = (int)(sizeof(g_spell_hooks) / sizeof(g_spell_hooks[0]));
-static bool g_router_ready = false;
-
-/*============================================================================
- * Comparator for qsort/bsearch (case-insensitive)
- * ==========================================================================*/
-static int hook_cmp(const void *a, const void *b) {
-    const SpellHook *ha = (const SpellHook *)a;
-    const SpellHook *hb = (const SpellHook *)b;
-    return strcasecmp(ha->name, hb->name);
-}
-
-/*============================================================================
- * spell_router_init
- * Order g_spell_hooks only once to enable binary search.
- * ==========================================================================*/
 void spell_router_init(void) {
-    qsort(g_spell_hooks, (size_t)g_hook_count, sizeof(SpellHook), hook_cmp);
-    g_router_ready = true;
-    server_log("MAGIC", "Magic Router initialized: %d hooks registered.", g_hook_count);
+    int count = 0;
+    for (int h = SPELL_HANDLER_NONE + 1; h < SPELL_HANDLER_COUNT; h++) {
+        count += g_handlers[h] != NULL;
+    }
+    server_log("MAGIC", "Magic Router initialized: %d handlers.", count);
 }
 
-/*============================================================================
- * spell_router_dispatch
-* O(log N) binary search in table. Returns true if handled.
- * ==========================================================================*/
 bool spell_router_dispatch(SpellContext *ctx) {
-    if (!g_router_ready || !ctx || !ctx->sp) {
+    if (!ctx || !ctx->sp) {
         return false;
     }
-
-    SpellHook key;
-    key.name = ctx->sp->name;
-    key.handler = NULL;
-
-    SpellHook *found = (SpellHook *)bsearch(&key, g_spell_hooks, (size_t)g_hook_count,
-                                            sizeof(SpellHook), hook_cmp);
-
-    if (!found) {
+    SpellHandler h = ctx->sp->effect.handler;
+    if (h <= SPELL_HANDLER_NONE || h >= SPELL_HANDLER_COUNT || !g_handlers[h]) {
         return false;
     }
-
-    return found->handler(ctx);
+    return g_handlers[h](ctx);
 }
 
 /* =========================================================================
@@ -183,108 +142,28 @@ static int spell_terrain_stamp(Floor *floor, int cx, int cy, int radius, VoxelTy
     return changed;
 }
 
-/*-----------------------------------------------------------------------
- * Wall of Stone — Causes walls of stone to emerge around the target.
- * Mechanic: Transform VOXEL_FLOORs adjacent to the target into VOXEL_WALLs.
- * The caster is never blocked (his cell remains free).
- * -------------------------------------------------------------------------*/
-static bool handle_wall_of_stone(SpellContext *ctx) {
-    Client *c = ctx->caster;
-    SpellTemplate *sp = ctx->sp;
-
-    int tx = c->x;
-    int ty = c->y;
-
-    if (ctx->target) {
-        tx = ctx->target->x;
-        ty = ctx->target->y;
+void spell_router_terrain(Client *c, const SpellTemplate *sp, int x, int y) {
+    static const struct {
+        VoxelType voxel;
+        const char *what;
+    } k_terrain[] = {
+        [SPELL_TERRAIN_WALL] = {VOXEL_WALL, "solidify into rough stone"},
+        [SPELL_TERRAIN_ICE] = {VOXEL_ICE, "are covered in slippery ice"},
+        [SPELL_TERRAIN_MUD] = {VOXEL_MUD, "are swallowed by the mud"},
+    };
+    SpellTerrain t = sp->effect.terrain;
+    if (t <= SPELL_TERRAIN_NONE || t > SPELL_TERRAIN_MUD || !master_world || c->floor_id < 0 ||
+        c->floor_id >= MAX_FLOORS) {
+        return;
     }
-
     Floor *floor = &master_world->floors[c->floor_id];
-
-    int radius = (sp->radius > 0) ? sp->radius : 2;
-    int changed = spell_terrain_stamp(floor, tx, ty, radius, VOXEL_WALL, true);
-
-    /*The caster cell always remains passable*/
+    int radius = sp->effect.radius > 0 ? sp->effect.radius : 2;
+    int changed = spell_terrain_stamp(floor, x, y, radius, k_terrain[t].voxel, true);
+    /*The caster's cell always stays passable.*/
     floor->map.data[0][c->y][c->x] = VOXEL_FLOOR;
-
-    send_text_to_client(c->sock,
-                        "[MAGIC] Wall of Stone: A wall of living rock emerges from the ground!");
-    send_text_to_client(c->sock, "> %d floor cells solidify into rough stone.", changed);
-
-    server_log("MAGIC", "%s casts Wall of Stone at (%d,%d) [radius %d, %d cells].", c->username, tx,
-               ty, radius, changed);
-
-    return true;
-}
-
-/* -------------------------------------------------------------------------
- * Mud Field — Transforms the terrain into mud that slows enemies.
- * Mechanic: Converts VOXEL_FLOOR to VOXEL_MUD within a radius of the target.
- * Mud causes movement penalties (handled by the server_world tick).
- * ------------------------------------------------------------------------- */
-static bool handle_mud_field(SpellContext *ctx) {
-    Client *c = ctx->caster;
-    SpellTemplate *sp = ctx->sp;
-
-    int tx = c->x;
-    int ty = c->y;
-
-    if (ctx->target) {
-        tx = ctx->target->x;
-        ty = ctx->target->y;
-    }
-
-    Floor *floor = &master_world->floors[c->floor_id];
-
-    int radius = (sp->radius > 0) ? sp->radius : 3;
-    int changed = spell_terrain_stamp(floor, tx, ty, radius, VOXEL_MUD, true);
-
-    send_text_to_client(c->sock, "[MAGIC] Mud Field: The ground turns into sticky quagmires!");
-    send_text_to_client(c->sock, "> %d cells are swallowed by the mud. Enemies will slow down.",
-                        changed);
-
-    return true;
-}
-
-/* -------------------------------------------------------------------------
- * Ice Storm (Terrain variant) — Covers the terrain in ice.
- * Mechanics: Converts floor tiles to VOXEL_ICE. Ice can cause slipping
- * (Dexterity penalty, handled in movement ticks).
- * Note: the spell's base damage effect (AoE) is handled by the standard AoE
- * system; this hook adds ONLY the terrain modification.
- * ------------------------------------------------------------------------- */
-static bool handle_ice_storm_terrain(SpellContext *ctx) {
-    Client *c = ctx->caster;
-    SpellTemplate *sp = ctx->sp;
-
-    int tx = c->x;
-    int ty = c->y;
-
-    if (ctx->target) {
-        tx = ctx->target->x;
-        ty = ctx->target->y;
-    }
-
-    Floor *floor = &master_world->floors[c->floor_id];
-
-    int radius = (sp->radius > 0) ? sp->radius : 4;
-    int changed = spell_terrain_stamp(floor, tx, ty, radius, VOXEL_ICE, true);
-
-    send_text_to_client(c->sock,
-                        "[MAGIC] Ice Storm: the storm transforms the ground into a sheet of ice!");
-    send_text_to_client(c->sock, "> %d cells are covered in slippery ice.", changed);
-
-    /*
-     * After modifying the terrain, we delegate the AoE damage to the
-     * standard system by calling aoe_resolve_spell. This hook is NOT to be
-     * considered a final endpoint: we return true to allow the processing
-     * to continue.
-     * NOTE: In this specific case we return true because we want
-     * full control over the message. AoE damage is applied separately
-     * by the calling logic if target_type is AOE.
-     */
-    return true;
+    send_text_to_client(c->sock, "  > %s: %d cells %s.", sp->name, changed, k_terrain[t].what);
+    server_log("MAGIC", "%s: %s at (%d,%d) floor %d [radius %d, %d cells].", c->username, sp->name,
+               x, y, c->floor_id, radius, changed);
 }
 
 /*============================================================================
@@ -447,8 +326,8 @@ static bool handle_summon_elemental(SpellContext *ctx) {
     /* Update the entity grid */
     floor->entity_grid[sy][sx] = slot->entity_id;
 
-    send_text_to_client(
-        c->sock, "[MAGIC] Summon Elemental: a %s materializes from the ethereal plane!", elem_name);
+    send_text_to_client(c->sock, "[MAGIC] %s: a %s materializes from the ethereal plane!",
+                        ctx->sp->name, elem_name);
     send_text_to_client(c->sock, "  > The entity (HP:%d AC:%d) will follow you into battle.",
                         elem_hp, elem_ac);
 
@@ -522,107 +401,74 @@ static bool handle_animate_dead(SpellContext *ctx) {
  * ─────────────────────────────────────────────────────────────────────────
  * ========================================================================= */
 
+/*The target's saving throw (the effect's save, normally Wisdom) against
+ * the caster's spell DC; true if it resists. *dc receives the DC.*/
+static bool mind_save(const SpellContext *ctx, int *dc) {
+    SpellCaster sc;
+    spell_caster_of(ctx->caster, &sc);
+    *dc = spell_save_dc(&ctx->sp->effect, &sc);
+    return rules_roll_save(npc_save_bonus(ctx->target), *dc, false, false, NULL);
+}
+
+static void mind_effect(NPC *tgt, const char *name, int rounds) {
+    ActiveEffect fx;
+    memset(&fx, 0, sizeof(fx));
+    fx.name = name;
+    fx.trigger = EVENT_ON_TURN_START;
+    fx.duration_rounds = rounds;
+    rules_add_effect(tgt->effects, &tgt->effect_count, MAX_EFFECTS_PER_ENTITY, &fx);
+}
+
 /*-----------------------------------------------------------------------
- * Charm Person — Charms a target humanoid temporarily
- * ally. The target stops attacking the caster for N rounds.
- * Mechanic: Set current_target_id = -1 (no target) and apply
- * the "Charmed" status effect that suppresses aggression.
+ * Charm Person — the target stops attacking the caster for the effect's
+ * rounds: its AI target is cleared and it takes the Charmed condition.
  * -------------------------------------------------------------------------*/
 static bool handle_charm_person(SpellContext *ctx) {
     Client *c = ctx->caster;
-    SpellTemplate *sp = ctx->sp;
     NPC *tgt = ctx->target;
-
     if (!tgt) {
-        send_text_to_client(c->sock, "[MAGIC] Charm Person: No targets in range.");
+        send_text_to_client(c->sock, "[MAGIC] %s: no target in range.", ctx->sp->name);
         return true;
     }
-
-    /*Wisdom saving throw against the caster's DC*/
-    int dc = 8 + rules_get_modifier(c->intel) + 2; /* +2 proficiency */
-    bool saved = rules_roll_save(10, dc, false, false, NULL);
-
-    if (saved) {
-        send_text_to_client(c->sock, "[MAGIC] %s resists your charm! (Successful save)",
-                            tgt->template ? tgt->template->name : "???");
+    int dc = 0;
+    if (mind_save(ctx, &dc)) {
+        send_text_to_client(c->sock, "[MAGIC] %s resists your charm! (save vs DC %d)",
+                            npc_name(tgt), dc);
         return true;
     }
-
-    /*Apply the charm: reset the AI ​​target and mark as charmed*/
-    tgt->ai_ctx.current_target_id = -1; /*no active targets*/
-
-    if (tgt->effect_count < MAX_EFFECTS_PER_ENTITY) {
-        ActiveEffect charm_fx;
-        memset(&charm_fx, 0, sizeof(charm_fx));
-        charm_fx.name = "Charmed";
-        charm_fx.duration_rounds =
-            sp->status_effect.duration_rounds > 0 ? sp->status_effect.duration_rounds : 5;
-        tgt->effects[tgt->effect_count++] = charm_fx;
-    }
-
-    send_text_to_client(
-        c->sock, "[MAGIC] Charm Person: %s gazes at you dreamily... they are under your control!",
-        tgt->template ? tgt->template->name : "???");
-    send_text_to_client(
-        c->sock, "> Effect lasts %d rounds (Failed Sag DC%d save).",
-        sp->status_effect.duration_rounds > 0 ? sp->status_effect.duration_rounds : 5, dc);
-
-    server_log("MAGIC", "%s charms %s (ID:%d) with Charm Person.", c->username,
-               tgt->template ? tgt->template->name : "???", tgt->entity_id);
-
+    tgt->ai_ctx.current_target_id = -1;
+    mind_effect(tgt, condition_to_name(COND_CHARMED), ctx->sp->effect.rounds);
+    send_text_to_client(c->sock, "[MAGIC] %s: %s gazes at you dreamily... charmed for %d rounds.",
+                        ctx->sp->name, npc_name(tgt), ctx->sp->effect.rounds);
+    server_log("MAGIC", "%s charms %s (ID:%d) with %s.", c->username, npc_name(tgt), tgt->entity_id,
+               ctx->sp->name);
     return true;
 }
 
 /*-----------------------------------------------------------------------
- * Dominate Monster — Same as Charm Person but without saving throw and on any
-* creatures. The creature becomes a permanent ally until the end of
- * combat (or until it takes damage from the caster).
+ * Dominate Monster — the target fights for the caster for the effect's
+ * rounds.
  * -------------------------------------------------------------------------*/
 static bool handle_dominate_monster(SpellContext *ctx) {
     Client *c = ctx->caster;
-    SpellTemplate *sp = ctx->sp;
     NPC *tgt = ctx->target;
-
     if (!tgt) {
-        send_text_to_client(c->sock, "[MAGIC] Dominate Monster: No targets in range.");
+        send_text_to_client(c->sock, "[MAGIC] %s: no target in range.", ctx->sp->name);
         return true;
     }
-
-    /*Wisdom saving throw with disadvantage (roll 2 dice, take the worst)*/
-    int dc = 8 + rules_get_modifier(c->intel) + 2;
-    int roll1 = rules_roll_dice(1, 20);
-    int roll2 = rules_roll_dice(1, 20);
-    int worst = (roll1 < roll2) ? roll1 : roll2;
-    int mod = rules_get_modifier(10); /* Base NPC Wisdom (10 = no modifier) */
-    bool saved = (worst + mod >= dc);
-
-    if (saved) {
-        send_text_to_client(c->sock,
-                            "[MAGIC] %s resists domination! (Save with disadvantage: %d vs DC%d)",
-                            tgt->template ? tgt->template->name : "???", worst + mod, dc);
+    int dc = 0;
+    if (mind_save(ctx, &dc)) {
+        send_text_to_client(c->sock, "[MAGIC] %s resists domination! (save vs DC %d)",
+                            npc_name(tgt), dc);
         return true;
     }
-
-    tgt->ai_ctx.current_target_id = c->entity_id; /* full allied faction */
-
-    if (tgt->effect_count < MAX_EFFECTS_PER_ENTITY) {
-        ActiveEffect dom_fx;
-        memset(&dom_fx, 0, sizeof(dom_fx));
-        dom_fx.name = "Dominated";
-        dom_fx.duration_rounds =
-            sp->status_effect.duration_rounds > 0 ? sp->status_effect.duration_rounds : 10;
-        tgt->effects[tgt->effect_count++] = dom_fx;
-    }
-
+    tgt->ai_ctx.current_target_id = c->entity_id; /* allied faction */
+    mind_effect(tgt, "Dominated", ctx->sp->effect.rounds);
     snprintf(tgt->custom_name, sizeof(tgt->custom_name), "[DOMINATED] %s",
              tgt->template ? tgt->template->name : "Creature");
-
-    send_text_to_client(c->sock, "[MAGIC] Dominate Monster: %s's mind yields to your will!",
-                        tgt->template ? tgt->template->name : "???");
-    send_text_to_client(c->sock, "  > The creature will fight for you for %d rounds.",
-                        sp->status_effect.duration_rounds > 0 ? sp->status_effect.duration_rounds
-                                                              : 10);
-
+    send_text_to_client(c->sock, "[MAGIC] %s: %s's mind yields to your will for %d rounds!",
+                        ctx->sp->name, tgt->template ? tgt->template->name : "the creature",
+                        ctx->sp->effect.rounds);
     return true;
 }
 
@@ -694,7 +540,7 @@ static bool handle_teleport(SpellContext *ctx) {
  * -------------------------------------------------------------------------*/
 static bool handle_invisibility(SpellContext *ctx) {
     Client *c = ctx->caster;
-    SpellTemplate *sp = ctx->sp;
+    const SpellTemplate *sp = ctx->sp;
 
     if (c->effect_count >= MAX_EFFECTS_PER_ENTITY) {
         send_text_to_client(c->sock,
@@ -704,7 +550,7 @@ static bool handle_invisibility(SpellContext *ctx) {
 
     /* Check if already invisible */
     for (int i = 0; i < c->effect_count; i++) {
-        if (strncmp(c->effects[i].name, "Invisible", 9) == 0) {
+        if (strcmp(c->effects[i].name, condition_to_name(COND_INVISIBLE)) == 0) {
             send_text_to_client(c->sock, "[MAGIC] You are already invisible (%d rounds remaining).",
                                 c->effects[i].duration_rounds);
             return true;
@@ -713,12 +559,11 @@ static bool handle_invisibility(SpellContext *ctx) {
 
     ActiveEffect invis_fx;
     memset(&invis_fx, 0, sizeof(invis_fx));
-    invis_fx.name = "Invisible";
-    invis_fx.duration_rounds =
-        sp->status_effect.duration_rounds > 0 ? sp->status_effect.duration_rounds : 5;
+    invis_fx.name = condition_to_name(COND_INVISIBLE);
+    invis_fx.duration_rounds = sp->effect.rounds > 0 ? sp->effect.rounds : 5;
     c->effects[c->effect_count++] = invis_fx;
 
-    send_text_to_client(c->sock, "[MAGIC] Invisibility: Your body dissolves into the air!");
+    send_text_to_client(c->sock, "[MAGIC] %s: Your body dissolves into the air!", sp->name);
     send_text_to_client(
         c->sock,
         "  > You are invisible for %d rounds. Attacking or casting spells will end the effect.",

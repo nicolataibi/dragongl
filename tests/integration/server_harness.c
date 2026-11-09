@@ -13,6 +13,7 @@
  */
 
 #include "fixture.h"
+#include "harness_spells.h"
 
 #include "binio.h"
 #include "classes.h"
@@ -1046,6 +1047,15 @@ static const TestCase k_tests[] = {
     {"floor_walk_matches_scan", test_floor_walk_matches_scan},
     {"entity_lookup", test_entity_lookup},
     {"player_move", test_player_move},
+    {"spell_attack", test_spell_attack},
+    {"spell_save_area", test_spell_save_area},
+    {"spell_cone_and_line", test_spell_cone_and_line},
+    {"spell_conditions", test_spell_conditions},
+    {"spell_self", test_spell_self},
+    {"spell_cloud", test_spell_cloud},
+    {"spell_special_and_terrain", test_spell_special_and_terrain},
+    {"spell_refusals", test_spell_refusals},
+    {"spell_every_effect", test_spell_every_effect},
 };
 
 int main(int argc, char **argv) {

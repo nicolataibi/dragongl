@@ -345,6 +345,7 @@ kbd{padding:2px 7px}
   padding-right:28px;
 }
 .fg textarea{min-height:104px;resize:vertical;line-height:1.55}
+.fg textarea.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px;line-height:1.45;min-height:180px}
 .fg input:focus,.fg select:focus,.fg textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
 .fg input::placeholder,.fg textarea::placeholder{color:var(--dim)}
 .fhint{font:500 11px var(--font-ui);color:var(--dim)}
@@ -1267,6 +1268,12 @@ function fieldHtml(f, target) {
           ${sl('vfx_r', 'Red', v.r, '#f87171')}${sl('vfx_g', 'Green', v.g, '#4ade80')}${sl('vfx_b', 'Blue', v.b, '#60a5fa')}
         </div></div></div>`;
     }
+    case 'json': {
+      /* An object edited as JSON text (validated on save; the schema in
+         data/schema/ and tools/check_data.py check its fields). */
+      const text = cur === undefined ? '' : JSON.stringify(cur, null, 2);
+      return `<div class="fg ${full}">${label}<textarea id="fld_${f.id}" data-fld="${f.id}" class="mono" spellcheck="false" rows="10">${esc(text)}</textarea>${hint}</div>`;
+    }
     default:
       return `<div class="fg ${full}">${label}<input id="fld_${f.id}" data-fld="${f.id}" type="text" value="${esc(cur ?? '')}"></div>`;
   }
@@ -1301,6 +1308,13 @@ function collectForm(root) {
       d[f.id] = { type: q('vfx_type'), r: q('vfx_r'), g: q('vfx_g'), b: q('vfx_b') };
     } else if (f.type === 'toggle') {
       d[f.id] = !!root.querySelector(`[data-fld="${f.id}"]`)?.checked;
+    } else if (f.type === 'json') {
+      const text = root.querySelector(`[data-fld="${f.id}"]`).value.trim();
+      try {
+        d[f.id] = text ? JSON.parse(text) : undefined;
+      } catch (e) {
+        d[f.id] = { __invalid: e.message };
+      }
     } else {
       const el = root.querySelector(`[data-fld="${f.id}"]`);
       d[f.id] = el ? el.value.trim() : '';
@@ -1332,6 +1346,14 @@ function submitForm(ov) {
     if (!f.req) continue;
     const v = Array.isArray(d[f.id]) ? d[f.id].length : String(d[f.id] ?? '').trim();
     if (!v) { toast(`“<b>${esc(f.label)}</b>” is required.`, 'err'); ov.querySelector(`[data-fld="${f.id}"]`)?.focus(); return; }
+  }
+  for (const f of CFG.formFields) {
+    const v = d[f.id];
+    if (f.type === 'json' && v && typeof v === 'object' && '__invalid' in v) {
+      toast(`“<b>${esc(f.label)}</b>” is not valid JSON: ${esc(v.__invalid)}`, 'err', 6000);
+      ov.querySelector(`[data-fld="${f.id}"]`)?.focus();
+      return;
+    }
   }
   const target = S.editRef;
   let name;

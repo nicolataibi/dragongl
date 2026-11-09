@@ -16,6 +16,10 @@ Checks, in order:
      two monster records are identical, floor_min <= floor_max, every book
      is for classes that may cast each of its spells, every spell is in at
      least one book (spells are learned and cast only from a book);
+     spell effects: the condition and handler names of the schema are the
+     engine's (src/shared/rules.c, src/shared/spell_effect.c), only cantrips
+     scale, only martial maneuvers have a fixed DC, a save rider has a
+     condition to resist;
   4. canonical form, the one the Data Studio (tools/web) writes:
      2-space indentation, UTF-8 text (no \\u escapes), integral numbers
      without a decimal point, one trailing newline. --fix applies it.
@@ -24,6 +28,7 @@ Checks, in order:
 import argparse
 import json
 import os
+import re
 import sys
 
 try:
@@ -136,6 +141,35 @@ def cross_check(report, docs):
             report.error("spells[%d] %s" % (i, sp["name"]), "in no book: it cannot be learned")
 
 
+def c_names(path, table):
+    """The string values of one designated-initializer table of a C file."""
+    with open(os.path.join(ROOT, path), encoding="utf-8") as f:
+        text = f.read()
+    m = re.search(r"%s\[[^]]*\] = \{(.*?)\};" % re.escape(table), text, re.S)
+    return set(re.findall(r'= "([^"]+)"', m.group(1))) if m else set()
+
+
+def effect_check(report, spells):
+    with open(os.path.join(DATA, "schema", "spells.schema.json"), encoding="utf-8") as f:
+        props = json.load(f)["properties"]["spells"]["items"]["properties"]["effect"]["properties"]
+    engine = {
+        "condition": {n.lower() for n in c_names("src/shared/rules.c", "g_condition_names")},
+        "handler": c_names("src/shared/spell_effect.c", "k_handlers"),
+    }
+    for field, names in engine.items():
+        if set(props[field]["enum"]) != names:
+            report.error("data/schema/spells.schema.json", "effect.%s names %s, the engine %s"
+                         % (field, sorted(props[field]["enum"]), sorted(names)))
+    for i, sp in enumerate(spells):
+        e, where = sp["effect"], "spells[%d] %s" % (i, sp["name"])
+        if e.get("cantrip_scaling") and sp["level"] != "cantrip":
+            report.error(where, "cantrip_scaling on a level %s spell" % sp["level"])
+        if "dc" in e and sp["school"] != "martial":
+            report.error(where, "a fixed dc on a spell (only martial maneuvers have one)")
+        if "save" in e and e.get("roll") != "save" and "condition" not in e:
+            report.error(where, "a rider save without a condition to resist")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--fix", action="store_true", help="rewrite the files in canonical form")
@@ -147,6 +181,7 @@ def main():
         validate(report, docs)
         if report.errors == 0:
             cross_check(report, docs)
+            effect_check(report, docs["spells"]["spells"])
     for name, doc in docs.items():
         text = canonical(doc)
         if text == raw[name]:

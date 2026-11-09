@@ -1,0 +1,7 @@
+# codespell configuration of tools/quality.sh spelling (CI: lint job).
+# The game vocabulary codespell takes for typos: creatures and places
+# (wight, mane, rime, Thay, Empress), items (curios), words of the
+# descriptions (sting, wither, singe, tread, steams, revered, ore, wit),
+# groff bullets (\(bu) and short C identifiers (nd, thi, statics).
+[codespell]
+ignore-words-list = bu,curios,empress,mane,nd,ore,revered,rime,singe,statics,steams,sting,stings,thay,thi,tread,wight,wights,wit,wither

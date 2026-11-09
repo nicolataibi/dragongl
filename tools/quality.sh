@@ -42,6 +42,8 @@ Checks
   tidy            clang-tidy (.clang-tidy) on the main project, the unit
                   tests, the integration tests and the fuzz targets
   data            tools/check_data.py: schema, references, canonical form of data/
+  spelling        codespell (.codespellrc) on the game data, the documentation,
+                  the man pages, the sources and the tools
   metrics         tools/metrics.py: function and file length, coverage, against
                   the limits of tools/quality_limits.json
   protocol        tools/gen_protocol.py --check: the files generated from
@@ -53,7 +55,7 @@ Checks
   fuzz [SECONDS]  build the libFuzzer targets of tests/fuzz, write their seeds
                   and run each for SECONDS (default 60); crashes are saved
                   in build-quality/fuzz/artifacts/
-  all             format protocol tidy data coverage metrics tsan, then fuzz 30
+  all             format protocol tidy data spelling coverage metrics tsan, then fuzz 30
 
 Options
   -j N            parallel jobs (default: number of CPUs)
@@ -143,6 +145,23 @@ check_tidy() {
 check_data() {
     section "game data"
     python3 "$ROOT/tools/check_data.py"
+}
+
+# LORE.md is left out: its spell and item catalogue cuts the texts
+# mid-word ("thi...").
+spelling_files() {
+    git -C "$ROOT" ls-files --cached --others --exclude-standard 'data/*.json' '*.md' \
+        'man/*' 'src/*.c' 'src/*.h' 'include/*.h' 'tests/*.c' 'tests/*.h' 'tests/*.py' \
+        'tools/*.py' 'tools/*.sh' 'protocol/*' 'dragongl.spec' |
+        grep -v -e '^LORE\.md$' -e '^src/shared/cJSON\.' -e '_gen\.'
+}
+
+check_spelling() {
+    section "spelling (codespell)"
+    need codespell
+    cd "$ROOT"
+    spelling_files | xargs -r codespell
+    ok "$(spelling_files | wc -l) files without a known misspelling"
 }
 
 check_protocol() {
@@ -265,8 +284,10 @@ main() {
         fuzz)
             if [[ ${2:-} =~ ^[0-9]+$ ]]; then checks+=("fuzz:$2"); shift; else checks+=(fuzz:60); fi
             ;;
-        all) checks+=(format protocol tidy data coverage metrics tsan fuzz:30) ;;
-        format | format-fix | tidy | data | metrics | protocol | coverage | tsan) checks+=("$1") ;;
+        all) checks+=(format protocol tidy data spelling coverage metrics tsan fuzz:30) ;;
+        format | format-fix | tidy | data | spelling | metrics | protocol | coverage | tsan)
+            checks+=("$1")
+            ;;
         *) usage >&2; die "unknown check '$1'" ;;
         esac
         shift
@@ -281,6 +302,7 @@ main() {
         format-fix) check_format fix ;;
         tidy) check_tidy ;;
         data) check_data ;;
+        spelling) check_spelling ;;
         metrics) check_metrics ;;
         protocol) check_protocol ;;
         coverage) check_coverage ;;

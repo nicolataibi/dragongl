@@ -1388,7 +1388,7 @@ int get_player_ac(Client *c) {
     if (rules_has_condition_t(c->effects, c->effect_count, COND_PETRIFIED)) {
         final_ac += 10;
     }
-    return final_ac;
+    return final_ac + rules_event_bonus(c->effects, c->effect_count, EVENT_ON_DEFEND);
 }
 
 void save_player_data(Client *c) {
@@ -1463,7 +1463,7 @@ void save_player_data(Client *c) {
     sd.total_kills = c->total_kills;
     sd.total_steps = c->total_steps;
     sd.max_floor_explored = c->max_floor_explored;
-    /* --- Fase 5: Grimorio persistente --- */
+    /* --- Persistent grimoire --- */
     memcpy(sd.known_spells, c->known_spells, sizeof(c->known_spells));
     /*--- Phase 6: Boss flags ---*/
     sd.bosses_defeated = c->bosses_defeated;
@@ -2185,7 +2185,7 @@ void print_merchant_inventory(Client *c, NPC *merchant) {
             }
         }
 
-        /* --- Fase 3: Economia Reattiva (Prezzi Dinamici) --- */
+        /* --- Reactive economy (dynamic prices) --- */
         float supply = 1.0f;
         if (merchant->merchant.item_stock_max[j] > 0) {
             supply = (float)merchant->merchant.item_stock[j] /

@@ -23,7 +23,7 @@
  * Contains declarations of used combat functions
  * across the other modules (ai.c, aoe.c, main_server.c).
  *
- * Implementation: src/server/main_server.c (to be migrated to server_combat.c)*/
+ * Implementation: src/server/server_combat.c*/
 #ifndef SERVER_COMBAT_H
 #define SERVER_COMBAT_H
 
@@ -37,6 +37,17 @@
  * @t: Pointer to the target NPC.
  * @npcs: Array of all NPCs (for secondary AOEs).*/
 void perform_attack(Client *c, NPC *t, NPC *npcs);
+
+/*False (after telling the player) when a condition takes his actions:
+ * paralyzed, stunned, unconscious, petrified, frozen, incapacitated.*/
+bool client_can_act(Client *c);
+
+/*An NPC dies: it leaves the map and the floor caches, its killer c (and
+ * c's party on the floor) gets the XP, the victory line ("falls to your
+ * <by>", or the melee line when by is NULL), the event progress and the
+ * loot; a boss ends its fight. c may be NULL (no one to credit). Returns
+ * the XP each member received.*/
+int npc_killed(Client *c, NPC *t, const char *by);
 
 /**
  * perform_attack_npc - Performs an NPC attack on a player.

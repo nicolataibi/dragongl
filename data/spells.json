@@ -21,6 +21,20 @@
         "r": 0.2,
         "g": 1,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 12,
+        "roll": "save",
+        "save": "dex",
+        "on_save": "none",
+        "dice": {
+          "count": 1,
+          "sides": 6
+        },
+        "damage_type": "acid",
+        "cantrip_scaling": true
       }
     },
     {
@@ -44,6 +58,11 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 6
       }
     },
     {
@@ -67,6 +86,15 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "condition",
+        "target": "single",
+        "range": 6,
+        "roll": "save",
+        "save": "wis",
+        "condition": "charmed",
+        "rounds": 100
       }
     },
     {
@@ -90,6 +118,15 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "condition",
+        "target": "single",
+        "range": 6,
+        "roll": "save",
+        "save": "cha",
+        "condition": "cursed",
+        "rounds": 10
       }
     },
     {
@@ -113,6 +150,11 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -136,6 +178,14 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "buff",
+        "target": "self",
+        "range": 0,
+        "rounds": 10,
+        "stat": "attack",
+        "value": 2
       }
     },
     {
@@ -159,6 +209,20 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "cone",
+        "range": 0,
+        "radius": 3,
+        "roll": "save",
+        "save": "dex",
+        "on_save": "half",
+        "dice": {
+          "count": 3,
+          "sides": 6
+        },
+        "damage_type": "fire"
       }
     },
     {
@@ -182,6 +246,15 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "special",
+        "target": "single",
+        "range": 6,
+        "roll": "save",
+        "save": "wis",
+        "rounds": 100,
+        "handler": "charm_person"
       }
     },
     {
@@ -205,6 +278,18 @@
         "r": 0.6,
         "g": 0.1,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 24,
+        "roll": "attack",
+        "dice": {
+          "count": 1,
+          "sides": 8
+        },
+        "damage_type": "necrotic",
+        "cantrip_scaling": true
       }
     },
     {
@@ -228,6 +313,17 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 18,
+        "roll": "attack",
+        "dice": {
+          "count": 3,
+          "sides": 8
+        },
+        "damage_type": "acid"
       }
     },
     {
@@ -251,6 +347,15 @@
         "r": 0.8,
         "g": 0.2,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "condition",
+        "target": "cone",
+        "range": 0,
+        "radius": 3,
+        "roll": "auto",
+        "condition": "blinded",
+        "rounds": 1
       }
     },
     {
@@ -274,6 +379,15 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "condition",
+        "target": "single",
+        "range": 12,
+        "roll": "save",
+        "save": "wis",
+        "condition": "prone",
+        "rounds": 1
       }
     },
     {
@@ -297,6 +411,11 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 6
       }
     },
     {
@@ -320,6 +439,11 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -343,6 +467,11 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 6
       }
     },
     {
@@ -366,6 +495,16 @@
         "r": 1,
         "g": 1,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "heal",
+        "target": "self",
+        "range": 0,
+        "dice": {
+          "count": 1,
+          "sides": 8,
+          "add": "spell"
+        }
       }
     },
     {
@@ -389,6 +528,11 @@
         "r": 1,
         "g": 0.9,
         "b": 0.4
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 24
       }
     },
     {
@@ -412,6 +556,11 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -435,6 +584,11 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -458,12 +612,17 @@
         "r": 0.4,
         "g": 0.8,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
       "name": "Disguise Self",
       "image": "disguise",
-      "description": "You make yourself - including your clothing, armor, weapons, and other belongings on your person - look different until the spell ends or until you use your action to dismiss it. You can seem 1 foot shorter or taller and can appear thin, fat, or in between. You can't change your body type, so you must adopt a form that has the same basic arrangement of limbs. Otherwise, the extent of the illusion is up to you.<br /><br />The changes wrought by this spell fail to hold up to physical inspection. For example, if you use this spell to add a hat to your outfit, objects pass through the hat, and anyone who touches it would feel nothing or would feel your head and hair. If you use this spell to appear thinner than you are, the hand of someone who reaches out to touch you would bump into you while it was seemingly still in midair.<br /><br />To discern that you are disguised, a creature can use its action to inspect your apperance and must succeed on an Intelligence (Investigation) check against your spell save DC.",
+      "description": "You make yourself - including your clothing, armor, weapons, and other belongings on your person - look different until the spell ends or until you use your action to dismiss it. You can seem 1 foot shorter or taller and can appear thin, fat, or in between. You can't change your body type, so you must adopt a form that has the same basic arrangement of limbs. Otherwise, the extent of the illusion is up to you.<br /><br />The changes wrought by this spell fail to hold up to physical inspection. For example, if you use this spell to add a hat to your outfit, objects pass through the hat, and anyone who touches it would feel nothing or would feel your head and hair. If you use this spell to appear thinner than you are, the hand of someone who reaches out to touch you would bump into you while it was seemingly still in midair.<br /><br />To discern that you are disguised, a creature can use its action to inspect your appearance and must succeed on an Intelligence (Investigation) check against your spell save DC.",
       "higher_levels": "",
       "level": "1",
       "school": "illusion",
@@ -481,6 +640,11 @@
         "r": 0.8,
         "g": 0.2,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -504,6 +668,14 @@
         "r": 1,
         "g": 0.9,
         "b": 0.4
+      },
+      "effect": {
+        "kind": "buff",
+        "target": "self",
+        "range": 0,
+        "rounds": 10,
+        "stat": "damage",
+        "value": 2
       }
     },
     {
@@ -527,6 +699,19 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 12,
+        "roll": "save",
+        "save": "wis",
+        "on_save": "half",
+        "dice": {
+          "count": 3,
+          "sides": 6
+        },
+        "damage_type": "psychic"
       }
     },
     {
@@ -550,6 +735,11 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 6
       }
     },
     {
@@ -573,6 +763,18 @@
         "r": 1,
         "g": 0.9,
         "b": 0.4
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 24,
+        "roll": "attack",
+        "dice": {
+          "count": 1,
+          "sides": 10
+        },
+        "damage_type": "force",
+        "cantrip_scaling": true
       }
     },
     {
@@ -596,6 +798,20 @@
         "r": 0.4,
         "g": 1,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "attack",
+        "save": "str",
+        "dice": {
+          "count": 1,
+          "sides": 6
+        },
+        "damage_type": "piercing",
+        "condition": "restrained",
+        "rounds": 10
       }
     },
     {
@@ -619,6 +835,15 @@
         "r": 0.4,
         "g": 1,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "condition",
+        "target": "single",
+        "range": 18,
+        "roll": "save",
+        "save": "str",
+        "condition": "restrained",
+        "rounds": 10
       }
     },
     {
@@ -642,6 +867,11 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -665,6 +895,11 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -688,6 +923,11 @@
         "r": 0.6,
         "g": 0.1,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -711,6 +951,11 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 12
       }
     },
     {
@@ -734,6 +979,11 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -757,6 +1007,18 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 24,
+        "roll": "attack",
+        "dice": {
+          "count": 1,
+          "sides": 10
+        },
+        "damage_type": "fire",
+        "cantrip_scaling": true
       }
     },
     {
@@ -780,6 +1042,11 @@
         "r": 0.4,
         "g": 1,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 24
       }
     },
     {
@@ -803,6 +1070,11 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -826,6 +1098,11 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -849,6 +1126,16 @@
         "r": 0.4,
         "g": 1,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "condition",
+        "target": "circle",
+        "range": 12,
+        "radius": 1,
+        "roll": "save",
+        "save": "dex",
+        "condition": "prone",
+        "rounds": 1
       }
     },
     {
@@ -872,6 +1159,11 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -895,6 +1187,17 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 24,
+        "roll": "attack",
+        "dice": {
+          "count": 4,
+          "sides": 6
+        },
+        "damage_type": "radiant"
       }
     },
     {
@@ -918,6 +1221,17 @@
         "r": 0.4,
         "g": 1,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "attack",
+        "dice": {
+          "count": 1,
+          "sides": 10
+        },
+        "damage_type": "piercing"
       }
     },
     {
@@ -941,6 +1255,16 @@
         "r": 1,
         "g": 1,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "heal",
+        "target": "self",
+        "range": 0,
+        "dice": {
+          "count": 1,
+          "sides": 4,
+          "add": "spell"
+        }
       }
     },
     {
@@ -964,6 +1288,19 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 12,
+        "roll": "save",
+        "save": "dex",
+        "on_save": "half",
+        "dice": {
+          "count": 2,
+          "sides": 10
+        },
+        "damage_type": "fire"
       }
     },
     {
@@ -987,6 +1324,14 @@
         "r": 0.6,
         "g": 0.1,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "buff",
+        "target": "self",
+        "range": 0,
+        "rounds": 100,
+        "stat": "damage",
+        "value": 3
       }
     },
     {
@@ -1010,6 +1355,11 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -1033,6 +1383,14 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "buff",
+        "target": "self",
+        "range": 0,
+        "rounds": 100,
+        "stat": "damage",
+        "value": 3
       }
     },
     {
@@ -1056,6 +1414,11 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -1079,6 +1442,11 @@
         "r": 0.8,
         "g": 0.2,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -1102,6 +1470,17 @@
         "r": 0.6,
         "g": 0.1,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "attack",
+        "dice": {
+          "count": 3,
+          "sides": 10
+        },
+        "damage_type": "necrotic"
       }
     },
     {
@@ -1125,6 +1504,11 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -1148,6 +1532,11 @@
         "r": 1,
         "g": 0.9,
         "b": 0.4
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -1171,6 +1560,11 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -1194,6 +1588,14 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "buff",
+        "target": "self",
+        "range": 0,
+        "rounds": 100,
+        "stat": "ac",
+        "value": 3
       }
     },
     {
@@ -1217,6 +1619,11 @@
         "r": 0.4,
         "g": 1,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 6
       }
     },
     {
@@ -1240,6 +1647,18 @@
         "r": 0.8,
         "g": 0.2,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 24,
+        "roll": "auto",
+        "dice": {
+          "count": 3,
+          "sides": 4,
+          "bonus": 3
+        },
+        "damage_type": "force"
       }
     },
     {
@@ -1263,6 +1682,11 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -1286,6 +1710,11 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 24
       }
     },
     {
@@ -1309,6 +1738,11 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 6
       }
     },
     {
@@ -1332,6 +1766,20 @@
         "r": 0.4,
         "g": 0.8,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 2,
+        "roll": "save",
+        "save": "con",
+        "on_save": "none",
+        "dice": {
+          "count": 1,
+          "sides": 12
+        },
+        "damage_type": "poison",
+        "cantrip_scaling": true
       }
     },
     {
@@ -1355,6 +1803,11 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 2
       }
     },
     {
@@ -1378,6 +1831,18 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 6,
+        "roll": "attack",
+        "dice": {
+          "count": 1,
+          "sides": 8
+        },
+        "damage_type": "fire",
+        "cantrip_scaling": true
       }
     },
     {
@@ -1401,6 +1866,11 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -1424,6 +1894,11 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 2
       }
     },
     {
@@ -1447,6 +1922,18 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 12,
+        "roll": "attack",
+        "dice": {
+          "count": 1,
+          "sides": 8
+        },
+        "damage_type": "cold",
+        "cantrip_scaling": true
       }
     },
     {
@@ -1470,6 +1957,20 @@
         "r": 0.4,
         "g": 0.8,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 12,
+        "roll": "attack",
+        "save": "con",
+        "dice": {
+          "count": 2,
+          "sides": 8
+        },
+        "damage_type": "poison",
+        "condition": "poisoned",
+        "rounds": 1
       }
     },
     {
@@ -1493,6 +1994,11 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -1516,6 +2022,11 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -1539,6 +2050,20 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 12,
+        "roll": "save",
+        "save": "dex",
+        "on_save": "none",
+        "dice": {
+          "count": 1,
+          "sides": 8
+        },
+        "damage_type": "radiant",
+        "cantrip_scaling": true
       }
     },
     {
@@ -1562,6 +2087,11 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 6
       }
     },
     {
@@ -1585,12 +2115,20 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "buff",
+        "target": "self",
+        "range": 0,
+        "rounds": 100,
+        "stat": "ac",
+        "value": 2
       }
     },
     {
       "name": "Searing Smite",
       "image": "searing-smite",
-      "description": "The next time you hit a creature wiht a melee weapon attack during the spell's duration, your weapon flares with white-hot intensity, and the attack deals an extra 1d6 fire damage to the target and causes the target to ignite in flames. At the start of each of its turns until the spell ends, the target must make a Constitution saving throw. On a failed save, it takes 1d6 fire damage. On a successful save, the spell ends. If the target or a creature within 5 feet of it uses an action to put out the flames, or if some other effect douses the flames (such as the target being submerged in water), the spell ends.",
+      "description": "The next time you hit a creature with a melee weapon attack during the spell's duration, your weapon flares with white-hot intensity, and the attack deals an extra 1d6 fire damage to the target and causes the target to ignite in flames. At the start of each of its turns until the spell ends, the target must make a Constitution saving throw. On a failed save, it takes 1d6 fire damage. On a successful save, the spell ends. If the target or a creature within 5 feet of it uses an action to put out the flames, or if some other effect douses the flames (such as the target being submerged in water), the spell ends.",
       "higher_levels": "When you cast this spell using a spell slot of 2nd level or higher, the initial extra damage dealt by the attack increases by 1d6 for each slot level above 1st.",
       "level": "1",
       "school": "evocation",
@@ -1608,6 +2146,20 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "attack",
+        "save": "con",
+        "dice": {
+          "count": 1,
+          "sides": 6
+        },
+        "damage_type": "fire",
+        "condition": "burning",
+        "rounds": 10
       }
     },
     {
@@ -1631,6 +2183,14 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "buff",
+        "target": "self",
+        "range": 0,
+        "rounds": 1,
+        "stat": "ac",
+        "value": 5
       }
     },
     {
@@ -1654,6 +2214,11 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -1677,6 +2242,18 @@
         "r": 0.2,
         "g": 0.5,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "attack",
+        "dice": {
+          "count": 1,
+          "sides": 8
+        },
+        "damage_type": "lightning",
+        "cantrip_scaling": true
       }
     },
     {
@@ -1700,6 +2277,11 @@
         "r": 0.8,
         "g": 0.2,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 12
       }
     },
     {
@@ -1723,6 +2305,15 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "condition",
+        "target": "circle",
+        "range": 18,
+        "radius": 4,
+        "roll": "auto",
+        "condition": "unconscious",
+        "rounds": 10
       }
     },
     {
@@ -1746,6 +2337,11 @@
         "r": 0.6,
         "g": 0.1,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -1769,6 +2365,11 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -1792,6 +2393,11 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 6
       }
     },
     {
@@ -1815,6 +2421,18 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 6,
+        "roll": "attack",
+        "dice": {
+          "count": 1,
+          "sides": 6
+        },
+        "damage_type": "piercing",
+        "cantrip_scaling": true
       }
     },
     {
@@ -1838,6 +2456,20 @@
         "r": 0.2,
         "g": 0.5,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "attack",
+        "save": "str",
+        "dice": {
+          "count": 2,
+          "sides": 6
+        },
+        "damage_type": "thunder",
+        "condition": "prone",
+        "rounds": 1
       }
     },
     {
@@ -1861,6 +2493,20 @@
         "r": 0.2,
         "g": 0.5,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "circle",
+        "range": 0,
+        "radius": 1,
+        "roll": "save",
+        "save": "con",
+        "on_save": "half",
+        "dice": {
+          "count": 2,
+          "sides": 8
+        },
+        "damage_type": "thunder"
       }
     },
     {
@@ -1884,6 +2530,11 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 6
       }
     },
     {
@@ -1907,6 +2558,11 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 12
       }
     },
     {
@@ -1930,6 +2586,20 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 12,
+        "roll": "save",
+        "save": "wis",
+        "on_save": "none",
+        "dice": {
+          "count": 1,
+          "sides": 4
+        },
+        "damage_type": "psychic",
+        "cantrip_scaling": true
       }
     },
     {
@@ -1953,6 +2623,17 @@
         "r": 0.2,
         "g": 0.5,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 6,
+        "roll": "attack",
+        "dice": {
+          "count": 1,
+          "sides": 12
+        },
+        "damage_type": "lightning"
       }
     },
     {
@@ -1976,6 +2657,20 @@
         "r": 1,
         "g": 0.9,
         "b": 0.4
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "attack",
+        "save": "wis",
+        "dice": {
+          "count": 1,
+          "sides": 6
+        },
+        "damage_type": "psychic",
+        "condition": "frightened",
+        "rounds": 10
       }
     },
     {
@@ -1999,6 +2694,11 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -2022,6 +2722,11 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 6
       }
     },
     {
@@ -2045,6 +2750,15 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "condition",
+        "target": "single",
+        "range": 6,
+        "roll": "save",
+        "save": "con",
+        "condition": "blinded",
+        "rounds": 10
       }
     },
     {
@@ -2068,6 +2782,11 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -2091,6 +2810,11 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -2114,6 +2838,15 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "condition",
+        "target": "single",
+        "range": 12,
+        "roll": "save",
+        "save": "wis",
+        "condition": "paralyzed",
+        "rounds": 10
       }
     },
     {
@@ -2137,6 +2870,11 @@
         "r": 0.4,
         "g": 0.8,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -2160,11 +2898,21 @@
         "r": 1,
         "g": 1,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "heal",
+        "target": "self",
+        "range": 0,
+        "dice": {
+          "count": 2,
+          "sides": 8,
+          "add": "spell"
+        }
       }
     },
     {
       "name": "Silence",
-      "image": "slience",
+      "image": "silence",
       "description": "For the duration, no sound can be created within or pass through a 20-foot-radius sphere centered on a point you choose within range. Any creature or object entirely inside the sphere is immune to thunder damage, and creatures are deafened while entirely inside it.",
       "higher_levels": "",
       "level": "2",
@@ -2183,6 +2931,11 @@
         "r": 0.2,
         "g": 0.5,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 24
       }
     },
     {
@@ -2206,6 +2959,18 @@
         "r": 1,
         "g": 0.9,
         "b": 0.4
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 12,
+        "roll": "attack",
+        "dice": {
+          "count": 1,
+          "sides": 8,
+          "add": "spell"
+        },
+        "damage_type": "force"
       }
     },
     {
@@ -2229,6 +2994,14 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "buff",
+        "target": "self",
+        "range": 0,
+        "rounds": 100,
+        "stat": "ac",
+        "value": 1
       }
     },
     {
@@ -2252,12 +3025,18 @@
         "r": 0.6,
         "g": 0.1,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "animate_dead"
       }
     },
     {
       "name": "Arcane Eye",
       "image": "arcane-eye",
-      "description": "You create an invisible, magical eye within range that hovers in the for the duration.<br /><br />You mentally recieve visual information from the eye, which has normal vision and darkvision out to 30 feet. The eye can look in every direction.<br /><br />As an action, you can move the eye up to 30 feet in any direction. There is no limit to how far away from you the eye can move, but it can't enter another plane of existence. A solid barrier blocks the eye's movement, but the eye can pass through an opening as small as 1 inch in diameter.",
+      "description": "You create an invisible, magical eye within range that hovers in the for the duration.<br /><br />You mentally receive visual information from the eye, which has normal vision and darkvision out to 30 feet. The eye can look in every direction.<br /><br />As an action, you can move the eye up to 30 feet in any direction. There is no limit to how far away from you the eye can move, but it can't enter another plane of existence. A solid barrier blocks the eye's movement, but the eye can pass through an opening as small as 1 inch in diameter.",
       "higher_levels": "",
       "level": "4",
       "school": "divination",
@@ -2275,6 +3054,11 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 6
       }
     },
     {
@@ -2298,6 +3082,11 @@
         "r": 0.6,
         "g": 0.1,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -2321,6 +3110,11 @@
         "r": 0.4,
         "g": 0.8,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -2344,12 +3138,21 @@
         "r": 1,
         "g": 0.9,
         "b": 0.4
+      },
+      "effect": {
+        "kind": "heal",
+        "target": "self",
+        "range": 0,
+        "dice": {
+          "count": 2,
+          "sides": 6
+        }
       }
     },
     {
       "name": "Banishment",
       "image": "banishment",
-      "description": "You attempt to send one creature that you can see within range to another plane of existence. The target must succeed on a Charisma saving throw or be banished.<br /><br />If the target is native to the plane of existance you're on, you banish the target to a harmless demiplane. While there, the target is incapacitated. The target remains there until the spell ends, at which point the target reappears in the space it left or in the nearest unoccupied space if that space is occupied.<br /><br />If the target is native to a different plane of existance than the one you're on, the target is banished with a faint popping noise, returning to its home plane. If the spell ends before 1 minute has passed, the target reappears in the space it left or in the nearest unoccupied space if that space is occupied. Otherwise, the target doesn't return.",
+      "description": "You attempt to send one creature that you can see within range to another plane of existence. The target must succeed on a Charisma saving throw or be banished.<br /><br />If the target is native to the plane of existence you're on, you banish the target to a harmless demiplane. While there, the target is incapacitated. The target remains there until the spell ends, at which point the target reappears in the space it left or in the nearest unoccupied space if that space is occupied.<br /><br />If the target is native to a different plane of existence than the one you're on, the target is banished with a faint popping noise, returning to its home plane. If the spell ends before 1 minute has passed, the target reappears in the space it left or in the nearest unoccupied space if that space is occupied. Otherwise, the target doesn't return.",
       "higher_levels": "When you cast this spell using a spell slot of 5th level or higher, you can target one additional creature for each slot level above 4th.",
       "level": "4",
       "school": "abjuration",
@@ -2367,6 +3170,15 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "condition",
+        "target": "single",
+        "range": 12,
+        "roll": "save",
+        "save": "cha",
+        "condition": "incapacitated",
+        "rounds": 10
       }
     },
     {
@@ -2390,6 +3202,11 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 6
       }
     },
     {
@@ -2413,6 +3230,19 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 6,
+        "roll": "save",
+        "save": "con",
+        "on_save": "half",
+        "dice": {
+          "count": 8,
+          "sides": 8
+        },
+        "damage_type": "necrotic"
       }
     },
     {
@@ -2436,6 +3266,15 @@
         "r": 0.6,
         "g": 0.1,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "condition",
+        "target": "single",
+        "range": 1,
+        "roll": "save",
+        "save": "wis",
+        "condition": "cursed",
+        "rounds": 10
       }
     },
     {
@@ -2459,6 +3298,20 @@
         "r": 1,
         "g": 0.9,
         "b": 0.4
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "attack",
+        "save": "con",
+        "dice": {
+          "count": 3,
+          "sides": 8
+        },
+        "damage_type": "radiant",
+        "condition": "blinded",
+        "rounds": 10
       }
     },
     {
@@ -2482,6 +3335,12 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "blink"
       }
     },
     {
@@ -2505,6 +3364,20 @@
         "r": 0.2,
         "g": 0.5,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "circle",
+        "range": 24,
+        "radius": 1,
+        "roll": "save",
+        "save": "dex",
+        "on_save": "half",
+        "dice": {
+          "count": 3,
+          "sides": 10
+        },
+        "damage_type": "lightning"
       }
     },
     {
@@ -2528,6 +3401,11 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 60
       }
     },
     {
@@ -2551,6 +3429,19 @@
         "r": 0.4,
         "g": 1,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "cloud",
+        "range": 12,
+        "radius": 1,
+        "roll": "auto",
+        "dice": {
+          "count": 4,
+          "sides": 4
+        },
+        "damage_type": "slashing",
+        "rounds": 3
       }
     },
     {
@@ -2574,6 +3465,11 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -2597,6 +3493,11 @@
         "r": 0.4,
         "g": 1,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 12
       }
     },
     {
@@ -2620,6 +3521,20 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "cone",
+        "range": 0,
+        "radius": 12,
+        "roll": "save",
+        "save": "dex",
+        "on_save": "half",
+        "dice": {
+          "count": 3,
+          "sides": 8
+        },
+        "damage_type": "bludgeoning"
       }
     },
     {
@@ -2643,6 +3558,11 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 12
       }
     },
     {
@@ -2666,6 +3586,11 @@
         "r": 0.4,
         "g": 1,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 6
       }
     },
     {
@@ -2689,6 +3614,14 @@
         "r": 1,
         "g": 0.9,
         "b": 0.4
+      },
+      "effect": {
+        "kind": "buff",
+        "target": "self",
+        "range": 0,
+        "rounds": 10,
+        "stat": "damage",
+        "value": 2
       }
     },
     {
@@ -2712,6 +3645,11 @@
         "r": 1,
         "g": 0.9,
         "b": 0.4
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 12
       }
     },
     {
@@ -2735,6 +3673,11 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 24
       }
     },
     {
@@ -2758,6 +3701,14 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "buff",
+        "target": "self",
+        "range": 0,
+        "rounds": 100,
+        "stat": "attack",
+        "value": 1
       }
     },
     {
@@ -2781,6 +3732,16 @@
         "r": 0.8,
         "g": 0.2,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "condition",
+        "target": "cone",
+        "range": 0,
+        "radius": 6,
+        "roll": "save",
+        "save": "wis",
+        "condition": "frightened",
+        "rounds": 10
       }
     },
     {
@@ -2804,6 +3765,11 @@
         "r": 0.4,
         "g": 0.8,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -2827,6 +3793,20 @@
         "r": 1,
         "g": 0.3,
         "b": 0
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "circle",
+        "range": 30,
+        "radius": 4,
+        "roll": "save",
+        "save": "dex",
+        "on_save": "half",
+        "dice": {
+          "count": 8,
+          "sides": 6
+        },
+        "damage_type": "fire"
       }
     },
     {
@@ -2850,6 +3830,11 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -2873,6 +3858,11 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -2896,6 +3886,14 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "buff",
+        "target": "self",
+        "range": 0,
+        "rounds": 10,
+        "stat": "ac",
+        "value": 2
       }
     },
     {
@@ -2919,6 +3917,16 @@
         "r": 0.8,
         "g": 0.2,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "condition",
+        "target": "circle",
+        "range": 24,
+        "radius": 3,
+        "roll": "save",
+        "save": "wis",
+        "condition": "charmed",
+        "rounds": 10
       }
     },
     {
@@ -2942,6 +3950,17 @@
         "r": 0.2,
         "g": 0.5,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 24,
+        "roll": "attack",
+        "dice": {
+          "count": 4,
+          "sides": 8
+        },
+        "damage_type": "lightning"
       }
     },
     {
@@ -2965,6 +3984,11 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -2988,6 +4012,11 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 24
       }
     },
     {
@@ -3011,6 +4040,16 @@
         "r": 1,
         "g": 1,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "heal",
+        "target": "self",
+        "range": 0,
+        "dice": {
+          "count": 1,
+          "sides": 4,
+          "add": "spell"
+        }
       }
     },
     {
@@ -3034,6 +4073,11 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -3057,6 +4101,11 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -3080,6 +4129,14 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "buff",
+        "target": "self",
+        "range": 0,
+        "rounds": 100,
+        "stat": "ac",
+        "value": 3
       }
     },
     {
@@ -3103,6 +4160,11 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -3126,6 +4188,11 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -3149,6 +4216,11 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 6
       }
     },
     {
@@ -3172,6 +4244,11 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 30
       }
     },
     {
@@ -3195,6 +4272,11 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -3218,6 +4300,11 @@
         "r": 0.4,
         "g": 1,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -3241,6 +4328,11 @@
         "r": 1,
         "g": 0.9,
         "b": 0.4
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 30
       }
     },
     {
@@ -3264,6 +4356,16 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "condition",
+        "target": "circle",
+        "range": 30,
+        "radius": 8,
+        "roll": "save",
+        "save": "dex",
+        "condition": "prone",
+        "rounds": 1
       }
     },
     {
@@ -3287,6 +4389,16 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "condition",
+        "target": "circle",
+        "range": 24,
+        "radius": 4,
+        "roll": "save",
+        "save": "wis",
+        "condition": "cursed",
+        "rounds": 10
       }
     },
     {
@@ -3310,12 +4422,17 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 2
       }
     },
     {
       "name": "Speak with Plants",
       "image": "speak-with-plants",
-      "description": "You imbue plants within 30 feet of you with limited sentience and animation, giving them the ability to communicate with you and follow your simple commands. You can question plants about events in the spell’s area within the past day, gaining information about creatures that have passed, weather, and other circumstances.<br /><br />You can also turn difficult terrain caused by plant growth (such as thickets and undergrowth) into ordinary terrain that lasts for the duration. Or you can turn ordinary terrain where plants are present into difficult terrain that lasts for the duration, causing v ines and branches to hinder pursuers, for example.<br /><br />Plants might be able to perform other tasks on your behalf, at the DM’s discretion. The spell doesn’t enable plants to uproot themselves and move about, but they can freely move branches, tendrils, and stalks.<br /><br />If a plant creature is in the area, you can communicate with it as if you shared a common language, but you gain no magical ability to influence it.<br /><br />This spell can cause the plants created by the entangle spell to release a restrained creature.",
+      "description": "You imbue plants within 30 feet of you with limited sentience and animation, giving them the ability to communicate with you and follow your simple commands. You can question plants about events in the spell’s area within the past day, gaining information about creatures that have passed, weather, and other circumstances.<br /><br />You can also turn difficult terrain caused by plant growth (such as thickets and undergrowth) into ordinary terrain that lasts for the duration. Or you can turn ordinary terrain where plants are present into difficult terrain that lasts for the duration, causing vines and branches to hinder pursuers, for example.<br /><br />Plants might be able to perform other tasks on your behalf, at the DM’s discretion. The spell doesn’t enable plants to uproot themselves and move about, but they can freely move branches, tendrils, and stalks.<br /><br />If a plant creature is in the area, you can communicate with it as if you shared a common language, but you gain no magical ability to influence it.<br /><br />This spell can cause the plants created by the entangle spell to release a restrained creature.",
       "higher_levels": "",
       "level": "3",
       "school": "transmutation",
@@ -3333,6 +4450,11 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -3356,6 +4478,20 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "circle",
+        "range": 0,
+        "radius": 3,
+        "roll": "save",
+        "save": "wis",
+        "on_save": "half",
+        "dice": {
+          "count": 3,
+          "sides": 8
+        },
+        "damage_type": "radiant"
       }
     },
     {
@@ -3379,6 +4515,16 @@
         "r": 0.4,
         "g": 0.8,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "condition",
+        "target": "circle",
+        "range": 18,
+        "radius": 4,
+        "roll": "save",
+        "save": "con",
+        "condition": "incapacitated",
+        "rounds": 1
       }
     },
     {
@@ -3402,6 +4548,16 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "condition",
+        "target": "circle",
+        "range": 18,
+        "radius": 2,
+        "roll": "save",
+        "save": "wis",
+        "condition": "incapacitated",
+        "rounds": 3
       }
     },
     {
@@ -3425,6 +4581,12 @@
         "r": 0.4,
         "g": 1,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "summon_elemental"
       }
     },
     {
@@ -3448,6 +4610,11 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -3471,6 +4638,11 @@
         "r": 0.4,
         "g": 1,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 12
       }
     },
     {
@@ -3494,6 +4666,11 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -3517,6 +4694,11 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -3540,6 +4722,11 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -3563,6 +4750,11 @@
         "r": 0.8,
         "g": 0.2,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -3586,10 +4778,21 @@
         "r": 1,
         "g": 0.9,
         "b": 0.4
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "attack",
+        "dice": {
+          "count": 2,
+          "sides": 6
+        },
+        "damage_type": "radiant"
       }
     },
     {
-      "name": "Cordon Of Arrows",
+      "name": "Cordon of Arrows",
       "image": "cordon-of-arrows",
       "description": "You plant four pieces of nonmagical ammunition—arrows or crossbow bolts—in the ground within range and lay magic upon them to protect an area. Until the spell ends, whenever a creature other than you comes within 30 feet of the ammunition for the first time on a turn or ends its turn there, one piece of ammunition flies up to strike it. The creature must succeed on a Dexterity saving throw or take 1d6 piercing damage. The piece of ammunition is then destroyed. The spell ends when no ammunition remains.<br /><br />When you cast this spell, you can designate any creatures you choose, and the spell ignores them.",
       "higher_levels": "When you cast this spell using a spell slot of 3rd level or higher, the amount of ammunition that can be affected increases by two for each slot level above 2nd.",
@@ -3609,6 +4812,11 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -3632,6 +4840,15 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "condition",
+        "target": "single",
+        "range": 24,
+        "roll": "save",
+        "save": "wis",
+        "condition": "charmed",
+        "rounds": 10
       }
     },
     {
@@ -3655,6 +4872,11 @@
         "r": 1,
         "g": 0.9,
         "b": 0.4
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 12
       }
     },
     {
@@ -3678,6 +4900,11 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -3701,6 +4928,11 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -3724,6 +4956,11 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 6
       }
     },
     {
@@ -3747,6 +4984,11 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -3770,6 +5012,11 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 12
       }
     },
     {
@@ -3793,12 +5040,17 @@
         "r": 0.6,
         "g": 0.1,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 2
       }
     },
     {
       "name": "Clone",
       "image": "blur",
-      "description": "This spell grows an inert duplicate of a living creature as a safeguard against death. This clone forms inside a sealed vessel and grows to full size and maturity after 120 days; you can also choose to have the clone be a younger version of th esame creature. It remains inert and endures indefinitely, as long as its vessel remains undisturbed.<br /><br />At any time after the clone matures, if the original creature dies, its soul tranfers to the clone, provided that the soul is free and willing to return. The clone is physically identical to the original and has the same personality, memories, and abilities, but none of the original's equipment. The original creature's physical remains, if they still exist, become inert and can't thereafter be restured to life, since the creature's soul is elsewhere.",
+      "description": "This spell grows an inert duplicate of a living creature as a safeguard against death. This clone forms inside a sealed vessel and grows to full size and maturity after 120 days; you can also choose to have the clone be a younger version of th esame creature. It remains inert and endures indefinitely, as long as its vessel remains undisturbed.<br /><br />At any time after the clone matures, if the original creature dies, its soul transfers to the clone, provided that the soul is free and willing to return. The clone is physically identical to the original and has the same personality, memories, and abilities, but none of the original's equipment. The original creature's physical remains, if they still exist, become inert and can't thereafter be restured to life, since the creature's soul is elsewhere.",
       "higher_levels": "",
       "level": "8",
       "school": "necromancy",
@@ -3816,6 +5068,11 @@
         "r": 0.6,
         "g": 0.1,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -3839,6 +5096,11 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -3862,6 +5124,11 @@
         "r": 0.4,
         "g": 1,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 12
       }
     },
     {
@@ -3885,6 +5152,15 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "special",
+        "target": "single",
+        "range": 12,
+        "roll": "save",
+        "save": "wis",
+        "rounds": 10,
+        "handler": "dominate_monster"
       }
     },
     {
@@ -3908,6 +5184,16 @@
         "r": 1,
         "g": 0.9,
         "b": 0.4
+      },
+      "effect": {
+        "kind": "condition",
+        "target": "circle",
+        "range": 30,
+        "radius": 20,
+        "roll": "save",
+        "save": "dex",
+        "condition": "prone",
+        "rounds": 1
       }
     },
     {
@@ -3931,6 +5217,19 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 30,
+        "roll": "save",
+        "save": "int",
+        "on_save": "none",
+        "dice": {
+          "count": 4,
+          "sides": 6
+        },
+        "damage_type": "psychic"
       }
     },
     {
@@ -3954,12 +5253,17 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
       "name": "Gate",
       "image": "confusion",
-      "description": "You conjure a portal linking an unoccupied space you can see whithin range to a precise location on a different plane of existence. The portal is a circular opening, which you can make 5 to 20 feet in diameter. You can orient the portal in any direction you choose. The portal lasts for the duration.<br /><br />The portal has a front and a back on each plane where it appears. Travel through the portal is possible only by moving through its front. Anything that does so is instantly transported to the other plane, appearing in the unoccupied space nearest to the portal.<br /><br />Deities and other planar rulers can prevent portals created by this spell from opening in their presence or anywhere within their domains.<br /><br />When you cast this spell, you can speak the name of a specific creature (a pseudonym, title or nickname doesn't work). If that creature is on a plane other than the one you are on, the portal opens in the named creature's immediate vicinity and draws the creature through it to the nearest unoccupied space on your side of the portal. You gain no special power over the creature, and it is free to act as the DM deems appropriate. It might leave, attack you or help you.",
+      "description": "You conjure a portal linking an unoccupied space you can see within range to a precise location on a different plane of existence. The portal is a circular opening, which you can make 5 to 20 feet in diameter. You can orient the portal in any direction you choose. The portal lasts for the duration.<br /><br />The portal has a front and a back on each plane where it appears. Travel through the portal is possible only by moving through its front. Anything that does so is instantly transported to the other plane, appearing in the unoccupied space nearest to the portal.<br /><br />Deities and other planar rulers can prevent portals created by this spell from opening in their presence or anywhere within their domains.<br /><br />When you cast this spell, you can speak the name of a specific creature (a pseudonym, title or nickname doesn't work). If that creature is on a plane other than the one you are on, the portal opens in the named creature's immediate vicinity and draws the creature through it to the nearest unoccupied space on your side of the portal. You gain no special power over the creature, and it is free to act as the DM deems appropriate. It might leave, attack you or help you.",
       "higher_levels": "",
       "level": "9",
       "school": "conjuration",
@@ -3977,6 +5281,11 @@
         "r": 0.4,
         "g": 1,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 12
       }
     },
     {
@@ -4000,6 +5309,11 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -4023,6 +5337,14 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "buff",
+        "target": "self",
+        "range": 0,
+        "rounds": 10,
+        "stat": "ac",
+        "value": 2
       }
     },
     {
@@ -4046,6 +5368,15 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "condition",
+        "target": "single",
+        "range": 6,
+        "roll": "save",
+        "save": "wis",
+        "condition": "restrained",
+        "rounds": 100
       }
     },
     {
@@ -4069,6 +5400,21 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "cloud",
+        "range": 30,
+        "radius": 4,
+        "roll": "save",
+        "save": "dex",
+        "on_save": "half",
+        "dice": {
+          "count": 10,
+          "sides": 8
+        },
+        "damage_type": "fire",
+        "rounds": 3
       }
     },
     {
@@ -4092,6 +5438,16 @@
         "r": 1,
         "g": 1,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "heal",
+        "target": "self",
+        "range": 0,
+        "dice": {
+          "count": 0,
+          "sides": 0,
+          "bonus": 700
+        }
       }
     },
     {
@@ -4115,6 +5471,11 @@
         "r": 0.4,
         "g": 1,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 12
       }
     },
     {
@@ -4138,6 +5499,20 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "circle",
+        "range": 60,
+        "radius": 8,
+        "roll": "save",
+        "save": "dex",
+        "on_save": "half",
+        "dice": {
+          "count": 40,
+          "sides": 6
+        },
+        "damage_type": "fire"
       }
     },
     {
@@ -4161,6 +5536,11 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -4184,6 +5564,16 @@
         "r": 1,
         "g": 1,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "heal",
+        "target": "self",
+        "range": 0,
+        "dice": {
+          "count": 0,
+          "sides": 0,
+          "bonus": 999
+        }
       }
     },
     {
@@ -4207,6 +5597,18 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 12,
+        "roll": "auto",
+        "dice": {
+          "count": 0,
+          "sides": 0,
+          "bonus": 100
+        },
+        "damage_type": "psychic"
       }
     },
     {
@@ -4230,6 +5632,14 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "condition",
+        "target": "single",
+        "range": 12,
+        "roll": "auto",
+        "condition": "stunned",
+        "rounds": 3
       }
     },
     {
@@ -4253,6 +5663,11 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -4276,6 +5691,11 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -4299,6 +5719,22 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "cloud",
+        "range": 30,
+        "radius": 12,
+        "roll": "save",
+        "save": "con",
+        "on_save": "none",
+        "dice": {
+          "count": 2,
+          "sides": 6
+        },
+        "damage_type": "thunder",
+        "condition": "deafened",
+        "rounds": 3
       }
     },
     {
@@ -4322,6 +5758,11 @@
         "r": 1,
         "g": 0.9,
         "b": 0.4
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 30
       }
     },
     {
@@ -4345,6 +5786,22 @@
         "r": 1,
         "g": 0.9,
         "b": 0.4
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "circle",
+        "range": 30,
+        "radius": 12,
+        "roll": "save",
+        "save": "con",
+        "on_save": "half",
+        "dice": {
+          "count": 12,
+          "sides": 6
+        },
+        "damage_type": "radiant",
+        "condition": "blinded",
+        "rounds": 10
       }
     },
     {
@@ -4368,6 +5825,11 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -4391,12 +5853,17 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 6
       }
     },
     {
       "name": "Tsunami",
       "image": "tsunami",
-      "description": "A wall of water springs into existence at a point you choose within range. You can make the wall up to 300 feet long, 300 feet high, and 50 feet thick. The wall lasts for the duration.<br /><br />When the wall appears, each creature within its area must make a Strength saving throw. On a failed save, a creature takes 6d10 bludgeoning damage, or half as much damage on a successful save.<br /><br />At the start of each of your turns after the wall appears, the wall, along with any creatures in it, moves 50 feet away from you. Any Huge or smaller creature inside the wall or whose space the wall enters when it moves must succeed on a Strength saving throw or take 5d10 bludgeoning damage. A creature can take theis damage only once per round. At the end of the turn, the wall's height is reduced by 50 feet, and the damage creatures take from the the spell on subsequent rounds is reduced by 1d10. When the wall reaches 0 feet in height, the spell ends.<br /><br />A creature caught in the wall can move by swimming. Because of the force of the wave, though, the creature must make a successful Strength (Athletics) check against your spell save DC in order to move at all. If it fails the check, it can't move. A creature that moves out of the area falls to the ground.",
+      "description": "A wall of water springs into existence at a point you choose within range. You can make the wall up to 300 feet long, 300 feet high, and 50 feet thick. The wall lasts for the duration.<br /><br />When the wall appears, each creature within its area must make a Strength saving throw. On a failed save, a creature takes 6d10 bludgeoning damage, or half as much damage on a successful save.<br /><br />At the start of each of your turns after the wall appears, the wall, along with any creatures in it, moves 50 feet away from you. Any Huge or smaller creature inside the wall or whose space the wall enters when it moves must succeed on a Strength saving throw or take 5d10 bludgeoning damage. A creature can take this damage only once per round. At the end of the turn, the wall's height is reduced by 50 feet, and the damage creatures take from the the spell on subsequent rounds is reduced by 1d10. When the wall reaches 0 feet in height, the spell ends.<br /><br />A creature caught in the wall can move by swimming. Because of the force of the wave, though, the creature must make a successful Strength (Athletics) check against your spell save DC in order to move at all. If it fails the check, it can't move. A creature that moves out of the area falls to the ground.",
       "higher_levels": "",
       "level": "8",
       "school": "conjuration",
@@ -4414,6 +5881,20 @@
         "r": 0.4,
         "g": 1,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "line",
+        "range": 30,
+        "radius": 20,
+        "roll": "save",
+        "save": "str",
+        "on_save": "half",
+        "dice": {
+          "count": 6,
+          "sides": 10
+        },
+        "damage_type": "bludgeoning"
       }
     },
     {
@@ -4437,6 +5918,11 @@
         "r": 0.4,
         "g": 0.8,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -4460,12 +5946,28 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "circle",
+        "range": 24,
+        "radius": 6,
+        "roll": "save",
+        "save": "wis",
+        "on_save": "none",
+        "dice": {
+          "count": 4,
+          "sides": 10
+        },
+        "damage_type": "psychic",
+        "condition": "frightened",
+        "rounds": 10
       }
     },
     {
       "name": "Wish",
       "image": "wish",
-      "description": "Wish is the mightiest spell a mortal creature can cast. By simply speaking aloud, you can alter the very foundations of reality in accord with your desires.<br /><br />The basic use of this spell is to duplicate any other spell of 8th level or lower. You don't need to meet any requirements in that spell, including costly components. The spell simply takes effect. <ul><li>You create one object of up to 25,000 gp in value that isn't a magic item. The object can be no more than 300 feet in any dimension, and it appears in an unoccupied space you can see on the ground.</li><li>You allow up to twenty creatures that you can see to regain all hit points, and you end all effects on them described in the greater restoration spell.</li><li>You grant up to ten creatures that you can see resistance to a damage type you choose.</li><li>You grant up to ten creatures you can see immunity to a single spell or other magical effect for 8 hours. For instance, you could make yourself and all your companions immune to a lich's life drain attack.</li><li>You undo a single recent event by forcing a reroll of any roll made within the last round (including your last turn). Reality reshapes itself to accomodate the new result. For example, a wish spell could undo an opponent's successful save, a foe's critical hit, or a friend's failed save. You can force the reroll to be made with advantage or disadvantage, and you can choose whether to use the reroll or the original roll.</li></ul> You might be able to achieve something beyond the scope of the above examples. State your wish to the DM as precisely as possible. The DM has great latitude in ruling what occurs in such an instance; the greater the wish, the greater the likelihood that something goes wrong. This spell might simply fail, the effect you desire might only be partly achieved, or you might suffer some unforeseen consequence as a result of how you worded the wish. For example, wishing that a villain were dead might propel you forward in time to a period when that villain is no longer alive, effectively removing you from the game. Similarly, wishing for a legendary magic item or artifact might instantly transport you to the presence of the item's current owner.<br /><br />The stress of casting this spell to produce any effect other than duplicating another spell weakens you. After enduring that stress, each time you cast a spell until you finish a long rest, you take 1d10 necrotic damage per level of that spell. This damage can't be reduced or prevented in any way. In addition, you Strength drops to 3 if it isn't 3 or lower already, for 2d4 days. For each of those days that you spend resting and doing nothing more than light activity, your remaining recovery time decreases by 2 days. Finally, there is a 33 percent chance that you are unable to cast wish ever again if you suffer this stress.",
+      "description": "Wish is the mightiest spell a mortal creature can cast. By simply speaking aloud, you can alter the very foundations of reality in accord with your desires.<br /><br />The basic use of this spell is to duplicate any other spell of 8th level or lower. You don't need to meet any requirements in that spell, including costly components. The spell simply takes effect. <ul><li>You create one object of up to 25,000 gp in value that isn't a magic item. The object can be no more than 300 feet in any dimension, and it appears in an unoccupied space you can see on the ground.</li><li>You allow up to twenty creatures that you can see to regain all hit points, and you end all effects on them described in the greater restoration spell.</li><li>You grant up to ten creatures that you can see resistance to a damage type you choose.</li><li>You grant up to ten creatures you can see immunity to a single spell or other magical effect for 8 hours. For instance, you could make yourself and all your companions immune to a lich's life drain attack.</li><li>You undo a single recent event by forcing a reroll of any roll made within the last round (including your last turn). Reality reshapes itself to accommodate the new result. For example, a wish spell could undo an opponent's successful save, a foe's critical hit, or a friend's failed save. You can force the reroll to be made with advantage or disadvantage, and you can choose whether to use the reroll or the original roll.</li></ul> You might be able to achieve something beyond the scope of the above examples. State your wish to the DM as precisely as possible. The DM has great latitude in ruling what occurs in such an instance; the greater the wish, the greater the likelihood that something goes wrong. This spell might simply fail, the effect you desire might only be partly achieved, or you might suffer some unforeseen consequence as a result of how you worded the wish. For example, wishing that a villain were dead might propel you forward in time to a period when that villain is no longer alive, effectively removing you from the game. Similarly, wishing for a legendary magic item or artifact might instantly transport you to the presence of the item's current owner.<br /><br />The stress of casting this spell to produce any effect other than duplicating another spell weakens you. After enduring that stress, each time you cast a spell until you finish a long rest, you take 1d10 necrotic damage per level of that spell. This damage can't be reduced or prevented in any way. In addition, you Strength drops to 3 if it isn't 3 or lower already, for 2d4 days. For each of those days that you spend resting and doing nothing more than light activity, your remaining recovery time decreases by 2 days. Finally, there is a 33 percent chance that you are unable to cast wish ever again if you suffer this stress.",
       "higher_levels": "",
       "level": "9",
       "school": "conjuration",
@@ -4483,6 +5985,11 @@
         "r": 0.6,
         "g": 0.1,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -4506,6 +6013,11 @@
         "r": 0.4,
         "g": 1,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 18
       }
     },
     {
@@ -4529,6 +6041,20 @@
         "r": 1,
         "g": 0.3,
         "b": 0
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "circle",
+        "range": 30,
+        "radius": 4,
+        "roll": "save",
+        "save": "dex",
+        "on_save": "half",
+        "dice": {
+          "count": 12,
+          "sides": 6
+        },
+        "damage_type": "fire"
       }
     },
     {
@@ -4552,6 +6078,12 @@
         "r": 0.4,
         "g": 1,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "teleport"
       }
     },
     {
@@ -4575,6 +6107,16 @@
         "r": 1,
         "g": 0.9,
         "b": 0.4
+      },
+      "effect": {
+        "kind": "condition",
+        "target": "circle",
+        "range": 0,
+        "radius": 6,
+        "roll": "save",
+        "save": "cha",
+        "condition": "stunned",
+        "rounds": 10
       }
     },
     {
@@ -4598,12 +6140,17 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
       "name": "Finger of Death",
       "image": "finger-of-death",
-      "description": "You send negative engery coursing through a creature that you can see within range, causing it searing pain. The target must make a Constitution saving throw. It takes 7d8 + 30 necrotic damage on a failed save, or half as much damage on a successful one.<br /><br />A humanoid killed by this spell rises at the start of your next turn as a zombie that is permanently under your command, following your verbal orders to the best of its ability.",
+      "description": "You send negative energy coursing through a creature that you can see within range, causing it searing pain. The target must make a Constitution saving throw. It takes 7d8 + 30 necrotic damage on a failed save, or half as much damage on a successful one.<br /><br />A humanoid killed by this spell rises at the start of your next turn as a zombie that is permanently under your command, following your verbal orders to the best of its ability.",
       "higher_levels": "",
       "level": "7",
       "school": "necromancy",
@@ -4621,6 +6168,20 @@
         "r": 0.6,
         "g": 0.1,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 12,
+        "roll": "save",
+        "save": "con",
+        "on_save": "half",
+        "dice": {
+          "count": 7,
+          "sides": 8,
+          "bonus": 30
+        },
+        "damage_type": "necrotic"
       }
     },
     {
@@ -4644,6 +6205,20 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "circle",
+        "range": 30,
+        "radius": 4,
+        "roll": "save",
+        "save": "dex",
+        "on_save": "half",
+        "dice": {
+          "count": 7,
+          "sides": 10
+        },
+        "damage_type": "fire"
       }
     },
     {
@@ -4667,12 +6242,17 @@
         "r": 1,
         "g": 0.9,
         "b": 0.4
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 20
       }
     },
     {
       "name": "Mirage Arcane",
       "image": "mirage-arcane",
-      "description": "You make terrain in a area up to 1 mile square look, sound, smell, and even feel like some other sort of terrain. The terrain's general shape remains the same, however. Open fields or a road could be made to resemble a swamp, hill, crevasse, or some other difficult or impassable terrain. A pond can be made to seem like a grassy meadow, a precipice like a gental slope, or a rock-strewn gully like a wide and smooth road.<br /><br />Similarly, you can alter the appearance of structures, and add them where none are present. The spell doesn't disguise, conceal or add creatures.<br /><br />The illusion includes audible, visual, tactile, and olfactory elements, so it can turn clear ground into difficult terrain (or vice versa) or otherwise impede movement through the area. Any piece of the illusory terrain (such as a rock or stick) that is removed from the spell's area disappears immediately.<br /><br />Creatures with truesight can see through the illusion to the terrain's true form; however, all other elements of the illusion remain, so while the creature is aware of the illusion's presence, the creature can still physically interact with the illusion.",
+      "description": "You make terrain in a area up to 1 mile square look, sound, smell, and even feel like some other sort of terrain. The terrain's general shape remains the same, however. Open fields or a road could be made to resemble a swamp, hill, crevasse, or some other difficult or impassable terrain. A pond can be made to seem like a grassy meadow, a precipice like a gentle slope, or a rock-strewn gully like a wide and smooth road.<br /><br />Similarly, you can alter the appearance of structures, and add them where none are present. The spell doesn't disguise, conceal or add creatures.<br /><br />The illusion includes audible, visual, tactile, and olfactory elements, so it can turn clear ground into difficult terrain (or vice versa) or otherwise impede movement through the area. Any piece of the illusory terrain (such as a rock or stick) that is removed from the spell's area disappears immediately.<br /><br />Creatures with truesight can see through the illusion to the terrain's true form; however, all other elements of the illusion remain, so while the creature is aware of the illusion's presence, the creature can still physically interact with the illusion.",
       "higher_levels": "",
       "level": "7",
       "school": "illusion",
@@ -4690,6 +6270,11 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 30
       }
     },
     {
@@ -4713,6 +6298,20 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "cone",
+        "range": 0,
+        "radius": 12,
+        "roll": "save",
+        "save": "dex",
+        "on_save": "half",
+        "dice": {
+          "count": 10,
+          "sides": 6
+        },
+        "damage_type": "fire"
       }
     },
     {
@@ -4736,6 +6335,11 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 60
       }
     },
     {
@@ -4759,6 +6363,11 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -4782,6 +6391,16 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "heal",
+        "target": "self",
+        "range": 0,
+        "dice": {
+          "count": 4,
+          "sides": 8,
+          "bonus": 15
+        }
       }
     },
     {
@@ -4805,6 +6424,11 @@
         "r": 0.4,
         "g": 0.8,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -4828,6 +6452,11 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 20
       }
     },
     {
@@ -4851,6 +6480,11 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -4874,6 +6508,11 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -4897,6 +6536,11 @@
         "r": 0.6,
         "g": 0.1,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -4920,6 +6564,12 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "teleport"
       }
     },
     {
@@ -4943,6 +6593,15 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "condition",
+        "target": "single",
+        "range": 6,
+        "roll": "save",
+        "save": "wis",
+        "condition": "charmed",
+        "rounds": 100
       }
     },
     {
@@ -4966,6 +6625,13 @@
         "r": 0.8,
         "g": 0.2,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "rounds": 100,
+        "handler": "invisibility"
       }
     },
     {
@@ -4989,6 +6655,18 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 24,
+        "roll": "attack",
+        "dice": {
+          "count": 10,
+          "sides": 4,
+          "bonus": 40
+        },
+        "damage_type": "bludgeoning"
       }
     },
     {
@@ -5012,6 +6690,11 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -5035,6 +6718,11 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 60
       }
     },
     {
@@ -5058,6 +6746,11 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -5081,6 +6774,19 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "attack",
+        "dice": {
+          "count": 5,
+          "sides": 10
+        },
+        "damage_type": "force",
+        "condition": "incapacitated",
+        "rounds": 10
       }
     },
     {
@@ -5104,6 +6810,19 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 30,
+        "roll": "save",
+        "save": "dex",
+        "on_save": "half",
+        "dice": {
+          "count": 10,
+          "sides": 8
+        },
+        "damage_type": "lightning"
       }
     },
     {
@@ -5127,6 +6846,21 @@
         "r": 1,
         "g": 0.9,
         "b": 0.4
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "cloud",
+        "range": 18,
+        "radius": 6,
+        "roll": "save",
+        "save": "dex",
+        "on_save": "half",
+        "dice": {
+          "count": 6,
+          "sides": 10
+        },
+        "damage_type": "slashing",
+        "rounds": 3
       }
     },
     {
@@ -5150,6 +6884,19 @@
         "r": 0.6,
         "g": 0.1,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 30,
+        "roll": "save",
+        "save": "con",
+        "on_save": "half",
+        "dice": {
+          "count": 8,
+          "sides": 6
+        },
+        "damage_type": "necrotic"
       }
     },
     {
@@ -5173,6 +6920,11 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -5196,6 +6948,21 @@
         "r": 0.4,
         "g": 0.8,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "cloud",
+        "range": 24,
+        "radius": 4,
+        "roll": "save",
+        "save": "con",
+        "on_save": "half",
+        "dice": {
+          "count": 5,
+          "sides": 8
+        },
+        "damage_type": "poison",
+        "rounds": 3
       }
     },
     {
@@ -5219,6 +6986,11 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -5242,6 +7014,11 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -5265,6 +7042,20 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "cone",
+        "range": 0,
+        "radius": 12,
+        "roll": "save",
+        "save": "con",
+        "on_save": "half",
+        "dice": {
+          "count": 8,
+          "sides": 8
+        },
+        "damage_type": "cold"
       }
     },
     {
@@ -5288,6 +7079,12 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "summon_elemental"
       }
     },
     {
@@ -5311,6 +7108,11 @@
         "r": 0.4,
         "g": 1,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 18
       }
     },
     {
@@ -5334,6 +7136,20 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "circle",
+        "range": 30,
+        "radius": 8,
+        "roll": "save",
+        "save": "dex",
+        "on_save": "half",
+        "dice": {
+          "count": 8,
+          "sides": 8
+        },
+        "damage_type": "bludgeoning"
       }
     },
     {
@@ -5357,6 +7173,11 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -5380,6 +7201,14 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "condition",
+        "target": "single",
+        "range": 1,
+        "roll": "attack",
+        "condition": "poisoned",
+        "rounds": 10
       }
     },
     {
@@ -5403,6 +7232,11 @@
         "r": 1,
         "g": 0.9,
         "b": 0.4
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -5426,6 +7260,11 @@
         "r": 0.6,
         "g": 0.1,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 2
       }
     },
     {
@@ -5449,6 +7288,11 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -5472,6 +7316,11 @@
         "r": 0.8,
         "g": 0.2,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 6
       }
     },
     {
@@ -5495,6 +7344,22 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "circle",
+        "range": 0,
+        "radius": 6,
+        "roll": "save",
+        "save": "con",
+        "on_save": "half",
+        "dice": {
+          "count": 10,
+          "sides": 6
+        },
+        "damage_type": "thunder",
+        "condition": "prone",
+        "rounds": 1
       }
     },
     {
@@ -5518,6 +7383,20 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 12,
+        "roll": "save",
+        "save": "dex",
+        "on_save": "none",
+        "dice": {
+          "count": 10,
+          "sides": 6,
+          "bonus": 40
+        },
+        "damage_type": "force"
       }
     },
     {
@@ -5541,6 +7420,11 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -5564,6 +7448,11 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -5587,6 +7476,15 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "condition",
+        "target": "single",
+        "range": 12,
+        "roll": "save",
+        "save": "wis",
+        "condition": "charmed",
+        "rounds": 1
       }
     },
     {
@@ -5610,6 +7508,15 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "condition",
+        "target": "single",
+        "range": 12,
+        "roll": "save",
+        "save": "wis",
+        "condition": "charmed",
+        "rounds": 1
       }
     },
     {
@@ -5633,6 +7540,19 @@
         "r": 0.8,
         "g": 0.2,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 30,
+        "roll": "save",
+        "save": "wis",
+        "on_save": "none",
+        "dice": {
+          "count": 3,
+          "sides": 6
+        },
+        "damage_type": "psychic"
       }
     },
     {
@@ -5656,6 +7576,11 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -5679,6 +7604,14 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "buff",
+        "target": "self",
+        "range": 0,
+        "rounds": 10,
+        "stat": "damage",
+        "value": 2
       }
     },
     {
@@ -5702,6 +7635,15 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "condition",
+        "target": "single",
+        "range": 12,
+        "roll": "save",
+        "save": "wis",
+        "condition": "charmed",
+        "rounds": 10
       }
     },
     {
@@ -5725,6 +7667,11 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 24
       }
     },
     {
@@ -5748,6 +7695,15 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "condition",
+        "target": "single",
+        "range": 1,
+        "roll": "save",
+        "save": "wis",
+        "condition": "frightened",
+        "rounds": 10
       }
     },
     {
@@ -5771,12 +7727,17 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 6
       }
     },
     {
       "name": "Find the Path",
       "image": "find-path",
-      "description": "This spell allows you to find the shortest, most direct physical route to a specific fixed location that you are familiar with on the same plane of existence. If you name a destination on another plan of existence, a destination that moves (such as a mobile fortress), or a destination that isn't specific (such as \"a green dragon's lair\"), the spell fails.<br /><br />For the duration, as long as you are on the same plane of existence as the destination, you know how far it is and in what direction it lies. While you are traveling there, whenever you are presented with a choice of paths along the way, you atomatically determine which path is the shortest and most direct route (but not necessarily the safest route) to the destination.",
+      "description": "This spell allows you to find the shortest, most direct physical route to a specific fixed location that you are familiar with on the same plane of existence. If you name a destination on another plan of existence, a destination that moves (such as a mobile fortress), or a destination that isn't specific (such as \"a green dragon's lair\"), the spell fails.<br /><br />For the duration, as long as you are on the same plane of existence as the destination, you know how far it is and in what direction it lies. While you are traveling there, whenever you are presented with a choice of paths along the way, you automatically determine which path is the shortest and most direct route (but not necessarily the safest route) to the destination.",
       "higher_levels": "",
       "level": "6",
       "school": "divination",
@@ -5794,6 +7755,11 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -5817,6 +7783,11 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 24
       }
     },
     {
@@ -5840,6 +7811,11 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -5863,13 +7839,24 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "attack",
+        "dice": {
+          "count": 3,
+          "sides": 6
+        },
+        "damage_type": "fire"
       }
     },
     {
       "name": "Flame Strike",
       "image": "flame-strike",
       "description": "A vertical column of divine fire roars down from the heavens in a location you specify. Each creature in a 10-foot radius, 40-foot-high cylinder centered on a point within range must make a Dexterity saving throw. A creature takes 4d6 fire damage and 4d6 radiant damage on a failed save, or half as much damage on a successful one.",
-      "higher_levels": "When you cast this spell using a spell slot of 6th level or higher, the fire damage or the radiant damage (your choice) inceases by 1d6 for each slot level above 5th.",
+      "higher_levels": "When you cast this spell using a spell slot of 6th level or higher, the fire damage or the radiant damage (your choice) increases by 1d6 for each slot level above 5th.",
       "level": "5",
       "school": "evocation",
       "classes": "cleric",
@@ -5886,6 +7873,20 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "circle",
+        "range": 12,
+        "radius": 2,
+        "roll": "save",
+        "save": "dex",
+        "on_save": "half",
+        "dice": {
+          "count": 4,
+          "sides": 6
+        },
+        "damage_type": "fire"
       }
     },
     {
@@ -5909,6 +7910,20 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "circle",
+        "range": 12,
+        "radius": 4,
+        "roll": "save",
+        "save": "dex",
+        "on_save": "half",
+        "dice": {
+          "count": 2,
+          "sides": 6
+        },
+        "damage_type": "fire"
       }
     },
     {
@@ -5932,6 +7947,15 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "condition",
+        "target": "single",
+        "range": 12,
+        "roll": "save",
+        "save": "con",
+        "condition": "restrained",
+        "rounds": 10
       }
     },
     {
@@ -5955,6 +7979,11 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -5978,6 +8007,11 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -6001,6 +8035,21 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 12,
+        "roll": "save",
+        "save": "wis",
+        "on_save": "none",
+        "dice": {
+          "count": 5,
+          "sides": 10
+        },
+        "damage_type": "psychic",
+        "condition": "charmed",
+        "rounds": 100
       }
     },
     {
@@ -6024,6 +8073,11 @@
         "r": 0.6,
         "g": 0.1,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -6047,6 +8101,11 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 6
       }
     },
     {
@@ -6070,6 +8129,11 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -6093,6 +8157,11 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -6116,6 +8185,11 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 6
       }
     },
     {
@@ -6139,6 +8213,11 @@
         "r": 0.8,
         "g": 0.2,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -6162,6 +8241,11 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -6185,12 +8269,17 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 6
       }
     },
     {
       "name": "Guards and Wards",
       "image": "guards-and-wards",
-      "description": "You create a ward that protects up to 2,500 square feet of floor space (an area 50 feet square, or one hundred 5-foot squares or twenty-five 10-foot squares). The warded area can be up to 20 feet tall, and shaped as you desire. You can ward several stories of a stronghold by dividing the area among them, as long as you can walk into each contiguous area while you are casting the spell.<br /><br />When you cast this spell, you can specify individuals that are unaffected by any or all of the effects that you choose. You can also specify a password that, when spoken aloud, makes the speaker immune to these effects. \"Guards and wards\" creates the following effects within the warded area. <ul><li>Place \"dancing lights (cantrip)\" in four corridors. You can designate a simple program that the lights repeat as long as guards and wards lasts.</li><li>Place \"magic mouth (lvl 2)\" in two locations.</li><li>Place \"stinking cloud (lvl 3)\" in two locations. The vapors appear in the places you designate; They return within 10 minutes if dispersed by wind while \"guards and wards\" lasts.</li><li>Place a constant \"gust of wind (lvl 2)\" in one corridor or room.</li><li>Place a \"suggestion (lvl 2)\" in one location. You select an area of up to 5 feet square, and any creature that enters or passes through the area recieves the suggestion mentally.</li></ul> The whole warded area radiates magic. A \"dispel magic (lvl 3)\" cast on a specific effect, if successful, removes only that effect.<br /><br />You can create a permanently guarded and warded structure by casting this spell there every day for one year.",
+      "description": "You create a ward that protects up to 2,500 square feet of floor space (an area 50 feet square, or one hundred 5-foot squares or twenty-five 10-foot squares). The warded area can be up to 20 feet tall, and shaped as you desire. You can ward several stories of a stronghold by dividing the area among them, as long as you can walk into each contiguous area while you are casting the spell.<br /><br />When you cast this spell, you can specify individuals that are unaffected by any or all of the effects that you choose. You can also specify a password that, when spoken aloud, makes the speaker immune to these effects. \"Guards and wards\" creates the following effects within the warded area. <ul><li>Place \"dancing lights (cantrip)\" in four corridors. You can designate a simple program that the lights repeat as long as guards and wards lasts.</li><li>Place \"magic mouth (lvl 2)\" in two locations.</li><li>Place \"stinking cloud (lvl 3)\" in two locations. The vapors appear in the places you designate; They return within 10 minutes if dispersed by wind while \"guards and wards\" lasts.</li><li>Place a constant \"gust of wind (lvl 2)\" in one corridor or room.</li><li>Place a \"suggestion (lvl 2)\" in one location. You select an area of up to 5 feet square, and any creature that enters or passes through the area receives the suggestion mentally.</li></ul> The whole warded area radiates magic. A \"dispel magic (lvl 3)\" cast on a specific effect, if successful, removes only that effect.<br /><br />You can create a permanently guarded and warded structure by casting this spell there every day for one year.",
       "higher_levels": "",
       "level": "6",
       "school": "abjuration",
@@ -6208,6 +8297,11 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -6231,6 +8325,11 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -6254,6 +8353,11 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 60
       }
     },
     {
@@ -6277,6 +8381,11 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -6300,6 +8409,19 @@
         "r": 0.6,
         "g": 0.1,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 12,
+        "roll": "save",
+        "save": "con",
+        "on_save": "half",
+        "dice": {
+          "count": 14,
+          "sides": 6
+        },
+        "damage_type": "necrotic"
       }
     },
     {
@@ -6323,6 +8445,19 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 12,
+        "roll": "save",
+        "save": "con",
+        "on_save": "none",
+        "dice": {
+          "count": 2,
+          "sides": 8
+        },
+        "damage_type": "fire"
       }
     },
     {
@@ -6346,6 +8481,16 @@
         "r": 1,
         "g": 1,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "heal",
+        "target": "self",
+        "range": 0,
+        "dice": {
+          "count": 0,
+          "sides": 0,
+          "bonus": 70
+        }
       }
     },
     {
@@ -6369,6 +8514,15 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "heal",
+        "target": "self",
+        "range": 0,
+        "dice": {
+          "count": 2,
+          "sides": 10
+        }
       }
     },
     {
@@ -6392,6 +8546,15 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "condition",
+        "target": "single",
+        "range": 18,
+        "roll": "save",
+        "save": "wis",
+        "condition": "paralyzed",
+        "rounds": 10
       }
     },
     {
@@ -6415,6 +8578,22 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "circle",
+        "range": 60,
+        "radius": 4,
+        "roll": "save",
+        "save": "dex",
+        "on_save": "half",
+        "dice": {
+          "count": 4,
+          "sides": 6,
+          "bonus": 9
+        },
+        "damage_type": "cold",
+        "terrain": "ice"
       }
     },
     {
@@ -6438,6 +8617,21 @@
         "r": 0.4,
         "g": 1,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "cloud",
+        "range": 60,
+        "radius": 4,
+        "roll": "save",
+        "save": "con",
+        "on_save": "half",
+        "dice": {
+          "count": 4,
+          "sides": 10
+        },
+        "damage_type": "piercing",
+        "rounds": 3
       }
     },
     {
@@ -6461,6 +8655,11 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 12
       }
     },
     {
@@ -6484,6 +8683,11 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -6507,6 +8711,11 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 12
       }
     },
     {
@@ -6530,6 +8739,11 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -6553,6 +8767,20 @@
         "r": 0.2,
         "g": 0.5,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "line",
+        "range": 0,
+        "radius": 20,
+        "roll": "save",
+        "save": "dex",
+        "on_save": "half",
+        "dice": {
+          "count": 8,
+          "sides": 6
+        },
+        "damage_type": "lightning"
       }
     },
     {
@@ -6576,6 +8804,11 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -6599,6 +8832,11 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -6622,6 +8860,11 @@
         "r": 0.6,
         "g": 0.1,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -6645,6 +8888,14 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "buff",
+        "target": "self",
+        "range": 0,
+        "rounds": 100,
+        "stat": "attack",
+        "value": 1
       }
     },
     {
@@ -6668,6 +8919,11 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 6
       }
     },
     {
@@ -6691,6 +8947,16 @@
         "r": 1,
         "g": 1,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "heal",
+        "target": "self",
+        "range": 0,
+        "dice": {
+          "count": 3,
+          "sides": 8,
+          "add": "spell"
+        }
       }
     },
     {
@@ -6714,6 +8980,15 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "condition",
+        "target": "single",
+        "range": 12,
+        "roll": "save",
+        "save": "wis",
+        "condition": "charmed",
+        "rounds": 100
       }
     },
     {
@@ -6737,6 +9012,11 @@
         "r": 0.8,
         "g": 0.2,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -6760,6 +9040,13 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "rounds": 100,
+        "handler": "invisibility"
       }
     },
     {
@@ -6783,6 +9070,11 @@
         "r": 0.4,
         "g": 1,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -6806,6 +9098,15 @@
         "r": 0.2,
         "g": 1,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "condition",
+        "target": "single",
+        "range": 6,
+        "roll": "save",
+        "save": "wis",
+        "condition": "charmed",
+        "rounds": 10
       }
     },
     {
@@ -6829,6 +9130,21 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "cloud",
+        "range": 24,
+        "radius": 1,
+        "roll": "save",
+        "save": "con",
+        "on_save": "half",
+        "dice": {
+          "count": 2,
+          "sides": 10
+        },
+        "damage_type": "radiant",
+        "rounds": 3
       }
     },
     {
@@ -6852,6 +9168,11 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 24
       }
     },
     {
@@ -6875,6 +9196,11 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -6898,6 +9224,11 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 6
       }
     },
     {
@@ -6921,6 +9252,21 @@
         "r": 0.8,
         "g": 0.2,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 24,
+        "roll": "save",
+        "save": "wis",
+        "on_save": "none",
+        "dice": {
+          "count": 4,
+          "sides": 10
+        },
+        "damage_type": "psychic",
+        "condition": "frightened",
+        "rounds": 10
       }
     },
     {
@@ -6944,6 +9290,19 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 12,
+        "roll": "save",
+        "save": "int",
+        "on_save": "none",
+        "dice": {
+          "count": 1,
+          "sides": 6
+        },
+        "damage_type": "psychic"
       }
     },
     {
@@ -6967,6 +9326,11 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 12
       }
     },
     {
@@ -6990,6 +9354,11 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 12
       }
     },
     {
@@ -7013,6 +9382,11 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 12
       }
     },
     {
@@ -7036,6 +9410,11 @@
         "r": 0.8,
         "g": 0.2,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 24
       }
     },
     {
@@ -7059,6 +9438,11 @@
         "r": 0.4,
         "g": 0.8,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -7082,6 +9466,11 @@
         "r": 0.4,
         "g": 0.8,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -7105,6 +9494,11 @@
         "r": 0.6,
         "g": 0.1,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 12
       }
     },
     {
@@ -7128,6 +9522,11 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -7151,6 +9550,11 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -7174,6 +9578,17 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 24,
+        "roll": "attack",
+        "dice": {
+          "count": 2,
+          "sides": 6
+        },
+        "damage_type": "fire"
       }
     },
     {
@@ -7197,6 +9612,11 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -7220,6 +9640,11 @@
         "r": 0.8,
         "g": 0.2,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 6
       }
     },
     {
@@ -7243,6 +9668,11 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -7266,6 +9696,19 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 12,
+        "roll": "save",
+        "save": "con",
+        "on_save": "half",
+        "dice": {
+          "count": 3,
+          "sides": 8
+        },
+        "damage_type": "thunder"
       }
     },
     {
@@ -7289,6 +9732,11 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -7312,6 +9760,18 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "circle",
+        "range": 30,
+        "radius": 4,
+        "roll": "auto",
+        "dice": {
+          "count": 2,
+          "sides": 4
+        },
+        "damage_type": "piercing"
       }
     },
     {
@@ -7335,6 +9795,17 @@
         "r": 1,
         "g": 0.9,
         "b": 0.4
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "attack",
+        "dice": {
+          "count": 4,
+          "sides": 6
+        },
+        "damage_type": "psychic"
       }
     },
     {
@@ -7358,6 +9829,11 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -7381,6 +9857,22 @@
         "r": 1,
         "g": 0.9,
         "b": 0.4
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "line",
+        "range": 0,
+        "radius": 12,
+        "roll": "save",
+        "save": "con",
+        "on_save": "half",
+        "dice": {
+          "count": 6,
+          "sides": 8
+        },
+        "damage_type": "radiant",
+        "condition": "blinded",
+        "rounds": 1
       }
     },
     {
@@ -7404,6 +9896,11 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -7427,6 +9924,11 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -7450,6 +9952,11 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 12
       }
     },
     {
@@ -7473,6 +9980,11 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 2
       }
     },
     {
@@ -7496,6 +10008,11 @@
         "r": 0.4,
         "g": 1,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 2
       }
     },
     {
@@ -7519,6 +10036,11 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -7542,6 +10064,11 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -7565,6 +10092,17 @@
         "r": 0.6,
         "g": 0.1,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "attack",
+        "dice": {
+          "count": 3,
+          "sides": 6
+        },
+        "damage_type": "necrotic"
       }
     },
     {
@@ -7588,6 +10126,21 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "cloud",
+        "range": 24,
+        "radius": 2,
+        "roll": "save",
+        "save": "dex",
+        "on_save": "half",
+        "dice": {
+          "count": 5,
+          "sides": 8
+        },
+        "damage_type": "fire",
+        "rounds": 3
       }
     },
     {
@@ -7611,6 +10164,20 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "circle",
+        "range": 24,
+        "radius": 2,
+        "roll": "save",
+        "save": "dex",
+        "on_save": "half",
+        "dice": {
+          "count": 10,
+          "sides": 6
+        },
+        "damage_type": "cold"
       }
     },
     {
@@ -7634,6 +10201,11 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 24
       }
     },
     {
@@ -7657,6 +10229,12 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 24,
+        "terrain": "wall"
       }
     },
     {
@@ -7680,6 +10258,21 @@
         "r": 0.4,
         "g": 1,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "cloud",
+        "range": 24,
+        "radius": 2,
+        "roll": "save",
+        "save": "dex",
+        "on_save": "half",
+        "dice": {
+          "count": 7,
+          "sides": 8
+        },
+        "damage_type": "piercing",
+        "rounds": 3
       }
     },
     {
@@ -7703,6 +10296,11 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 6
       }
     },
     {
@@ -7726,6 +10324,11 @@
         "r": 0.2,
         "g": 1,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 6
       }
     },
     {
@@ -7749,6 +10352,16 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "condition",
+        "target": "cloud",
+        "range": 12,
+        "radius": 2,
+        "roll": "save",
+        "save": "dex",
+        "condition": "restrained",
+        "rounds": 3
       }
     },
     {
@@ -7772,6 +10385,11 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 6
       }
     },
     {
@@ -7795,6 +10413,19 @@
         "r": 1,
         "g": 0.9,
         "b": 0.4
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 24,
+        "roll": "save",
+        "save": "str",
+        "on_save": "half",
+        "dice": {
+          "count": 3,
+          "sides": 8
+        },
+        "damage_type": "bludgeoning"
       }
     },
     {
@@ -7818,6 +10449,11 @@
         "r": 0.4,
         "g": 1,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -7841,6 +10477,11 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 12
       }
     },
     {
@@ -7864,6 +10505,22 @@
         "r": 1,
         "g": 0.9,
         "b": 0.4
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "circle",
+        "range": 0,
+        "radius": 2,
+        "roll": "save",
+        "save": "dex",
+        "on_save": "none",
+        "dice": {
+          "count": 1,
+          "sides": 6
+        },
+        "damage_type": "bludgeoning",
+        "condition": "prone",
+        "rounds": 1
       }
     },
     {
@@ -7887,6 +10544,16 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "condition",
+        "target": "circle",
+        "range": 12,
+        "radius": 4,
+        "roll": "save",
+        "save": "con",
+        "condition": "blinded",
+        "rounds": 1
       }
     },
     {
@@ -7910,6 +10577,11 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 30
       }
     },
     {
@@ -7933,6 +10605,21 @@
         "r": 0.2,
         "g": 0.5,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "circle",
+        "range": 0,
+        "radius": 1,
+        "roll": "save",
+        "save": "con",
+        "on_save": "none",
+        "dice": {
+          "count": 1,
+          "sides": 6
+        },
+        "damage_type": "thunder",
+        "cantrip_scaling": true
       }
     },
     {
@@ -7956,6 +10643,11 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -7979,6 +10671,11 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 12
       }
     },
     {
@@ -8002,6 +10699,22 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "cloud",
+        "range": 12,
+        "radius": 1,
+        "roll": "save",
+        "save": "dex",
+        "on_save": "none",
+        "dice": {
+          "count": 1,
+          "sides": 8
+        },
+        "damage_type": "fire",
+        "cantrip_scaling": true,
+        "rounds": 2
       }
     },
     {
@@ -8025,6 +10738,20 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 12,
+        "roll": "save",
+        "save": "con",
+        "on_save": "none",
+        "dice": {
+          "count": 1,
+          "sides": 6
+        },
+        "damage_type": "cold",
+        "cantrip_scaling": true
       }
     },
     {
@@ -8048,6 +10775,11 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 6
       }
     },
     {
@@ -8071,6 +10803,11 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -8094,6 +10831,11 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 6
       }
     },
     {
@@ -8117,6 +10859,11 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 6
       }
     },
     {
@@ -8140,6 +10887,14 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "buff",
+        "target": "self",
+        "range": 0,
+        "rounds": 1,
+        "stat": "damage",
+        "value": 3
       }
     },
     {
@@ -8163,6 +10918,11 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -8186,6 +10946,17 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 12,
+        "roll": "attack",
+        "dice": {
+          "count": 1,
+          "sides": 10
+        },
+        "damage_type": "piercing"
       }
     },
     {
@@ -8209,6 +10980,11 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 60
       }
     },
     {
@@ -8232,6 +11008,20 @@
         "r": 0.4,
         "g": 1,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "circle",
+        "range": 12,
+        "radius": 2,
+        "roll": "save",
+        "save": "str",
+        "on_save": "half",
+        "dice": {
+          "count": 1,
+          "sides": 8
+        },
+        "damage_type": "bludgeoning"
       }
     },
     {
@@ -8255,6 +11045,19 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 30,
+        "roll": "save",
+        "save": "dex",
+        "on_save": "none",
+        "dice": {
+          "count": 3,
+          "sides": 8
+        },
+        "damage_type": "bludgeoning"
       }
     },
     {
@@ -8278,6 +11081,11 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -8301,6 +11109,22 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "circle",
+        "range": 24,
+        "radius": 2,
+        "roll": "save",
+        "save": "dex",
+        "on_save": "none",
+        "dice": {
+          "count": 6,
+          "sides": 6
+        },
+        "damage_type": "bludgeoning",
+        "condition": "restrained",
+        "rounds": 1
       }
     },
     {
@@ -8324,6 +11148,20 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "circle",
+        "range": 24,
+        "radius": 2,
+        "roll": "save",
+        "save": "dex",
+        "on_save": "half",
+        "dice": {
+          "count": 3,
+          "sides": 12
+        },
+        "damage_type": "bludgeoning"
       }
     },
     {
@@ -8347,6 +11185,19 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 18,
+        "roll": "save",
+        "save": "con",
+        "on_save": "none",
+        "dice": {
+          "count": 2,
+          "sides": 6
+        },
+        "damage_type": "force"
       }
     },
     {
@@ -8370,6 +11221,17 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "attack",
+        "dice": {
+          "count": 1,
+          "sides": 6
+        },
+        "damage_type": "fire"
       }
     },
     {
@@ -8393,6 +11255,21 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "cloud",
+        "range": 0,
+        "radius": 6,
+        "roll": "save",
+        "save": "dex",
+        "on_save": "half",
+        "dice": {
+          "count": 1,
+          "sides": 10
+        },
+        "damage_type": "fire",
+        "rounds": 3
       }
     },
     {
@@ -8416,6 +11293,20 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "circle",
+        "range": 0,
+        "radius": 2,
+        "roll": "save",
+        "save": "con",
+        "on_save": "half",
+        "dice": {
+          "count": 4,
+          "sides": 6
+        },
+        "damage_type": "cold"
       }
     },
     {
@@ -8439,6 +11330,16 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "condition",
+        "target": "circle",
+        "range": 0,
+        "radius": 3,
+        "roll": "save",
+        "save": "dex",
+        "condition": "prone",
+        "rounds": 1
       }
     },
     {
@@ -8462,6 +11363,20 @@
         "r": 0.9,
         "g": 0.6,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "circle",
+        "range": 12,
+        "radius": 1,
+        "roll": "save",
+        "save": "con",
+        "on_save": "half",
+        "dice": {
+          "count": 2,
+          "sides": 10
+        },
+        "damage_type": "bludgeoning"
       }
     },
     {
@@ -8485,6 +11400,21 @@
         "r": 1,
         "g": 0.9,
         "b": 0.4
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "cloud",
+        "range": 24,
+        "radius": 6,
+        "roll": "save",
+        "save": "str",
+        "on_save": "none",
+        "dice": {
+          "count": 6,
+          "sides": 6
+        },
+        "damage_type": "bludgeoning",
+        "rounds": 3
       }
     },
     {
@@ -8508,6 +11438,11 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -8531,6 +11466,21 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 24,
+        "roll": "save",
+        "save": "dex",
+        "on_save": "half",
+        "dice": {
+          "count": 4,
+          "sides": 8
+        },
+        "damage_type": "bludgeoning",
+        "condition": "prone",
+        "rounds": 1
       }
     },
     {
@@ -8554,6 +11504,17 @@
         "r": 0.4,
         "g": 0.8,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "condition",
+        "target": "circle",
+        "range": 24,
+        "radius": 4,
+        "roll": "save",
+        "save": "str",
+        "condition": "restrained",
+        "rounds": 10,
+        "terrain": "mud"
       }
     },
     {
@@ -8577,6 +11538,11 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 12
       }
     },
     {
@@ -8600,6 +11566,16 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "condition",
+        "target": "circle",
+        "range": 18,
+        "radius": 2,
+        "roll": "save",
+        "save": "str",
+        "condition": "restrained",
+        "rounds": 10
       }
     },
     {
@@ -8623,6 +11599,22 @@
         "r": 1,
         "g": 0.9,
         "b": 0.4
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "circle",
+        "range": 60,
+        "radius": 2,
+        "roll": "save",
+        "save": "dex",
+        "on_save": "half",
+        "dice": {
+          "count": 10,
+          "sides": 6
+        },
+        "damage_type": "bludgeoning",
+        "condition": "restrained",
+        "rounds": 10
       }
     },
     {
@@ -8646,6 +11638,20 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "circle",
+        "range": 18,
+        "radius": 6,
+        "roll": "save",
+        "save": "dex",
+        "on_save": "half",
+        "dice": {
+          "count": 7,
+          "sides": 6
+        },
+        "damage_type": "fire"
       }
     },
     {
@@ -8669,6 +11675,21 @@
         "r": 0.2,
         "g": 0.5,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "cloud",
+        "range": 30,
+        "radius": 4,
+        "roll": "save",
+        "save": "str",
+        "on_save": "none",
+        "dice": {
+          "count": 2,
+          "sides": 6
+        },
+        "damage_type": "bludgeoning",
+        "rounds": 3
       }
     },
     {
@@ -8692,6 +11713,20 @@
         "r": 0.2,
         "g": 1,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "circle",
+        "range": 30,
+        "radius": 4,
+        "roll": "save",
+        "save": "dex",
+        "on_save": "none",
+        "dice": {
+          "count": 10,
+          "sides": 4
+        },
+        "damage_type": "acid"
       }
     },
     {
@@ -8715,6 +11750,11 @@
         "r": 1,
         "g": 0.9,
         "b": 0.4
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 18
       }
     },
     {
@@ -8738,6 +11778,17 @@
         "r": 1,
         "g": 0.9,
         "b": 0.4
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 24,
+        "roll": "attack",
+        "dice": {
+          "count": 4,
+          "sides": 8
+        },
+        "damage_type": "force"
       }
     },
     {
@@ -8761,6 +11812,17 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 12,
+        "roll": "attack",
+        "dice": {
+          "count": 3,
+          "sides": 10
+        },
+        "damage_type": "force"
       }
     },
     {
@@ -8784,6 +11846,20 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "circle",
+        "range": 60,
+        "radius": 12,
+        "roll": "save",
+        "save": "con",
+        "on_save": "half",
+        "dice": {
+          "count": 10,
+          "sides": 6
+        },
+        "damage_type": "cold"
       }
     },
     {
@@ -8807,6 +11883,11 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 6
       }
     },
     {
@@ -8830,6 +11911,11 @@
         "r": 0.4,
         "g": 1,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -8853,6 +11939,11 @@
         "r": 1,
         "g": 0.4,
         "b": 0
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 60
       }
     },
     {
@@ -8876,6 +11967,11 @@
         "r": 0.8,
         "g": 0.2,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -8899,6 +11995,11 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 24
       }
     },
     {
@@ -8922,6 +12023,21 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 18,
+        "roll": "save",
+        "save": "dex",
+        "on_save": "none",
+        "dice": {
+          "count": 3,
+          "sides": 6
+        },
+        "damage_type": "bludgeoning",
+        "condition": "restrained",
+        "rounds": 10
       }
     },
     {
@@ -8945,6 +12061,11 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 6
       }
     },
     {
@@ -8968,6 +12089,11 @@
         "r": 0.4,
         "g": 1,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 1
       }
     },
     {
@@ -8991,6 +12117,11 @@
         "r": 0.5,
         "g": 0.8,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 6
       }
     },
     {
@@ -9014,6 +12145,17 @@
         "r": 0.4,
         "g": 1,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 6,
+        "roll": "attack",
+        "dice": {
+          "count": 4,
+          "sides": 8
+        },
+        "damage_type": "piercing"
       }
     },
     {
@@ -9037,6 +12179,11 @@
         "r": 1,
         "g": 0.9,
         "b": 0.4
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "single",
+        "range": 6
       }
     },
     {
@@ -9060,6 +12207,15 @@
         "r": 0.8,
         "g": 0.8,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "condition",
+        "target": "single",
+        "range": 6,
+        "roll": "save",
+        "save": "dex",
+        "condition": "charmed",
+        "rounds": 10
       }
     },
     {
@@ -9083,6 +12239,11 @@
         "r": 1,
         "g": 0.9,
         "b": 0.4
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -9106,6 +12267,18 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "auto",
+        "dice": {
+          "count": 1,
+          "sides": 4,
+          "add": "dex"
+        },
+        "damage_type": "bludgeoning"
       }
     },
     {
@@ -9129,6 +12302,11 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -9152,6 +12330,21 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "attack",
+        "save": "con",
+        "dc": 12,
+        "dice": {
+          "count": 1,
+          "sides": 6
+        },
+        "damage_type": "piercing",
+        "condition": "stunned",
+        "rounds": 1
       }
     },
     {
@@ -9175,6 +12368,16 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "heal",
+        "target": "self",
+        "range": 0,
+        "dice": {
+          "count": 1,
+          "sides": 6,
+          "add": "wis"
+        }
       }
     },
     {
@@ -9198,6 +12401,21 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "auto",
+        "save": "str",
+        "dc": 12,
+        "dice": {
+          "count": 1,
+          "sides": 4
+        },
+        "damage_type": "bludgeoning",
+        "condition": "prone",
+        "rounds": 1
       }
     },
     {
@@ -9221,6 +12439,14 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "buff",
+        "target": "self",
+        "range": 0,
+        "rounds": 1,
+        "stat": "ac",
+        "value": 2
       }
     },
     {
@@ -9244,6 +12470,18 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "auto",
+        "dice": {
+          "count": 3,
+          "sides": 4,
+          "add": "str"
+        },
+        "damage_type": "bludgeoning"
       }
     },
     {
@@ -9267,6 +12505,14 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "buff",
+        "target": "self",
+        "range": 0,
+        "rounds": 1,
+        "stat": "ac",
+        "value": 3
       }
     },
     {
@@ -9290,6 +12536,11 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -9313,6 +12564,18 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "auto",
+        "dice": {
+          "count": 2,
+          "sides": 6,
+          "add": "str"
+        },
+        "damage_type": "bludgeoning"
       }
     },
     {
@@ -9336,6 +12599,11 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -9359,6 +12627,21 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "cone",
+        "range": 0,
+        "radius": 3,
+        "roll": "save",
+        "save": "dex",
+        "on_save": "half",
+        "dc": 13,
+        "dice": {
+          "count": 2,
+          "sides": 4
+        },
+        "damage_type": "bludgeoning"
       }
     },
     {
@@ -9382,6 +12665,17 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "auto",
+        "dice": {
+          "count": 1,
+          "sides": 6
+        },
+        "damage_type": "fire"
       }
     },
     {
@@ -9405,6 +12699,14 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "buff",
+        "target": "self",
+        "range": 0,
+        "rounds": 3,
+        "stat": "ac",
+        "value": 3
       }
     },
     {
@@ -9428,6 +12730,11 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -9451,6 +12758,11 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -9474,6 +12786,21 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "auto",
+        "save": "con",
+        "dc": 14,
+        "dice": {
+          "count": 1,
+          "sides": 8
+        },
+        "damage_type": "lightning",
+        "condition": "stunned",
+        "rounds": 1
       }
     },
     {
@@ -9497,6 +12824,15 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "heal",
+        "target": "self",
+        "range": 0,
+        "dice": {
+          "count": 2,
+          "sides": 6
+        }
       }
     },
     {
@@ -9520,6 +12856,18 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "auto",
+        "dice": {
+          "count": 3,
+          "sides": 6,
+          "add": "str"
+        },
+        "damage_type": "slashing"
       }
     },
     {
@@ -9543,6 +12891,23 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "circle",
+        "range": 0,
+        "radius": 1,
+        "roll": "auto",
+        "save": "str",
+        "dc": 15,
+        "dice": {
+          "count": 2,
+          "sides": 8,
+          "add": "str"
+        },
+        "damage_type": "bludgeoning",
+        "condition": "prone",
+        "rounds": 1
       }
     },
     {
@@ -9566,6 +12931,21 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "line",
+        "range": 0,
+        "radius": 5,
+        "roll": "save",
+        "save": "dex",
+        "on_save": "half",
+        "dc": 15,
+        "dice": {
+          "count": 4,
+          "sides": 6
+        },
+        "damage_type": "force"
       }
     },
     {
@@ -9589,6 +12969,14 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "buff",
+        "target": "self",
+        "range": 0,
+        "rounds": 1,
+        "stat": "ac",
+        "value": 5
       }
     },
     {
@@ -9612,6 +13000,11 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -9635,6 +13028,17 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "condition",
+        "target": "circle",
+        "range": 0,
+        "radius": 3,
+        "roll": "save",
+        "save": "wis",
+        "dc": 16,
+        "condition": "frightened",
+        "rounds": 2
       }
     },
     {
@@ -9658,6 +13062,11 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -9681,6 +13090,22 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "auto",
+        "save": "con",
+        "dc": 14,
+        "dice": {
+          "count": 1,
+          "sides": 10,
+          "add": "dex"
+        },
+        "damage_type": "piercing",
+        "condition": "poisoned",
+        "rounds": 3
       }
     },
     {
@@ -9704,6 +13129,22 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "save",
+        "save": "wis",
+        "on_save": "half",
+        "dc": 16,
+        "dice": {
+          "count": 3,
+          "sides": 8
+        },
+        "damage_type": "psychic",
+        "condition": "silenced",
+        "rounds": 2
       }
     },
     {
@@ -9727,6 +13168,11 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -9750,6 +13196,11 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -9773,6 +13224,11 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -9796,6 +13252,15 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "heal",
+        "target": "self",
+        "range": 0,
+        "dice": {
+          "count": 4,
+          "sides": 8
+        }
       }
     },
     {
@@ -9819,6 +13284,11 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -9842,6 +13312,22 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "auto",
+        "save": "con",
+        "dc": 18,
+        "dice": {
+          "count": 6,
+          "sides": 8,
+          "add": "wis"
+        },
+        "damage_type": "force",
+        "condition": "stunned",
+        "rounds": 2
       }
     },
     {
@@ -9865,6 +13351,11 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -9888,6 +13379,11 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -9911,6 +13407,15 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "heal",
+        "target": "self",
+        "range": 0,
+        "dice": {
+          "count": 3,
+          "sides": 8
+        }
       }
     },
     {
@@ -9934,6 +13439,22 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "circle",
+        "range": 0,
+        "radius": 1,
+        "roll": "save",
+        "save": "dex",
+        "on_save": "half",
+        "dc": 12,
+        "dice": {
+          "count": 1,
+          "sides": 8,
+          "add": "str"
+        },
+        "damage_type": "slashing"
       }
     },
     {
@@ -9957,6 +13478,18 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "auto",
+        "dice": {
+          "count": 1,
+          "sides": 8,
+          "add": "str"
+        },
+        "damage_type": "piercing"
       }
     },
     {
@@ -9980,6 +13513,14 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "buff",
+        "target": "self",
+        "range": 0,
+        "rounds": 1,
+        "stat": "ac",
+        "value": 3
       }
     },
     {
@@ -10003,6 +13544,18 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "auto",
+        "dice": {
+          "count": 1,
+          "sides": 10,
+          "add": "str"
+        },
+        "damage_type": "piercing"
       }
     },
     {
@@ -10026,6 +13579,18 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "auto",
+        "dice": {
+          "count": 1,
+          "sides": 6,
+          "add": "dex"
+        },
+        "damage_type": "piercing"
       }
     },
     {
@@ -10049,6 +13614,18 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "auto",
+        "dice": {
+          "count": 1,
+          "sides": 8,
+          "add": "str"
+        },
+        "damage_type": "slashing"
       }
     },
     {
@@ -10072,6 +13649,14 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "buff",
+        "target": "self",
+        "range": 0,
+        "rounds": 1,
+        "stat": "ac",
+        "value": 5
       }
     },
     {
@@ -10095,6 +13680,22 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "auto",
+        "save": "str",
+        "dc": 13,
+        "dice": {
+          "count": 1,
+          "sides": 6,
+          "add": "str"
+        },
+        "damage_type": "bludgeoning",
+        "condition": "prone",
+        "rounds": 1
       }
     },
     {
@@ -10118,6 +13719,11 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -10141,6 +13747,14 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "buff",
+        "target": "self",
+        "range": 0,
+        "rounds": 1,
+        "stat": "ac",
+        "value": 2
       }
     },
     {
@@ -10164,6 +13778,17 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "auto",
+        "dice": {
+          "count": 1,
+          "sides": 4
+        },
+        "damage_type": "bludgeoning"
       }
     },
     {
@@ -10187,6 +13812,14 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "buff",
+        "target": "self",
+        "range": 0,
+        "rounds": 1,
+        "stat": "ac",
+        "value": 3
       }
     },
     {
@@ -10210,6 +13843,18 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "auto",
+        "dice": {
+          "count": 2,
+          "sides": 6,
+          "add": "str"
+        },
+        "damage_type": "piercing"
       }
     },
     {
@@ -10233,6 +13878,19 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "circle",
+        "range": 0,
+        "radius": 1,
+        "roll": "auto",
+        "dice": {
+          "count": 1,
+          "sides": 8,
+          "add": "dex"
+        },
+        "damage_type": "slashing"
       }
     },
     {
@@ -10256,6 +13914,18 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "auto",
+        "dice": {
+          "count": 1,
+          "sides": 10,
+          "add": "str"
+        },
+        "damage_type": "piercing"
       }
     },
     {
@@ -10279,6 +13949,11 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -10302,6 +13977,18 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "auto",
+        "dice": {
+          "count": 1,
+          "sides": 8,
+          "add": "str"
+        },
+        "damage_type": "slashing"
       }
     },
     {
@@ -10325,6 +14012,20 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "auto",
+        "dice": {
+          "count": 2,
+          "sides": 8,
+          "add": "str"
+        },
+        "damage_type": "piercing",
+        "condition": "prone",
+        "rounds": 1
       }
     },
     {
@@ -10348,6 +14049,14 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "buff",
+        "target": "self",
+        "range": 0,
+        "rounds": 2,
+        "stat": "ac",
+        "value": 3
       }
     },
     {
@@ -10371,6 +14080,11 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -10394,6 +14108,18 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "auto",
+        "dice": {
+          "count": 2,
+          "sides": 8,
+          "add": "str"
+        },
+        "damage_type": "bludgeoning"
       }
     },
     {
@@ -10417,6 +14143,11 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -10440,6 +14171,18 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "auto",
+        "dice": {
+          "count": 2,
+          "sides": 6,
+          "add": "str"
+        },
+        "damage_type": "bludgeoning"
       }
     },
     {
@@ -10463,6 +14206,14 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "buff",
+        "target": "self",
+        "range": 0,
+        "rounds": 1,
+        "stat": "ac",
+        "value": 6
       }
     },
     {
@@ -10486,6 +14237,18 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "attack",
+        "dice": {
+          "count": 2,
+          "sides": 8,
+          "add": "str"
+        },
+        "damage_type": "force"
       }
     },
     {
@@ -10509,6 +14272,18 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "auto",
+        "dice": {
+          "count": 1,
+          "sides": 6,
+          "add": "str"
+        },
+        "damage_type": "force"
       }
     },
     {
@@ -10532,6 +14307,11 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -10555,6 +14335,11 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -10578,6 +14363,18 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "attack",
+        "dice": {
+          "count": 3,
+          "sides": 10,
+          "add": "str"
+        },
+        "damage_type": "bludgeoning"
       }
     },
     {
@@ -10601,6 +14398,14 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "buff",
+        "target": "self",
+        "range": 0,
+        "rounds": 1,
+        "stat": "ac",
+        "value": 2
       }
     },
     {
@@ -10624,6 +14429,19 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "circle",
+        "range": 0,
+        "radius": 1,
+        "roll": "auto",
+        "dice": {
+          "count": 2,
+          "sides": 8,
+          "add": "dex"
+        },
+        "damage_type": "slashing"
       }
     },
     {
@@ -10647,6 +14465,20 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "auto",
+        "dice": {
+          "count": 4,
+          "sides": 8,
+          "add": "str"
+        },
+        "damage_type": "bludgeoning",
+        "condition": "stunned",
+        "rounds": 1
       }
     },
     {
@@ -10670,6 +14502,23 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "circle",
+        "range": 0,
+        "radius": 3,
+        "roll": "auto",
+        "save": "wis",
+        "dc": 16,
+        "dice": {
+          "count": 1,
+          "sides": 10,
+          "add": "str"
+        },
+        "damage_type": "force",
+        "condition": "frightened",
+        "rounds": 1
       }
     },
     {
@@ -10693,6 +14542,18 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "auto",
+        "dice": {
+          "count": 5,
+          "sides": 10,
+          "add": "str"
+        },
+        "damage_type": "force"
       }
     },
     {
@@ -10716,6 +14577,11 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -10739,6 +14605,14 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "buff",
+        "target": "self",
+        "range": 0,
+        "rounds": 2,
+        "stat": "attack",
+        "value": 5
       }
     },
     {
@@ -10762,6 +14636,22 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "attack",
+        "save": "con",
+        "dc": 12,
+        "dice": {
+          "count": 1,
+          "sides": 8,
+          "add": "str"
+        },
+        "damage_type": "bludgeoning",
+        "condition": "stunned",
+        "rounds": 1
       }
     },
     {
@@ -10785,6 +14675,22 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 3,
+        "roll": "auto",
+        "save": "str",
+        "dc": 12,
+        "dice": {
+          "count": 1,
+          "sides": 8,
+          "add": "str"
+        },
+        "damage_type": "bludgeoning",
+        "condition": "prone",
+        "rounds": 1
       }
     },
     {
@@ -10808,6 +14714,17 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "condition",
+        "target": "circle",
+        "range": 0,
+        "radius": 3,
+        "roll": "save",
+        "save": "wis",
+        "dc": 12,
+        "condition": "frightened",
+        "rounds": 2
       }
     },
     {
@@ -10831,6 +14748,23 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "line",
+        "range": 0,
+        "radius": 3,
+        "roll": "auto",
+        "save": "str",
+        "dc": 12,
+        "dice": {
+          "count": 1,
+          "sides": 8,
+          "add": "str"
+        },
+        "damage_type": "bludgeoning",
+        "condition": "prone",
+        "rounds": 1
       }
     },
     {
@@ -10854,6 +14788,18 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "auto",
+        "dice": {
+          "count": 1,
+          "sides": 10,
+          "add": "str"
+        },
+        "damage_type": "force"
       }
     },
     {
@@ -10877,6 +14823,11 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -10900,6 +14851,17 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "attack",
+        "dice": {
+          "count": 1,
+          "sides": 6
+        },
+        "damage_type": "force"
       }
     },
     {
@@ -10923,6 +14885,18 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "auto",
+        "dice": {
+          "count": 2,
+          "sides": 10,
+          "add": "str"
+        },
+        "damage_type": "force"
       }
     },
     {
@@ -10946,6 +14920,19 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "circle",
+        "range": 0,
+        "radius": 1,
+        "roll": "auto",
+        "dice": {
+          "count": 2,
+          "sides": 6,
+          "add": "str"
+        },
+        "damage_type": "bludgeoning"
       }
     },
     {
@@ -10969,6 +14956,17 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "auto",
+        "dice": {
+          "count": 1,
+          "sides": 6
+        },
+        "damage_type": "fire"
       }
     },
     {
@@ -10992,6 +14990,17 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "auto",
+        "dice": {
+          "count": 2,
+          "sides": 6
+        },
+        "damage_type": "force"
       }
     },
     {
@@ -11015,6 +15024,17 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "condition",
+        "target": "circle",
+        "range": 0,
+        "radius": 4,
+        "roll": "save",
+        "save": "wis",
+        "dc": 13,
+        "condition": "paralyzed",
+        "rounds": 1
       }
     },
     {
@@ -11038,6 +15058,23 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "cone",
+        "range": 0,
+        "radius": 4,
+        "roll": "save",
+        "save": "con",
+        "on_save": "half",
+        "dc": 13,
+        "dice": {
+          "count": 2,
+          "sides": 8
+        },
+        "damage_type": "thunder",
+        "condition": "deafened",
+        "rounds": 2
       }
     },
     {
@@ -11061,6 +15098,14 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "buff",
+        "target": "self",
+        "range": 0,
+        "rounds": 3,
+        "stat": "damage",
+        "value": 4
       }
     },
     {
@@ -11084,6 +15129,11 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -11107,6 +15157,17 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "auto",
+        "dice": {
+          "count": 1,
+          "sides": 8
+        },
+        "damage_type": "fire"
       }
     },
     {
@@ -11130,6 +15191,11 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -11153,6 +15219,14 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "buff",
+        "target": "self",
+        "range": 0,
+        "rounds": 3,
+        "stat": "damage",
+        "value": 4
       }
     },
     {
@@ -11176,6 +15250,14 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "buff",
+        "target": "self",
+        "range": 0,
+        "rounds": 2,
+        "stat": "damage",
+        "value": 3
       }
     },
     {
@@ -11199,6 +15281,18 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "auto",
+        "dice": {
+          "count": 3,
+          "sides": 8,
+          "add": "str"
+        },
+        "damage_type": "bludgeoning"
       }
     },
     {
@@ -11222,6 +15316,11 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -11245,6 +15344,17 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "auto",
+        "dice": {
+          "count": 1,
+          "sides": 8
+        },
+        "damage_type": "force"
       }
     },
     {
@@ -11268,6 +15378,20 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "auto",
+        "dice": {
+          "count": 3,
+          "sides": 6,
+          "add": "str"
+        },
+        "damage_type": "slashing",
+        "condition": "bleeding",
+        "rounds": 3
       }
     },
     {
@@ -11291,6 +15415,18 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "auto",
+        "dice": {
+          "count": 4,
+          "sides": 6,
+          "add": "str"
+        },
+        "damage_type": "force"
       }
     },
     {
@@ -11314,6 +15450,11 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -11337,6 +15478,15 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "heal",
+        "target": "self",
+        "range": 0,
+        "dice": {
+          "count": 3,
+          "sides": 8
+        }
       }
     },
     {
@@ -11360,6 +15510,11 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -11383,6 +15538,18 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "auto",
+        "dice": {
+          "count": 2,
+          "sides": 8,
+          "add": "str"
+        },
+        "damage_type": "bludgeoning"
       }
     },
     {
@@ -11406,6 +15573,23 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "circle",
+        "range": 1,
+        "radius": 2,
+        "roll": "auto",
+        "save": "str",
+        "dc": 16,
+        "dice": {
+          "count": 4,
+          "sides": 8,
+          "add": "str"
+        },
+        "damage_type": "thunder",
+        "condition": "prone",
+        "rounds": 1
       }
     },
     {
@@ -11429,6 +15613,11 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -11452,6 +15641,18 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "auto",
+        "dice": {
+          "count": 2,
+          "sides": 10,
+          "add": "str"
+        },
+        "damage_type": "force"
       }
     },
     {
@@ -11475,6 +15676,18 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "auto",
+        "dice": {
+          "count": 3,
+          "sides": 6,
+          "add": "str"
+        },
+        "damage_type": "bludgeoning"
       }
     },
     {
@@ -11498,6 +15711,18 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "auto",
+        "dice": {
+          "count": 5,
+          "sides": 10,
+          "add": "str"
+        },
+        "damage_type": "bludgeoning"
       }
     },
     {
@@ -11521,6 +15746,17 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "condition",
+        "target": "circle",
+        "range": 0,
+        "radius": 30,
+        "roll": "save",
+        "save": "wis",
+        "dc": 17,
+        "condition": "frightened",
+        "rounds": 2
       }
     },
     {
@@ -11544,6 +15780,11 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -11567,6 +15808,18 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "auto",
+        "dice": {
+          "count": 3,
+          "sides": 10,
+          "add": "str"
+        },
+        "damage_type": "bludgeoning"
       }
     },
     {
@@ -11590,6 +15843,11 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -11613,6 +15871,18 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "auto",
+        "dice": {
+          "count": 2,
+          "sides": 6,
+          "add": "dex"
+        },
+        "damage_type": "piercing"
       }
     },
     {
@@ -11636,6 +15906,11 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -11659,6 +15934,11 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -11682,6 +15962,18 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "auto",
+        "dice": {
+          "count": 1,
+          "sides": 8,
+          "add": "dex"
+        },
+        "damage_type": "piercing"
       }
     },
     {
@@ -11705,6 +15997,11 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -11728,6 +16025,11 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -11751,6 +16053,11 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -11774,6 +16081,11 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -11797,6 +16109,11 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -11820,6 +16137,11 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -11843,6 +16165,11 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -11866,6 +16193,11 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -11889,6 +16221,19 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "auto",
+        "dice": {
+          "count": 2,
+          "sides": 8
+        },
+        "damage_type": "piercing",
+        "condition": "restrained",
+        "rounds": 1
       }
     },
     {
@@ -11912,6 +16257,18 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "auto",
+        "dice": {
+          "count": 1,
+          "sides": 8,
+          "add": "dex"
+        },
+        "damage_type": "piercing"
       }
     },
     {
@@ -11935,6 +16292,17 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 4,
+        "roll": "auto",
+        "dice": {
+          "count": 2,
+          "sides": 6
+        },
+        "damage_type": "piercing"
       }
     },
     {
@@ -11958,6 +16326,16 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "condition",
+        "target": "single",
+        "range": 1,
+        "roll": "save",
+        "save": "str",
+        "dc": 14,
+        "condition": "paralyzed",
+        "rounds": 2
       }
     },
     {
@@ -11981,6 +16359,11 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -12004,6 +16387,21 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "attack",
+        "save": "con",
+        "dc": 15,
+        "dice": {
+          "count": 2,
+          "sides": 6
+        },
+        "damage_type": "poison",
+        "condition": "poisoned",
+        "rounds": 3
       }
     },
     {
@@ -12027,6 +16425,21 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "attack",
+        "save": "con",
+        "dc": 15,
+        "dice": {
+          "count": 1,
+          "sides": 8
+        },
+        "damage_type": "poison",
+        "condition": "paralyzed",
+        "rounds": 1
       }
     },
     {
@@ -12050,6 +16463,17 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "auto",
+        "dice": {
+          "count": 4,
+          "sides": 8
+        },
+        "damage_type": "poison"
       }
     },
     {
@@ -12073,6 +16497,23 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "circle",
+        "range": 0,
+        "radius": 2,
+        "roll": "save",
+        "save": "con",
+        "on_save": "none",
+        "dc": 14,
+        "dice": {
+          "count": 2,
+          "sides": 6
+        },
+        "damage_type": "poison",
+        "condition": "poisoned",
+        "rounds": 2
       }
     },
     {
@@ -12096,6 +16537,21 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "auto",
+        "save": "con",
+        "dc": 15,
+        "dice": {
+          "count": 1,
+          "sides": 6
+        },
+        "damage_type": "piercing",
+        "condition": "poisoned",
+        "rounds": 4
       }
     },
     {
@@ -12119,6 +16575,11 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -12142,6 +16603,11 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -12165,6 +16631,11 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -12188,6 +16659,11 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -12211,6 +16687,11 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -12234,6 +16715,11 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -12257,6 +16743,11 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -12280,6 +16771,11 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -12303,6 +16799,18 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "auto",
+        "dice": {
+          "count": 6,
+          "sides": 8,
+          "add": "dex"
+        },
+        "damage_type": "bludgeoning"
       }
     },
     {
@@ -12326,6 +16834,11 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "utility",
+        "target": "self",
+        "range": 0
       }
     },
     {
@@ -12349,6 +16862,14 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "condition",
+        "target": "single",
+        "range": 30,
+        "roll": "auto",
+        "condition": "incapacitated",
+        "rounds": 3
       }
     },
     {
@@ -12372,6 +16893,17 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "auto",
+        "dice": {
+          "count": 2,
+          "sides": 10
+        },
+        "damage_type": "necrotic"
       }
     },
     {
@@ -12395,6 +16927,20 @@
         "r": 1,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "damage",
+        "target": "single",
+        "range": 1,
+        "roll": "attack",
+        "dice": {
+          "count": 8,
+          "sides": 10,
+          "add": "dex"
+        },
+        "damage_type": "force",
+        "condition": "bleeding",
+        "rounds": 5
       }
     },
     {
@@ -12418,6 +16964,12 @@
         "r": 1,
         "g": 0.45,
         "b": 0.1
+      },
+      "effect": {
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "class_transit"
       }
     },
     {
@@ -12441,6 +16993,12 @@
         "r": 1,
         "g": 0.85,
         "b": 0.3
+      },
+      "effect": {
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "class_transit"
       }
     },
     {
@@ -12464,6 +17022,12 @@
         "r": 1,
         "g": 1,
         "b": 0.7
+      },
+      "effect": {
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "class_transit"
       }
     },
     {
@@ -12487,6 +17051,12 @@
         "r": 0.3,
         "g": 1,
         "b": 0.3
+      },
+      "effect": {
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "class_transit"
       }
     },
     {
@@ -12510,6 +17080,12 @@
         "r": 0.6,
         "g": 0.75,
         "b": 1
+      },
+      "effect": {
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "class_transit"
       }
     },
     {
@@ -12533,6 +17109,12 @@
         "r": 0.4,
         "g": 1,
         "b": 1
+      },
+      "effect": {
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "class_transit"
       }
     },
     {
@@ -12556,6 +17138,12 @@
         "r": 1,
         "g": 0.9,
         "b": 0.4
+      },
+      "effect": {
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "class_transit"
       }
     },
     {
@@ -12579,6 +17167,12 @@
         "r": 0.55,
         "g": 0.9,
         "b": 0.35
+      },
+      "effect": {
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "class_transit"
       }
     },
     {
@@ -12602,6 +17196,12 @@
         "r": 0.7,
         "g": 0.3,
         "b": 1
+      },
+      "effect": {
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "class_transit"
       }
     },
     {
@@ -12625,6 +17225,12 @@
         "r": 1,
         "g": 0.3,
         "b": 0.8
+      },
+      "effect": {
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "class_transit"
       }
     },
     {
@@ -12648,6 +17254,12 @@
         "r": 0.9,
         "g": 0.2,
         "b": 0.2
+      },
+      "effect": {
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "class_transit"
       }
     },
     {
@@ -12671,6 +17283,12 @@
         "r": 0.3,
         "g": 0.5,
         "b": 1
+      },
+      "effect": {
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "class_transit"
       }
     }
   ]

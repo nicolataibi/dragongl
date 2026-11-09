@@ -65,6 +65,20 @@ typedef enum {
     MAX_CONDITIONS
 } ConditionType;
 
+/*The six abilities, in the order of the character sheet. ABILITY_SPELL
+ * stands for the caster's spellcasting ability (class_spell_ability()).*/
+typedef enum {
+    ABILITY_NONE = -1,
+    ABILITY_STR,
+    ABILITY_DEX,
+    ABILITY_CON,
+    ABILITY_INT,
+    ABILITY_WIS,
+    ABILITY_CHA,
+    ABILITY_SPELL,
+    ABILITY_COUNT = ABILITY_SPELL /*number of real abilities*/
+} Ability;
+
 //Types of events that can trigger effects or reactions
 typedef enum {
     EVENT_ON_ATTACK, //Before the attack roll
@@ -72,15 +86,16 @@ typedef enum {
     EVENT_ON_DAMAGE, //During damage calculation
     EVENT_ON_SAVE,   //During a saving throw
     EVENT_ON_TURN_START,
-    EVENT_ON_TURN_END
+    EVENT_ON_TURN_END,
+    EVENT_ON_DEFEND //Armor class of the bearer
 } RuleEventType;
 
 //Applicable modifier types
 typedef enum {
     MOD_ADDITIVE,    //Add a fixed value (e.g. +1)
     MOD_MULTIPLIER,  // Multiplies (e.g. x2 for vulnerability)
-    MOD_ADVANTAGE,   // Garantisce vantaggio
-    MOD_DISADVANTAGE // Garantisce svantaggio
+    MOD_ADVANTAGE,   //Grants advantage
+    MOD_DISADVANTAGE //Grants disadvantage
 } ModifierType;
 
 //Definition of an active effect
@@ -127,6 +142,12 @@ typedef struct {
 
 //Rules engine functions
 void rules_apply_modifiers(RuleContext *ctx, ActiveEffect *effects, int effect_count);
+/*Sum of the additive modifiers the effects give to one event (0 if none).*/
+int rules_event_bonus(const ActiveEffect *effects, int effect_count, RuleEventType type);
+/*Adds the effect, or refreshes the one of the same name (the longer
+ * duration and the larger value win). false when the list is full.*/
+bool rules_add_effect(ActiveEffect *effects, int *effect_count, int max_effects,
+                      const ActiveEffect *effect);
 int rules_roll_dice(int count, int sides);
 bool rules_update_effects(ActiveEffect *effects, int *effect_count);
 int rules_get_modifier(int score);
@@ -142,6 +163,18 @@ ConditionType condition_from_name(const char *condition_name);
  * effect string can no longer break the logic silently.*/
 bool rules_has_condition_t(ActiveEffect *effects, int effect_count, ConditionType cond);
 bool rules_has_condition(ActiveEffect *effects, int effect_count, const char *condition_name);
+
+/*Canonical DamageType <-> name table ("fire", "cold", ...; case-insensitive
+ * lookup). damage_type_from_name returns MAX_DAMAGE_TYPES for an unknown name.*/
+const char *damage_type_to_name(DamageType type);
+DamageType damage_type_from_name(const char *name);
+/*"str" .. "cha", "spell" (case-insensitive); ABILITY_NONE when unknown.*/
+const char *ability_to_name(Ability a);
+Ability ability_from_name(const char *name);
+
+/*Tests only: every d20 roll returns `value` (1..20) until it is called
+ * again with 0. Dice other than the d20 keep rolling.*/
+void rules_force_d20(int value);
 
 //Extended functions
 int rules_roll_d20(bool advantage, bool disadvantage);
