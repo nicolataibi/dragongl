@@ -19,6 +19,7 @@ import os
 import shutil
 import signal
 import socket
+import ssl
 import subprocess
 import tempfile
 import time
@@ -191,8 +192,8 @@ class ServerTest(unittest.TestCase):
         self.server.stop()
 
     # --- helpers -----------------------------------------------------------
-    def connect(self):
-        c = dglproto.Client(self.server.port)
+    def connect(self, **kwargs):
+        c = dglproto.Client(self.server.port, **kwargs)
         self.clients.append(c)
         return c
 
@@ -653,6 +654,88 @@ class ServerTest(unittest.TestCase):
             self.assertTrue(os.path.exists(self.state("maps", "map_floor_0.pdf")))
 
     # --- protocol v4 (phase 4c) ------------------------------------------------
+    # --- TLS -------------------------------------------------------------------
+    def server_log_text(self):
+        with open(self.server.log_path, errors="replace") as f:
+            return f.read()
+
+    def test_tls_identity_is_created_once_and_kept(self):
+        cert, key = self.state("tls", "server.crt"), self.state("tls", "server.key")
+        self.assertEqual(os.stat(key).st_mode & 0o777, 0o600)
+        self.assertEqual(os.stat(self.state("tls")).st_mode & 0o777, 0o700)
+        with open(cert) as f:
+            der = ssl.PEM_cert_to_DER_cert(f.read())
+        expected = dglproto.fingerprint_of_der(der)
+        self.assertIn("TLS fingerprint: " + expected, self.server_log_text())
+        c = self.connect()
+        self.assertEqual(c.fingerprint, expected)
+        self.assertEqual(c.alpn, dglproto.ALPN)
+        self.assertEqual(c.sock.version(), "TLSv1.3")
+        self.restart_server()
+        self.assertEqual(self.connect().fingerprint, expected, "a restart changed the certificate")
+
+    def test_plaintext_connection_is_refused(self):
+        """A client without TLS is dropped at the handshake; the frame it
+        sent (a login with passwords) never reaches the game."""
+        raw = self.connect(tls=False)
+        raw.login("plain", "pw", SERVER_PASS)
+        self.assertIsNotNone(raw.wait_until_closed(5), "plaintext connection left open")
+        self.assertFalse(raw.welcomed)
+        self.assertIn("TLS handshake with 127.0.0.1 failed", self.server_log_text())
+        self.player("after_plain")
+
+    def test_other_protocol_versions_fail_the_handshake(self):
+        with self.assertRaises(ssl.SSLError) as ctx:
+            self.connect(alpn="dragongl/4")
+        self.assertIn("NO_APPLICATION_PROTOCOL", str(ctx.exception).upper())
+        no_alpn = self.connect(alpn=None)
+        no_alpn.login("noalpn", "pw", SERVER_PASS)
+        self.assertIsNotNone(no_alpn.wait_until_closed(5))
+        self.assertFalse(no_alpn.welcomed)
+        self.assertIn("offered no application protocol", self.server_log_text())
+
+    def test_tls_1_2_is_refused(self):
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        ctx.maximum_version = ssl.TLSVersion.TLSv1_2
+        ctx.set_alpn_protocols([dglproto.ALPN])
+        with socket.create_connection(("127.0.0.1", self.server.port), timeout=5) as raw:
+            with self.assertRaises(ssl.SSLError):
+                ctx.wrap_socket(raw)
+        self.assert_server_alive()
+
+    def test_certificate_given_on_the_command_line(self):
+        """--tls-cert/--tls-key replace the state directory pair, which is
+        then not created."""
+        own = os.path.join(self.workdir, "own-tls")
+        os.makedirs(own)
+        for name in ("server.crt", "server.key"):
+            shutil.copy(self.state("tls", name), os.path.join(own, name))
+        os.chmod(os.path.join(own, "server.key"), 0o600)
+        state2 = os.path.join(self.workdir, "state2")
+        shutil.copytree(self.state(), state2, ignore=shutil.ignore_patterns("tls", "*.lock"))
+        expected = self.connect().fingerprint
+        self.restart_server(extra_args=("--state-dir", state2,
+                                        "--tls-cert", os.path.join(own, "server.crt"),
+                                        "--tls-key", os.path.join(own, "server.key")))
+        self.assertEqual(self.connect().fingerprint, expected)
+        self.assertFalse(os.path.exists(os.path.join(state2, "tls")))
+
+    def test_half_a_tls_identity_is_refused(self):
+        self.server.stop()
+        os.remove(self.state("tls", "server.key"))
+        status, out = self.run_server_expecting_exit(server_env())
+        self.assertEqual(status, 2, out)
+        self.assertIn("server.crt without", out)
+
+    def test_tls_options_go_together(self):
+        status, out = self.run_server_expecting_exit(
+            server_env(), ("--state-dir", os.path.join(self.workdir, "s3"),
+                           "--tls-cert", self.state("tls", "server.crt")))
+        self.assertEqual(status, 2, out)
+        self.assertIn("--tls-cert and --tls-key go together", out)
+
     def test_older_protocol_version_is_refused(self):
         old = self.connect()
         old.send_raw(dglproto.header(dglproto.MSG_LOGIN, 4, version=3) + bytes(4))

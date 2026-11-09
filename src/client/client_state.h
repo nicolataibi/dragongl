@@ -37,6 +37,8 @@
 #define CLIENT_MAX_ENTITIES 512
 
 extern int g_server_sock;
+/* TLS session on g_server_sock (client_tls.h). */
+extern struct ClientTls *g_tls;
 extern int g_my_entity_id;
 extern int g_my_x;
 extern int g_my_y;

@@ -28,7 +28,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             clang cmake ninja-build pkg-config \
-            libglfw3-dev libvulkan-dev glslc libsodium-dev
+            libglfw3-dev libvulkan-dev glslc libsodium-dev libssl-dev
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3

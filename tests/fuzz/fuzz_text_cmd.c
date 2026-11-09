@@ -43,9 +43,11 @@ static int g_city_slots;
 static int g_next_id;
 
 static void seed_line(const char *dir, int *count, const char *line) {
+    MsgTextCmd m;
+    snprintf(m.cmd, sizeof(m.cmd), "%s", line);
     BinWriter w;
     bw_init(&w);
-    if (wire_put_text_cmd(&w, line) && w.len > WIRE_HEADER_SIZE) {
+    if (wire_put_text_cmd(&w, &m) && w.len > WIRE_HEADER_SIZE) {
         char name[32];
         snprintf(name, sizeof(name), "cmd-%03d", (*count)++);
         fuzz_write_seed(dir, name, -1, w.data + WIRE_HEADER_SIZE, w.len - WIRE_HEADER_SIZE);

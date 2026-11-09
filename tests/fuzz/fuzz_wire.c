@@ -22,6 +22,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+static MsgEntityUpdate eu; /* 48 KiB: static */
+
 static void decode(MsgType type, const uint8_t *p, size_t n) {
     union {
         MsgLogin login;
@@ -37,9 +39,6 @@ static void decode(MsgType type, const uint8_t *p, size_t n) {
         MsgTimeSync sync;
         MsgCombatEvent combat;
     } m;
-    static EntityUpdateRec recs[WIRE_MAX_ENTITY_RECS];
-    const uint8_t *tiles = NULL;
-    int count = 0;
     memset(&m, 0, sizeof(m));
     switch (type) {
     case MSG_LOGIN:
@@ -58,12 +57,12 @@ static void decode(MsgType type, const uint8_t *p, size_t n) {
         (void)wire_get_state(p, n, &m.state);
         break;
     case MSG_MAP_CHUNK:
-        if (wire_get_map_chunk(p, n, &m.chunk, &tiles)) {
+        if (wire_get_map_chunk(p, n, &m.chunk)) {
             /* The tiles stay in the payload: touch every one of them. */
             size_t cells = (size_t)m.chunk.width * (size_t)m.chunk.height;
             volatile uint8_t sum = 0;
             for (size_t i = 0; i < cells; i++) {
-                sum = (uint8_t)(sum + tiles[i]);
+                sum = (uint8_t)(sum + m.chunk.tiles[i]);
             }
             (void)sum;
         }
@@ -84,7 +83,7 @@ static void decode(MsgType type, const uint8_t *p, size_t n) {
         (void)wire_get_time_sync(p, n, &m.sync);
         break;
     case MSG_ENTITY_UPDATE:
-        (void)wire_get_entity_update(p, n, recs, WIRE_MAX_ENTITY_RECS, &count);
+        (void)wire_get_entity_update(p, n, &eu);
         break;
     case MSG_COMBAT_EVENT:
         (void)wire_get_combat_event(p, n, &m.combat);
@@ -112,7 +111,8 @@ static void write_seeds(const char *dir) {
     MsgMove move = {1, -1};
     (void)wire_put_move(&w, &move);
     seed(dir, "move", &w);
-    (void)wire_put_text_cmd(&w, "cast 1 2");
+    MsgTextCmd cmd = {"cast 1 2"};
+    (void)wire_put_text_cmd(&w, &cmd);
     seed(dir, "text_cmd", &w);
     MsgWelcome welcome;
     memset(&welcome, 0, sizeof(welcome));
@@ -125,26 +125,31 @@ static void write_seeds(const char *dir) {
     strcpy(state.weapon_name, "Dagger");
     (void)wire_put_state(&w, &state);
     seed(dir, "state", &w);
-    MsgMapChunk chunk = {10, 20, 4, 3};
-    uint8_t tiles[12] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
-    (void)wire_put_map_chunk(&w, &chunk, tiles);
+    static const uint8_t tiles[12] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
+    MsgMapChunk chunk = {10, 20, 4, 3, tiles};
+    (void)wire_put_map_chunk(&w, &chunk);
     seed(dir, "map_chunk", &w);
-    (void)wire_put_text(&w, "[WHO] alice");
+    MsgText text = {"[WHO] alice"};
+    (void)wire_put_text(&w, &text);
     seed(dir, "text", &w);
-    (void)wire_put_auth_fail(&w, "wrong password");
+    MsgAuthFail fail = {"wrong password"};
+    (void)wire_put_auth_fail(&w, &fail);
     seed(dir, "auth_fail", &w);
     MsgSpellVFX vfx;
     memset(&vfx, 0, sizeof(vfx));
     (void)wire_put_spell_vfx(&w, &vfx);
     seed(dir, "spell_vfx", &w);
-    (void)wire_put_tombstone_remove(&w, 42);
+    MsgTombstoneRemove gone = {42};
+    (void)wire_put_tombstone_remove(&w, &gone);
     seed(dir, "tombstone_remove", &w);
     MsgTimeSync sync;
     memset(&sync, 0, sizeof(sync));
     (void)wire_put_time_sync(&w, &sync);
     seed(dir, "time_sync", &w);
-    EntityUpdateRec recs[2] = {{1, 2, 3, 4}, {5, 6, 7, 8}};
-    (void)wire_put_entity_update(&w, recs, 2);
+    eu.count = 2;
+    eu.recs[0] = (EntityUpdateRec){1, 2, 3, 4};
+    eu.recs[1] = (EntityUpdateRec){5, 6, 7, 8};
+    (void)wire_put_entity_update(&w, &eu);
     seed(dir, "entity_update", &w);
     MsgCombatEvent combat;
     memset(&combat, 0, sizeof(combat));

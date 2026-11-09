@@ -27,6 +27,7 @@
 #include "strnum.h"
 #include "client_state.h"
 #include "net.h"
+#include "client_tls.h"
 #include "render_vk.h"
 #include "dragongl_config.h"
 #include "protocol.h"
@@ -38,6 +39,7 @@
 #include <time.h>
 
 int g_server_sock = -1;
+ClientTls *g_tls = NULL;
 int g_my_entity_id = -1;
 int g_my_x = 0;
 int g_my_y = 0;
@@ -111,9 +113,7 @@ extern void *cli_thread_loop(void *arg);
 static void send_frame(BinWriter *w) {
     bool ok = !w->failed && w->len > 0;
     if (ok) {
-        pthread_mutex_lock(&g_net_mutex);
-        ok = net_send(g_server_sock, w->data, (int)w->len);
-        pthread_mutex_unlock(&g_net_mutex);
+        ok = client_tls_send(g_tls, w->data, w->len);
     }
     bw_free(w);
     if (!ok && g_running) {
@@ -137,9 +137,11 @@ void client_send_move(int dx, int dy) {
 }
 
 void client_send_text_cmd(const char *cmd) {
+    MsgTextCmd m;
+    copy_str(m.cmd, cmd, sizeof(m.cmd));
     BinWriter w;
     bw_init(&w);
-    if (wire_put_text_cmd(&w, cmd)) {
+    if (wire_put_text_cmd(&w, &m)) {
         send_frame(&w);
     } else {
         bw_free(&w);
@@ -193,6 +195,55 @@ static void read_secret(const char *prompt, char *out, size_t out_len) {
     }
 }
 
+static void print_client_usage(const char *argv0) {
+    printf("Usage: %s [--fingerprint <sha256>] [server_host [port]] | -h | -V\n"
+           "  server_host    host name, IPv4 or IPv6 address (asked if omitted;\n"
+           "                 default 127.0.0.1)\n"
+           "  port           TCP port (default 8080)\n"
+           "  --fingerprint  SHA-256 fingerprint of the server certificate, as the\n"
+           "                 server owner gives it: trust that certificate only\n"
+           "The connection is TLS 1.3. A server whose certificate no trusted authority\n"
+           "signed is recorded at the first connection in\n"
+           "$XDG_CONFIG_HOME/dragongl/known_servers (~/.config/dragongl/known_servers)\n"
+           "and refused if its certificate changes later.\n"
+           "Environment: DRAGONGL_WINDOW=WxH (window size), DRAGONGL_GPU=<index|name>,\n"
+           "             DRAGONGL_VSYNC=0, DRAGONGL_SHADER_DIR=<dir>, VK_INSTANCE_LAYERS\n",
+           argv0);
+}
+
+/* TLS on the connected socket, and the trust decision told to the user. */
+static bool start_tls(const char *host, int port, const char *expected_fp) {
+    char why[512];
+    ClientTlsTrust trust = TLS_TRUST_KNOWN;
+    g_tls =
+        client_tls_connect(g_server_sock, host, port, expected_fp, 5000, &trust, why, sizeof(why));
+    if (!g_tls) {
+        printf("Connection error: %s\n", why);
+        return false;
+    }
+    switch (trust) {
+    case TLS_TRUST_FIRST_USE:
+        printf("[NET] First connection to %s port %d. Server certificate fingerprint:\n"
+               "      %s\n"
+               "      Compare it with the one the server owner gives you (the server\n"
+               "      logs it at start-up). It is recorded in %s:\n"
+               "      from now on a different certificate is refused.\n",
+               host, port, client_tls_fingerprint(g_tls), client_tls_known_servers(g_tls));
+        break;
+    case TLS_TRUST_GIVEN:
+        printf("[NET] Server certificate matches the given fingerprint.\n");
+        break;
+    case TLS_TRUST_AUTHORITY:
+        printf("[NET] Server certificate verified for %s.\n", host);
+        break;
+    case TLS_TRUST_KNOWN:
+    default:
+        printf("[NET] Known server (%s).\n", client_tls_known_servers(g_tls));
+        break;
+    }
+    return true;
+}
+
 int main(int argc, char **argv) {
     pthread_t net_thread;
     pthread_t cli_thread;
@@ -210,36 +261,49 @@ int main(int argc, char **argv) {
         }
     }
 
-    if (argc == 2 && (strcmp(argv[1], "-V") == 0 || strcmp(argv[1], "--version") == 0)) {
-        printf("dragongl_client %s\n", DRAGONGL_VERSION);
-        return 0;
-    }
-    if (argc > 3 || (argc > 1 && (strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "--help") == 0))) {
-        printf(
-            "Usage: %s [server_host [port]] | -h | -V\n"
-            "  server_host  host name, IPv4 or IPv6 address (asked if omitted; default 127.0.0.1)\n"
-            "  port         TCP port (default 8080)\n"
-            "Environment: DRAGONGL_WINDOW=WxH (window size), DRAGONGL_GPU=<index|name>,\n"
-            "             DRAGONGL_VSYNC=0, DRAGONGL_SHADER_DIR=<dir>, VK_INSTANCE_LAYERS\n",
-            argv[0]);
-        return argc > 3 ? 2 : 0;
-    }
-
     char server_ip[256] = "127.0.0.1";
     int server_port = 8080;
     bool ip_from_arg = false;
-    if (argc >= 2 && argv[1][0] != '\0') {
-        copy_str(server_ip, argv[1], sizeof(server_ip));
-        ip_from_arg = true;
-    }
-    if (argc >= 3) {
-        char *end = NULL;
-        long p = strtol(argv[2], &end, 10);
-        if (!end || *end != '\0' || p <= 0 || p > 65535) {
-            fprintf(stderr, "Invalid port: %s\n", argv[2]);
+    const char *expected_fp = NULL;
+    int positional = 0;
+    for (int i = 1; i < argc; i++) {
+        const char *a = argv[i];
+        if (strcmp(a, "-V") == 0 || strcmp(a, "--version") == 0) {
+            printf("dragongl_client %s\n", DRAGONGL_VERSION);
+            return 0;
+        }
+        if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) {
+            print_client_usage(argv[0]);
+            return 0;
+        }
+        if (strcmp(a, "--fingerprint") == 0) {
+            if (i + 1 >= argc) {
+                fprintf(stderr, "%s: --fingerprint needs a value\n", argv[0]);
+                return 2;
+            }
+            expected_fp = argv[++i];
+        } else if (a[0] == '-' && a[1] != '\0') {
+            fprintf(stderr, "%s: unknown option '%s' (see --help)\n", argv[0], a);
+            return 2;
+        } else if (positional == 0) {
+            if (a[0] != '\0') {
+                copy_str(server_ip, a, sizeof(server_ip));
+                ip_from_arg = true;
+            }
+            positional++;
+        } else if (positional == 1) {
+            const char *end = NULL;
+            int p = 0;
+            if (!parse_int(a, &p, &end) || *end != '\0' || p <= 0 || p > 65535) {
+                fprintf(stderr, "Invalid port: %s\n", a);
+                return 2;
+            }
+            server_port = p;
+            positional++;
+        } else {
+            print_client_usage(argv[0]);
             return 2;
         }
-        server_port = (int)p;
     }
 
     char server_pass[128] = "";
@@ -412,6 +476,10 @@ int main(int argc, char **argv) {
         printf("Connection error: %s\n", why);
         return 1;
     }
+    if (!start_tls(server_ip, server_port, expected_fp)) {
+        net_close(g_server_sock);
+        return 1;
+    }
 
     {
         MsgLogin ml;
@@ -429,7 +497,7 @@ int main(int argc, char **argv) {
         g_class_id = class_id;
         BinWriter w;
         bw_init(&w);
-        bool ok = wire_put_login(&w, &ml) && net_send(g_server_sock, w.data, (int)w.len);
+        bool ok = wire_put_login(&w, &ml) && client_tls_send(g_tls, w.data, w.len);
         if (w.data) {
             memset(w.data, 0, w.cap); /* the frame holds the passwords */
         }
@@ -439,12 +507,11 @@ int main(int argc, char **argv) {
         memset(server_pass, 0, sizeof(server_pass));
         if (!ok) {
             printf("Connection error: cannot send the login.\n");
+            client_tls_close(g_tls);
             net_close(g_server_sock);
             return 1;
         }
     }
-
-    net_set_nonblocking(g_server_sock);
 
     pthread_create(&net_thread, NULL, net_thread_loop, NULL);
     pthread_create(&cli_thread, NULL, cli_thread_loop, NULL);
@@ -456,6 +523,7 @@ int main(int argc, char **argv) {
 
     pthread_join(cli_thread, NULL);
     pthread_join(net_thread, NULL);
+    client_tls_close(g_tls);
     net_close(g_server_sock);
     return 0;
 }

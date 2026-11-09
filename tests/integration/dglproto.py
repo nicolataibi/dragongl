@@ -1,30 +1,33 @@
 # Dragon GL - Copyright (C) 2026 Nicola Taibi
 # License: GPL-3.0-or-later
-"""Minimal client for the Dragon GL wire protocol (PROTOCOL_VERSION 4).
+"""Minimal client for the Dragon GL wire protocol, for the integration tests.
 
-Used only by the integration tests; mirrors src/shared/wire.c (frames of
-u16 version, u16 type, u32 length, little-endian payloads, strings as u8
-length + bytes).
+The messages come from the protocol table (protocol/messages.json),
+through its Python codec (protocol/codec.py): the same rules as the C codec
+generated from that table. Frames travel inside TLS 1.3 with the ALPN
+protocol "dragongl/<version>".
 """
 
+import hashlib
+import os
 import select
 import socket
-import struct
+import ssl
+import sys
 import time
 
-PROTOCOL_VERSION = 4
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..",
+                                "protocol"))
+import codec  # noqa: E402
 
-MSG_LOGIN = 1
-MSG_WELCOME = 2
-MSG_MOVE = 3
-MSG_STATE = 4
-MSG_MAP_CHUNK = 5
-MSG_TEXT_CMD = 6
-MSG_TEXT = 7
-MSG_AUTH_FAIL = 8
-MSG_COMBAT_EVENT = 13
+SPEC = codec.Spec()
+PROTOCOL_VERSION = SPEC.version
+ALPN = "dragongl/%d" % PROTOCOL_VERSION
 
-HEADER = struct.Struct("<HHI")  # version, type, length
+for _m in SPEC.messages:
+    globals()["MSG_" + _m["name"]] = _m["id"]
+
+HEADER = codec.HEADER  # version, type, length
 
 
 def header(msg_type, length, version=PROTOCOL_VERSION):
@@ -32,7 +35,7 @@ def header(msg_type, length, version=PROTOCOL_VERSION):
 
 
 def lstr(text, cap):
-    """u8 length + bytes; the receiving field holds cap-1 bytes."""
+    """u8 length + bytes, unchecked (to build malformed payloads)."""
     raw = text.encode() if isinstance(text, str) else bytes(text)
     if len(raw) > 255:
         raise ValueError("string too long for the wire")
@@ -44,28 +47,57 @@ def frame(msg_type, payload):
 
 
 def login_payload(username, password, server_pass, race=0, char_class=0):
-    return (lstr(username, 32) + lstr(password, 64) + lstr(server_pass, 64) +
-            struct.pack("<4b", race, -1, char_class, 0))
+    return SPEC.encode("LOGIN", {"username": username, "password": password,
+                                 "server_pass": server_pass, "race_id": race, "subrace_id": -1,
+                                 "class_id": char_class, "alignment": 0})
 
 
 def text_cmd_payload(text):
-    return lstr(text, 256)
+    return SPEC.encode("TEXT_CMD", {"cmd": text})
 
 
 def move_payload(dx, dy):
-    return struct.pack("<2b", dx, dy)
+    return SPEC.encode("MOVE", {"dx": dx, "dy": dy})
 
 
-def _read_str(payload, off):
-    n = payload[off]
-    return payload[off + 1:off + 1 + n].decode(errors="replace"), off + 1 + n
+def tls_context(alpn=ALPN):
+    """TLS 1.3 client context. The tests check the server certificate by
+    its fingerprint (Client.fingerprint), not by an authority."""
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    ctx.minimum_version = ssl.TLSVersion.TLSv1_3
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    if alpn:
+        ctx.set_alpn_protocols([alpn])
+    return ctx
+
+
+def fingerprint_of_der(der):
+    """'SHA256:AB:CD:...' of a DER certificate, as the server logs it."""
+    digest = hashlib.sha256(der).hexdigest().upper()
+    return "SHA256:" + ":".join(digest[i:i + 2] for i in range(0, len(digest), 2))
 
 
 class Client:
-    """One TCP connection to the server, with a tiny message decoder."""
+    """One TLS connection to the server, with a tiny message decoder.
 
-    def __init__(self, port, host="127.0.0.1", timeout=5.0):
-        self.sock = socket.create_connection((host, port), timeout=timeout)
+    tls=False opens a bare TCP connection (to check that the server refuses
+    it); alpn=None offers no application protocol."""
+
+    def __init__(self, port, host="127.0.0.1", timeout=5.0, tls=True, alpn=ALPN):
+        raw = socket.create_connection((host, port), timeout=timeout)
+        self.fingerprint = None
+        self.alpn = None
+        if tls:
+            try:
+                self.sock = tls_context(alpn).wrap_socket(raw)
+            except Exception:
+                raw.close()
+                raise
+            self.fingerprint = fingerprint_of_der(self.sock.getpeercert(binary_form=True))
+            self.alpn = self.sock.selected_alpn_protocol()
+        else:
+            self.sock = raw
         self._buf = b""
         self.texts = []      # MSG_TEXT payloads, decoded
         self.auth_fail = []  # MSG_AUTH_FAIL reasons
@@ -102,12 +134,15 @@ class Client:
             left = deadline - time.monotonic()
             if left <= 0:
                 break
-            ready, _, _ = select.select([self.sock], [], [], left)
-            if not ready:
-                break
+            # Decrypted bytes kept by TLS are not seen by select().
+            pending = isinstance(self.sock, ssl.SSLSocket) and self.sock.pending()
+            if not pending:
+                ready, _, _ = select.select([self.sock], [], [], left)
+                if not ready:
+                    break
             try:
                 data = self.sock.recv(65536)
-            except (ConnectionResetError, OSError):
+            except (ConnectionResetError, ssl.SSLError, OSError):
                 data = b""
             if not data:
                 self.closed_by_peer = True
@@ -146,25 +181,27 @@ class Client:
         return self.welcomed
 
     def _decode(self):
+        """Every frame through the strict decoder of the table: a malformed
+        message from the server raises codec.ProtocolError."""
         while len(self._buf) >= HEADER.size:
-            _version, msg_type, length = HEADER.unpack_from(self._buf)
+            version, msg_type, length = HEADER.unpack_from(self._buf)
             if len(self._buf) < HEADER.size + length:
                 return
             payload = self._buf[HEADER.size:HEADER.size + length]
             self._buf = self._buf[HEADER.size + length:]
+            if version != PROTOCOL_VERSION:
+                raise codec.ProtocolError("frame of version %d" % version)
+            m = SPEC.decode(SPEC.msg(msg_type)["name"], payload)
             if msg_type == MSG_WELCOME:
                 self.welcomed = True
-                self.entity_id, x, y = struct.unpack_from("<3i", payload)
-                self.position = (x, y)
+                self.entity_id = m["entity_id"]
+                self.position = (m["x"], m["y"])
             elif msg_type == MSG_STATE:
-                # u64 gold, then i32 entity_id, x, y
-                entity_id, x, y = struct.unpack_from("<3i", payload, 8)
-                if entity_id == self.entity_id:
-                    self.position = (x, y)
+                if m["entity_id"] == self.entity_id:
+                    self.position = (m["x"], m["y"])
             elif msg_type == MSG_TEXT:
-                self.texts.append(_read_str(payload, 0)[0])
+                self.texts.append(m["text"])
             elif msg_type == MSG_AUTH_FAIL:
-                self.auth_fail.append(_read_str(payload, 0)[0])
+                self.auth_fail.append(m["reason"])
             elif msg_type == MSG_COMBAT_EVENT:
-                kind, entity_id, amount = struct.unpack("<Bii", payload)
-                self.combat_events.append((kind, entity_id, amount))
+                self.combat_events.append((m["kind"], m["entity_id"], m["amount"]))

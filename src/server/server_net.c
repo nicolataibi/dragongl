@@ -43,12 +43,12 @@ static bool tx_send(int sock) {
 }
 
 void send_text_to_client(int sock, const char *fmt, ...) {
-    char text[PROTO_TEXT_LEN];
+    MsgText t;
     va_list a;
     va_start(a, fmt);
-    vsnprintf(text, sizeof(text), fmt, a);
+    vsnprintf(t.text, sizeof(t.text), fmt, a);
     va_end(a);
-    if (wire_put_text(tx_frame(), text)) {
+    if (wire_put_text(tx_frame(), &t)) {
         tx_send(sock);
     }
 }
@@ -71,7 +71,8 @@ void send_time_sync(int sock, const MsgTimeSync *m) {
 }
 
 void send_tombstone_remove(int sock, int entity_id) {
-    if (wire_put_tombstone_remove(tx_frame(), entity_id)) {
+    MsgTombstoneRemove m = {entity_id};
+    if (wire_put_tombstone_remove(tx_frame(), &m)) {
         tx_send(sock);
     }
 }
@@ -93,7 +94,9 @@ bool net_send_client(int sock, const void *data, int len) {
 }
 
 void send_auth_fail(int sock, const char *reason) {
-    if (wire_put_auth_fail(tx_frame(), reason)) {
+    MsgAuthFail m;
+    copy_str(m.reason, reason, sizeof(m.reason));
+    if (wire_put_auth_fail(tx_frame(), &m)) {
         tx_send(sock);
     }
 }
@@ -116,10 +119,10 @@ void send_map_chunk(int sock, Map *map, int cx, int cy, int size) {
     if (sy + size > MAP_HEIGHT) {
         sy = MAP_HEIGHT - size;
     }
-    mc.start_x = (int16_t)sx;
-    mc.start_y = (int16_t)sy;
-    mc.width = (int16_t)size;
-    mc.height = (int16_t)size;
+    mc.start_x = sx;
+    mc.start_y = sy;
+    mc.width = size;
+    mc.height = size;
     static uint8_t buf[WIRE_MAX_CHUNK_SIDE * WIRE_MAX_CHUNK_SIDE];
     int idx = 0;
     for (int iy = sy; iy < sy + size; iy++) {
@@ -127,7 +130,8 @@ void send_map_chunk(int sock, Map *map, int cx, int cy, int size) {
             buf[idx++] = (uint8_t)map->data[0][iy][ix];
         }
     }
-    if (wire_put_map_chunk(tx_frame(), &mc, buf)) {
+    mc.tiles = buf;
+    if (wire_put_map_chunk(tx_frame(), &mc)) {
         tx_send(sock);
     }
 }
@@ -393,10 +397,13 @@ static void send_full_player_state(int sock, const Client *p) {
 /*One frame with u16 count + 12-byte records instead of one MSG_STATE per
  * entity (100 known entities: ~1.2 KB).*/
 static void flush_entity_batch(int sock, const EntityUpdateRec *recs, int count) {
-    if (count <= 0) {
+    static MsgEntityUpdate m; /* 48 KiB: not on the stack */
+    if (count <= 0 || count > WIRE_MAX_ENTITY_RECS) {
         return;
     }
-    if (wire_put_entity_update(tx_frame(), recs, count)) {
+    m.count = count;
+    memcpy(m.recs, recs, sizeof(recs[0]) * (size_t)count);
+    if (wire_put_entity_update(tx_frame(), &m)) {
         tx_send(sock);
     }
 }
@@ -449,8 +456,8 @@ void broadcast_nearby_entities(Client *c, NPC *npcs) {
                 nrec = 0;
             }
             recs[nrec].entity_id = n->entity_id;
-            recs[nrec].x = (int16_t)n->x;
-            recs[nrec].y = (int16_t)n->y;
+            recs[nrec].x = n->x;
+            recs[nrec].y = n->y;
             recs[nrec].hp = n->hp; /*int32_t: boss HP can exceed int16*/
             nrec++;
         }
@@ -514,8 +521,8 @@ void broadcast_nearby_entities(Client *c, NPC *npcs) {
             } else {
                 EntityUpdateRec pr;
                 pr.entity_id = g_clients[i].entity_id;
-                pr.x = (int16_t)g_clients[i].x;
-                pr.y = (int16_t)g_clients[i].y;
+                pr.x = g_clients[i].x;
+                pr.y = g_clients[i].y;
                 pr.hp = g_clients[i].hp;
                 flush_entity_batch(c->sock, &pr, 1);
             }
@@ -570,8 +577,8 @@ void broadcast_player_state(Client *c) {
    * MsgState.*/
     EntityUpdateRec rec;
     rec.entity_id = c->entity_id;
-    rec.x = (int16_t)c->x;
-    rec.y = (int16_t)c->y;
+    rec.x = c->x;
+    rec.y = c->y;
     rec.hp = c->hp;
 
     for (int i = 0; i < MAX_CLIENTS; i++) {

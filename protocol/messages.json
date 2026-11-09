@@ -1,0 +1,844 @@
+{
+  "$comment": "The Dragon GL wire protocol, one table for everything: tools/gen_protocol.py generates the C structs and codec (include/wire_gen.h, src/shared/wire_gen.c), the C conformance test (tests/test_protocol_conformance.c), the test vectors (tests/protocol_vectors.json) and the message sections of PROTOCOL.md; tests/integration/dglproto.py reads it at run time. Edit this file, then run tools/gen_protocol.py.",
+  "version": 5,
+  "constants": {
+    "PROTO_NAME_LEN": {
+      "value": 32,
+      "doc": "username, equipment and item names (field size, NUL included)"
+    },
+    "PROTO_SECRET_LEN": {
+      "value": 64,
+      "doc": "personal and server passwords"
+    },
+    "PROTO_TEXT_LEN": {
+      "value": 256,
+      "doc": "MSG_TEXT and MSG_TEXT_CMD"
+    },
+    "PROTO_REASON_LEN": {
+      "value": 128,
+      "doc": "MSG_AUTH_FAIL"
+    },
+    "WIRE_MAX_CHUNK_SIDE": {
+      "value": 256,
+      "doc": "largest side of a MSG_MAP_CHUNK rectangle"
+    },
+    "WIRE_MAX_ENTITY_RECS": {
+      "value": 4096,
+      "doc": "most records in one MSG_ENTITY_UPDATE"
+    }
+  },
+  "external": {
+    "MAP_WIDTH": {
+      "value": 300,
+      "header": "map.h"
+    },
+    "MAP_HEIGHT": {
+      "value": 300,
+      "header": "map.h"
+    },
+    "VOXEL_COUNT": {
+      "value": 28,
+      "header": "map.h"
+    },
+    "COMBAT_EV_MAX": {
+      "value": 8,
+      "header": "protocol.h"
+    }
+  },
+  "records": {
+    "EntityUpdateRec": {
+      "doc": "Position and HP of one entity.",
+      "fields": [
+        {
+          "name": "entity_id",
+          "type": "i32"
+        },
+        {
+          "name": "x",
+          "type": "i16"
+        },
+        {
+          "name": "y",
+          "type": "i16"
+        },
+        {
+          "name": "hp",
+          "type": "i32"
+        }
+      ]
+    }
+  },
+  "messages": [
+    {
+      "id": 1,
+      "name": "LOGIN",
+      "struct": "MsgLogin",
+      "dir": "C2S",
+      "doc": "Authentication, and the creation choices of a new character",
+      "notes": "The creation fields are used only when the character does not exist yet; the ability scores of a new character are rolled by the server.",
+      "fields": [
+        {
+          "name": "username",
+          "type": "str",
+          "cap": "PROTO_NAME_LEN",
+          "doc": "`[A-Za-z0-9_]{1,16}`, or `dm` for the Dungeon Master"
+        },
+        {
+          "name": "password",
+          "type": "str",
+          "cap": "PROTO_SECRET_LEN",
+          "doc": "Personal password (1-63 printable characters), verified with Argon2id"
+        },
+        {
+          "name": "server_pass",
+          "type": "str",
+          "cap": "PROTO_SECRET_LEN",
+          "doc": "Server access password (8-63 characters)"
+        },
+        {
+          "name": "race_id",
+          "type": "i8",
+          "doc": "RaceType"
+        },
+        {
+          "name": "subrace_id",
+          "type": "i8",
+          "doc": "SubraceType, -1 = none"
+        },
+        {
+          "name": "class_id",
+          "type": "i8",
+          "doc": "ClassType"
+        },
+        {
+          "name": "alignment",
+          "type": "i8",
+          "doc": "Alignment"
+        }
+      ],
+      "examples": [
+        {
+          "username": "alice",
+          "password": "secret",
+          "server_pass": "gate-pass",
+          "race_id": 2,
+          "subrace_id": -1,
+          "class_id": 11,
+          "alignment": 4
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "WELCOME",
+      "struct": "MsgWelcome",
+      "dir": "S2C",
+      "doc": "Login accepted: entity id, position, vital stats",
+      "fields": [
+        {
+          "name": "entity_id",
+          "type": "i32"
+        },
+        {
+          "name": "x",
+          "type": "i32"
+        },
+        {
+          "name": "y",
+          "type": "i32"
+        },
+        {
+          "name": "is_new",
+          "type": "bool",
+          "doc": "the character was just created"
+        },
+        {
+          "name": "hp",
+          "type": "i32"
+        },
+        {
+          "name": "max_hp",
+          "type": "i32"
+        },
+        {
+          "name": "gold",
+          "type": "u64"
+        },
+        {
+          "name": "race_id",
+          "type": "i8"
+        },
+        {
+          "name": "subrace_id",
+          "type": "i8"
+        },
+        {
+          "name": "class_id",
+          "type": "i8"
+        },
+        {
+          "name": "level",
+          "type": "i32"
+        },
+        {
+          "name": "alignment",
+          "type": "i8"
+        }
+      ],
+      "examples": [
+        {
+          "entity_id": 1001,
+          "x": 150,
+          "y": 151,
+          "is_new": 1,
+          "hp": 12,
+          "max_hp": 12,
+          "gold": 5000000000,
+          "race_id": 1,
+          "subrace_id": 0,
+          "class_id": 3,
+          "level": 1,
+          "alignment": -2
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "MOVE",
+      "struct": "MsgMove",
+      "dir": "C2S",
+      "doc": "One step `(dx, dy)`",
+      "fields": [
+        {
+          "name": "dx",
+          "type": "i8",
+          "min": -1,
+          "max": 1
+        },
+        {
+          "name": "dy",
+          "type": "i8",
+          "min": -1,
+          "max": 1
+        }
+      ],
+      "examples": [
+        {
+          "dx": 1,
+          "dy": -1
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "STATE",
+      "struct": "MsgState",
+      "dir": "S2C",
+      "doc": "Full character sheet, or the identity of an entity seen for the first time",
+      "notes": "A state with `hp <= 0` for another entity removes it from the client (it died or left the floor).",
+      "fields": [
+        {
+          "name": "gold",
+          "type": "u64"
+        },
+        {
+          "name": "entity_id",
+          "type": "i32"
+        },
+        {
+          "name": "x",
+          "type": "i32"
+        },
+        {
+          "name": "y",
+          "type": "i32"
+        },
+        {
+          "name": "hp",
+          "type": "i32"
+        },
+        {
+          "name": "max_hp",
+          "type": "i32"
+        },
+        {
+          "name": "floor_id",
+          "type": "i32"
+        },
+        {
+          "name": "game_hour",
+          "type": "i32"
+        },
+        {
+          "name": "game_min",
+          "type": "i32"
+        },
+        {
+          "name": "total_turns",
+          "type": "i32"
+        },
+        {
+          "name": "str",
+          "type": "i32"
+        },
+        {
+          "name": "dex",
+          "type": "i32"
+        },
+        {
+          "name": "con",
+          "type": "i32"
+        },
+        {
+          "name": "intel",
+          "type": "i32"
+        },
+        {
+          "name": "wis",
+          "type": "i32"
+        },
+        {
+          "name": "cha",
+          "type": "i32"
+        },
+        {
+          "name": "movement_cooldown",
+          "type": "f32",
+          "doc": "seconds between two steps"
+        },
+        {
+          "name": "equipped_mask",
+          "type": "i32"
+        },
+        {
+          "name": "level",
+          "type": "i32"
+        },
+        {
+          "name": "xp",
+          "type": "i32"
+        },
+        {
+          "name": "vision_radius",
+          "type": "i32"
+        },
+        {
+          "name": "ac",
+          "type": "i32"
+        },
+        {
+          "name": "status_icons",
+          "type": "u32",
+          "doc": "bitmask of status icons"
+        },
+        {
+          "name": "weapon_name",
+          "type": "str",
+          "cap": "PROTO_NAME_LEN"
+        },
+        {
+          "name": "armor_name",
+          "type": "str",
+          "cap": "PROTO_NAME_LEN"
+        },
+        {
+          "name": "to_hit",
+          "type": "i32"
+        },
+        {
+          "name": "to_dmg",
+          "type": "i32"
+        },
+        {
+          "name": "bosses_defeated",
+          "type": "u32",
+          "doc": "bitmask of the 10 bosses"
+        },
+        {
+          "name": "hunger_level",
+          "type": "i32"
+        },
+        {
+          "name": "spell_slots",
+          "type": "i32",
+          "count": 10
+        },
+        {
+          "name": "spell_slots_max",
+          "type": "i32",
+          "count": 10
+        },
+        {
+          "name": "eq_head",
+          "type": "str",
+          "cap": "PROTO_NAME_LEN"
+        },
+        {
+          "name": "eq_neck",
+          "type": "str",
+          "cap": "PROTO_NAME_LEN"
+        },
+        {
+          "name": "eq_body",
+          "type": "str",
+          "cap": "PROTO_NAME_LEN"
+        },
+        {
+          "name": "eq_back",
+          "type": "str",
+          "cap": "PROTO_NAME_LEN"
+        },
+        {
+          "name": "eq_hand_r",
+          "type": "str",
+          "cap": "PROTO_NAME_LEN"
+        },
+        {
+          "name": "eq_hand_l",
+          "type": "str",
+          "cap": "PROTO_NAME_LEN"
+        },
+        {
+          "name": "eq_hands",
+          "type": "str",
+          "cap": "PROTO_NAME_LEN"
+        },
+        {
+          "name": "eq_arm_r",
+          "type": "str",
+          "cap": "PROTO_NAME_LEN"
+        },
+        {
+          "name": "eq_arm_l",
+          "type": "str",
+          "cap": "PROTO_NAME_LEN"
+        },
+        {
+          "name": "eq_feet",
+          "type": "str",
+          "cap": "PROTO_NAME_LEN"
+        },
+        {
+          "name": "eq_ring",
+          "type": "str",
+          "cap": "PROTO_NAME_LEN",
+          "count": 10
+        },
+        {
+          "name": "eq_belt",
+          "type": "str",
+          "cap": "PROTO_NAME_LEN",
+          "count": 4
+        },
+        {
+          "name": "is_merchant",
+          "type": "bool"
+        },
+        {
+          "name": "shop_spec",
+          "type": "i8",
+          "doc": "MerchantSpecialization, -1 = not a merchant"
+        },
+        {
+          "name": "is_tombstone",
+          "type": "bool"
+        },
+        {
+          "name": "is_player",
+          "type": "bool"
+        },
+        {
+          "name": "username",
+          "type": "str",
+          "cap": "PROTO_NAME_LEN"
+        }
+      ],
+      "examples": [
+        {
+          "gold": 77,
+          "entity_id": 1001,
+          "x": 10,
+          "y": 20,
+          "hp": 30,
+          "max_hp": 40,
+          "floor_id": 3,
+          "game_hour": 8,
+          "game_min": 30,
+          "total_turns": 1234,
+          "str": 15,
+          "dex": 14,
+          "con": 13,
+          "intel": 12,
+          "wis": 10,
+          "cha": 8,
+          "movement_cooldown": 0.25,
+          "equipped_mask": 5,
+          "level": 4,
+          "xp": 2700,
+          "vision_radius": 6,
+          "ac": 16,
+          "status_icons": 3,
+          "weapon_name": "Longsword",
+          "armor_name": "Chain Mail",
+          "to_hit": 5,
+          "to_dmg": 3,
+          "bosses_defeated": 1,
+          "hunger_level": 2,
+          "spell_slots": [
+            4,
+            3,
+            2,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "spell_slots_max": [
+            4,
+            3,
+            3,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "eq_head": "",
+          "eq_neck": "Amulet",
+          "eq_body": "Chain Mail",
+          "eq_back": "",
+          "eq_hand_r": "Longsword",
+          "eq_hand_l": "Shield",
+          "eq_hands": "",
+          "eq_arm_r": "",
+          "eq_arm_l": "",
+          "eq_feet": "Boots",
+          "eq_ring": [
+            "Ring of Protection",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            ""
+          ],
+          "eq_belt": [
+            "Potion of Healing",
+            "",
+            "",
+            ""
+          ],
+          "is_merchant": 0,
+          "shop_spec": -1,
+          "is_tombstone": 0,
+          "is_player": 1,
+          "username": "alice"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "MAP_CHUNK",
+      "struct": "MsgMapChunk",
+      "dir": "S2C",
+      "doc": "A rectangle of floor tiles",
+      "notes": "The tiles follow row by row; they stay in the payload buffer (`tiles` points into it after decoding).",
+      "fields": [
+        {
+          "name": "start_x",
+          "type": "i16",
+          "min": 0
+        },
+        {
+          "name": "start_y",
+          "type": "i16",
+          "min": 0
+        },
+        {
+          "name": "width",
+          "type": "i16",
+          "min": 1,
+          "max": "WIRE_MAX_CHUNK_SIDE"
+        },
+        {
+          "name": "height",
+          "type": "i16",
+          "min": 1,
+          "max": "WIRE_MAX_CHUNK_SIDE"
+        },
+        {
+          "name": "tiles",
+          "type": "bytes",
+          "length": "width * height",
+          "max": "VOXEL_COUNT - 1",
+          "doc": "`VoxelType` of every tile"
+        }
+      ],
+      "checks": [
+        {
+          "expr": "start_x + width <= MAP_WIDTH",
+          "doc": "the rectangle lies inside the map"
+        },
+        {
+          "expr": "start_y + height <= MAP_HEIGHT",
+          "doc": "the rectangle lies inside the map"
+        }
+      ],
+      "examples": [
+        {
+          "start_x": 10,
+          "start_y": 20,
+          "width": 3,
+          "height": 2,
+          "tiles": [
+            0,
+            1,
+            2,
+            3,
+            27,
+            5
+          ]
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "TEXT_CMD",
+      "struct": "MsgTextCmd",
+      "dir": "C2S",
+      "doc": "Console command",
+      "notes": "The server replaces control characters with spaces before the command reaches the game.",
+      "fields": [
+        {
+          "name": "cmd",
+          "type": "str",
+          "cap": "PROTO_TEXT_LEN"
+        }
+      ],
+      "examples": [
+        {
+          "cmd": "cast 1 2"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "name": "TEXT",
+      "struct": "MsgText",
+      "dir": "S2C",
+      "doc": "Console output, chat, combat log",
+      "fields": [
+        {
+          "name": "text",
+          "type": "str",
+          "cap": "PROTO_TEXT_LEN"
+        }
+      ],
+      "examples": [
+        {
+          "text": "[WHO] 1 player(s) online"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "name": "AUTH_FAIL",
+      "struct": "MsgAuthFail",
+      "dir": "S2C",
+      "doc": "Why the login or the connection was refused",
+      "fields": [
+        {
+          "name": "reason",
+          "type": "str",
+          "cap": "PROTO_REASON_LEN"
+        }
+      ],
+      "examples": [
+        {
+          "reason": "Server full: try again later."
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "name": "SPELL_VFX",
+      "struct": "MsgSpellVFX",
+      "dir": "S2C",
+      "doc": "Spell visual effect",
+      "fields": [
+        {
+          "name": "start_x",
+          "type": "i16"
+        },
+        {
+          "name": "start_y",
+          "type": "i16"
+        },
+        {
+          "name": "target_x",
+          "type": "i16"
+        },
+        {
+          "name": "target_y",
+          "type": "i16"
+        },
+        {
+          "name": "vfx_type",
+          "type": "u8",
+          "doc": "0 burst, 1 explosion, 2 aura, 3 ray, 4 storm"
+        },
+        {
+          "name": "color_r",
+          "type": "unit8",
+          "doc": "colour channel 0..1 as 0-255"
+        },
+        {
+          "name": "color_g",
+          "type": "unit8"
+        },
+        {
+          "name": "color_b",
+          "type": "unit8"
+        }
+      ],
+      "examples": [
+        {
+          "start_x": 5,
+          "start_y": 6,
+          "target_x": 7,
+          "target_y": -8,
+          "vfx_type": 1,
+          "color_r": 1.0,
+          "color_g": 0.5019608,
+          "color_b": 0.0
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "name": "TOMBSTONE_REMOVE",
+      "struct": "MsgTombstoneRemove",
+      "dir": "S2C",
+      "doc": "A tombstone was emptied",
+      "fields": [
+        {
+          "name": "entity_id",
+          "type": "i32",
+          "doc": "tombstone id (negative)"
+        }
+      ],
+      "examples": [
+        {
+          "entity_id": -3
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "name": "TIME_SYNC",
+      "struct": "MsgTimeSync",
+      "dir": "S2C",
+      "doc": "Game clock",
+      "fields": [
+        {
+          "name": "game_hour",
+          "type": "u8",
+          "max": 23
+        },
+        {
+          "name": "game_min",
+          "type": "u8",
+          "max": 59
+        },
+        {
+          "name": "total_turns",
+          "type": "i32"
+        }
+      ],
+      "examples": [
+        {
+          "game_hour": 23,
+          "game_min": 59,
+          "total_turns": 100000
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "name": "ENTITY_UPDATE",
+      "struct": "MsgEntityUpdate",
+      "dir": "S2C",
+      "doc": "Position and HP of entities already known to the client",
+      "notes": "Only entities the client already received a `MSG_STATE` for; unknown ids are ignored.",
+      "fields": [
+        {
+          "name": "recs",
+          "type": "records",
+          "record": "EntityUpdateRec",
+          "count_type": "u16",
+          "min": 1,
+          "max": "WIRE_MAX_ENTITY_RECS",
+          "count_name": "count"
+        }
+      ],
+      "examples": [
+        {
+          "recs": [
+            {
+              "entity_id": 1,
+              "x": 2,
+              "y": 3,
+              "hp": 4
+            },
+            {
+              "entity_id": -5,
+              "x": 299,
+              "y": 0,
+              "hp": -1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "name": "COMBAT_EVENT",
+      "struct": "MsgCombatEvent",
+      "dir": "S2C",
+      "doc": "What the floating combat text shows",
+      "notes": "`kind`: 1 the player took damage (amount = HP lost), 2 the player hit a monster (`entity_id`, damage), 3 critical hit on a monster, 4 a monster missed the player, 5 the player missed, 6 the player recovered HP, 7 the player picked up gold, 8 level up (amount = new level). The client draws floating combat text from these events, never from the wording of `MSG_TEXT` lines.",
+      "fields": [
+        {
+          "name": "kind",
+          "type": "u8",
+          "min": 1,
+          "max": "COMBAT_EV_MAX",
+          "doc": "CombatEventKind"
+        },
+        {
+          "name": "entity_id",
+          "type": "i32"
+        },
+        {
+          "name": "amount",
+          "type": "i32"
+        }
+      ],
+      "examples": [
+        {
+          "kind": 2,
+          "entity_id": 4242,
+          "amount": 17
+        }
+      ]
+    }
+  ]
+}

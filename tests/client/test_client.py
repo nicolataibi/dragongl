@@ -16,6 +16,7 @@ Environment:
 
 import glob
 import os
+import re
 import shutil
 import socket
 import subprocess
@@ -131,18 +132,24 @@ class ClientSmokeTest(unittest.TestCase):
         path = log.name
         self.assertTrue(wait_for(lambda: "Server ready!" in self.read(path), 120),
                         "the server did not start")
+        self.server_fingerprint = re.search(r"TLS fingerprint: (SHA256:[0-9A-F:]+)",
+                                            self.read(path)).group(1)
         return proc, port
 
-    def start_client(self, port, name):
+    def start_client(self, port, name, config=None, extra_args=()):
+        """The client, with its own known_servers under `config` (a new
+        directory by default: the first connection records the server)."""
         out = open(os.path.join(self.tmp, name + ".log"), "wb")
+        if config is None:
+            config = tempfile.mkdtemp(dir=self.tmp)
         env = dict(os.environ, DISPLAY=self.display_name,
                    VK_ICD_FILENAMES=lavapipe_icd(), VK_DRIVER_FILES=lavapipe_icd(),
                    VK_INSTANCE_LAYERS="VK_LAYER_KHRONOS_validation",
-                   DRAGONGL_WINDOW="1280x800")
+                   DRAGONGL_WINDOW="1280x800", XDG_CONFIG_HOME=config)
         # server password, name, password, new character, race, subrace,
         # class, sex, alignment
         answers = "%s\n%s\npw-%s\n1\n0\n-1\n0\nM\n0\n" % (GATE, name, name)
-        proc = subprocess.Popen([CLIENT, "127.0.0.1", str(port)], env=env,
+        proc = subprocess.Popen([CLIENT] + list(extra_args) + ["127.0.0.1", str(port)], env=env,
                                 stdin=subprocess.PIPE, stdout=out,
                                 stderr=subprocess.STDOUT)
         proc.stdin.write(answers.encode())
@@ -244,6 +251,48 @@ class ClientSmokeTest(unittest.TestCase):
             self.fail("Escape did not close the client")
         self.assertEqual(status, 0, self.read(log)[-2000:])
         self.assert_no_validation_errors(log)
+
+    def test_server_certificate_is_pinned_on_first_use(self):
+        """The first connection records the server fingerprint; the next
+        one finds it; a changed certificate or a wrong --fingerprint is
+        refused before any password leaves the client."""
+        _server, port = self.start_server()
+        config = tempfile.mkdtemp(dir=self.tmp)
+        hex_fp = self.server_fingerprint[7:].replace(":", "").lower()
+
+        first, log = self.start_client(port, "pioneer", config)
+        self.assertTrue(wait_for(lambda: "Authentication completed" in self.read(log), 60),
+                        self.read(log)[-2000:])
+        self.assertIn("First connection to 127.0.0.1 port %d" % port, self.read(log))
+        self.assertIn(self.server_fingerprint, self.read(log))
+        known = os.path.join(config, "dragongl", "known_servers")
+        with open(known) as f:
+            self.assertIn("127.0.0.1 %d %s" % (port, hex_fp), f.read())
+        self.assertEqual(os.stat(known).st_mode & 0o777, 0o600)
+        self.stop(first)
+
+        second, log = self.start_client(port, "pioneer", config)
+        self.assertTrue(wait_for(lambda: "Authentication completed" in self.read(log), 60))
+        self.assertIn("[NET] Known server", self.read(log))
+        self.stop(second)
+
+        with open(known, "w") as f:
+            f.write("127.0.0.1 %d %s\n" % (port, "ab" * 32))
+        changed, log = self.start_client(port, "pioneer", config)
+        self.assertEqual(changed.wait(30), 1)
+        self.assertIn("THE SERVER CERTIFICATE HAS CHANGED", self.read(log))
+        self.assertNotIn("Authentication completed", self.read(log))
+
+        wrong, log = self.start_client(port, "pioneer", None, ("--fingerprint", "cd" * 32))
+        self.assertEqual(wrong.wait(30), 1)
+        self.assertIn("not the one given with --fingerprint", self.read(log))
+
+        given, log = self.start_client(port, "pioneer", config,
+                                       ("--fingerprint", self.server_fingerprint))
+        self.assertTrue(wait_for(lambda: "Authentication completed" in self.read(log), 60))
+        self.assertIn("matches the given fingerprint", self.read(log))
+        with open(known) as f:
+            self.assertIn("127.0.0.1 %d %s" % (port, hex_fp), f.read())
 
     def test_client_exits_when_the_server_stops(self):
         server, port = self.start_server()

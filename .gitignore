@@ -9,6 +9,8 @@ saves/
 __pycache__/
 
 # others
+*.orig
+*.rej
 *.o
 *.d
 *.tar.gz

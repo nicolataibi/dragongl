@@ -13,6 +13,10 @@ dragongl_server \- Dragon GL master game server
 .IR file ]
 .RB [ \-\-dm\-password\-file
 .IR file ]
+.RB [ \-\-tls\-cert
+.I file
+.B \-\-tls\-key
+.IR file ]
 .RB [ \-h | \-\-help ]
 .RB [ \-V | \-\-version ]
 .SH DESCRIPTION
@@ -20,7 +24,7 @@ dragongl_server \- Dragon GL master game server
 is the authoritative server of the Dragon GL client/server dungeon crawler.
 It generates and maintains the master world (a 300x300 dungeon spanning
 101 floors), runs monster AI, resolves combat, and synchronizes the game
-state with all connected clients over TCP.
+state with all connected clients over TLS 1.3.
 .PP
 The server listens on port
 .B 8080
@@ -51,8 +55,13 @@ Usernames are restricted to 1\(en16 alphanumeric/underscore characters
 Control characters are removed from text commands, so chat cannot carry
 terminal escape sequences.
 .IP \- 2
-The protocol is NOT encrypted: passwords travel in clear over TCP. Use the
-server on a trusted LAN, or behind a VPN or TLS tunnel.
+Every connection is TLS 1.3 with the ALPN protocol
+.BR dragongl/@DRAGONGL_PROTOCOL_VERSION@ ;
+older TLS versions, plaintext connections and clients of another
+protocol version fail the handshake. The server logs the SHA-256
+fingerprint of its certificate at start-up: give it to the players, so
+they can check it at their first connection (clients record it and refuse
+a different certificate later).
 .SH OPTIONS
 .TP
 .BR \-P ", " \-\-port " \fIport\fR"
@@ -90,6 +99,16 @@ A warning is printed if the file is readable by group or others.
 .BI \-\-dm\-password\-file " file"
 Read the Dungeon Master password from the first line of
 .IR file .
+.TP
+.BI \-\-tls\-cert " file" " \-\-tls\-key " file
+The TLS certificate (PEM, followed by its chain if any) and its private
+key. Both or neither: without them the server uses
+.I tls/server.crt
+and
+.I tls/server.key
+of the state directory, and creates them at the first start (an ECDSA
+P-256 key and a self-signed certificate for the host name, valid 10
+years). A warning is printed if the key is readable by group or others.
 .TP
 .BR \-h ", " \-\-help
 Show a short help message and exit.
@@ -157,6 +176,15 @@ Tactical combat log (rotated to combat_log.json.1).
 .TP
 .I server.lock
 Locked by the running server.
+.TP
+.IR tls/server.crt ", " tls/server.key
+The server's TLS identity, created at the first start (key mode 0600,
+directory 0700). Keep them with the world: with a new certificate every
+client refuses the server until the player removes its entry from
+.IR known_servers ;
+removing both files makes the server create a new identity. Its
+fingerprint:
+.B openssl x509 \-in tls/server.crt \-noout \-fingerprint \-sha256
 .SH SYSTEMD SERVICE
 The package installs
 .BR dragongl-server.service ,
@@ -171,7 +199,18 @@ and a strict sandbox. Its environment file
 .B DRAGONGL_DM_PASSWORD
 and
 .B DRAGONGL_SERVER_ARGS
-(extra options). Start it with
+(extra options). The TLS identity is created in
+.IR /var/lib/dragongl/tls .
+A certificate of your own goes in through systemd credentials, since the
+dynamic user cannot read files of other users: a drop-in with
+.B LoadCredential=tls.crt:/etc/dragongl/tls.crt
+and
+.BR LoadCredential=tls.key:/etc/dragongl/tls.key ,
+and
+.B "\-\-tls\-cert /run/credentials/dragongl-server.service/tls.crt \-\-tls\-key /run/credentials/dragongl-server.service/tls.key"
+in
+.BR DRAGONGL_SERVER_ARGS .
+Start it with
 .BR "systemctl enable \-\-now dragongl-server" ;
 stop it before running
 .BR "dragongl-reset-world \-S /var/lib/dragongl" .

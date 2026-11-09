@@ -19,6 +19,11 @@ endif()
 set(DRAGONGL_RELEASE_DATE "${CMAKE_MATCH_1}-${CMAKE_MATCH_2}-${CMAKE_MATCH_3}")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${DRAGONGL_ROOT}/dragongl.spec")
 
+# Protocol version (the man pages name the ALPN protocol): protocol/messages.json.
+file(STRINGS "${DRAGONGL_ROOT}/protocol/messages.json" _dgl_proto_line REGEX "^  \"version\":")
+string(REGEX REPLACE "^  \"version\": *([0-9]+).*$" "\\1" DRAGONGL_PROTOCOL_VERSION "${_dgl_proto_line}")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${DRAGONGL_ROOT}/protocol/messages.json")
+
 # --- Source lists ----------------------------------------------------------------
 # One list each, used by the main project, the integration tests and the fuzz
 # targets, so a new translation unit is added in one place.
@@ -32,6 +37,7 @@ set(DRAGONGL_SHARED_SRCS
     "${DRAGONGL_ROOT}/src/shared/binio.c"
     "${DRAGONGL_ROOT}/src/shared/wire.c"
     "${DRAGONGL_ROOT}/src/shared/strnum.c"
+    "${DRAGONGL_ROOT}/src/shared/tls_common.c"
 )
 set(DRAGONGL_SERVER_SRCS
     "${DRAGONGL_ROOT}/src/server/main_server.c"
@@ -59,6 +65,8 @@ set(DRAGONGL_SERVER_SRCS
     "${DRAGONGL_ROOT}/src/server/cmd_dm.c"
     "${DRAGONGL_ROOT}/src/server/spell_router.c"
     "${DRAGONGL_ROOT}/src/server/tombstone.c"
+    "${DRAGONGL_ROOT}/src/server/server_tls.c"
+    "${DRAGONGL_ROOT}/src/server/server_options.c"
 )
 
 # --- Compiler flags -----------------------------------------------------------

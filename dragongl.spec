@@ -4,7 +4,7 @@
 %global toolchain clang
 
 Name:           dragongl
-Version:        2026.11.08.16
+Version:        2026.11.09.02
 Release:        %autorelease
 Summary:        Multi-user 3D dungeon RPG: Vulkan client
 
@@ -20,8 +20,10 @@ BuildRequires:  glslc
 BuildRequires:  pkgconfig(glfw3)
 BuildRequires:  pkgconfig(vulkan)
 BuildRequires:  pkgconfig(libsodium)
+# TLS 1.3 between client and server
+BuildRequires:  pkgconfig(openssl)
 BuildRequires:  python3
-# %check: tools/check_data.py validates data/*.json against data/schema.
+# Needed by tools/check_data.py (check section): data/*.json against data/schema.
 BuildRequires:  python3-jsonschema
 BuildRequires:  systemd-rpm-macros
 
@@ -45,7 +47,9 @@ Recommends:     %{name}-tools = %{version}-%{release}
 
 %description server
 The authoritative Dragon GL game server: world simulation, NPC AI, combat,
-persistence of characters and world. It needs no graphics stack. A systemd
+persistence of characters and world. Clients connect over TLS 1.3: the
+server creates its own certificate at the first start, or uses the one
+it is given. It needs no graphics stack. A systemd
 unit (dragongl-server.service, disabled by default) runs it as an
 unprivileged dynamic user with its state in /var/lib/dragongl; passwords
 go in its configuration file in /etc/dragongl.

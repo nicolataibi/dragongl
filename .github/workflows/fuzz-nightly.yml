@@ -30,7 +30,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            clang libclang-rt-18-dev cmake ninja-build pkg-config libsodium-dev python3
+            clang libclang-rt-18-dev cmake ninja-build pkg-config libsodium-dev libssl-dev python3
 
       # The corpus grows across nights; a new key every run, restored from
       # the most recent one.

@@ -44,6 +44,8 @@ Checks
   data            tools/check_data.py: schema, references, canonical form of data/
   metrics         tools/metrics.py: function and file length, coverage, against
                   the limits of tools/quality_limits.json
+  protocol        tools/gen_protocol.py --check: the files generated from
+                  protocol/messages.json are up to date
   coverage        unit + integration suites with llvm-cov instrumentation;
                   report in build-quality/coverage/, fails under the
                   coverage_line_percent of tools/quality_limits.json
@@ -51,7 +53,7 @@ Checks
   fuzz [SECONDS]  build the libFuzzer targets of tests/fuzz, write their seeds
                   and run each for SECONDS (default 60); crashes are saved
                   in build-quality/fuzz/artifacts/
-  all             format tidy data coverage metrics tsan, then fuzz 30
+  all             format protocol tidy data coverage metrics tsan, then fuzz 30
 
 Options
   -j N            parallel jobs (default: number of CPUs)
@@ -141,6 +143,11 @@ check_tidy() {
 check_data() {
     section "game data"
     python3 "$ROOT/tools/check_data.py"
+}
+
+check_protocol() {
+    section "generated protocol files"
+    python3 "$ROOT/tools/gen_protocol.py" --check
 }
 
 check_metrics() {
@@ -258,8 +265,8 @@ main() {
         fuzz)
             if [[ ${2:-} =~ ^[0-9]+$ ]]; then checks+=("fuzz:$2"); shift; else checks+=(fuzz:60); fi
             ;;
-        all) checks+=(format tidy data coverage metrics tsan fuzz:30) ;;
-        format | format-fix | tidy | data | metrics | coverage | tsan) checks+=("$1") ;;
+        all) checks+=(format protocol tidy data coverage metrics tsan fuzz:30) ;;
+        format | format-fix | tidy | data | metrics | protocol | coverage | tsan) checks+=("$1") ;;
         *) usage >&2; die "unknown check '$1'" ;;
         esac
         shift
@@ -275,6 +282,7 @@ main() {
         tidy) check_tidy ;;
         data) check_data ;;
         metrics) check_metrics ;;
+        protocol) check_protocol ;;
         coverage) check_coverage ;;
         tsan) check_tsan ;;
         fuzz:*) check_fuzz "${c#fuzz:}" ;;

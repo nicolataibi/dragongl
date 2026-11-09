@@ -3,7 +3,7 @@
 dragongl_client \- Dragon GL 3D game client
 .SH SYNOPSIS
 .B dragongl_client
-[\fIserver_host\fR [\fIport\fR]]
+[\fB\-\-fingerprint\fR \fIsha256\fR] [\fIserver_host\fR [\fIport\fR]]
 .br
 .B dragongl_client
 .BR \-h " | " \-\-help " | " \-V " | " \-\-version
@@ -41,6 +41,20 @@ When the server closes the connection, stops answering (TCP keepalive,
 about 90 s) or sends a message the client cannot decode, the client prints
 the reason and exits. Server and client must speak the same protocol
 version.
+.SS Server identity
+The connection is TLS 1.3. Before it sends the login, the client accepts
+the server when its certificate has the fingerprint given with
+.BR \-\-fingerprint ,
+when an authority the system trusts signed it for
+.IR server_host ,
+or when
+.I known_servers
+(below) records that fingerprint for the host and port. At the first
+connection to a server with a self-signed certificate the client prints
+its fingerprint and records it: compare it with the one the server owner
+gives you (the server logs it at start-up). From then on a different
+certificate is refused with a warning that names the line to remove if the
+owner confirms the change.
 .SH ARGUMENTS
 .TP
 .I server_host
@@ -49,6 +63,13 @@ name resolves to is tried, 5 s each).
 .TP
 .I port
 TCP port of the game server (default 8080).
+.SH OPTIONS
+.TP
+.BI \-\-fingerprint " sha256"
+Trust only the server certificate with this SHA-256 fingerprint
+(\fBSHA256:AB:CD:...\fR, or 64 hexadecimal digits) and record it in
+.IR known_servers ,
+replacing an older entry for that server.
 .SH ENVIRONMENT
 .TP
 .B DRAGONGL_WINDOW
@@ -77,6 +98,14 @@ names the system does not provide are skipped with a warning.
 .TP
 .I @DRAGONGL_PKGDATADIR@/shaders/*.spv
 Compiled shaders.
+.TP
+.I $XDG_CONFIG_HOME/dragongl/known_servers
+Servers trusted by fingerprint
+.RI ( ~/.config/dragongl/known_servers
+without
+.BR XDG_CONFIG_HOME ):
+one line per server, \fIhost port sha256\fR, created with mode 0600.
+Remove a line to accept a new certificate of that server.
 .SH SEE ALSO
 .BR dragongl-client (1),
 .BR dragongl_server (1)

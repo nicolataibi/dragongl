@@ -1,3 +1,159 @@
+* Mon Nov 09 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.09.02
+- SECURITY: every connection is TLS 1.3 (OpenSSL 3): passwords, chat and
+  game state no longer travel in clear. TLS 1.2 and older, compression and
+  renegotiation are refused; there are no session tickets.
+- SECURITY: the server's identity. Without --tls-cert/--tls-key the server
+  creates tls/server.key (ECDSA P-256, mode 0600, in a 0700 directory) and
+  a self-signed tls/server.crt for the host name (10 years) in its state
+  directory at the first start, and logs the SHA-256 fingerprint at every
+  start. A certificate without its key, or one option without the other,
+  stops the server with exit status 2; a key readable by group or others
+  is used with a warning, as the password files are.
+- SECURITY: the client authenticates the server before it sends the
+  login. It accepts a server whose certificate has the fingerprint given
+  with the new --fingerprint option, or is signed by an authority the
+  system trusts for the host name typed, or is recorded in
+  ~/.config/dragongl/known_servers ($XDG_CONFIG_HOME/dragongl); the first
+  connection to a self-signed server prints the fingerprint and records
+  it (trust on first use, as SSH). A changed certificate is refused with
+  a warning that names the file and line to remove.
+- PROTOCOL: version 5. The version is also the ALPN protocol
+  "dragongl/5": a client or server of another version fails the TLS
+  handshake with a clear message (no_application_protocol), and a client
+  that offers no ALPN protocol is disconnected. The frames are those of v4.
+  Clients and servers of older versions cannot connect.
+- PROTOCOL: one table, protocol/messages.json, defines every message:
+  fields, wire types, sizes, ranges, cross-field checks and an example.
+  tools/gen_protocol.py generates from it the structs
+  (include/protocol_gen.h), the codec (include/wire.h, src/shared/wire.c),
+  a conformance test of the C codec (tests/test_protocol_conformance.c,
+  13 valid and 65 invalid vectors), the vectors for the Python codec
+  (tests/protocol_vectors.json) and sections 2 and 3 of PROTOCOL.md;
+  protocol/codec.py reads the same table for the tests. CI fails on a
+  stale generated file (tools/quality.sh protocol).
+- PROTOCOL: every message has the same codec interface,
+  wire_put_<msg>(w, &msg) and wire_get_<msg>(payload, n, &msg); MsgMapChunk
+  carries its tiles, MsgEntityUpdate its records. Encoders now refuse the
+  values decoders refuse (a tile above the voxel table, a time of day out
+  of range, a step longer than one tile), so neither side can send what
+  the other would drop it for. Each message has its exact maximum payload
+  (WIRE_MAX_PAYLOAD_<MSG>), checked on reception.
+- SERVER: the TLS handshake is driven by the non-blocking loop like any
+  other read or write, and counts against the 10 s login timeout. A
+  connection refused at once (server full, address locked out, too many
+  pending logins) completes the handshake in one of 16 refusal slots and
+  receives its MSG_AUTH_FAIL there within 3 s; beyond 16 it is closed
+  without a reason. Disconnections send close_notify. Bytes TLS decrypted
+  beyond the receive buffer are read as soon as messages make room.
+- SERVER: the command line is in server_options.c, out of main_server.c.
+- TESTS: network tests for TLS: the identity is created once and kept
+  across restarts, the client sees the logged fingerprint, plaintext and
+  TLS 1.2 clients are refused, other ALPN versions fail the handshake,
+  --tls-cert/--tls-key, half an identity and a lone TLS option are
+  refused. The client smoke test checks trust on first use, a known
+  server, a changed certificate and --fingerprint. Unit test test_tls:
+  fingerprints, ALPN and the known_servers store. All network tests now
+  run over TLS, under ASan/UBSan and ThreadSanitizer.
+- TESTS: line coverage 49.6% (was 48.4%): the coverage floor is 49.0%.
+- DOCS: SECURITY.md has a threat model (assets, actors and trust
+  boundaries, threats and mitigations, residual risks). PROTOCOL.md,
+  INSTALL.md ("TLS identity", with systemd credentials for a certificate
+  of your own), HOWTO.md, README.md, BUILD.md, DEVELOPMENT.md and the man
+  pages describe TLS, the fingerprint and the protocol table.
+- PACKAGING: BuildRequires pkgconfig(openssl); CI installs libssl-dev. No
+  RPM macro in a spec comment any more (rpmlint macro-in-comment).
+- GIT: .git-blame-ignore-revs lists the reformatting commit of phase 8.
+  The 2026.11.09.01 entry of this changelog is restored (its patch hunk
+  had been rejected next to the 2026.11.08.16 shader fix), the leftovers
+  of that patch (CHANGELOG.md.orig/.rej, dragongl.spec.orig/.rej) are
+  removed, and .gitignore keeps *.orig and *.rej out of the repository.
+
+* Mon Nov 09 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.09.01
+- QUALITY: every quality criterion of the project has a number measured
+  in CI and a check that protects it. tools/quality.sh runs each gate
+  locally (format, format-fix, tidy, data, metrics, coverage, tsan,
+  fuzz, all) with the clang 18 tools CI pins; tools/quality_limits.json
+  holds the limits, which a change may tighten and never loosen.
+- STYLE: .clang-format (LLVM base, 4 spaces, 100 columns, braces always)
+  and the whole C tree formatted with it once; CI fails on an unformatted
+  file. Vendored cJSON keeps its upstream style. The reformat changes no
+  behavior: the 60 generated floors and the loaded game data were
+  compared byte for byte with the previous release.
+- STATIC ANALYSIS: .clang-tidy (bugprone, cert, clang-analyzer, misc,
+  performance, portability, readability; every finding is an error, each
+  disabled check carries its reason). Zero findings on the server, the
+  client, the shared code, the tests and the fuzz targets; CI runs it.
+- FIX: numbers typed by players and read from the data go through
+  include/strnum.h (parse_int, parse_ll, parse_double, str_to_int,
+  scan_ints) instead of atoi, atoll, atof and sscanf, whose behavior is
+  undefined on overflow: 'dm_gold 99999999999999999999', a huge book or
+  spell index for cast, an overflowing DRAGONGL_WINDOW. dm_gold accepts
+  at most 10^12 in either direction and says so.
+- FIX: the server started without a data file that did not parse (the
+  loader reported the error and went on), and the message itself read
+  the freed text of the file to show where the error was. A data file
+  that cannot be read or parsed now stops the server (exit status 1)
+  with the file name and the line and column of the error.
+- FIX: items are compared field by field (trade offers, empty save
+  slots), not with memcmp, which also compared the padding bytes.
+- CODE: header hygiene (duplicate prototypes and extern redeclarations
+  removed, headers included by name), explicit narrowing conversions,
+  duplicated branches merged, nested ternaries and strcat/strcpy chains
+  rewritten, Italian comments translated, the unused VOXEL_EMPTY and
+  VOXEL_SOLID aliases removed. The shop-ring angle has one definition
+  (city_shop_angle), the floor generator one entry point (floor_init).
+  The source lists of the server and the shared code are defined once in
+  cmake/DragonGL.cmake and used by every CMake project.
+- TESTS: line coverage of src/server and src/shared is measured with
+  llvm-cov over the unit and integration suites, the servers started by
+  the network tests included: 48.4% (functions 75.8%), the floor of the
+  coverage gate. The HTML report is a CI artifact.
+- TESTS: the integration suite also runs under ThreadSanitizer, the
+  network tests with a TSan server: no data race. A sanitizer report
+  (ASan, UBSan, TSan, LSan) in the log of a server started by
+  test_server.py now fails the test; before, only the exit status was
+  looked at and a report could go unnoticed.
+- TESTS: the in-process fixture of the harness (game data, world, NPC
+  table, socketpair players) is shared in tests/integration/fixture.h.
+- FUZZING: tests/fuzz holds three libFuzzer targets built with ASan and
+  UBSan: fuzz_wire (one frame into the decoder of its type), fuzz_persist
+  (a payload, wrapped in a valid container, into the reader of player,
+  NPC, tombstone, flag and world files; or a raw file for the container
+  checks) and fuzz_text_cmd (a MSG_TEXT_CMD into handle_text_cmd, for a
+  player and the DM, in a generated city with its merchants, restored
+  before every input). The targets write their seeds from the encoders
+  of the tree, so no binary file is kept in the repository. CI fuzzes
+  60 s per target, a nightly workflow 20 minutes per target on a corpus
+  kept between runs. About an hour of CPU time found no defect.
+- CI: new jobs for format, game data and metrics, clang-tidy, coverage,
+  ThreadSanitizer and fuzzing; CodeQL code scanning (security-and-quality)
+  on main and weekly; the nightly fuzzing workflow.
+- DATA: data/schema/ holds a JSON Schema (2020-12) for bestiary.json,
+  items.json and spells.json, and tools/check_data.py checks the schema,
+  the references the engine resolves by name (book spells, cast_spell),
+  unique names, the classes of every book against its spells, that every
+  spell is in a book, and the canonical form, the one the Data Studio
+  writes (2-space indentation, UTF-8). Run in CI and in the RPM %check
+  (BuildRequires: python3-jsonschema).
+- DATA: what the checks found is fixed. Two monsters were exact copies of
+  the one before them (Feline Stalker, Silent Night-Hunter) and are gone;
+  the rarity 'VERY RARE' of 9 items is VERY_RARE like the others (Ring of
+  Shooting Stars: its attunement note moved to the properties); costs are
+  numbers, not strings; the 70 items without a description (36 weapons,
+  4 ammunition packs, 30 pieces of gear) have one; the base weapons have
+  their damage type; the Trident deals 1d6 (it was 1d7) and the Longbow
+  is not a 'loading' weapon; weapon properties use one separator.
+- SAVES: npcs.dat stores a fingerprint of the bestiary (format version
+  2). Saved NPCs refer to their monster by index, so a file written for
+  another bestiary (a monster added, removed or renamed) is refused, and
+  the server generates a new world instead of binding NPCs to the wrong
+  monsters. Worlds of the previous release are regenerated once at the
+  first start; characters are kept.
+- DOCS: DEVELOPMENT.md describes the quality checks, the CI jobs and two
+  new contribution rules (numbers from text through strnum.h, data
+  changes with their schema); BUILD.md and CONTRIBUTING.md point to
+  tools/quality.sh.
+
 * Sun Nov 08 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.08.16
 - SHADER: mark gpd_scene_verts SSBO as readonly in the GPD scene vertex
   shader (gpd_scene.vert). Fixes Vulkan validation error

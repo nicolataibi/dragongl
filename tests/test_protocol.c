@@ -1,5 +1,8 @@
 /*
- * DRAGON GL - Unit tests: wire protocol v4 (include/wire.h)
+ * DRAGON GL - Unit tests: wire protocol v5 (include/wire.h)
+ *
+ * Hand-written checks, independent of the message table: the conformance
+ * test generated from it is test_protocol_conformance.c.
  *
  * Every message is encoded and decoded back; the byte layout of the
  * header and of a few payloads is pinned down, and malformed payloads
@@ -36,7 +39,8 @@ static const uint8_t *frame(const BinWriter *w, MsgType type, uint32_t *len) {
 static void test_header_layout(void) {
     BinWriter w;
     bw_init(&w);
-    CHECK(wire_put_tombstone_remove(&w, -3));
+    MsgTombstoneRemove rm = {-3};
+    CHECK(wire_put_tombstone_remove(&w, &rm));
     /* u16 version, u16 type, u32 length, little-endian; then i32 id */
     const uint8_t expect[] = {
         PROTOCOL_VERSION, 0, MSG_TOMBSTONE_REMOVE, 0, 4, 0, 0, 0, 0xFD, 0xFF, 0xFF, 0xFF};
@@ -44,7 +48,7 @@ static void test_header_layout(void) {
     CHECK(memcmp(w.data, expect, sizeof(expect)) == 0);
     bw_free(&w);
     CHECK(WIRE_HEADER_SIZE == 8);
-    CHECK(PROTOCOL_VERSION == 4);
+    CHECK(PROTOCOL_VERSION == 5);
 }
 
 static void test_login(void) {
@@ -103,10 +107,9 @@ static void test_move_and_text_cmd(void) {
     CHECK(!wire_get_move(far, 2, &back)); /* only one step at a time */
 
     bw_reset(&w);
-    char cmd[400];
-    memset(cmd, 'c', sizeof(cmd) - 1);
-    cmd[sizeof(cmd) - 1] = '\0';
-    CHECK(wire_put_text_cmd(&w, cmd)); /* cut to the field */
+    static MsgTextCmd cmd;
+    memset(cmd.cmd, 'c', sizeof(cmd.cmd) - 1); /* the longest command */
+    CHECK(wire_put_text_cmd(&w, &cmd));
     p = frame(&w, MSG_TEXT_CMD, &n);
     CHECK(n == 1 + PROTO_TEXT_LEN - 1);
     CHECK(n <= wire_client_payload_max(MSG_TEXT_CMD));
@@ -168,43 +171,49 @@ static void test_map_chunk(void) {
     for (int i = 0; i < W * H; i++) {
         tiles[i] = (uint8_t)(i % VOXEL_COUNT);
     }
-    MsgMapChunk mc = {290, 296, W, H}, back;
+    MsgMapChunk mc = {290, 296, W, H, tiles}, back;
     BinWriter w;
     bw_init(&w);
-    CHECK(wire_put_map_chunk(&w, &mc, tiles));
+    CHECK(wire_put_map_chunk(&w, &mc));
     uint32_t n;
     const uint8_t *p = frame(&w, MSG_MAP_CHUNK, &n);
     CHECK(n == 8 + W * H);
-    const uint8_t *t = NULL;
-    CHECK(wire_get_map_chunk(p, n, &back, &t));
-    CHECK(back.start_x == 290 && back.width == W && t && memcmp(t, tiles, (size_t)W * H) == 0);
+    CHECK(wire_get_map_chunk(p, n, &back));
+    CHECK(back.start_x == 290 && back.width == W && back.tiles &&
+          memcmp(back.tiles, tiles, (size_t)W * H) == 0);
     /* a tile value past the voxel table, a rectangle outside the map */
     uint8_t copy[8 + W * H];
     memcpy(copy, p, n);
     copy[8 + 5] = VOXEL_COUNT;
-    CHECK(!wire_get_map_chunk(copy, n, &back, &t));
+    CHECK(!wire_get_map_chunk(copy, n, &back));
     memcpy(copy, p, n);
     copy[0] = (uint8_t)295; /* start_x 295 + width 10 > MAP_WIDTH */
-    CHECK(!wire_get_map_chunk(copy, n, &back, &t));
-    MsgMapChunk huge = {0, 0, WIRE_MAX_CHUNK_SIDE + 1, 1};
-    CHECK(!wire_put_map_chunk(&w, &huge, tiles));
+    CHECK(!wire_get_map_chunk(copy, n, &back));
+    MsgMapChunk huge = {0, 0, WIRE_MAX_CHUNK_SIDE + 1, 1, tiles};
+    CHECK(!wire_put_map_chunk(&w, &huge));
+    tiles[0] = VOXEL_COUNT; /* never sent: the peer would refuse it */
+    CHECK(!wire_put_map_chunk(&w, &mc));
     bw_free(&w);
 }
 
 static void test_entity_update(void) {
-    EntityUpdateRec in[3] = {{1, 2, 3, 4}, {-5, 299, 0, 1 << 30}, {9, -1, -1, -7}}, out[3];
+    static MsgEntityUpdate in, out;
+    const EntityUpdateRec recs[3] = {{1, 2, 3, 4}, {-5, 299, 0, 1 << 30}, {9, -1, -1, -7}};
+    in.count = 3;
+    memcpy(in.recs, recs, sizeof(recs));
     BinWriter w;
     bw_init(&w);
-    CHECK(wire_put_entity_update(&w, in, 3));
+    CHECK(wire_put_entity_update(&w, &in));
     uint32_t n;
     const uint8_t *p = frame(&w, MSG_ENTITY_UPDATE, &n);
-    CHECK(n == 2 + 3 * WIRE_ENTITY_REC_SIZE);
-    int count = 0;
-    CHECK(wire_get_entity_update(p, n, out, 3, &count) && count == 3);
-    CHECK(memcmp(in, out, sizeof(in)) == 0);
-    CHECK(!wire_get_entity_update(p, n, out, 2, &count));     /* more than the caller holds */
-    CHECK(!wire_get_entity_update(p, n - 1, out, 3, &count)); /* count/length mismatch */
-    CHECK(!wire_put_entity_update(&w, in, 0));
+    CHECK(n == 2 + 3 * WIRE_ENTITY_UPDATE_REC_SIZE);
+    CHECK(wire_get_entity_update(p, n, &out) && out.count == 3);
+    CHECK(memcmp(recs, out.recs, sizeof(recs)) == 0);
+    CHECK(!wire_get_entity_update(p, n - 1, &out)); /* count/length mismatch */
+    in.count = 0;
+    CHECK(!wire_put_entity_update(&w, &in));
+    in.count = WIRE_MAX_ENTITY_RECS + 1;
+    CHECK(!wire_put_entity_update(&w, &in));
     bw_free(&w);
 }
 
@@ -214,13 +223,15 @@ static void test_small_messages(void) {
     uint32_t n;
     const uint8_t *p;
 
-    CHECK(wire_put_text(&w, "[WHO] 1 player(s) online"));
+    MsgText who = {"[WHO] 1 player(s) online"};
+    CHECK(wire_put_text(&w, &who));
     p = frame(&w, MSG_TEXT, &n);
     MsgText t;
     CHECK(wire_get_text(p, n, &t) && strcmp(t.text, "[WHO] 1 player(s) online") == 0);
 
     bw_reset(&w);
-    CHECK(wire_put_auth_fail(&w, "Wrong server password."));
+    MsgAuthFail wrong = {"Wrong server password."};
+    CHECK(wire_put_auth_fail(&w, &wrong));
     p = frame(&w, MSG_AUTH_FAIL, &n);
     MsgAuthFail f;
     CHECK(wire_get_auth_fail(p, n, &f) && strcmp(f.reason, "Wrong server password.") == 0);
@@ -252,7 +263,8 @@ static void test_small_messages(void) {
     CHECK(!wire_put_combat_event(&w, &unknown));
 
     bw_reset(&w);
-    CHECK(wire_put_tombstone_remove(&w, -12));
+    MsgTombstoneRemove gone = {-12};
+    CHECK(wire_put_tombstone_remove(&w, &gone));
     p = frame(&w, MSG_TOMBSTONE_REMOVE, &n);
     MsgTombstoneRemove rm;
     CHECK(wire_get_tombstone_remove(p, n, &rm) && rm.entity_id == -12);
@@ -262,8 +274,9 @@ static void test_small_messages(void) {
 static void test_several_frames_in_one_buffer(void) {
     BinWriter w;
     bw_init(&w);
-    CHECK(wire_put_text(&w, "one"));
-    CHECK(wire_put_text(&w, "two"));
+    MsgText one = {"one"}, two = {"two"};
+    CHECK(wire_put_text(&w, &one));
+    CHECK(wire_put_text(&w, &two));
     MsgHeader h;
     wire_read_header(w.data, &h);
     size_t second = WIRE_HEADER_SIZE + h.length;

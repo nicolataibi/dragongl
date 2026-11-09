@@ -69,7 +69,7 @@ bool fx_reconnect(int slot) {
     (void)fcntl(sv[1], F_SETFL, fcntl(sv[1], F_GETFL, 0) | O_NONBLOCK);
     c->sock = sv[0];
     g_peer_fd[slot] = sv[1];
-    conn_open(slot, sv[0], "127.0.0.1", 0);
+    conn_open_plain(slot, sv[0], "127.0.0.1", 0);
     return true;
 }
 

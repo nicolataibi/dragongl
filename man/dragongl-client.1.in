@@ -3,7 +3,7 @@
 dragongl-client \- Dragon GL client launcher script
 .SH SYNOPSIS
 .B dragongl-client
-[\fIserver_host\fR [\fIport\fR]]
+[\fB\-\-fingerprint\fR \fIsha256\fR] [\fIserver_host\fR [\fIport\fR]]
 .br
 .B dragongl-client
 .BR \-h " | " \-\-help
@@ -28,6 +28,10 @@ interactive prompt (handy over SSH).
 .I port
 (optional) Server TCP port (default 8080).
 .SH OPTIONS
+.TP
+.BI \-\-fingerprint " sha256"
+Trust only the server certificate with this SHA-256 fingerprint (see
+.BR dragongl_client (1)).
 .TP
 .BR \-h ", " \-\-help
 Show a short help message and exit.

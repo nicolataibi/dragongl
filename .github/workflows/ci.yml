@@ -35,7 +35,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             clang cmake ninja-build pkg-config \
-            libglfw3-dev libvulkan-dev glslc libsodium-dev
+            libglfw3-dev libvulkan-dev glslc libsodium-dev libssl-dev
 
       - name: Configure (Release, warnings are errors)
         run: |
@@ -57,7 +57,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             clang libclang-rt-18-dev cmake ninja-build pkg-config \
             libglfw3-dev libvulkan-dev vulkan-validationlayers glslc python3 \
-            mesa-vulkan-drivers
+            mesa-vulkan-drivers libssl-dev
 
       - name: Configure (Release)
         run: cmake -B build-tests -G Ninja -DCMAKE_BUILD_TYPE=Release tests
@@ -92,7 +92,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             clang libclang-rt-18-dev cmake ninja-build pkg-config \
-            libsodium-dev python3
+            libsodium-dev libssl-dev python3
 
       - name: Configure
         run: |
@@ -120,7 +120,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             clang libclang-rt-18-dev cmake ninja-build pkg-config \
-            libglfw3-dev libvulkan-dev glslc libsodium-dev \
+            libglfw3-dev libvulkan-dev glslc libsodium-dev libssl-dev \
             mesa-vulkan-drivers vulkan-validationlayers xvfb python3 python3-xlib
 
       - name: Configure (Debug + ASan/UBSan)
@@ -149,7 +149,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            clang cmake ninja-build pkg-config libsodium-dev
+            clang cmake ninja-build pkg-config libsodium-dev libssl-dev
 
       - name: Configure (DRAGONGL_BUILD_CLIENT=OFF)
         run: |
@@ -221,6 +221,11 @@ jobs:
       - name: Metrics
         run: tools/quality.sh metrics
 
+      # The codec, the conformance test, the vectors and PROTOCOL.md are
+      # generated from protocol/messages.json: none may be stale.
+      - name: Generated protocol files
+        run: tools/quality.sh protocol
+
   clang-tidy:
     name: Static analysis (clang-tidy)
     runs-on: ubuntu-24.04
@@ -234,7 +239,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             clang clang-tidy-18 cmake ninja-build pkg-config python3 \
-            libglfw3-dev libvulkan-dev glslc libsodium-dev
+            libglfw3-dev libvulkan-dev glslc libsodium-dev libssl-dev
 
       - name: clang-tidy
         run: tools/quality.sh tidy
@@ -250,7 +255,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             clang llvm-18 cmake ninja-build pkg-config python3 \
-            libglfw3-dev libvulkan-dev glslc libsodium-dev
+            libglfw3-dev libvulkan-dev glslc libsodium-dev libssl-dev
 
       # Fails under the coverage_line_percent of tools/quality_limits.json;
       # metrics then lists every number next to its limit.
@@ -289,7 +294,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            clang libclang-rt-18-dev cmake ninja-build pkg-config libsodium-dev python3
+            clang libclang-rt-18-dev cmake ninja-build pkg-config libsodium-dev libssl-dev python3
 
       # Recent runner kernels randomize the address space more than the
       # TSan runtime of clang 18 accepts.
@@ -309,7 +314,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            clang libclang-rt-18-dev cmake ninja-build pkg-config libsodium-dev python3
+            clang libclang-rt-18-dev cmake ninja-build pkg-config libsodium-dev libssl-dev python3
 
       - name: Fuzz
         run: tools/quality.sh fuzz 60

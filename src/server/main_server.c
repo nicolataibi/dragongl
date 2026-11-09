@@ -30,6 +30,9 @@
 #include "wire.h"
 #include "server_net.h"
 #include "server_conn.h"
+#include "server_options.h"
+#include "server_tls.h"
+#include "tls_common.h"
 #include "auth.h"
 #include "persist.h"
 #include "login_worker.h"
@@ -2472,8 +2475,7 @@ static void accept_pending_connections(int listen_fd, int epoll_fd, Client *clie
         }
         if (refusal) {
             server_log("NET", "Connection from %s refused: %s", ip, refusal);
-            conn_send_auth_fail_now(cs, refusal);
-            close(cs);
+            conn_refuse(epoll_fd, cs, ip, refusal, now);
             continue;
         }
 
@@ -2484,7 +2486,14 @@ static void accept_pending_connections(int listen_fd, int epoll_fd, Client *clie
         clients[slot].active = true;
         clients[slot].trade_offer_item_idx = -1;
         clients[slot].pending_trade_merchant_id = -1;
-        conn_open(slot, cs, ip, now);
+        if (!conn_open(slot, cs, ip, now)) {
+            char why[128];
+            tls_error_text(why, sizeof(why), "out of memory");
+            server_log("NET", "Cannot start TLS for %s: %s", ip, why);
+            clients[slot].active = false;
+            close(cs);
+            continue;
+        }
         client_seen_reset(slot, -1);
 
         struct epoll_event client_ev;
@@ -2545,9 +2554,7 @@ static void reap_dropped_clients(Client *clients) {
                 notify_player_left_floor(c, c->floor_id);
             }
         }
-        conn_flush(i);  /*best effort: deliver a queued MSG_AUTH_FAIL*/
-        close(c->sock); /*also removes the fd from the epoll set*/
-        conn_release(i);
+        conn_close(i); /*a queued MSG_AUTH_FAIL first, then close_notify*/
         c->sock = -1;
         c->active = false;
         c->authenticated = false;
@@ -2582,31 +2589,6 @@ static void update_interest(int epoll_fd, Client *clients) {
             current[i] = want;
         }
     }
-}
-
-static void print_server_usage(const char *argv0) {
-    printf("Usage: %s [options]\n"
-           "Options:\n"
-           "  -P, --port <port>          TCP port to listen on (default: 8080)\n"
-           "  -D, --data-dir <dir>       Read-only game data (JSON datasets).\n"
-           "                             Default: $DRAGONGL_DATA_DIR, else the\n"
-           "                             data/ of the source tree (build tree),\n"
-           "                             else " DRAGONGL_PKGDATADIR "/data\n"
-           "  -S, --state-dir <dir>      Everything the server writes: world,\n"
-           "                             NPCs, saves, logs, DM maps. Default:\n"
-           "                             $DRAGONGL_STATE_DIR, else\n"
-           "                             $XDG_STATE_HOME/dragongl, else\n"
-           "                             ~/.local/state/dragongl\n"
-           "      --password-file <f>    Read the server access password from f\n"
-           "      --dm-password-file <f> Read the Dungeon Master password from f\n"
-           "  -h, --help                 Show this help\n"
-           "  -V, --version              Show the version\n"
-           "\n"
-           "Passwords are never accepted on the command line. Without a file the\n"
-           "server reads DRAGONGL_SERVER_PASSWORD (required) and DRAGONGL_DM_PASSWORD\n"
-           "(optional: without it the DM account is disabled). Each password has\n"
-           "8-63 printable ASCII characters, no spaces.\n",
-           argv0);
 }
 
 /*Server access password (required) and DM password (optional), from a
@@ -2983,71 +2965,6 @@ static void resolve_data_dir(void) {
     copy_str(g_data_dir, DRAGONGL_PKGDATADIR "/data", sizeof(g_data_dir));
 }
 
-typedef struct {
-    int port;
-    const char *password_file;
-    const char *dm_password_file;
-    const char *state_dir;
-} ServerOptions;
-
-/*Returns -1 to go on, otherwise the exit status (0 after --help/--version,
- * 2 on invalid options). --data-dir is stored in g_data_dir.*/
-static int parse_options(int argc, char **argv, ServerOptions *o) {
-    for (int i = 1; i < argc; i++) {
-        const char *opt = argv[i];
-        const char *val = (i + 1 < argc) ? argv[i + 1] : NULL;
-        if (strcmp(opt, "-h") == 0 || strcmp(opt, "--help") == 0) {
-            print_server_usage(argv[0]);
-            return 0;
-        }
-        if (strcmp(opt, "-V") == 0 || strcmp(opt, "--version") == 0) {
-            printf("dragongl_server %s\n", DRAGONGL_VERSION);
-            return 0;
-        }
-        if (strcmp(opt, "-p") == 0 || strcmp(opt, "--password") == 0 || strcmp(opt, "-d") == 0 ||
-            strcmp(opt, "--dm-password") == 0) {
-            fprintf(stderr,
-                    "%s: passwords are not accepted on the command line (every local\n"
-                    "user can read them with ps). Use --password-file / --dm-password-file\n"
-                    "or the DRAGONGL_SERVER_PASSWORD / DRAGONGL_DM_PASSWORD variables.\n",
-                    argv[0]);
-            return 2;
-        }
-        bool takes_value = strcmp(opt, "-P") == 0 || strcmp(opt, "--port") == 0 ||
-                           strcmp(opt, "-D") == 0 || strcmp(opt, "--data-dir") == 0 ||
-                           strcmp(opt, "-S") == 0 || strcmp(opt, "--state-dir") == 0 ||
-                           strcmp(opt, "--password-file") == 0 ||
-                           strcmp(opt, "--dm-password-file") == 0;
-        if (!takes_value) {
-            fprintf(stderr, "%s: unknown option '%s' (see --help)\n", argv[0], opt);
-            return 2;
-        }
-        if (!val) {
-            fprintf(stderr, "%s: %s needs a value\n", argv[0], opt);
-            return 2;
-        }
-        i++;
-        if (strcmp(opt, "-P") == 0 || strcmp(opt, "--port") == 0) {
-            char *end = NULL;
-            long port = strtol(val, &end, 10);
-            if (!end || *end != '\0' || port < 1 || port > 65535) {
-                fprintf(stderr, "%s: invalid port '%s'\n", argv[0], val);
-                return 2;
-            }
-            o->port = (int)port;
-        } else if (strcmp(opt, "-D") == 0 || strcmp(opt, "--data-dir") == 0) {
-            copy_str(g_data_dir, val, sizeof(g_data_dir));
-        } else if (strcmp(opt, "-S") == 0 || strcmp(opt, "--state-dir") == 0) {
-            o->state_dir = val;
-        } else if (strcmp(opt, "--password-file") == 0) {
-            o->password_file = val;
-        } else {
-            o->dm_password_file = val;
-        }
-    }
-    return -1;
-}
-
 /*SIGINT/SIGTERM request a graceful shutdown (combat_log.json would be
  * left truncated otherwise); a write to a closed socket fails with EPIPE
  * instead of killing the process.*/
@@ -3217,16 +3134,21 @@ static void serve_client(Client *clients, int i, uint32_t ev_mask, NPC *npcs) {
         }
         return;
     }
-    ConnRxStatus rx = conn_read(i);
+    ConnRxStatus rx;
     MsgHeader hdr;
     const void *payload = NULL;
     int got = 0;
     /*A MSG_LOGIN hands the slot to the login worker: the messages after it
-   * stay buffered until login_finish() (resume list).*/
-    while (clients[i].active && !conn_dropping(i) && !clients[i].login_pending &&
-           (got = conn_next_message(i, &hdr, &payload)) == 1) {
-        handle_message(clients, i, &hdr, payload, npcs);
-    }
+   * stay buffered until login_finish() (resume list). Bytes TLS decrypted
+   * beyond the receive buffer are read once messages made room.*/
+    do {
+        rx = conn_read(i);
+        while (clients[i].active && !conn_dropping(i) && !clients[i].login_pending &&
+               (got = conn_next_message(i, &hdr, &payload)) == 1) {
+            handle_message(clients, i, &hdr, payload, npcs);
+        }
+    } while (got == 0 && rx == CONN_RX_OK && clients[i].active && !conn_dropping(i) &&
+             !clients[i].login_pending && conn_input_buffered(i));
     if (got < 0) {
         server_log("NET", "Protocol violation from client %d (%s): disconnect", i, conn_peer_ip(i));
         conn_mark_drop(i, "protocol violation");
@@ -3261,11 +3183,13 @@ static void take_finished_logins(Client *clients, NPC *npcs, int *resume, int *n
  * simulation; a stalled system drops the excess instead of fast-forwarding.
  * epoll waits half a tick, so input is served within half a round.*/
 static void run_server(int s_sock, int epoll_fd, Client *clients, NPC *npcs) {
-    struct epoll_event ep_events[MAX_CLIENTS + 2];
+    struct epoll_event ep_events[MAX_CLIENTS + 2 + CONN_REFUSAL_SLOTS];
     long long last_iter_ms = 0;
     long long tick_acc_ms = 0;
     while (!g_shutdown_requested) {
-        int n_events = epoll_wait(epoll_fd, ep_events, MAX_CLIENTS + 2, (int)(TICK_MS / 2));
+        int n_events =
+            epoll_wait(epoll_fd, ep_events, (int)(sizeof(ep_events) / sizeof(ep_events[0])),
+                       (int)(TICK_MS / 2));
         int resume[MAX_CLIENTS];
         int n_resume = 0;
         if (n_events < 0) {
@@ -3279,11 +3203,14 @@ static void run_server(int s_sock, int epoll_fd, Client *clients, NPC *npcs) {
                 accept_pending_connections(s_sock, epoll_fd, clients);
             } else if (id == EPOLL_ID_LOGIN) {
                 take_finished_logins(clients, npcs, resume, &n_resume);
+            } else if (conn_is_refusal_id(id)) {
+                conn_refusal_event(epoll_fd, id, get_time_ms());
             } else {
                 serve_client(clients, (int)id, ev_mask, npcs);
             }
         }
         expire_pending_logins(clients);
+        conn_refusals_expire(epoll_fd, get_time_ms());
 
         long long now_ms = get_time_ms();
         if (last_iter_ms == 0) {
@@ -3327,6 +3254,7 @@ static void shutdown_server(Client *clients, NPC *npcs) {
     }
     artifacts_save();
     clog_close();
+    server_tls_cleanup();
     server_log("SYS", "Server shut down. Log saved.");
 }
 
@@ -3391,6 +3319,16 @@ int main(int argc, char **argv) {
             return 2;
         }
     }
+    {
+        char err[STATE_DIR_MAX + 256], warn[STATE_DIR_MAX + 64];
+        if (!server_tls_init(opt.tls_cert, opt.tls_key, err, sizeof(err), warn, sizeof(warn))) {
+            fprintf(stderr, "[SYS] TLS: %s\n", err);
+            return 2;
+        }
+        if (warn[0]) {
+            fprintf(stderr, "[SYS] WARNING: %s\n", warn);
+        }
+    }
     resolve_data_dir();
     /*Before anything else: even a world loaded from disk must not roll its
    * dice on the default seed.*/
@@ -3398,6 +3336,8 @@ int main(int argc, char **argv) {
     server_log("SYS", "Starting Dragon GL Server...");
     server_log("SYS", "Data directory (read-only): %s", g_data_dir);
     server_log("SYS", "State directory: %s", persist_state_dir());
+    server_log("SYS", "TLS certificate: %s", server_tls_cert_path());
+    server_log("SYS", "TLS fingerprint: %s", server_tls_fingerprint());
     {
         char clog_path[STATE_DIR_MAX + 32];
         if (state_path(clog_path, sizeof(clog_path), "combat_log.json")) {

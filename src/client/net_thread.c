@@ -41,6 +41,7 @@
 
 #include "client_fct.h"
 #include "client_state.h"
+#include "client_tls.h"
 /*Atomic: shared between the net thread (sets, under g_state_mutex) and
  * the VK render thread (reads/clears, without the lock) — see the
  * declaration in client_state.h.*/
@@ -273,21 +274,19 @@ static bool handle_frame(MsgType type, const uint8_t *p, size_t n) {
         return true;
     }
     case MSG_ENTITY_UPDATE: {
-        static EntityUpdateRec recs[WIRE_MAX_ENTITY_RECS];
-        int count = 0;
-        if (!wire_get_entity_update(p, n, recs, WIRE_MAX_ENTITY_RECS, &count)) {
+        static MsgEntityUpdate eu; /* 48 KiB: not on the thread's stack */
+        if (!wire_get_entity_update(p, n, &eu)) {
             return false;
         }
-        on_entity_update(recs, count);
+        on_entity_update(eu.recs, eu.count);
         return true;
     }
     case MSG_MAP_CHUNK: {
         MsgMapChunk mc;
-        const uint8_t *tiles = NULL;
-        if (!wire_get_map_chunk(p, n, &mc, &tiles)) {
+        if (!wire_get_map_chunk(p, n, &mc)) {
             return false;
         }
-        on_map_chunk(&mc, tiles);
+        on_map_chunk(&mc, mc.tiles);
         return true;
     }
     case MSG_SPELL_VFX: {
@@ -382,28 +381,32 @@ void *net_thread_loop(void *arg) {
     static uint8_t rx[WIRE_HEADER_SIZE + WIRE_MAX_PAYLOAD];
     size_t rx_len = 0;
     while (g_running) {
-        struct pollfd pfd = {.fd = g_server_sock, .events = POLLIN};
-        int ready = poll(&pfd, 1, 100);
-        if (ready < 0) {
-            if (errno == EINTR) {
+        /* Bytes TLS already decrypted are not visible to poll(). */
+        if (!client_tls_pending(g_tls)) {
+            struct pollfd pfd = {.fd = g_server_sock, .events = POLLIN};
+            int ready = poll(&pfd, 1, 100);
+            if (ready < 0) {
+                if (errno == EINTR) {
+                    continue;
+                }
+                session_end("Connection to the server lost (%s).", strerror(errno));
+                break;
+            }
+            if (ready == 0) {
                 continue;
             }
-            session_end("Connection to the server lost (%s).", strerror(errno));
-            break;
         }
-        if (ready == 0) {
+        char why[160] = "";
+        long got = client_tls_recv(g_tls, rx + rx_len, sizeof(rx) - rx_len, why, sizeof(why));
+        if (got == 0) {
             continue;
         }
-        ssize_t got = recv(g_server_sock, rx + rx_len, sizeof(rx) - rx_len, 0);
-        if (got == 0) {
+        if (got == -1) {
             session_end("%s", "Server disconnected.");
             break;
         }
         if (got < 0) {
-            if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) {
-                continue;
-            }
-            session_end("Connection to the server lost (%s).", strerror(errno));
+            session_end("Connection to the server lost (%s).", why);
             break;
         }
         rx_len += (size_t)got;

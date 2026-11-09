@@ -32,6 +32,7 @@ dragongl_generate_config("${CMAKE_CURRENT_BINARY_DIR}/generated")
 find_package(Threads REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(SODIUM REQUIRED IMPORTED_TARGET libsodium)
+find_package(OpenSSL 3.0 REQUIRED)
 
 set(FUZZ_FLAGS -fsanitize=fuzzer-no-link,address,undefined -fno-sanitize-recover=undefined
     -fno-omit-frame-pointer -g -O1)
@@ -57,5 +58,5 @@ foreach(t fuzz_persist fuzz_text_cmd)
         DGL_FUZZ_DATA_DIR="${DRAGONGL_ROOT}/data")
     # Without main() a few file-local helpers and globals of main_server.c are unused.
     target_compile_options(${t} PRIVATE -Wno-unused-function -Wno-unused-variable)
-    target_link_libraries(${t} PRIVATE Threads::Threads m PkgConfig::SODIUM)
+    target_link_libraries(${t} PRIVATE Threads::Threads m PkgConfig::SODIUM OpenSSL::SSL OpenSSL::Crypto)
 endforeach()

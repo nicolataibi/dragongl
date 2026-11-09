@@ -75,6 +75,7 @@ sudo dnf install -y \
     glslc \
     pkgconf-pkg-config \
     libsodium-devel \
+    openssl-devel \
     python3
 ```
 
@@ -107,13 +108,37 @@ The server finds its read-only game data in this order (the current directory is
 
 Without data the server exits with status 2. The client finds its shaders the same way: `$DRAGONGL_SHADER_DIR`, then `shaders/` next to the binary (build tree), then `<datadir>/dragongl/shaders`.
 
-Everything the server writes lives in its **state directory**, never in the data directory or next to the package files: `world.dat`, `npcs.dat`, `artifacts.dat`, `saves/` (characters and tombstones), `maps/` (DM maps), `combat_log.json`. It is chosen in this order:
+Everything the server writes lives in its **state directory**, never in the data directory or next to the package files: `world.dat`, `npcs.dat`, `artifacts.dat`, `saves/` (characters and tombstones), `maps/` (DM maps), `combat_log.json`, and `tls/` (the server's TLS key and certificate, created at the first start). It is chosen in this order:
 
 1. `--state-dir <dir>` (or `-S`);
 2. `$DRAGONGL_STATE_DIR`;
 3. `$XDG_STATE_HOME/dragongl`, else `~/.local/state/dragongl`.
 
 The `dragongl-server` launcher of a development tree uses `state/` in the project root; the systemd service uses `/var/lib/dragongl`. The directory is created with mode 0700 and locked by the running server. `dragongl-reset-world` deletes its content to start a new world.
+
+### TLS identity
+
+Clients connect over TLS 1.3. At the first start the server creates `tls/server.key` (ECDSA P-256, mode 0600) and `tls/server.crt` (self-signed for the host name, 10 years) in its state directory and logs the certificate fingerprint:
+
+```text
+[SYS] TLS fingerprint: SHA256:0E:0D:AD:F6:...:82:36:C9
+```
+
+Publish that line to your players (`openssl x509 -in /var/lib/dragongl/tls/server.crt -noout -fingerprint -sha256` prints it too): their client records it at the first connection and refuses a server whose certificate changes, so keep `tls/` when you move or back up the world. `dragongl-reset-world` keeps it as well; delete it only to change the server identity on purpose.
+
+A certificate of your own (for example one signed by a public authority for the server's host name, which clients then accept without pinning) goes in with `--tls-cert <file> --tls-key <file>`. For the systemd service, whose dynamic user cannot read other users' files, pass them as credentials with a drop-in (`systemctl edit dragongl-server`):
+
+```ini
+[Service]
+LoadCredential=tls.crt:/etc/dragongl/tls.crt
+LoadCredential=tls.key:/etc/dragongl/tls.key
+```
+
+and in `/etc/dragongl/dragongl-server.conf`:
+
+```sh
+DRAGONGL_SERVER_ARGS=--tls-cert /run/credentials/dragongl-server.service/tls.crt --tls-key /run/credentials/dragongl-server.service/tls.key
+```
 
 ---
 

@@ -34,6 +34,8 @@ message(STATUS "Dragon GL ${DRAGONGL_VERSION} (server: ${DRAGONGL_BUILD_SERVER},
 # --- Dependencies -----------------------------------------------------------------
 find_package(Threads REQUIRED)
 find_package(PkgConfig REQUIRED)
+# OpenSSL 3: TLS 1.3 between client and server (include/tls_common.h)
+find_package(OpenSSL 3.0 REQUIRED)
 if(DRAGONGL_BUILD_SERVER)
     # libsodium: Argon2id password hashing and constant-time comparisons
     pkg_check_modules(SODIUM REQUIRED IMPORTED_TARGET libsodium)
@@ -95,7 +97,7 @@ if(DRAGONGL_BUILD_CLIENT)
 endif()
 
 # --- Targets ----------------------------------------------------------------------
-set(COMMON_LIBS Threads::Threads m)
+set(COMMON_LIBS Threads::Threads m OpenSSL::SSL OpenSSL::Crypto)
 
 # Source lists: cmake/DragonGL.cmake
 set_source_files_properties("${DRAGONGL_ROOT}/src/shared/cJSON.c" PROPERTIES COMPILE_OPTIONS "-Wno-keyword-macro")
@@ -116,6 +118,8 @@ if(DRAGONGL_BUILD_CLIENT)
         src/client/client_tome.c
         src/client/render_vk.c
         src/client/vk_init.c
+        src/client/client_tls.c
+        src/client/known_servers.c
         ${DRAGONGL_SHARED_SRCS}
     )
     target_include_directories(dragongl_client PRIVATE src/client)

@@ -1,6 +1,6 @@
 # Dragon GL: The Long Descent into the Dragon's Maw
 
-[![Version](https://img.shields.io/badge/Version-2026.11.09.01-green.svg)](https://github.com/nicolataibi/dragongl)
+[![Version](https://img.shields.io/badge/Version-2026.11.09.02-green.svg)](https://github.com/nicolataibi/dragongl)
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/License-GPL%203.0--or--later-blue.svg)](LICENSE.txt)
 [![Assets: CC BY 4.0](https://img.shields.io/badge/Assets-CC%20BY%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by/4.0/)
 [![Language: C11](https://img.shields.io/badge/Language-C11-blue.svg)](CMakeLists.txt)
@@ -60,7 +60,8 @@
 - **Spell VFX:** a particle engine renders the spell effects (projectiles, radial explosions, auras) sent by the server in `MSG_SPELL_VFX`.
 
 ### 2. High-Performance Client-Server Engine
-- **Non-blocking Multiplexing:** Server handles up to 64 concurrent players via a POSIX `poll()` TCP architecture.
+- **Non-blocking Multiplexing:** Server handles up to 64 concurrent players on one `epoll` loop that never waits on a socket.
+- **Encrypted, authenticated connections:** TLS 1.3 (OpenSSL 3). The server creates its certificate at the first start; the client pins its fingerprint at the first connection (or takes it from `--fingerprint`) and refuses a changed one. One protocol table (`protocol/messages.json`) generates the codec, its conformance tests and the protocol specification.
 - **D3ES (Data-Driven Decoupled Entity System):** Static archetypes/blueprints are segregated from lightweight dynamic instances for cache-efficient processing.
 - **Constant-Time $O(1)$ Spatial Partitioning:** Occupancy grid (`entity_grid`) provides instant collision detection, line-of-sight checks, and target queries.
 - **FloorStats Cache:** Incremental lifecycle tracking (`floor_stats_npc_died()`, `floor_stats_npc_spawned()`) eliminates expensive full-map iterations.
@@ -127,6 +128,7 @@ sudo dnf install -y \
     glslc \
     pkgconf-pkg-config \
     libsodium-devel \
+    openssl-devel \
     python3
 ```
 
@@ -166,6 +168,8 @@ The server manages world state, NPC AI, combat resolution, and multiplayer synch
 
 Passwords are never accepted on the command line: they come from files, from `DRAGONGL_SERVER_PASSWORD` / `DRAGONGL_DM_PASSWORD`, or from the interactive prompt. Each one has 8-63 printable ASCII characters without spaces. Without a DM password the `dm` account is disabled.
 
+The server logs the fingerprint of its TLS certificate at start-up (`TLS fingerprint: SHA256:...`); players compare it with what their client prints at the first connection. `--tls-cert` / `--tls-key` use a certificate of your own instead of the generated one.
+
 *Data directory resolution order:* `--data-dir` argument -> `$DRAGONGL_DATA_DIR` -> `data/` of the source tree (binary in `build/`) -> `/usr/share/dragongl/data` (installed). The current directory is never searched. On an RPM install the server usually runs as the `dragongl-server` systemd service ([INSTALL.md](INSTALL.md)).
 
 ### 2. Launching the Client (`dragongl-client`)
@@ -178,6 +182,9 @@ The client renders with Vulkan 1.3 (a GPU and driver with Vulkan 1.3 are require
 
 # Connect to a remote server (host name, IPv4 or IPv6 address)
 ./dragongl-client 192.168.1.50 8080
+
+# Trust only the certificate the server owner gave you
+./dragongl-client --fingerprint SHA256:0E:0D:...:C9 game.example.org
 
 # Window size, GPU choice, validation layer
 DRAGONGL_WINDOW=1920x1080 DRAGONGL_GPU=1 VK_INSTANCE_LAYERS=VK_LAYER_KHRONOS_validation ./dragongl-client
