@@ -1,3 +1,8 @@
+* Wed Nov 11 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.11.03
+- PACKAGING: remove CHANGELOG.md from %doc in dragongl.spec: avoids
+  rpmlint file-contains-current-date false positives on release day;
+  the package changelog is provided natively by %autochangelog.
+
 * Wed Nov 11 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.11.02
 - CODE: format OpenSSL 4.0 TLS changes according to .clang-format
   (server_tls.c and test_tls.c).
