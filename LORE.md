@@ -6513,7 +6513,7 @@ With a final roar that resonated through all one hundred floors of the dungeon, 
 
 <img src='readme_assets/story/100 The Honored Fall of the Chaos Dragon.png' width='800'>
 
-### Interlude 20: The Trap of a Thousand Blades
+### Interlude 21: The Trap of a Thousand Blades
 
 Beyond the Heart of Dragon's Maw, the adventurers entered an ancient passage carved into the foundations of the labyrinth. The corridor appeared deserted, its black adamantium walls decorated with faded golden runes. As Kael advanced at the head of the group, his Solar-Immortal Aegis suddenly triggered an ancient mechanism hidden beneath the floor. With a deafening metallic roar, enormous sections of the ceiling and walls opened, releasing thousands of razor-sharp adamantium spikes that began descending toward the passage.
 

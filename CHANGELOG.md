@@ -1,3 +1,7 @@
+* Wed Nov 11 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.11.02
+- CODE: format OpenSSL 4.0 TLS changes according to .clang-format
+  (server_tls.c and test_tls.c).
+
 * Wed Nov 11 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.11.01
 - TLS: fix OpenSSL 4.0 compiler warnings across client, server and unit tests:
   use X509_VERIFY_PARAM_set1_host on SSL_get0_param instead of deprecated

@@ -68,8 +68,8 @@ static void test_cert_fingerprint(void) {
     X509_set_pubkey(cert, key);
     X509_NAME *name = X509_NAME_new();
     CHECK(name);
-    CHECK(X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC,
-                                     (const unsigned char *)"test", -1, -1, 0));
+    CHECK(X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC, (const unsigned char *)"test", -1,
+                                     -1, 0));
     CHECK(X509_set_subject_name(cert, name));
     CHECK(X509_set_issuer_name(cert, name));
     X509_NAME_free(name);

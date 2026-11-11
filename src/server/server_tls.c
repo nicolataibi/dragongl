@@ -122,8 +122,7 @@ static X509 *make_certificate(EVP_PKEY *key) {
                                     -1, 0) &&
          X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC, (const unsigned char *)host, -1, -1,
                                     0) &&
-         X509_set_subject_name(cert, name) &&
-         X509_set_issuer_name(cert, name);
+         X509_set_subject_name(cert, name) && X509_set_issuer_name(cert, name);
     X509_NAME_free(name);
     char san[300];
     snprintf(san, sizeof(san), strcmp(host, "localhost") ? "DNS:%s,DNS:localhost" : "DNS:%s", host);

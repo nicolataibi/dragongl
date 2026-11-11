@@ -4,7 +4,7 @@
 %global toolchain clang
 
 Name:           dragongl
-Version:        2026.11.11.01
+Version:        2026.11.11.02
 Release:        %autorelease
 Summary:        Multi-user 3D dungeon RPG: Vulkan client
 
