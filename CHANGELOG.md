@@ -1,3 +1,16 @@
+* Wed Nov 11 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.11.01
+- TLS: fix OpenSSL 4.0 compiler warnings across client, server and unit tests:
+  use X509_VERIFY_PARAM_set1_host on SSL_get0_param instead of deprecated
+  SSL_set1_host in client_tls; allocate and set X509_NAME with
+  X509_NAME_new, X509_set_subject_name and X509_NAME_free instead of
+  modifying the const pointer returned by X509_get_subject_name in
+  server_tls and test_tls.
+- TESTS: test_other_protocol_versions_fail_the_handshake in the server
+  network integration test suite accepts any ssl.SSLError on an ALPN
+  mismatch rather than expecting the exact 'NO_APPLICATION_PROTOCOL'
+  string, which OpenSSL 4.0 reports as an unknown SSL error in Python.
+- DOCS: LORE.md: Dragon's Maw Fantasy Novel added new pictures.
+
 * Mon Nov 09 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.09.03
 - DATA: every spell of data/spells.json has an explicit "effect": kind
   (damage, heal, condition, buff, utility, special), target (single, self,

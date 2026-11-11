@@ -4770,6 +4770,8 @@ The hunt had officially begun.
 
 Do you wish to continue exploring the fierce Goblin ambush and discover how the group will behave in their very first tactical encounter on Floor 1?
 
+<img src='readme_assets/story/001 Adventure from the Tavern to the Dungeon.png' width='800'>
+
 
 ## Chapter 2: Beyond the Light
 
@@ -4812,6 +4814,8 @@ Kael lowered his shield, scanning the edge of the darkness where the mist was be
 Grog ran a finger across his cheek, collecting a splash of enemy blood, and smiled ruthlessly. "Let it test us, Kael. We've only just started sharpening our blades."
 
 Gathered around Lyra's faint light, the four adventurers resumed their inexorable march into the unknown, venturing deeper into the dungeon's heart of darkness.
+
+<img src='readme_assets/story/002 Battle in the Crypt of Purple Light.png' width='800'>
 
 
 ## Chapter 3: The Hunter's Web
@@ -4866,6 +4870,8 @@ Fizwick shrugged, already busy rummaging through the dusty debris for coins or h
 
 The group regrouped. Breathing had returned to normal, but a new awareness hovered among them: the depths that awaited them would require much more coordination and caution. They resumed their march, leaving the cocoons behind and the ashen room, ready to face the ancient libraries of the third floor.
 
+<img src='readme_assets/story/003 Battle in the Spider-Infested Ruins.png' width='800'>
+
 
 ## Chapter 4: Echoes of Wisdom
 
@@ -4915,6 +4921,22 @@ Kael smiled faintly under his helmet, admitting to himself that, however heterog
 
 They resumed their march, even more united and cautious. The shadows among the books seemed to hide ancient secrets, but the awareness of being able to rely on each other was, for now, the sharpest weapon at their disposal. The darkness of the fourth floor, however, awaited them, ready to test not only their reflexes but also their resistance to fatigue.
 
+<img src='readme_assets/story/004 Trap in the Purple Grimoire.png' width='800'>
+
+### Interlude 01: The Volley Behind the Bookshelves
+
+**Trap Type: Dart Wall**
+
+The group had barely left the purple grimoire's pedestal when Fizwick noticed a second line of tiny holes hidden among the library's carved ornaments. The first mechanism had been disarmed, but its release had shifted the weight of the shelves and awakened a separate defense. A dry click travelled through the wood. "Down!" the kobold shouted.
+
+A storm of black darts burst from both walls. Kael stepped across Lyra's path and raised his shield, catching the first volley in a shower of sparks. Grog seized a leaning bookcase before it could topple and crush them, holding several tons of wood and stone in place with a roar. Lyra opened her Tome and wove a violet field through the aisle; the remaining darts stopped in mid-air, trembling like a constellation of poisoned stars.
+
+Fizwick crawled beneath Kael's shield, reached the pressure linkage, and jammed its spring with a narrow steel pick. The mechanism shuddered and fell silent. Lyra carefully dissolved the suspended darts into harmless motes, while Grog eased the bookcase back into place.
+
+"A clever trap," Kael said, "but it nearly punished us for trusting the first victory." Fizwick gave him a sideways grin. "Then let us remember: one safe step doesn't make the next one safe." The four continued together, leaving the library with a lesson more valuable than any forgotten spell.
+
+<img src='readme_assets/story/001_The_Volley_Behind_the_Bookshelves_view_1.png' width='800'>
+<img src='readme_assets/story/001_The_Volley_Behind_the_Bookshelves_view_2.png' width='800'>
 
 ## Chapter 5: Commerce in the Shadows
 
@@ -4967,6 +4989,10 @@ Kael smiled faintly and nodded, while Fizwick, grumbling, reluctantly handed ove
 They camped for a brief hour in the warmth of the Hermit's magic circle. The roasted meat had a strange taste, similar to mud and pungent spices, but it filled their stomachs, banishing the debuffs of exhaustion. The potions glowed with a reassuring red in their belts.
 
 Refreshed and ready, they rose, leaving the campfire behind. Before them, a damp, moss-encrusted staircase descended into the darkness of Floor 6. A nauseating, acidic smell of liquid decay began to creep into their nostrils, suggesting that the Mephitic Waters would offer no discounts to anyone.
+
+<img src='readme_assets/story/005 Commerce in the Shadows of the Depths.png' width='800'>
+
+<img src='readme_assets/story/005 Potion Merchants in the Enchanted Cave.png' width='800'>
 
 
 ## Chapter 6: Mephitic Waters
@@ -5021,6 +5047,8 @@ Fizwick, who had stayed safe in the rear calculating distances, darted forward o
 
 Under the rogue's careful guidance, the group resumed their crossing of the Slime Pool, leaving the mephitic waters behind and preparing to face the frozen corridors that would lead them even closer to the dungeon's first great guardian.
 
+<img src='readme_assets/story/006 Battle in the Mephitic Waters.png' width='800'>
+
 
 ## Chapter 7: The Embrace of Frost
 
@@ -5073,6 +5101,8 @@ Grog used his axe's haft as a crutch to get up with extreme caution. "I hate it.
 Kael sheathed his sword, observing his companions' breath. "The cold is slowing us down, but we've passed the eighth floor. We can't stop or we'll die of exposure. We must reach the ninth level before the frost completely paralyzes our muscles."
 
 The group regrouped. Fizwick, now officially at the head of the column, advanced confidently, prodding suspicious ice blocks, while the others followed, dragging their feet to maintain traction, heading toward the dark opening that would lead them ever closer to the First Guardian's doors.
+
+<img src='readme_assets/story/007 Battle in the Frozen Crypt.png' width='800'>
 
 
 ## Chapter 8: Greed Punished
@@ -5135,6 +5165,22 @@ Fizwick forced himself to straighten his back, gritting his teeth and grabbing h
 
 Slowly, the four adventurers walked toward the bronze portal, aware that the true trial of strength, the one that would decide their survival or their end in Dragon's Maw, awaited them just beyond.
 
+<img src='readme_assets/story/008 The Curse of the Dark Ring.png' width='800'>
+
+### Interlude 02: The Needle Beneath the Velvet
+
+**Trap Type: Poison Needle**
+
+The cursed ring had already taught Fizwick the price of reaching for treasure too quickly. Yet as the companions prepared to leave the obsidian hall, Lyra noticed a second glint beneath the velvet lining of the casket. A hair-thin needle shifted inside its hinge, aimed at the hand that would close the lid.
+
+Fizwick froze. His weakened fingers could not move with their usual speed, and the mechanism snapped before he could withdraw. Kael caught his wrist and pulled him back, taking the needle's strike against the reinforced edge of his gauntlet. A bead of emerald poison hissed where it touched the metal.
+
+Grog pinned the lid open with the haft of his weapon. Lyra traced the toxin's aura and enclosed the needle in a sphere of amethyst light, preventing even a drop from reaching the floor. With his remaining precision, Fizwick slid a thin pick into the hinge and released the spring. The needle fell harmlessly into Lyra's containment field.
+
+The kobold looked at Kael's scorched gauntlet. "You didn't have to take that for me." The paladin answered without reproach: "We do not measure a companion's worth by the mistakes he has made." Fizwick lowered his eyes, then nodded. This time he left the treasure untouched until Lyra had examined it. Their next steps were slower, but their formation was stronger.
+
+<img src='readme_assets/story/002_The_Needle_Beneath_the_Velvet.png' width='800'>
+
 
 ## Chapter 9: The Guardian's Antechamber
 
@@ -5175,6 +5221,8 @@ From the shadows cast by the throne emerged the Guardian. It was an unspeakable 
 The Undead King raised its greatsword with one hand and unleashed a guttural roar that shook dust from the ceiling, a shockwave of pure terror that washed over the group.
 
 "By the light," Kael murmured. "Today we earn our descent."
+
+<img src='readme_assets/story/009 Clash at the Cursed Throne.png' width='800'>
 
 
 ## Chapter 10: The Price of Passage
@@ -5257,6 +5305,8 @@ Fizwick advanced at the head of the line, keeping his center of gravity low. His
 
 Grog tightened his grip on his greataxe, the muscles in his arms tensing with effort. "Nothing a good steel edge can't cut!" exclaimed the half-orc, hurling himself at the first vegetative mound. Kael raised his shield infused with radiant energy, positioning himself as a shield for Lyra. The mage, analyzing the density of the targets, channeled arcane energy to launch a powerful Acid Splash, a corrosive bubble that struck the front-line fungal formations, dissolving their protective membranes and allowing Grog to finish the job with a circular slash. The passage cleared, the group resumed their march, aware that the descent had only just begun.
 
+<img src='readme_assets/story/011 Adventurers in the Bioluminescent Cave.png' width='800'>
+
 
 ## Chapter 12: Level Twelve – The Blind Mines Labyrinth
 
@@ -5265,6 +5315,22 @@ The twelfth floor unfolded as an intricate network of abandoned mining galleries
 Kael led the line, keeping his sword raised, its guard emitting a constant light to repel the artificial shadows produced by the labyrinth's structure. "Stay together," the paladin ordered. "The structure is symmetrical, designed to fragment spatial perception." The floor's threat materialized when the ground partially gave way under the group's boots, revealing a structural landslide inhabited by opportunistic subterranean predators, flanked by wandering shadows that infested the old excavation tunnels.
 
 During the reconnaissance of a fortified dead end, Fizwick spotted an old metal container partially crushed by a collapsed pillar. After verifying the absence of explosive traps or poisoned needles, the kobold forced the rusted lock. Inside lay a suit of Studded Leather armor reinforced with burnished steel rivets. Fizwick smiled, immediately replacing his old worn vest with the new armor, which offered superior protection without hindering his stealthy maneuvers. The group bypassed the main obstacle by slipping into a ventilation shaft that descended steeply toward the next level.
+
+<img src='readme_assets/story/012 Company of Adventurers in the Abandoned Mine.png' width='800'>
+
+### Interlude 03: The Shaft That Swallowed the Light
+
+**Trap Type: Pit**
+
+A groan travelled through the abandoned mine. The beams overhead flexed, and a section of floor dropped away beneath Kael, revealing a black shaft whose bottom lay beyond Lyra's light. The paladin caught the broken edge with one hand, his shield scraping against the stone as loose fragments poured into the darkness.
+
+Grog threw himself flat and seized Kael's forearm. The half-orc's weight dragged him toward the opening, so Fizwick looped a climbing line around Grog's waist and anchored it to an iron rail. Lyra raised both hands; a violet lattice formed beneath Kael, slowing the fall of every fragment and giving him a platform of compressed air against which to brace his boots.
+
+"Do not pull until I say," Fizwick called, studying the cracked supports. He crawled to a stable beam and secured the rope around it. At his signal, Grog hauled while Lyra lifted with a controlled pulse of gravity. Kael rose from the shaft and rolled onto solid ground, still gripping his shield.
+
+Rather than cross the opening, the four built a safe passage together: Grog held a fallen support in place, Fizwick fixed the rope, Lyra bridged the gap with stone fragments, and Kael tested each foothold. The pit had taken the floor beneath one hero, but it had revealed the strength beneath all four.
+
+<img src='readme_assets/story/003_The_Shaft_That_Swallowed_the_Light.png' width='800'>
 
 
 ## Chapter 13: Level Thirteen – The Flooding of the Damp Crypts
@@ -5275,6 +5341,8 @@ The danger was represented not only by environmental hazards, such as the deep d
 
 Kael appealed to his Sacred Oath. A blaze of pure radiant energy burst from his holy symbol, striking the skeletal creatures and reducing them to bone dust before they could overwhelm the front line. Meanwhile, Lyra protected the rear by monitoring the magical currents regulating the water flow: she noticed that the iron gate blocking the exit was connected to a timed mechanism. Coordinating actions with Fizwick, who operated a submerged lever on the other side of the hall, the mage allowed the group to cross the threshold before the room completely flooded.
 
+<img src='readme_assets/story/013 Battle in the Flooded Crypt.png' width='800'>
+
 
 ## Chapter 14: Level Fourteen – The Halls of the Lost Garrison
 
@@ -5283,6 +5351,24 @@ Past the water trap, the group emerged into a vast area that once must have serv
 "This place was the scene of a siege," commented Grog, pointing to the deep notches left by weapons on the pillars and the remains of ancient, charred wooden barricades. Fizwick moved along the walls, using a piece of chalk to mark signaling runes on the columns to avoid getting lost in the complex chessboard architecture of the halls, specifically designed to disorient invading armies.
 
 A hiss in the air heralded an ambush: undead archers stationed on the upper walkways began to target the group with infected arrows. Kael reacted instantly, planting his shield on the ground and calling his companions under its defensive cover. While the archers reloaded, Lyra spotted a side room used as an armory, protected by archaic defensive runes. Using her academic knowledge, the mage broke the seal, allowing the group to take refuge inside. Among the dusty relics, Lyra found an intact scroll containing the Alarm spell. With this resource enhanced, the group planned a counterattack, clearing the walkways and finding the descending staircase protected by a heavy iron grate.
+
+<img src='readme_assets/story/014 Siege in the Fortress of Shadows.png' width='800'>
+
+### Interlude 04: The Bell That Awakened the Dead
+
+**Trap Type: Alarm**
+
+As the group searched the garrison's armory, Fizwick found a bronze cord stretched almost invisibly between two cracked flagstones. He signalled for everyone to stop, but a loose fragment slid beneath Grog's boot. The cord tightened. Somewhere inside the wall, a bell rang once.
+
+The sound rolled through the fortress like a command from a forgotten battlefield. Doors burst open along the upper galleries, and the dead garrison began to rise: armored sentries, archers, and officers still bound to their ancient watch. Their eyes ignited with cold blue fire.
+
+Kael did not order an attack. He planted his shield before Lyra and called for the others to hold the line without striking the fallen soldiers unless necessary. Fizwick traced the alarm's signal wire through a narrow ventilation channel. Grog braced a collapsing door to prevent more undead from entering, while Lyra projected a radiant illusion of the garrison's old standard, drawing the awakened soldiers toward the courtyard altar.
+
+Fizwick severed the signal wire. Lyra then used a gentle pulse of arcane light to quiet the remaining runes, and Kael spoke a brief prayer for the soldiers whose watch had outlived their lives. The dead lowered their weapons and returned to stillness.
+
+Grog watched the silent ranks. "Not every enemy needs to be smashed," he admitted. Kael nodded. "Sometimes courage means knowing when to stop fighting."
+
+<img src='readme_assets/story/004_The_Bell_That_Awakened_the_Dead.png' width='800'>
 
 
 ## Chapter 15: Level Fifteen – The Great Cistern Basin
@@ -5293,6 +5379,26 @@ The mist created by the water's flow made the surfaces extremely slippery. Fizwi
 
 One monster tried to drag Fizwick into the void, but Grog, with a burst of primal rage, grabbed a heavy iron chain connected to an old bulkhead and wrenched it from the wall, using it as an improvised rope to pull the kobold to safety and strike the creature. Kael held his position, blocking access to the walkway, while Lyra launched pure energy darts to distract the predators. Exploiting the opening created by Grog's action, Fizwick spotted a dry drainage conduit within the rock face, allowing the group to lower themselves safely toward the sixteenth level, escaping the rising tide.
 
+<img src='readme_assets/story/015 Battle in the Sunken Cathedral.png' width='800'>
+
+### Interlude 05: The Cistern's Last Tide
+
+**Trap Type: Flood Trap**
+
+<img src='readme_assets/story/015_the_cistern_path_1.jpeg' width='800'>
+
+A hidden valve groaned beneath the cistern walkway. Then the water gates opened. A wall of black water surged into the chamber, filling the lower passages and swallowing the stepping stones. The flood spread across the marked seven-by-seven section of the floor, rising faster than the companions could retreat.
+
+Kael locked his shield against a stone buttress and anchored a rope around its handle. Grog caught the other end and held the line against the current, his boots carving trenches in the submerged silt. Fizwick plunged beneath the water, following the bubbles toward the concealed valve chamber. Lyra kept the rising debris suspended in a slow-turning violet gyre, clearing a pocket of air around the group.
+
+The water dragged Fizwick toward a drainage grate. Grog tightened the rope until it sang under the strain, while Kael leaned into the current and reached down to pull the kobold back. Lyra then reversed the pressure around the valve with a gravitational pulse. The doors slammed shut, and the flood began to recede.
+
+They did not use lightning against the water, remembering how dangerously conductive the flooded chamber had become. Instead, they waited until the last current subsided and crossed together, soaked and exhausted.
+
+Fizwick coughed up a mouthful of water. "Next time, I inspect the floor before I go swimming." Grog laughed, but kept a hand on his shoulder all the way to dry ground.
+
+<img src='readme_assets/story/005_The_Cisterns_Last_Tide.png' width='800'>
+
 
 ## Chapter 16: Level Sixteen – The Silent Forges
 
@@ -5301,6 +5407,10 @@ A dry, oppressive heat greeted the group on the sixteenth floor. The galleries o
 "Visibility is reduced due to suspended coal dust," Fizwick coughed, covering his snout with a cloth scarf. Lyra murmured an arcane formula, infusing a golden light onto Kael's sword pommel to penetrate the dark curtain. Among the rusted machinery crawled metallic parasites and still-active sentinel constructs, programmed to eliminate any intruder considered waste material to be disposed of in the furnaces.
 
 The battle unfolded among the corridors formed by the enormous hydraulic presses. Grog used his axe to deflect the constructs' blows, using the heavy metal coverings to avoid frontal attacks. Kael led the assault line, bringing down a heavy sentinel with a precise slash. Inside the now-extinct fusion core of the fallen construct, the paladin glimpsed a silvery gleam: an intact Breastplate crafted from steel, designed to offer excellent chest protection without limiting lateral movements. Kael replaced his old damaged protection, immediately feeling the benefit of the new armor as the group located the large elevator to descend further.
+
+<img src='readme_assets/story/016 Battle in the Golem Forge.png' width='800'>
+
+<img src='readme_assets/story/016 Battle in the Dwarven Forge.png' width='800'>
 
 
 ## Chapter 17: Level Seventeen – The Hot Condensation Tunnels
@@ -5311,6 +5421,24 @@ Sounds were distorted by the echo of pipes running along the ceiling, making it 
 
 A pack of blind subterranean predators, hunting exclusively by smell and ground vibrations, ambushed the group's rear guard. Lyra, sensing the air displacement behind her, reacted instantly by catalyzing her energy to erect a temporary arcane barrier that absorbed the monsters' first impact. The time gained allowed Grog to spin around, sweeping the mist with his greataxe and forcing the pack to flee. With their senses on high alert, the group followed the condensation's outflow to find the escape route toward the next mechanical area.
 
+<img src='readme_assets/story/017 Battle in the Misty Forge.png' width='800'>
+
+### Interlude 06: The Breath Behind the Valves
+
+**Trap Type: Gas**
+
+The thermal fog thickened until even Lyra's guiding light appeared blurred. A row of pipes shivered above the corridor. Fizwick heard the valves release before anyone smelled the danger: a pale vapor began pouring from the seams, flowing low along the floor and climbing around their legs.
+
+Kael ordered the group to cover their mouths and avoid sparks. The gas was heavy and poisonous; a careless flame could turn the narrow tunnel into a furnace. Grog lifted Lyra onto a dry maintenance ledge while Fizwick crawled toward the nearest control wheel. The kobold's lungs strained as he reached it, and his fingers slipped on the condensation.
+
+Lyra opened her Tome and shaped a narrow vacuum current, drawing the vapor away from the group without spreading it into the adjoining passages. Kael advanced behind his shield, guiding Grog through the clean pocket of air. Grog then braced the pipe while Fizwick forced the seized wheel closed with his tools.
+
+The vapor dwindled. Lyra sealed the remaining leaks inside a suspended sphere and dispersed them only after the corridor was safe. No one had been burned, poisoned, or left behind.
+
+Kael thanked Fizwick for reaching the valve. The rogue shrugged, still coughing. "You kept the air clear. Grog kept the pipe still. I only turned a wheel." Lyra closed her Tome. "That is what a team looks like: no single action is small when all the others depend on it."
+
+<img src='readme_assets/story/006_The_Breath_Behind_the_Valves.png' width='800'>
+
 
 ## Chapter 18: Level Eighteen – The Perpetual Gears Quadrant
 
@@ -5320,6 +5448,8 @@ The path consisted of moving along the outer edges of these rotating platforms a
 
 The group's movement attracted a patrol of flying constructs resembling metallic gargoyles, which attacked using the floor's verticality. Kael positioned himself at the center of the mobile platform, raising his shield to intercept the projectiles launched by the flying monsters, while Grog used his prodigious strength to jam a recovered iron bar between two smaller wheels, momentarily stopping a platform and allowing Lyra and Fizwick to reach the central command console. From there, the kobold deactivated the floor's locking shutter, allowing the group to slip through before the gear resumed its destructive course.
 
+<img src='readme_assets/story/018 Clockwork Citadel Under Siege.png' width='800'>
+
 
 ## Chapter 19: Level Nineteen – The Monolithic Silence Corridor
 
@@ -5328,6 +5458,8 @@ After the deafening noise of the previous floor, the nineteenth level greeted th
 The air was still, cold, and devoid of the humidity or heat that had characterized the second block. Every ten steps taken on the black floor, a pair of runes carved into the stone lit up with a hot blue light, measuring the group's progress. Kael studied the details of the inscriptions on the statues' bases: "This is an archaic military purification path. The floor is structured as a test of mental and physical stability before access to the final seal," he whispered, recommending everyone not to deviate for any reason from the corridor's center line.
 
 The lateral niches contained golden altars and decorated chests that served as visual bait to lure travelers off the safe path, activating lethal guardians hidden in the walls. Fizwick kept his gaze fixed forward, ignoring the treasures' reflections, while Grog held his axe lowered but ready for use. The group maintained iron discipline, walking single file until they reached the opposite end of the corridor, where a gigantic spiral staircase descended into the absolute darkness of the twentieth floor, the fulcrum of the second seal.
+
+<img src='readme_assets/story/019 Adventurers Beneath the Spiral Staircase.png' width='800'>
 
 
 ## Chapter 20: Level Twenty – Triumph over the Bronze Guardian
@@ -5358,12 +5490,32 @@ The descent beyond the smoking ruins of the Bronze Guardian led the group into a
 
 As they advanced, Fizwick stopped, sensing a threat: a series of pressure traps connected to heavy ballistae hidden in the walls. With an acrobatic dash worthy of the best kobold rogue, Fizwick slid under a sudden volley of darts, using his tools with millimeter precision to sever the tension cables of the mechanisms. Soon after, from the crypts' shadows emerged terrifying giant skeletons and storm specters. Kael didn't hesitate. He raised his steel shield, invoking his unshakeable faith. A radiant barrier erupted from the paladin, deflecting the frozen blows of the undead giants and instilling courage in his companions. Grog, his eyes bloodshot with battle excitement, roared and hurled his greataxe with such force that it split the first giant's ribcage in two, opening the way for the counterattack.
 
+<img src='readme_assets/story/021 Epic Battle in the Frozen Cathedral.png' width='800'>
+
+### Interlude 07: The Spear That Pierced the Shield
+
+**Trap Type: Spring Spear**
+
+A faint metallic click sounded from the wall beside Kael. Before he could turn, a concealed spring mechanism fired. A long adamantium spear shot from its slot and pinned the paladin's shield arm against the stone, holding him in place with the Restrained force of the trap.
+
+Grog charged toward him, but Kael shouted for him to stop: another pressure plate lay beneath the frost. Fizwick slid along the wall, reading the tiny grooves that connected the spear to its loaded spring. Lyra raised a violet band around the shaft, suspending its vibration and preventing the mechanism from driving deeper.
+
+The spear had pierced the outer edge of Kael's shield and locked into a stone socket. Grog planted his boots and held the shaft steady while Fizwick released the catch with his picks. Lyra gradually eased the magical restraint. On the final click, Kael pulled free and stepped back, his arm bruised but intact.
+
+He turned first to check his companions, not his own wound. "You could have kept moving," he said. Grog snorted. "And leave our shield stuck to a wall? Who would carry the heavy things?" Fizwick laughed, but his hands were still trembling from the precision work.
+
+They left the spear embedded in the stone as a warning to the next travelers. The paladin walked among them rather than ahead, accepting their protection as readily as they had accepted his.
+
+<img src='readme_assets/story/007_The_Spear_That_Pierced_the_Shield.png' width='800'>
+
 
 ## Chapter 22: Level Twenty-Two – The Hall of Winged Pillars
 
 The catacombs opened into a cyclopean central nave, characterized by pillars sculpted in the form of winged creatures that seemed to bear the weight of the mountain itself. Here, the frozen mist of the upper floor condensed into sharp ice formations that hung from the ceiling like ready-to-fall swords. The ground's stability was compromised by slabs of blue ice and bottomless chasms.
 
 From the heights of the pillars, a pack of dungeon harpies with black-feathered wings swooped down, their enchanting songs seeking to break the adventurers' will and push them into the void. Kael gripped his sword's hilt, emanating an aura of pure devotion that shielded the group's minds from mind control. Lyra, opening her Arcane Tome with fluid and elegant gestures, responded to the aerial threat. Channeling the Void's energy, she unleashed a choreography of empowered magical darts that struck the harpies mid-flight, breaking their wings and sending them plunging down. Fizwick took advantage to move through the pedestals' shadows, finishing off the fallen monsters with lightning-fast sneak attacks to their vital points. The group coordinated their efforts to operate an immense frozen winch, freeing the stone door to the next floor.
+
+<img src='readme_assets/story/022 Battle in the Frozen Cathedral.png' width='800'>
 
 
 ## Chapter 23: Level Twenty-Three – The Sharp Fissures Labyrinth
@@ -5372,12 +5524,33 @@ The twenty-third floor severely tested the group's agility. The path was no long
 
 An ambush by lesser air elementals and crude stone golems blocked the way on an isolated pillar. Grog showcased his legendary resilience. He planted his feet in the cracked rock and absorbed the frontal impact of the largest golem, laughing in the face of pain as his wounds only fueled his barbaric fury. With a devastating ascending blow, Grog shattered the golem's stone arm, creating space for Lyra's intervention. The mage intoned a complex formula, manipulating gravity around the elementals and dispersing their windy cohesion with an arcane shockwave. Fizwick, harnessed to a rope held by Kael, launched himself across the main fissure to hook a secure anchor point, allowing everyone to cross the chasm.
 
+<img src='readme_assets/story/023 Battle Between Giants in the Mist.png' width='800'>
+
+
+### Interlude 08: The Mountain's Falling Jaw
+
+**Trap Type: Ceiling Collapse**
+
+The narrow bridge groaned under the group's weight. A tremor shook the fissure, and a hidden rune flared beneath the rock. The ceiling above the crossing broke apart. Stone rushed down, filling the surrounding five-by-five area with a crushing mass of rock and rubble.
+
+Kael raised his shield over Lyra as the first blocks struck. Grog planted the Seismic haft of his greataxe against a falling slab and held it long enough for Fizwick to pull the mage beneath a natural overhang. The kobold then climbed the fractured wall, searching for the trigger seam that kept the collapse moving.
+
+Lyra turned the falling debris aside with a spiraling field of altered gravity. The stones hung in the air like a storm caught between heartbeats, but the spell began to falter under their weight. Grog shifted his stance and took the strain from a massive block that threatened to crush the opening. Fizwick reached the rune and disabled it with a wedge of steel.
+
+The suspended stones settled into a new arch, leaving a narrow route through the rubble. Kael inspected each companion for injuries before allowing anyone to move. Grog's arms shook, and Lyra's face had gone pale, yet none had suffered a fatal blow.
+
+They crossed only after rebuilding the path together. The mountain had tried to bury them as individuals; it had failed because they had answered as one.
+
+<img src='readme_assets/story/008_The_Mountains_Falling_Jaw.png' width='800'>
+
 
 ## Chapter 24: Level Twenty-Four – The Archive of Storms
 
 The wind's roar suddenly ceased when the group crossed the bronze doors of the twenty-fourth level. They found themselves inside an immense underground library eroded by the elements, where thousands of parchment-bound tomes and metal plates were stored on stone shelves reaching up to the ceiling. Many of the texts floated in the air due to ancient, uncontrolled levitation spells.
 
 While Lyra examined the texts, searching for secrets about the labyrinth's core, the archive's arcane guardians – specter guardians wrapped in animated parchments – awakened. Fizwick used his exceptional stealth to slip between the shelves, distracting the guardians and severing the magical threads animating the parchments. Kael positioned himself at the room's center as a beacon of sacred light, repelling the specters' psychic assaults with radiant punishment-infused slashes. Lyra, ecstatic at the discovery of an intact archaic scroll, demonstrated her academic superiority by instantly deciphering the defensive runes and mastering a new interdiction spell that sealed the remaining guardians, simultaneously unlocking the secret passage behind the main wall.
+
+<img src='readme_assets/story/024 Arcane Battle in the Enchanted Library.png' width='800'>
 
 
 ## Chapter 25: Level Twenty-Five – The Bridge of Frozen Sighs
@@ -5386,12 +5559,31 @@ This floor consisted of a single, immense suspended bridge of stone and rope con
 
 Midway, a legendary dungeon creature – a minor Frost Wyrm – emerged from the gorge's darkness, blocking the bridge and opening its jaws wide to release a blast of absolute cold. Kael performed an act of pure heroism: he darted forward, interposing his consecrated shield between the monster and his companions, enduring the arctic temperature thanks to his faith's warmth and protecting the group. Grog, using the stability offered by the paladin, ran along the bridge's side rope and leaped onto the winged reptile's back, plunging his axe into its frozen scales. The distraction allowed Lyra to unleash a coordinated salvo of arcane projectiles at the monster's eyes, forcing it to retreat into the abyss and allowing the group to reach the other shore safely.
 
+<img src='readme_assets/story/025 Battle on the Frozen Bridge.png' width='800'>
+
 
 ## Chapter 26: Level Twenty-Six – The Crypt of Rotating Blades
 
 The twenty-sixth level greeted the group with the sinister screech of metal against metal. The stone was smooth, artificially polished, and the rooms were arranged like a deadly chessboard where enormous rotating scythe-like blades emerged from the walls and floor, moving along preset tracks at terrifying speed.
 
 The passage required impeccable coordination and superhuman reflexes. Fizwick led the advance, calculating with his analytical mind the rotation times and the blades' blind spots. With perfect timing, the kobold leaped between one blade and another, inserting a steel wedge into a central gear's fulcrum to slow the mechanism. Kael and Grog coordinated to lift a heavy fallen iron bulkhead, creating a safe tunnel for Lyra to cross the hall. When a defective blade broke free from its track, heading straight for the mage, Grog intercepted it frontally with a blow from his armored forearm, deflecting the blade's trajectory with sheer brute force and saving his companion.
+
+<img src='readme_assets/story/026 Adventurers in the Mechanical Fortress.png' width='800'>
+
+
+### Interlude 09: The Last Rotation
+
+**Trap Type: Blade**
+
+Beyond the main chamber of rotating scythes, a final blade track lay hidden beneath a stretch of smooth stone. Fizwick had almost reached the exit when he saw the reflection move against the rhythm of the other mechanisms. He shouted, but the floor had already opened. A great crescent blade shot from the wall, sweeping toward Lyra.
+
+Kael intercepted its first arc with his shield. The impact drove him backward, and the blade continued to grind against the sacred metal. Grog seized the loose end of a broken iron support and wedged it beneath the blade's track, slowing its rotation by inches. Lyra cast a band of violet force around the weapon's central axle, holding it in a strained, trembling pause.
+
+Fizwick darted beneath the suspended edge and reached the gear housing. He could not stop the blade while the pressure remained on its track, so he called for the others to hold their positions. Grog pushed harder, Kael braced the shield, and Lyra tightened her spell. The rogue then released the locking pin.
+
+The blade dropped harmlessly into its channel. For a moment, no one spoke. Kael's shield bore a deep new scar, but the paladin only ran his hand over it and smiled. "A shield is not measured by how perfect it remains," he said, "but by whom it protects." Grog clapped his shoulder, and the four moved on.
+
+<img src='readme_assets/story/009_The_Last_Rotation.png' width='800'>
 
 
 ## Chapter 27: Level Twenty-Seven – The Distorted Echo Hall
@@ -5400,6 +5592,23 @@ The mist and wind gave way to a dense, hallucinogenic atmosphere. The walls of t
 
 Shadow creatures born from the adventurers' fears emerged from the stone mirrors. The group found themselves facing their own simulacra. Kael overcame the visual disorientation by closing his eyes and relying solely on his sense of justice and perception of life energy; guided by faith, he struck down his shadow double with a single, devastating blind slash. Lyra used her superior intellect to understand that the floor's magic fed on doubt: she focused her mind on the Arcane Tome and emanated a shockwave of pure logical energy that shattered the room's illusory mirrors, revealing the corridor's true configuration and the exit staircase.
 
+<img src='readme_assets/story/027 Heroes Among the Shattered Mirrors.png' width='800'>
+
+
+### Interlude 10: The Stolen Lifeblood
+
+**Trap Type: Body Swap**
+
+A rune glimmered beneath the mirror floor just as Grog stepped between two of the distorted reflections. A black thread of magic snapped from the stone and struck his chest. Across the chamber, the nearest hostile shadow-creature convulsed. In an instant, the trap exchanged their remaining life force: Grog staggered, suddenly weakened, while the creature surged with the strength it had stolen.
+
+Kael moved in front of the barbarian, refusing to let the empowered shadow reach him. Fizwick searched the floor for the source of the curse, keeping clear of the creature's reach. Lyra recognized the Body Swap sigil and warned them not to strike blindly; the altered balance of life could make a careless blow fatal to Grog.
+
+The mage opened a narrow void aperture around the rune, isolating it from the shadow's energy. Fizwick crossed behind Kael and cut the physical conductor beneath the mirror. The spell snapped. The creature's stolen strength collapsed, leaving it vulnerable to Grog's final controlled strike, while Lyra steadied the weakened half-orc with a gentle current of restorative magic.
+
+Grog looked at the creature's fading reflection. "It wore my strength, but it never knew what I would use it for." Kael answered, "Strength without loyalty is only a weapon. What you give to others is what makes it yours." The group left the mirror hall with their trust intact.
+
+<img src='readme_assets/story/010_The_Stolen_Lifeblood.png' width='800'>
+
 
 ## Chapter 28: Level Twenty-Eight – The Solar Wind Quadrant
 
@@ -5407,12 +5616,16 @@ Mechanical gears returned to dominate the scene on the twenty-eighth floor, but 
 
 Fizwick studied the central refractor, identifying the deflection prism. Moving with acrobatic agility among the light beams that could have disintegrated him, the kobold rogue used his inspection mirrors to temporarily deflect a beam, opening a safe passage. Grog and Kael advanced, pushing a massive refractory metal cart as a heat shield to protect Lyra. The mage, once she reached the alignment console, used her manipulative abilities to reverse the crystals' polarity, extinguishing the floor's barriers and channeling the excess energy to overload the mechanical sentinels converging on their position.
 
+<img src='readme_assets/story/028 Steampunk Dungeon Among Gears and Magic Crystals.png' width='800'>
+
 
 ## Chapter 29: Level Twenty-Nine – The Antechamber of Fallen Kings
 
 The penultimate floor of the block was a majestic underground throne room, where the skeletal remains of ancient sovereigns who had attempted to dominate the labyrinth sat on stone seats. The air was still and emanated an oppressive authority, a gravitational pressure that made every movement laborious, as if the dungeon itself demanded the intruders' genuflection.
 
 Kael advanced with his head held high, his armor gleaming in the darkness and his determination breaking the environment's magical submission. "We will not bow before ghosts," he declared, his voice resounding proud and clear. When the kings' remains animated, wielding ceremonial weapons infused with black magic, Grog threw himself at them with wild enthusiasm, his axe smashing thrones and scattering millennial bones. Fizwick moved like lightning among the dusty cloaks, severing the undead royal guards' magical sinews, while Lyra wove protective barriers around the group, keeping the formation compact until they reached the base of the grand staircase of ancient gold leading to the thirtieth level.
+
+<img src='readme_assets/story/029 Battle in the Cathedral of Skeletons.png' width='800'>
 
 
 ## Chapter 30: Level Thirty – The Battle of the Windy Abyss
@@ -5437,12 +5650,33 @@ The descent from the Gorgon's platform led the group into an underground ecosyst
 
 As they advanced, the ground trembled: panthers made of volcanic glass shards emerged from the crystalline bushes. Grog charged first, laughing wildly as the creatures' scratches only fueled his barbaric fury. With a rotating slash of his axe, he shattered two of the panthers into a thousand shiny pieces. Meanwhile, Fizwick noticed a rare Black Fire Rose growing on an unstable wall; with a lightning-fast acrobatics maneuver, evading a predator's guard, he managed to collect it, knowing its petals could enhance the group's poisons or infusions. Kael raised his consecrated shield to protect Lyra while the mage, channeling the Void's energy from her tome, launched a series of unstable darts that exploded the remaining mineral beasts, clearing the path.
 
+<img src='readme_assets/story/031 Mystic Battle in the Crystal Cave.png' width='800'>
+
+
+### Interlude 11: The Green Rain of Obsidian
+
+**Trap Type: Acid**
+
+A line of crystalline flowers opened along the path. Their petals released a shimmering green rain that hissed wherever it touched the stone. Fizwick recognized the smell before the first drops reached them: concentrated acid, drawn through hidden channels from the garden's roots.
+
+Kael raised his shield above Lyra, while Grog pulled a broad slab of obsidian from the ground and held it as a roof over the group. The acid began eating through the slab, sending bright rivulets down its edges. Fizwick crawled beneath the roots to find the feeder valves, but the narrow passage was already filling with corrosive liquid.
+
+Lyra shaped a ring of gravity around the stream, lifting the acid droplets into the air and suspending them like green stars. That gave Fizwick the seconds he needed to close the valves. Grog held the weakening obsidian until the last mechanism clicked, then hurled the slab aside as Lyra guided the suspended acid into a sealed mineral basin.
+
+The garden grew quiet. Kael inspected Grog's gloves and found several burned seams. The barbarian shrugged off the damage, but Lyra used a small cleansing spell to prevent the corrosion from spreading.
+
+Fizwick glanced at the ruined path. "Beauty can be a disguise." Lyra nodded. "And power must be handled with care, especially when it can harm those who never chose to fight."
+
+<img src='readme_assets/story/011_The_Green_Rain_of_Obsidian.png' width='800'>
+
 
 ## Chapter 32: Level Thirty-Two – The Silent Waterfalls
 
 A dull rumble guided the adventurers to the thirty-second level. The room was dominated by enormous underground waterfalls, but the water made no sound: it was trapped in a curse of temporal and acoustic stasis. It floated and fell in an unnatural silence, creating a visual barrier that distorted distances. Beneath the still water's surface, the remains of ancient explorers could be glimpsed.
 
 From the basin's depths emerged frozen water specters, trying to drag the group into silent oblivion. Kael stepped forward, reciting his Sacred Oaths in a voice that, though muffled by the floor's magic, emanated a radiant shockwave that forced the specters to retreat. Lyra identified the magic core blocking the water's time flow: an ancient golden medallion embedded in the rock behind the main waterfall. With academic precision, she manipulated reality's threads to lift Fizwick beyond the water jet. The kobold rogue, mid-air, threw a perfect throwing dagger that dislodged the medallion, restoring sound and gravity. The water resumed flowing with a tremendous roar, sweeping away the remaining specters and revealing a wet secret passage.
+
+<img src='readme_assets/story/032 Battle in the Sunken Ruins.png' width='800'>
 
 
 ## Chapter 33: Level Thirty-Three – The Night Forges
@@ -5451,12 +5685,16 @@ The waterfalls' cold was immediately replaced by the stifling heat of the thirty
 
 A group of guardian constructs made of incandescent iron barred the way to the control bellows. Grog, exhilarated by the heat and the promise of brutal combat, hurled himself at the largest construct. He parried a molten metal fist with his iron bracer, heedless of the burns, and responded with a devastating blow from his greataxe, shattering the golem's fire core. Fizwick slid under the sentinels' massive legs, severing the lower hydraulic cables with his heavy lockpicking tools. Lyra used her tome to instantly cool the enemies' metal, making it brittle, allowing Kael to destroy them with a radiant shield strike. Among the debris, Fizwick found an ingot of Star Metal, a legendary material perfect for forging new weapons.
 
+<img src='readme_assets/story/033 Battle in the Incandescent Forge.png' width='800'>
+
 
 ## Chapter 34: Level Thirty-Four – The Burning Mirrors Labyrinth
 
 The thirty-fourth level was a deadly visual trap. The walls were covered in polished mirrors that not only reflected images but amplified the light and heat from the upper forges, focusing them into blinding, destructive laser beams that continuously crossed the corridors.
 
 The slightest misstep would mean disintegration. Fizwick took command: he analyzed the geometric reflections and found the beams' movement pattern. Moving with feline grace and superhuman flexibility, he guided his companions along the blind spots. When a winged sentinel tried to push them under a focused beam, Kael interposed his consecrated shield, reflecting the destructive light against the sentinel itself, pulverizing it. Lyra intoned a visual interdiction spell, creating a magical mist that dispersed the solar rays' intensity, allowing the group to run toward the exit before the mirrors could realign.
+
+<img src='readme_assets/story/034 The Burning Mirrors Labyrinth.png' width='800'>
 
 
 ## Chapter 35: Level Thirty-Five – The Crypt of Whispers
@@ -5465,12 +5703,48 @@ The atmosphere changed radically on the thirty-fifth level. This floor was an un
 
 Kael felt the weight of fatigue, but his determination remained ironclad. He concentrated his aura of pure devotion, creating a circle of golden light that shielded his companions from the debilitating whispers. "Our mission does not end here!" the paladin roared. From the ground rose anthropomorphic shadows, trying to steal their life energy. Grog delivered blind slashes, his uncontrollable rage materializing in physical blows capable of tearing the very substance of the shadows. Lyra, reading the ancient inscriptions on the urns, understood the containment ritual and used Void magic to reseal the restless souls in their containers, unlocking the crypt's great iron door.
 
+<img src='readme_assets/story/035 The Crypt of Whispers.png' width='800'>
+
+### Interlude 12: The Living Walls of the Crypt
+
+**Trap Type: Stone Tomb**
+
+As the companions passed between two rows of funerary urns, the floor flashed with a pale sigil. Stone surged upward around Lyra, forming an impassable three-by-three perimeter of walls. In moments she was sealed inside a tomb of living rock, with only a narrow crack remaining above her head.
+
+Kael struck the new wall with his sword, but the stone absorbed the blow. Grog tried to prise apart the blocks, only to make the runes glow brighter. Fizwick pressed his ear to the surface and heard Lyra tapping from within. She was alive, but the air in the enclosure was already growing thin.
+
+"Do not break it blindly," Lyra called. "The walls are joined by a single binding rune." She traced its position from inside using a thread of amethyst light. Fizwick followed the glow along the outer seam and found the tiny control notch. Grog held the wall steady while Kael planted his shield against the nearest block, preventing it from closing further. With a precise turn of his pick, Fizwick released the binding.
+
+The stone perimeter cracked and folded outward. Lyra stepped free, pale but unharmed. Kael reached for her hand, and she accepted it without her usual reserve.
+
+The paladin looked at the sealed chamber. "A tomb is only final when those outside decide to leave you there." No one answered. They simply tightened their formation and continued together.
+
+<img src='readme_assets/story/012_The_Living_Walls_of_the_Crypt.png' width='800'>
 
 ## Chapter 36: Level Thirty-Six – The Lightning Rift
 
 The thirty-sixth level opened onto a seemingly bottomless chasm, crossed by a series of floating magnetic platforms. The air was saturated with static electricity that made hair stand on end, and arcs of blue lightning continuously flashed between the cavern's magnetite walls.
 
 An elemental storm generated Lightning Golems that began to overload the platforms, making them plummet. Grog made a prodigious leap from one platform to another, grabbing the first golem by its pure energy neck and hurling it into the void, absorbing part of the electric shock thanks to his orcish physiology and using it to empower his next attack. Fizwick used his insulated boots to run along the floor's conductive cables, deactivating the unstable magnetic pylons and stabilizing the path for Kael and Lyra. The mage coordinated her powers with the paladin: she opened a Void portal that absorbed a huge lightning strike and redirected it onto Kael's sword, which struck the ground, releasing an electric-radiant shockwave that pulverized the remaining enemies.
+
+<img src='readme_assets/story/036 The Lightning Rift.png' width='800'>
+
+
+### Interlude 13: The Path of Living Thunder
+
+**Trap Type: Lightning**
+
+The magnetic platforms began to glow blue beneath the adventurers' feet. A sequence of runes flashed along the cavern wall, and bolts of lightning leapt between the magnetite pillars, crossing the path in a tightening grid. The trap had turned the entire crossing into a web of living thunder.
+
+Kael anchored his shield against a metal brace and drew the first discharge away from Lyra. Grog drove the butt of his greataxe into a cracked stone seam, grounding the platform as sparks crawled over his armor. Fizwick ran along the insulated cable channel, searching for the relay that controlled the sequence.
+
+Lyra opened a void portal before the largest bolt struck. The lightning vanished into its black center and reappeared high above the cavern, where it burst into a crown of harmless blue fire. But the portal could not remain open indefinitely. Fizwick reached the relay and jammed its contact wheel with a lockpick, while Grog held the platform steady against the electrical tremors.
+
+Kael signalled the exact moment. Lyra closed the portal; Fizwick locked the relay; Grog released the grounding brace. The grid collapsed in a single flash, leaving only the scent of ozone and a few drifting sparks.
+
+Grog looked at his smoking weapon. "Next time, let the storm fight someone else." Fizwick grinned. "Next time, listen when I say the floor is wired." Their laughter carried them safely to the far platform.
+
+<img src='readme_assets/story/013_The_Path_of_Living_Thunder.png' width='800'>
 
 
 ## Chapter 37: Level Thirty-Seven – The Silent Hive
@@ -5479,6 +5753,8 @@ The thirty-seventh level was covered in a chitinous, sticky substance. It was th
 
 Fizwick was in his element: he taught the group how to move without making the slightest noise. Unfortunately, a giant masticator ambushed them from above. Grog blocked the creature's jaws with his bare hands, suppressing his battle cry to avoid exploding the surrounding fungi, demonstrating heroic self-control. Lyra acted cunningly: she used her magic to create a bubble of absolute vacuum around the insect, isolating any sound. Kael could then strike with all his sacred force, piercing the monster's heart without producing any external noise. Fizwick took the opportunity to extract the Chitin Venom, a highly useful paralyzing toxin.
 
+<img src='readme_assets/story/037 The Silent Hive.png' width='800'>
+
 
 ## Chapter 38: Level Thirty-Eight – The Library of Lost Time
 
@@ -5486,12 +5762,33 @@ The thirty-eighth level appeared as a sumptuous library suspended in space, wher
 
 The time guardians – golden sphinx-like constructs – attacked by manipulating the adventurers' speed. Lyra found herself in her ideal environment. She challenged the constructs on their own magical ground, accelerating Grog's and Kael's movements while slowing the sphinxes. Grog, moving at triple speed, became a destructive blur that demolished the enemies' golden bodies before they could react. Kael protected Fizwick while the latter deciphered an ancient temporal enigma carved on the central altar, unlocking the knowledge necessary to understand the next boss's nature and revealing the key to descend to the next level.
 
+<img src='readme_assets/story/038 The Library of Lost Time.png' width='800'>
+
 
 ## Chapter 39: Level Thirty-Nine – The Sandstorm Antechamber
 
 The thirty-ninth floor was a miniature underground desert. Large dunes of very fine, golden sand shifted under the action of artificial hot winds. Visibility was reduced to a few meters due to a perennial sandstorm that scratched armor and blinded eyes.
 
 From the sand emerged Sand Dune Predators – giant armored worms. Kael planted himself in the sand, infusing sacred light into his armor to serve as a visual beacon for the group amid the storm. Grog intentionally allowed himself to be swallowed by one of the worms, only to burst out from within with his axe and emerge covered in blood and sand, shouting his triumph. Fizwick rode the air currents using his cloak as a sail to strike the other worms' weak points with venom-infused arrows, while Lyra solidified the sand beneath the enemies' feet, transforming it into fragile glass with a fire-arcane spell, facilitating their total destruction.
+
+<img src='readme_assets/story/039 The Sandstorm Antechamber.png' width='800'>
+
+
+### Interlude 14: The Sands That Remember
+
+**Trap Type: Quicksand**
+
+The sandstorm abruptly fell still. Beneath the group's feet, the golden surface began to ripple and sink. Kael was pulled down to his knees, then to his waist, as the quicksand tightened around his armor. The more he struggled, the faster he descended.
+
+Grog rushed to him, but Fizwick caught the barbarian's belt. "Do not step there!" The kobold drove his exploration pole into the sand and found the safe edge of the buried pit. Lyra stretched both hands forward, weaving violet bands through the grains to slow their movement without hardening the center around Kael.
+
+Grog lay flat and extended the haft of his axe. Kael caught it with one hand while Fizwick secured a rope to a buried stone anchor. Lyra gradually turned the sand around the pit into a fragile crust of glass, creating a stable rim. At the same time, Grog and Fizwick pulled in rhythm, while Kael kept his body still and trusted their strength.
+
+The paladin emerged coated in sand, breathing hard but alive. Instead of chastising him, Grog helped him remove the heavy plates and checked that he could stand. Kael returned the gesture by cleaning the grit from Grog's injured hand.
+
+The desert had tried to make every movement a struggle for survival. The four learned that sometimes the bravest action is to stop fighting the ground and let your companions pull you free.
+
+<img src='readme_assets/story/014_The_Sands_That_Remember.png' width='800'>
 
 
 ## Chapter 40: Level Forty – The Battle of the Storm Colossus
@@ -5519,12 +5816,16 @@ The black marble staircase led the adventurers to the forty-first level, a realm
 
 As they sought a stable path, the surface of one of the pools rippled. Masses of semi-liquid crystal took shape, transforming into Silicon Arachnids, creatures with razor-sharp legs capable of moving effortlessly on the unstable fluid. Grog roared, hurling himself at the first creature: his axe impacted the mineral carapace, raising a shower of sharp splinters that wounded his arms, but his barbaric fury allowed him to ignore the pain and split the monster in two. Fizwick, noticing that the creatures' legs vibrated at a specific frequency, used his lockpicks to strike a nearby stalactite, creating an acoustic resonance that cracked the other arachnids' bodies. Lyra channeled Void energy to freeze the liquid surface beneath the remaining creatures, immobilizing them, allowing Kael to finish them with a radiant charge of his consecrated shield.
 
+<img src='readme_assets/story/041 The Liquid Crystal Terraces.png' width='800'>
+
 
 ## Chapter 42: Level Forty-Two – The Abyss of Inverted Winds
 
 The forty-second floor presented itself as a gigantic vertical gorge where gravity seemed to have gone mad. Strong air currents didn't blow downward but violently upward, carrying giant boulders and debris that floated in the air like autumn leaves. To advance, the group had to jump from rock to rock while these were pushed toward the cavern's ceiling.
 
 Fizwick took the initiative, calculating the wind vectors with millimeter precision. He tied a reinforced silk rope to Grog's belt and launched himself into the void, using an updraft to reach a stable platform. However, a pack of Storm Gargoyles emerged from the rocky crevices, swooping down on Kael and Lyra. The paladin anchored his magnetic boots to a floating rock and raised his shield, deflecting the monsters' stone claws. Lyra, maintaining concentration amid the whirlwind, opened a small Void portal directly in front of the alpha Gargoyle, locally reversing the airflow and sucking the creature into the lower abyss, breaking the pack's cohesion and allowing the group to cross the abyss.
+
+<img src='readme_assets/story/042 The Abyss of Inverted Winds.png' width='800'>
 
 
 ## Chapter 43: Level Forty-Three – The Slag Swamp
@@ -5533,12 +5834,50 @@ A humid, mephitic heat greeted the group on the forty-third level. The dungeon's
 
 From the mud emerged a Slag Leviathan, an armored worm covered in cast iron scales and acid saliva. Grog, exhilarated by the environment's brutality, leaped onto an iron root and hurled himself onto the monster's back, plunging his axe deep between the metal plates. The worm writhed in pain, spraying acid everywhere. Kael invoked his Oath of Protection, summoning a golden light barrier that shielded Lyra and Fizwick from the burns. The kobold rogue, moving swiftly among the solid slag, threw a vial of Chitin Venom accumulated from previous floors directly into the wound opened by Grog, paralyzing the beast's muscles. Lyra finished the battle by manipulating reality to instantly solidify the slag around the leviathan, trapping it forever in a tomb of cold metal.
 
+<img src='readme_assets/story/043 The Slag Swamp.png' width='800'>
+
+
+### Interlude 15: The Vein Beneath the Slag
+
+**Trap Type: Explosive Gas Vein**
+
+Bubbles rose through a patch of ash-dark mud beside the slag channel. Fizwick signalled for silence and lowered a small metal probe. The tip emerged coated in a volatile residue. The mud concealed an explosive gas vein; one spark or careless flame could engulf the entire walkway.
+
+Grog lowered his weapon rather than striking. Kael guided the others onto a narrow shelf of solid iron, shielding them from the heat radiating from the channel. Lyra sensed the pressure building beneath the surface and formed a delicate violet dome to contain the gas as it seeped upward. Fizwick crawled along the rim, locating the hidden fissure that fed the vein.
+
+The pressure surged. Lyra's dome began to tremble, and the gas glowed faintly where it touched the hot slag. Grog braced a fallen iron beam across the fissure, while Kael anchored it with his shield. Fizwick inserted a wedge into the release valve and opened a controlled vent toward an empty stone chimney. The gas escaped without igniting.
+
+Only when the last bubbles stopped did Lyra dissolve the containment field. No fire had been needed, and no one had been sacrificed to the trap.
+
+Grog looked at the mud and gave a respectful grunt. "Today, not swinging the weapon was the strongest blow." Kael smiled. The group crossed the swamp with measured steps, carrying the lesson into the deeper realms.
+
+<img src='readme_assets/story/015_The_Vein_Beneath_the_Slag.png' width='800'>
+
 
 ## Chapter 44: Level Forty-Four – The Hall of Inverted Echoes
 
 The forty-fourth floor was a monumental underground ballroom with perfectly smooth walls, but cursed with a lethal acoustic curse: every sound emitted was amplified tenfold and returned as a destructive shockwave after a few seconds. Even the simple sound of a heavy footstep could collapse the ceiling.
 
 The floor's guardians were Sonic Golems, giant hollow bronze giants that struck the floor with enormous hammers to trigger the floor's trap. Fizwick imposed absolute silence. Lyra used her tome to erect a barrier of total acoustic isolation around the group, but the spell required all her energy. Grog and Kael had to fight without being able to emit any shout or command. The paladin, moving with an unnatural grace for his size, struck the first golem in the chest with his radiant power-infused sword, while Grog dismembered its bronze arms. Fizwick managed to slip inside the main golem's hollow body and sever the harmonic cords that generated the echoes, permanently neutralizing the floor's acoustic threat.
+
+<img src='readme_assets/story/044 The Hall of Inverted Echoes.png' width='800'>
+
+
+### Interlude 16: The Unspoken Spell
+
+**Trap Type: Silence**
+
+A pale ring of runes illuminated beneath Lyra's boots. The chamber swallowed every sound. Kael's warning became a movement of lips; Grog's shout vanished before it could leave his throat. Lyra tried to invoke her spell, but the Silence trap severed the verbal component and left the magic dormant in her Tome.
+
+The Sonic Golems began to stir at the far end of the hall. Fizwick tapped twice on his dagger, then pointed to the columns. He and Kael had to communicate through gestures, while Grog silently braced a loose slab that threatened to crash and create a fatal echo beyond the field's edge.
+
+Lyra studied the runes and realized the trap was sustained by four resonant stones set into the floor. She drew a pattern in the air, showing Fizwick where to find them. The kobold crawled between the stones and loosened their metal collars. Kael and Grog moved in perfect synchrony, lifting each collar only when Lyra signalled. When the final stone turned, the silence broke in a rush of returning sound.
+
+Lyra did not speak immediately. She looked at her companions, then touched her heart and bowed. They had understood her without a single word.
+
+The four left the hall knowing that trust did not depend on voices. Even in absolute silence, they had heard one another clearly.
+
+<img src='readme_assets/story/016_The_Unspoken_Spell.png' width='800'>
 
 
 ## Chapter 45: Level Forty-Five – The Garden of Frozen Souls
@@ -5547,12 +5886,16 @@ The cold returned to strike on the forty-fifth floor. This level was a forest of
 
 The Eternal Frost Specter, an incorporeal creature floating among the ice branches, tried to add the adventurers to its collection. The air became so cold that Kael's breath turned into ice needles. The paladin concentrated his divine ardor, expanding his aura until it melted the enchanted ice beneath their feet and infused vital warmth into his companions. Lyra discovered that the specter drew power from three large ice prisms placed at the forest's center. With a precise Void spell, she distorted the space around the prisms, destroying the monster's focal lenses. Grog, with his strength amplified by Kael's warmth, shattered the weakened specter with a devastating blow, releasing a faint echo of the trapped souls that indicated the way to the next level.
 
+<img src='readme_assets/story/045 The Garden of Frozen Souls.png' width='800'>
+
 
 ## Chapter 46: Level Forty-Six – The Dragon Blood Foundry
 
 The forty-sixth floor housed an immense underground industrial structure, powered not by lava or coal, but by a scarlet fluid known as Artificial Dragon Blood, a highly volatile and magical alchemical substance that flowed in enormous copper and bronze pipes.
 
 The group was attacked by Corrupted Alchemists, cultists who threw vials of stale dragon blood that caused infernal fire explosions. Grog charged through the flames, his half-orc skin burned but regenerated by fury, smashing the cultists' alchemical counters. Fizwick used his agility to climb the upper pipes, sabotaging the pressure valves and releasing jets of boiling steam on the enemies. Lyra collected the volatile scarlet fluid in empty vials for future use, while Kael used his sacred light to purify the toxic residues left by the explosions, opening the way toward the foundry's depths.
+
+<img src='readme_assets/story/046 The Dragon Blood Foundry.png' width='800'>
 
 
 ## Chapter 47: Level Forty-Seven – The Cemetery of Colossi
@@ -5561,6 +5904,8 @@ The forty-seventh floor was a vast dark cavern filled with the osseous and metal
 
 A Void Necromancer was reanimating the bones of an ancient fossil dragon to destroy the intruders. Kael advanced courageously, his sword shining like a star in the underground night as he repelled the skeletal dragon's claws. Fizwick slipped among the shadows of the giant ribs, scaling the bone structure until he reached the dragon's head, where he destroyed the necromantic gem that animated it. Lyra focused on the necromancer, engaging in a duel of pure magical will: she countered his dark magic with Void counterspell that disintegrated the spiritual bonds of the evil one, returning the dragon's bones to their eternal rest.
 
+<img src='readme_assets/story/047 The Cemetery of Skeletal Dragons Claws.png' width='800'>
+
 
 ## Chapter 48: Level Forty-Eight – The Citadel of Shadow Mirrors
 
@@ -5568,12 +5913,35 @@ The forty-eighth floor was a fortress built entirely of Reflective Obsidian. Unl
 
 Grog found himself fighting his own furious shadow, a brutal battle where every axe blow was symmetrically parried. Kael had to face a dark paladin wielding a black light sword. Lyra realized that the clones were linked to the adventurers' visual perception: if they couldn't see themselves, the clones lost cohesion. The mage intoned a spell of absolute magical darkness, temporarily blinding both the group and the enemies. Fizwick, accustomed to fighting in blind darkness thanks to his kobold senses, guided Grog's and Kael's blows by sensing air movements, allowing them to destroy the clones' specular cores without seeing them.
 
+<img src='readme_assets/story/048 The Citadel of Shadow Mirrors.png' width='800'>
+
+<img src='readme_assets/story/048 The Citadel of Shadow Mirrors 1.png' width='800'>
+
+
+### Interlude 17: The Night That Hid Their Faces
+
+**Trap Type: Darkness**
+
+A black wave rolled through the Citadel of Shadow Mirrors. The trap extinguished every torch, every magical glimmer, even the faint reflections on the obsidian walls. The companions could no longer see one another, and the shadow clones began moving through the darkness without warning.
+
+Kael planted his shield and called for the group to remain still, but the darkness swallowed his voice. Fizwick took the lead. His kobold senses could detect the shift of air around each approaching enemy, and he began tapping a steady pattern against the stone with one dagger. Grog followed the rhythm, keeping his weapon low so he would not strike a companion. Lyra used the Arcane Tome to release tiny pulses of violet energy, not bright enough to illuminate the room, but precise enough to map the space around them.
+
+When a shadow clone approached Lyra from behind, Fizwick redirected Grog with three sharp taps. The barbarian intercepted the creature, while Kael moved between it and the mage. Lyra then gathered the pulses into a single amethyst flare, revealing the clones' specular cores for one decisive instant.
+
+The four struck together. The darkness shattered into drifting black fragments, and the mirrors reflected their true faces once more.
+
+Fizwick sheathed his dagger. "I couldn't see any of you." Kael rested a hand on his shoulder. "You knew where we were because you knew we would stay together."
+
+<img src='readme_assets/story/017_The_Night_That_Hid_Their_Faces.png' width='800'>
+
 
 ## Chapter 49: Level Forty-Nine – The Elemental Core Antechamber
 
 The forty-ninth floor was a stone walkway suspended over a sea of unstable elemental energy, where fire, water, earth, and air constantly clashed in primordial chaos. The stone bridge trembled violently under the action of the lower elemental storms.
 
 The guardians were Elemental Archons, beings composed of all four combined elements. Kael planted his shield in the ground, activating his ultimate defense that created a corridor of sacred stability to protect his companions from flaming debris and lightning. Grog used his axe to deflect the stone projectiles launched by the archons, advancing step by step. Fizwick hurled his daggers infused with Chitin Venom to interrupt the monsters' energy flow, while Lyra channeled the lower floor's raw energy to fuel a supreme barrier spell that stabilized the walkway, allowing the group to reach the Fifth Seal's door.
+
+<img src='readme_assets/story/049 The Elemental Core Antechamber.png' width='800'>
 
 
 ## Chapter 50: Level Fifty – The Battle of the Avatar of Primordial Chaos
@@ -5602,12 +5970,16 @@ Crossing the threshold of the fiftieth floor, the group found themselves in an i
 
 Instead of attempting a suicidal dash, Fizwick showed his rogue's cunning. Studying the light's reflection on the pendulums' pivots, he realized that the Mechanism responded to a mathematical sequence linked to the intruders' heartbeat. Using his disabling tools and connecting a copper wire to a nearby pressure plate, Fizwick managed to trick the floor's sensor, transmitting a constant, fictitious heart rate. The blades slowed noticeably, swinging in a predictable rhythm. Exploiting this opening, the group crossed the gallery without a scratch. At the room's end, hidden inside the main gear's housing, Fizwick recovered an ancient chest containing the Boots of Temporal Step (Very Rare Item - Tier 4, Value: 45,000 Gold Coins), dragon-leather boots that grant the wearer three seconds of absolute temporal acceleration.
 
+<img src='readme_assets/story/051 Chronomantic Pendulums Gallery.png' width='800'>
+
 
 ## Chapter 52: Level Fifty-Two – The Geometric Tiles Labyrinth
 
 The fifty-second floor was a colossal room whose floor was composed of thousands of hexagonal tiles that changed color and slope every second. A wrong step would trigger globular lightning discharges or flip the tile over a sea of poisoned spikes. Complicating matters, a horde of Geometric Horrors appeared to push the adventurers into the void.
 
 Lyra understood that the floor's complexity required an extraordinary solution. Opening her Arcane Tome, she decided to unleash a spectacular spell: she cast the supreme spell Void Inverse Singularity. Instead of creating a destructive black hole, Lyra manipulated the room's gravity, creating a fictitious gravitational attraction point on the ceiling. Suddenly, the group and the monsters fell upward. Walking on the smooth, trap-free ceiling, the adventurers completely avoided the lethal tile labyrinth below. Grog and Kael, floating upside down, easily eliminated the disoriented geometric horrors, while Fizwick collected from an upside-down niche the Ring of the Broken Geometry (Very Rare Item - Tier 4, Value: 38,000 Gold Coins), capable of deflecting magic projectiles by altering the surrounding space.
+
+<img src='readme_assets/story/052 Geometric Tiles Labyrinth.png' width='800'>
 
 
 ## Chapter 53: Level Fifty-Three – The Crypt of Sleeping Gases
@@ -5616,12 +5988,16 @@ A tomb-like silence reigned on the fifty-third level. The room was saturated wit
 
 The floor's guardians were Copper Skeletons, whose steps continuously generated sparks. Kael ordered everyone not to draw their metallic weapons. To overcome the trap without igniting the gas, the paladin chose the path of sacred cunning: he didn't use his sword but concentrated his faith in the Radiant Purification Aura. Walking slowly, Kael created a bubble of pure energy around the group that didn't burn but dissolved and neutralized the poison gas molecules in their path. The copper monsters, attempting to charge, saw their own sparks die harmlessly within the paladin's aura. Grog destroyed them bare-handed, shattering their metallic skulls. Among the commander skeleton's remains, they found a splendid Talisman of Purified Blood (Very Rare Item - Tier 4, Value: 60,000 Gold Coins), granting total immunity to poisons and diseases to its wearer.
 
+<img src='readme_assets/story/053 Crypt of Sleeping Gases.png' width='800'>
+
 
 ## Chapter 54: Level Fifty-Four – The Abyss of Phantom Bridges
 
 Level fifty-four was an immense underground void where the only way to advance was to cross a series of suspended bridges made of pure solid light. However, the bridges were intermittent and governed by the Mechanism's algorithm, making them disappear and reappear based on the weight exerted on them.
 
 Fizwick made incredible mental geometric calculations to predict which bridge section would remain solid. Running forward with the newly found Boots of Temporal Step, the kobold rogue placed small stone wedges at the bridge's magical anchor nodes, temporarily blocking the energy flow and preventing the light from dissolving. Thanks to this intuition, the group walked safely across a structure that should have given way under Grog's weight. Halfway across, hanging from a chain descending from the dark ceiling, they found the Cloak of Solid Shadow (Very Rare Item - Tier 4, Value: 55,000 Gold Coins), a fabric woven with Void threads that allows the wearer to become incorporeal for short periods.
+
+<img src='readme_assets/story/054 The Abyss of Phantom Bridges.png' width='800'>
 
 
 ## Chapter 55: Level Fifty-Five – The Burning Mirrors Foundry
@@ -5630,12 +6006,16 @@ The heat became unbearable again on the fifty-fifth floor. This level was a giga
 
 As the laser beams traced deadly lines on the floor, Lyra decided it was time to use even more spectacular magic. She summoned the grimoire and recited the words of the Prism of Cosmic Void spell. Above the group materialized a gigantic dark crystal lens that didn't block the lasers but absorbed their light and refracted it, redistributing it throughout the room as a harmless rain of cold, violet sparks. With the thermal trap neutralized by the mage's magic, Grog ran toward the central pedestal and destroyed the plasma core with an axe blow. Inside the focusing mechanism, Fizwick uncovered a legendary gem: the Ruby Heart of Plasma (Very Rare Item - Tier 4, Value: 75,000 Gold Coins), usable to infuse devastating fire damage into any weapon.
 
+<img src='readme_assets/story/055 The Burning Mirrors Foundry.png' width='800'>
+
 
 ## Chapter 56: Level Fifty-Six – The Gallery of Moaning Statues
 
 The fifty-sixth floor was a long corridor decorated with hundreds of stone statues depicting desperate faces. As soon as a living being entered their visual range, the statues emitted a psychic moan inducing paralysis and deep terror, immobilizing victims while the spiked ceiling slowly descended to crush them.
 
 Fizwick suggested a cunning plan based on elementary physics. Using a series of pocket mirrors and leftover shoe polish, the Kobold Rogue altered the viewing angles of the first statues, forcing them to look at each other. The psychic moan bounced between the stone guardians, creating a sonic loop that made the statues implode from mental overload before the group entered the corridor. Advancing among the stone rubble, Kael recovered from the far altar the Sword of Silent Judgment (Very Rare Item - Tier 4, Value: 85,000 Gold Coins), a blade that dealt extra damage to speechless enemies and allowed casting the Silence spell once per day.
+
+<img src='readme_assets/story/056 The Gallery of Moaning Statues.png' width='800'>
 
 
 ## Chapter 57: Level Fifty-Seven – The Electrified Swamp
@@ -5644,6 +6024,8 @@ The fifty-seventh floor's floor was covered with a thirty-centimeter layer of br
 
 Kael demonstrated that the paladin isn't just brute force. He planted his consecrated shield at the room's entrance and invoked a variant of his oath, connecting his divine energy to the deep earth. The shield functioned as a monumental Sacred Lightning Rod, attracting all the room's electrical discharges and harmlessly diverting them into the deep subsoil. The water stopped sizzling, allowing the group to walk to the opposite side. Hidden under a grate protected by the now-dead current, Fizwick found the Shield of Absolute Insulation (Very Rare Item - Tier 4, Value: 70,000 Gold Coins), perfect for Kael, capable of absorbing and converting any lightning or energy damage into temporary hit points.
 
+<img src='readme_assets/story/057 The Electrified Swamp.png' width='800'>
+
 
 ## Chapter 58: Level Fifty-Eight – The Mechanical Destiny Chessboard
 
@@ -5651,12 +6033,33 @@ The fifty-eighth level presented itself as an immense chessboard where the piece
 
 Fizwick, passionate about gears and logic, took command of the situation. Instead of fighting the automaton army, he used his cunning to throw small metal bolts onto the key squares, triggering the enemy automatons' moves so they destroyed each other according to the labyrinth's game rules. With just three perfectly calculated moves, Fizwick forced the enemy Iron King to checkmate itself, opening the passage without the group having to draw their swords. In the destroyed Iron King's throne, they found the Tome of Iron Logic (Very Rare Item - Tier 4, Value: 90,000 Gold Coins), a magic book that permanently increased the Intelligence and perception of those who studied it.
 
+<img src='readme_assets/story/058 The Mechanical Destiny Chessboard.png' width='800'>
+
 
 ## Chapter 59: Level Fifty-Nine – The Inverse Mist Antechamber
 
 The fifty-ninth floor was enveloped in a dense, violet mist that distorted the senses: those who walked forward found themselves backward, and those who tried to strike right struck left. In this sensory confusion, Void Wolves attacked from the shadows.
 
 Lyra decided to sweep away the illusion with another spectacular spell. Joining her hands, she cast the Dimensional Veil Breaker spell. A shockwave of silvery, ethereal energy expanded from her body, literally tearing the magical mist away and revealing the room's true geometric structure. The void wolves, deprived of their dimensional disguise, were easily struck down by Grog's axes and Kael's sacred slashes. On the alpha wolf's body, Fizwick recovered the Dimensional Hunter's Fur (Very Rare Item - Tier 4, Value: 65,000 Gold Coins), a cloak that allowed short ten-meter teleports through shadows.
+
+<img src='readme_assets/story/059 The Inverse Mist Antechamber.png' width='800'>
+
+### Interlude 18: The Chamber That Stole Fizwick
+
+**Trap Type: Teleport**
+
+A circular rune ignited beneath Fizwick. Before the kobold could leap away, space folded around him and he vanished in a flash of white-violet light. The others found themselves staring at an empty patch of stone. A second later, a faint metallic tapping echoed from somewhere beyond the chamber walls.
+
+The teleport trap had sent Fizwick into one of several sealed rooms scattered through the antechamber. Kael refused to move toward the stairs. Grog searched the walls for a hidden passage, while Lyra closed her eyes and followed the residual spatial signature left by the spell. She found a thin thread of energy leading into the stone, but it split into a dozen false paths.
+
+Fizwick, alone in the dark chamber, used his lockpicks to tap a rhythm against a pipe. Lyra caught the vibrations through the wall and aligned them with the spatial trace. Grog held a fractured pillar steady while Kael pressed his shield against the rune, giving Lyra a stable point from which to reverse the teleportation field.
+
+A ring of violet light opened. Fizwick tumbled out and landed against Grog's boots. The half-orc hauled him upright and hugged him so hard that his ribs creaked.
+
+"I was only gone a minute," Fizwick protested. Kael answered, "For us, it was long enough." They continued only after all four were together again.
+
+<img src='readme_assets/story/018_The_Chamber_That_Stole_Fizwick_view_1.png' width='800'>
+<img src='readme_assets/story/018_The_Teleportation_Chamber_View_2.png' width='800'>
 
 
 ## Chapter 60: Level Sixty – The Battle of the Sixth Seal Colossus
@@ -5685,45 +6088,63 @@ The Sixth Seal remained perfectly intact, glowing faintly at the center of the c
 
 The air on Floor 61 resembled nothing the group had breathed before. There was no sulfur stench from the lower levels, nor the oppressive humidity of the crypts. There was a metallic silence, almost artificial. Kael advanced with his shield raised, the sacred light emanating from his armor reflecting off the walls covered with veins of an unknown silvery alloy. Fizwick, moving like a liquid shadow, examined the ground. "No trace of biological footprints," whispered the kobold, sharpening his gaze. "The system here becomes geometrically perfect. Watch where you put your feet."
 
+<img src='readme_assets/story/061 The Threshold of the Silver Abyss.png' width='800'>
+
 
 ## Chapter 62: The Mechanical Crypts
 
 As they descended toward Floor 62, the walls began to move. It wasn't a collapse but a complex modular reconfiguration of the rooms. Grog roared when a heavy iron and platinum bulkhead slammed down between him and the rest of the group. Left alone in a square cell, the barbarian had to face two guardian constructs with scythe-like arms. With his brutal strength and unstoppable resilience, Grog withstood the defensive robots' deadly blows, destroying them with axe strikes just as Lyra, on the other side of the wall, used her transmutation magic to dissolve the metallic alloy of the door.
+
+<img src='readme_assets/story/062 The Mechanical Crypts.png' width='800'>
 
 
 ## Chapter 63: The Twilight Blade
 
 At the center of Floor 63, suspended within a magnetic induction force field, floated a massive golden altar. Upon it rested a sword of otherworldly craftsmanship: the Blade of Eternal Twilight. The estimated value of such an artifact exceeded 185,000 gold pieces in the world's most exclusive markets. When Kael approached, the force field activated, releasing repulsive electrical discharges. It was the combined cunning of Fizwick, who disabled the hidden energy nodes in the ceiling, that allowed the paladin to grasp the weapon. As soon as Kael's fingers touched the hilt, a wave of radiant and necrotic energy merged with his spirit.
 
+<img src='readme_assets/story/063 The Twilight Blade.png' width='800'>
+
 
 ## Chapter 64: The Geometry of Deception
 
 Floor 64 presented itself as an immense three-dimensional chessboard. Every wrong step would activate a column of magical fire capable of instantly incinerating even the most armored warrior. Fizwick, using his modified lockpicking tools and his extraordinary mathematical intuition, understood the trap's pattern before the others. Leading the group like an orchestra conductor, he made them perform diagonal movements and millimeter-calculated leaps. At the heart of the tile labyrinth, Fizwick found a secret compartment containing the Cloak of Spatial Deception, a legendary item valued at 140,000 gold coins, which he immediately donned, feeling the space around him become more malleable.
+
+<img src='readme_assets/story/064 The Geometry of Deception.png' width='800'>
 
 
 ## Chapter 65: Lyra's Gravitational Storm
 
 Arriving at Floor 65, the group was surrounded by an ambush from advanced elite constructs. Escape routes were blocked. It was in this moment of crisis that Lyra decided to unleash the true arcane potential of her tome. Summoning a spectacular, supreme-level spell, the Void-Elf mage altered the room's gravity. The constructs were lifted mid-air, unable to gain purchase on the ground, while a singularity at the ceiling's center began to crush them and collapse them onto themselves in a rain of blue sparks and metal fragments.
 
+<img src='readme_assets/story/065 Lyras Gravitational Storm.png' width='800'>
+
 
 ## Chapter 66: The Sanctuary of Silence
 
 Floor 66 offered a brief visual respite, transforming into an underground cathedral removed from time. The walls were decorated with frescoes narrating the labyrinth's creation. Here, Kael used the powers of his new Blade of Twilight to purify a fountain corrupted by dark magic, transforming it into a source of healing water that regenerated the group's wounds and restored their exhausted strength after their recent labors.
+
+<img src='readme_assets/story/066 The Sanctuary of Silence.png' width='800'>
 
 
 ## Chapter 67: The Ring of Singularity
 
 Exploring the internal catacombs of Floor 67, hidden inside a reliquary protected by an ancestral runic enigma, Lyra sensed an unprecedented magical vibration. Solving the sequence of magical symbols thanks to her arcane knowledge, the mage opened the chest, revealing the Ring of Arcane Singularity (valued at 220,000 gold coins). Wearing it, her mana reserve expanded instantly, allowing her to channel flows of pure magic without suffering the physical backlash of the Void.
 
+<img src='readme_assets/story/067 The Ring of Singularity.png' width='800'>
+
 
 ## Chapter 68: The March of the Guardians
 
 Floor 68 proved to be a dynamic trap: a long descending corridor where huge spiked compression rollers were released at regular intervals. Grog and Kael positioned themselves on the front line, joining forces to temporarily block the rollers' advance with shield and brute strength, while Fizwick slipped along the walls to reach the primary control levers and permanently stop the unlocking mechanism.
 
+<img src='readme_assets/story/068 The March of the Guardians.png' width='800'>
+
 
 ## Chapter 69: The Eve of the Seventh Seal
 
 On Floor 69, the architecture became monumental. A gigantic circular door blocked by seven planetary gears barred the way to the next level. The group camped to rest, aware that behind that threshold resided the Seventh Seal Guardian. Kael sharpened his radiant sword, Grog checked his armor's straps, Lyra studied her ring's new frequencies, and Fizwick planned the assault strategy by analyzing the next room's structural weak points.
+
+<img src='readme_assets/story/069 The Eve of the Seventh Seal.png' width='800'>
 
 
 ## Chapter 70: The Platinum Colossus and the Opening of the Way
@@ -5752,6 +6173,8 @@ Grog grunted, tightening his grip on his heavy battle axe's haft. His breath for
 
 As they advanced along a narrow ledge suspended over the void, the group was surprised by the first attack: entities of crystallized shadow leaped from the obsidian walls, moving with unnatural speed. They fought without a defined corporeal mass, hurling black glass shards capable of penetrating even the thickest armor.
 
+<img src='readme_assets/story/071 The Obsidian Abyss.png' width='800'>
+
 
 ## Chapter 72: The Weaver of Woven Shadows (Floor 72)
 
@@ -5762,6 +6185,24 @@ At the main chamber's center stood the Weaver Guardian, an aberrant construct co
 Exploiting his small stature and agile kobold speed, Fizwick slipped behind the Guardian's back while Grog attracted its wrath by roaring with uncontrollable violence. Striking a precise blow at the monster's rear energy core, Fizwick collapsed the Guardian in an explosion of arcane ash and ethereal energy. Among the disintegrated remains of the guardian, a secret niche opened in the black stone.
 
 Inside lay the first great treasure of this sector: the Twin Daggers of Ethereal Twilight, a legendary EPIC-level artifact (Tier 6) valued at 310,000 Gold Coins. The blades, forged in deep adamantium alloy and infused with umbral matter, allowed the wielder to cut through the veil of reality, enabling Fizwick to pass through solid objects for brief moments and inflict devastating necrotic damage. When the kobold grasped the shadow-dragon-leather-wrapped hilts, the blades emitted a harmonious hiss that seemed to merge with his breath.
+
+<img src='readme_assets/story/072 The Weaver of Woven Shadows.png' width='800'>
+
+### Interlude 19: The Silver Web Reawakened
+
+**Trap Type: Web**
+
+The star-silver filaments that crossed the Weaver's galleries began to tighten after the Guardian's fall. A hidden web mechanism had remained active beneath the black stone. Its threads snapped around Fizwick's legs and arms, lifting him from the floor and pinning him against the vaulted ceiling.
+
+Grog reached for him, but the filaments discharged a sharp blue current. Kael raised his shield between the barbarian and the web, absorbing the first pulse. Lyra opened her Tome and traced the threads' pattern: the web drew power from a central knot embedded behind a sealed panel.
+
+Fizwick twisted one hand free and drew his newly acquired Twin Daggers of Ethereal Twilight. Their blades phased through the outer strands, allowing him to cut the web from within without triggering its tension. Grog held the dangling mass away from the others, while Kael absorbed the intermittent electrical bursts. Lyra then opened a narrow singularity around the central knot, pulling its magic into a harmless spiral of silver sparks.
+
+The web loosened. Fizwick dropped into Grog's arms, protesting that he could have landed on his own. Grog set him down carefully anyway.
+
+The rogue examined the cut threads. "A trap built to catch anyone who thinks the danger is over." Lyra nodded. Even after victory, they had learned, vigilance was an act of care.
+
+<img src='readme_assets/story/019_The_Web_That_Caught_Fizwick.png' width='800'>
 
 
 ## Chapter 73: The Crypts of Arcane Glass (Floor 73)
@@ -5774,6 +6215,8 @@ Invoking the strength of her void-elf origins, Lyra manipulated the room's phase
 
 At the altar's center gleamed the second discovery of the descent: the Tome of the Arcane Eclipse and Singularity, an EPIC-level (Tier 6) sacred text valued at 420,000 Gold Coins. The tome was bound in cosmic dragon leather and equipped with mithril clasps engraved with gravitational distortion formulas. As soon as Lyra placed her hand on the pulsing pages, her magical knowledge expanded instantly, allowing her access to ninth-level spells capable of creating localized black holes and collapsing enemy magical defenses.
 
+<img src='readme_assets/story/073 The Crypts of Arcane Glass.png' width='800'>
+
 
 ## Chapter 74: The Forge of Ancient Blood (Floor 74)
 
@@ -5782,6 +6225,8 @@ Continuing the descent, the temperature rose vertiginously. Floor 74 was a gigan
 On this floor, the group had to face the Iron Blood Elementals: constructs of incandescent metal guided by spirits of warriors fallen in the Dragon's Maw. Every blow struck by their enormous flaming swords shook the floor's crust, threatening to drop the company into the lava pits below.
 
 Kael held the defensive wall with unshakeable firmness, letting his shield absorb the thermal impact of the arcane flames, while Fizwick slipped among the colossi's legs to cut their magical fluid hydraulic conduits. The team's coordination was now a perfect mechanism, honed by seventy levels of deadly battles.
+
+<img src='readme_assets/story/074 The Forge of Ancient Blood.png' width='800'>
 
 
 ## Chapter 75: The Bastion of Seismic Fury (Floor 75)
@@ -5792,6 +6237,8 @@ Grog, seeing the titanic mass of the enemy, unleashed his Primordial Fury. The v
 
 With a final seismic roar that collapsed part of the ceiling, Grog brought down the creature, shattering its vulcanite heart. From the Behemoth's entrails emerged an ancient weapon: the Abyssal Titan's Seismic Maul, a titanic EPIC-category (Tier 6) weapon valued at 360,000 Gold Coins. Forged with fallen star metal and balanced for a barbarian's immense strength, the maul exponentially increased impact mass with every swing, generating localized seismic shocks capable of stunning entire enemy ranks and demolishing rocky matter with a single blow.
 
+<img src='readme_assets/story/075 The Bastion of Seismic Fury.png' width='800'>
+
 
 ## Chapter 76: The Sanctuary of Lost Justice (Floor 76)
 
@@ -5801,12 +6248,16 @@ The naves were covered in white marbles marked by golden veins and stained-glass
 
 Kael advanced toward the main altar with his sword drawn, feeling the weight of responsibility and the pain of the imprisoned spirits. He didn't use blind violence but recited the Sacred Oaths of Redemption, letting his faith's aura purify the tortured souls and restore peace to the sacred sanctuary.
 
+<img src='readme_assets/story/076 The Sanctuary of Lost Justice.png' width='800'>
+
 
 ## Chapter 77: The Blessing of the Solar Sun (Floor 77)
 
 At the consecrated floor's heart, placed above an orichalcum reliquary suspended mid-air by chains of pure light, lay the reward destined for the paladin Kael.
 
 The object was the Aegis of the Solar-Immortal Oath, a supreme EPIC-rank shield (Tier 6) of inestimable value, 480,000 Gold Coins. The shield, worked in sanctified platinum and set with a solar gem containing the essence of a solar archon, emanated an impenetrable barrier of divine energy. When Kael slipped his arm through it, a blaze of golden light enveloped the entire group, healing previous wounds and blessing their weapons with permanent radiant damage against the subterranean aberrations.
+
+<img src='readme_assets/story/077 The Blessing of the Solar Sun.png' width='800'>
 
 
 ## Chapter 78: The Echo of the Seventh Seal (Floor 78)
@@ -5815,12 +6266,32 @@ Floor 78 was a true architectural nightmare. The labyrinth reconfigurated itself
 
 Thanks to the newly unlocked tools, the team demonstrated unparalleled tactical mastery. Fizwick used his Twilight Daggers' phasing ability to bypass the grooved walls' pressure mechanisms; Lyra, wielding the Eclipse Tome, froze the traps' gravitational field; Grog shattered obstructing rock barriers with his Seismic Maul, while Kael shielded the troop from residual arcane radiations.
 
+<img src='readme_assets/story/078 The Echo of the Seventh Seal.png' width='800'>
+
+### Interlude 20: The Crown of a Thousand Needles
+
+**Trap Type: Spikes**
+
+The shifting corridors settled into a long crystalline passage. A faint pulse travelled beneath the floor, followed by a violent eruption: rows of adamantine spikes thrust upward in a precise sequence, forming a moving crown of blades that swept toward the adventurers. The gaps between them narrowed with every heartbeat.
+
+Fizwick read the pattern and marked the safe intervals with quick gestures. Kael placed himself at the rear, shielding the group from fragments thrown by the advancing spikes. Grog struck the floor with his weapon, creating a controlled shockwave that delayed the next row. Lyra opened a gravitational well above the passage, bending the tallest spikes away from the narrow path and holding them suspended like a forest of silver spears.
+
+The spell strained under the weight of the mechanism. Fizwick dashed through the opening and reached the control plate, but its release required pressure from two points at once. Grog held the first lever down while Kael braced the second with his shield. Lyra released the gravitational field only when Fizwick signalled that the mechanism was locked.
+
+The spikes withdrew in a thunderous sequence, leaving the corridor scarred but passable. The four crossed side by side. None had won the trial alone: the rogue had read the pattern, the barbarian had broken its rhythm, the mage had bent its force, and the paladin had held the line.
+
+As the next staircase opened, Kael looked back at the gleaming needles. "The Dragon's Maw keeps asking which of us is strongest." Grog lifted his weapon. "And keeps getting the same answer."
+
+<img src='readme_assets/story/020_The_Crown_of_a_Thousand_Needles.png' width='800'>
+
 
 ## Chapter 79: The Vanguard of the Mechanical Leviathan (Floor 79)
 
 Arriving at Floor 79, the antechamber of the Eighth Seal, the atmosphere became extremely heavy. The floor was entirely covered with metal plates engraved with constantly moving gears. In the distance, one could hear the rhythmic, thundering beat of the mechanical heart regulating the entire sector.
 
 The group set up a temporary camp within the protective shell of an ancient spell cast by Lyra. Reviewing the strategy, they coordinated the capabilities of their four new EPIC-level (Tier 6) equipment pieces. Fizwick checked the sharpness of his ethereal blades, Grog tested his maul's seismic resonance, Kael channeled the radiant energy of his new solar-immortal shield, and Lyra memorized the complex gravitational alteration spells of her cosmic tome. They were ready to face the block's final guardian threat.
+
+<img src='readme_assets/story/079 The Vanguard of the Mechanical Leviathan.png' width='800'>
 
 
 ## Chapter 80: The Clash with the Eighth Seal Archon (Floor 80)
@@ -5852,12 +6323,16 @@ The air of Floor 81 was dense and heavy, crossed by dull buzzes that seemed to c
 
 "Stay alert," Lyra warned, gripping the Tome of the Arcane Eclipse and Singularity with both hands. The tome's pages rustled on their own, absorbing the micro-explosions of unstable mana floating in the environment. "This floor isn't just trying to kill us physically; it's wearing down our timeline. If we lose focus, we'll be trapped in a paradox."
 
+<img src='readme_assets/story/081 The Echo of Lost Seconds.png' width='800'>
+
 
 ## Chapter 82: The Stealthy Step in the Anomaly
 
 As they advanced along a geometrically impossible corridor, where the floor seemed to bend upward forming a vertical arch, Fizwick darted forward. Thanks to the Twin Daggers of Ethereal Twilight, the kobold rogue could cut even through time's veils, vanishing in moments when reality contracted. With a series of agile, silent leaps, he bypassed a series of temporal dart traps that would have reduced anyone else to dry dust in a heartbeat.
 
 "I found the door's unlocking mechanism!" Fizwick whispered, pointing to a stone console pulsing with blue light. With a quick movement of his daggers, he deactivated the energy lock, allowing the rest of the team to regroup.
+
+<img src='readme_assets/story/082 The Stealthy Step in the Anomaly.png' width='800'>
 
 
 ## Chapter 83: The Half-Orc's Fury
@@ -5866,6 +6341,8 @@ Past the door, the group found itself before a vast underground cavern teeming w
 
 "No one can stop Grog when the earth trembles!" the barbarian shouted, sweeping away an entire rank of quartz golems with a devastating sweep, protected by his legendary weapon's aura.
 
+<img src='readme_assets/story/083 The Half Orcs Fury.png' width='800'>
+
 
 ## Chapter 84: The Labyrinth of Star Mirrors
 
@@ -5873,30 +6350,44 @@ Floor 84 greeted the adventurers with a dazzling and unsettling spectacle: an in
 
 Lyra focused her will on the Eclipse Tome, releasing a concentrated light beam that dissolved the most dangerous illusions, while Kael led the group with steady, constant steps, reciting protective prayers that kept away the corrupted energies of the specular doubles.
 
+<img src='readme_assets/story/084 The Labyrinth of Star Mirrors.png' width='800'>
+
 
 ## Chapter 85: The Trial of Cohesion
 
 In the mirrored corridors, the group faced waves of Glass Specters and astral creatures. Class coordination reached its peak: Fizwick created shadow gaps to confuse enemies, Grog opened the way with blows of immense power, Lyra wove protective barriers and spatial control spells, while Kael healed wounds and kept the companions' morale high.
+
+<img src='readme_assets/story/085 The Trial of Cohesion.png' width='800'>
 
 
 ## Chapter 86: Toward the Chasm
 
 Leaving the mirror labyrinth behind, the adventurers descended further along a helical staircase carved directly into the side of a bottomless abyss. The air became cold and rarefied, heralding the tremendous air currents of the next sector.
 
+<img src='readme_assets/story/086 Toward the Chasm.png' width='800'>
+
 
 ## Chapter 87: The Dance of the Seven Winds
 
 Floor 87 was an enormous canyon suspended over a sky of black clouds, crossed by wind gusts so strong and sharp they could cut steel. The companions, tied by a magic rope, advanced with millimeter caution along narrow rocky ledges.
+
+<img src='readme_assets/story/087 The Dance of the Seven Winds.png' width='800'>
 
 
 ## Chapter 88: The Storm Guardians
 
 Suddenly, enormous wind elementals took shape from the swirling currents, hurling lightning and compressed air blades at the heroes. The battle was furious: Grog withstood the shocks with his legendary toughness, while Fizwick exploited the currents' blind spots to strike the monsters' energy cores.
 
+<img src='readme_assets/story/088 The Storm Guardians.png' width='800'>
+
 
 ## Chapter 89: The Threshold of the Ninth Seal
 
 After safely crossing the winds' fury, the group arrived before an imposing portal of black and ancient gold stone, sealed by constantly moving geometric runes. It was the entrance to the Floor 90 boss chamber.
+
+<img src='readme_assets/story/089 The Threshold of the Ninth Seal.png' width='800'>
+
+<img src='readme_assets/story/089 The Threshold of the Ninth Seal Alternate View.png' width='800'>
 
 
 ## Chapter 90: The Epic Clash with the Ninth Seal Guardian
@@ -5921,12 +6412,16 @@ Beyond the shattered ruins of the Ninth Seal, the black stone staircase led the 
 
 Grog, wielding the Abyssal Titan's Seismic Maul, had to adjust his weight as hundreds of Void Specters emerged from dimensional rifts. Fizwick, wearing the Cloak of Spatial Deception, launched himself between the aerial platforms, severing the creatures' energy filaments before they could assault his companions.
 
+<img src='readme_assets/story/091 The Abyss of Cosmic Void.png' width='800'>
+
 
 ## Chapter 92: The Resonance of Wounded Stars
 
 Advancing toward the ninety-second level, the air became charged with a deafening silence. The path was obstructed by a titanic construct: the Astral Glass Guardian, a scintillating figure capable of reflecting and doubling every magical or physical attack.
 
 Lyra opened the Arcane Eclipse Tome and understood the mechanism: the creature didn't absorb darkness magic, but deflected it. Channeling the Ring of Arcane Singularity's energy, the mage created a gravitational inversion beam that locked the monster's joints. Kael lunged forward, his Blade of Eternal Twilight blazing with divine light, shattering the creature's crystal chest and opening the way to the next level.
+
+<img src='readme_assets/story/092 The Resonance of Wounded Stars.png' width='800'>
 
 
 ## Chapter 93: The Halls of Eternal Memory
@@ -5935,12 +6430,16 @@ The ninety-third floor presented itself as an imposing mirrored hall, where the 
 
 Grog faced his old tribal chief's shadow; Kael the vision of his broken oath; Fizwick the chains of slavery, and Lyra the craving for uncontrollable void. Fighting side by side, the adventurers recognized the bond of trust forged over ninety floors of battles. Refusing the illusions, they shattered the mirrors with combined attacks, revealing the staircase to Floor 94.
 
+<img src='readme_assets/story/093 The Halls of Eternal Memory.png' width='800'>
+
 
 ## Chapter 94: The Trial of Blood and Primordial Fire
 
 The ninety-fourth level was an underground furnace of blue magma and molten metal. The floor was composed of giant bronze and platinum gears in perpetual rotation over an ocean of elemental energy.
 
 From the magma depths emerged an army of Obsidian Salamanders. Grog unleashed barbaric fury, striking the platinum disks with the Seismic Maul and momentarily freezing the magma flow with the shockwave. Fizwick, with a lightning move, activated the hydraulic lock pins to drop the monsters into the abyss, allowing the group to cross the furnace without losses.
+
+<img src='readme_assets/story/094 The Trial of Blood and Primordial Fire.png' width='800'>
 
 
 ## Chapter 95: The Realm of Temporal Stasis
@@ -5949,6 +6448,8 @@ On the ninety-fifth floor, time stopped flowing regularly. Some areas of the roo
 
 Kael raised the Aegis of the Solar-Immortal Oath, creating a bubble of divine protection where time flowed normally. Maintaining a tight formation around the Paladin, Lyra disintegrated the chronomantic mechanisms with bursts of concentrated void magic, clearing the way to the guardian floors.
 
+<img src='readme_assets/story/095 The Realm of Temporal Stasis.png' width='800'>
+
 
 ## Chapter 96: The Antechamber of the Guardians
 
@@ -5956,12 +6457,25 @@ The ninety-sixth and ninety-seventh floors constituted a gigantic defensive laby
 
 Fizwick used his expertise to disable the power nodes embedded in the adamantium walls, rendering the gargoyles' armor vulnerable. Grog and Kael coordinated their slashes, destroying the stone guards one by one, while Lyra collected the Primordial Astra Gems released from the monsters' cores to recharge her magical reserves.
 
+<img src='readme_assets/story/096 The Antechamber of the Guardians.png' width='800'>
+
+
+## Chapter 97: The Heart of the Platinum Labyrinth
+
+The ninety-seventh floor was the innermost chamber of the gigantic adamantium labyrinth, a vast mechanical sanctuary where colossal platinum walls shifted continuously, rearranging corridors and sealing every passage behind the adventurers. At its center stood the Platinum Primarch, an ancient guardian nearly fifteen meters tall, whose body was forged from enchanted adamantium and whose heart contained a pulsating cluster of Primordial Astra Gems. Unlike the previous gargoyles, this construct could regenerate its magical barriers by absorbing energy directly from the labyrinth itself.
+
+The battle tested the group's coordination to its limits. Fizwick, using the Cloak of Spatial Deception, navigated the shifting corridors to locate the central control mechanism, narrowly avoiding devastating bursts of concentrated energy. Grog engaged the Primarch head-on, using the Seismic Maul to fracture its armored legs and prevent it from reaching the control chamber. Kael raised the Aegis of the Solar-Immortal Oath, deflecting a devastating barrage of platinum spikes while protecting his companions. Finally, Lyra channeled the Primordial Astra Gems collected on the previous floor into the Arcane Eclipse Tome, unleashing a spectacular beam of concentrated stellar energy that overloaded the guardian's core. With a thunderous explosion of golden light, the Platinum Primarch collapsed, its armor scattering across the chamber like falling stars. The labyrinth's mechanisms fell silent, and the massive adamantium walls unlocked, revealing a peaceful staircase leading to Floor 98: the Sanctuary of Final Rest.
+
+<img src='readme_assets/story/097_The_Heart_of_the_Platinum_Labyrinth.png' width='800'>
+
 
 ## Chapter 98: The Sanctuary of Final Rest
 
 Arriving at the ninety-eighth floor, the adventurers found an unexpected oasis: a circular hall illuminated by a golden hearth and pure blessed water, very similar to Floor 0's sanctuary. It was the final rest point prepared by Dragon's Maw's ancient builders.
 
 The group consumed their last rations and repaired their equipment. Kael sharpened his sword; Fizwick checked the Twin Ethereal Twilight Daggers' sharpness; Grog secured his armor's straps, and Lyra meditated on her Tome. They knew that beyond the monumental door of the ninety-ninth floor lay the destiny of the entire expedition.
+
+<img src='readme_assets/story/098 The Sanctuary of Final Rest.png' width='800'>
 
 
 ## Chapter 99: The Throne of the Dark Entity and the Tenth Seal
@@ -5974,6 +6488,8 @@ Grog hurled himself against the throne's base, striking the entity's joints with
 Fizwick, using the Cloak of Spatial Deception, teleported above the monster's head, plunging his daggers into the arcane conduction sensors.  
 Lyra unleashed the Void Singularity, sucking the entity's energy and freezing its divine form.  
 With a final slash from Kael, the Guardian dissolved into a rain of star sparks. The Tenth Seal trembled, cracked, and shattered. A gigantic golden staircase revealed itself, leading to the hundredth and final floor of the labyrinth.
+
+<img src='readme_assets/story/099 The Throne of the Dark Entity and the Tenth Seal.png' width='800'>
 
 
 ## Chapter 100: The Heart of Dragon's Maw and the Triumph of Legends
@@ -5992,6 +6508,27 @@ The Final Spell: Lyra opened the last page of the Arcane Eclipse Tome. Uniting h
 With a final roar that resonated through all one hundred floors of the dungeon, the Chaos Avatar dissolved into a cascade of golden dust and pure benevolent energy.
 
 <img src='readme_assets/story/100boss.png' width='800'>
+
+<img src='readme_assets/story/100 The Heart of Dragons Maw and the Triumph of Legends.png' width='800'>
+
+<img src='readme_assets/story/100 The Honored Fall of the Chaos Dragon.png' width='800'>
+
+### Interlude 20: The Trap of a Thousand Blades
+
+Beyond the Heart of Dragon's Maw, the adventurers entered an ancient passage carved into the foundations of the labyrinth. The corridor appeared deserted, its black adamantium walls decorated with faded golden runes. As Kael advanced at the head of the group, his Solar-Immortal Aegis suddenly triggered an ancient mechanism hidden beneath the floor. With a deafening metallic roar, enormous sections of the ceiling and walls opened, releasing thousands of razor-sharp adamantium spikes that began descending toward the passage.
+
+Kael immediately planted his shield against the ground and invoked the Sacred Oath, generating a radiant golden barrier. However, the sheer weight and magical force of the descending spikes began overwhelming his defenses. Cracks of golden light spread across the shield, and the Paladin slowly sank to one knee, refusing to abandon his companions even as the protective dome threatened to collapse.
+
+Recognizing the danger, Fizwick activated the Cloak of Spatial Deception and teleported through the narrow gaps between the descending blades, reaching the mechanism's control panel. Meanwhile, Grog unleashed the full power of the Seismic Maul, striking the adamantium floor with such devastating force that the shockwave temporarily disrupted the trap's hydraulic mechanisms. Lyra opened the Arcane Eclipse Tome and summoned enormous gravitational chains of violet energy, suspending several tons of spikes in mid-air and creating a precious opening.
+
+With his last reserves of strength, Kael maintained the protective barrier long enough for Fizwick to sever the central energy conduit. A spectacular explosion of blue and golden sparks erupted throughout the corridor as the mechanism finally shut down. The remaining spikes crashed harmlessly against the floor, missing the exhausted Paladin by mere inches.
+
+As the magical dust settled, Grog extended his massive hand and pulled Kael back to his feet. Fizwick, visibly relieved, joked that even the greatest defender of the realm occasionally needed someone watching his back. Lyra smiled, closing her Tome, and reminded them that their greatest strength had never been their individual powers, but the trust that bound them together.
+
+Kael looked at his companions and lowered his head in a gesture of sincere gratitude. For the first time in a long while, the Paladin understood that protecting his friends did not mean standing alone in front of every danger. Their journey had taught them a greater truth: even the strongest shield could sometimes need the strength of those standing behind it.
+
+<img src='readme_assets/story/101_The_Trap_of_a_Thousand_Blades.png' width='800'>
+
 
 ## Epilogue: The Light Beyond Darkness
 

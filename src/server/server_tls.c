@@ -110,19 +110,21 @@ static X509 *make_certificate(EVP_PKEY *key) {
     host[sizeof(host) - 1] = '\0';
     X509 *cert = X509_new();
     BIGNUM *serial = BN_new();
-    bool ok = cert && serial && X509_set_version(cert, 2) &&
+    X509_NAME *name = X509_NAME_new();
+    bool ok = cert && serial && name && X509_set_version(cert, 2) &&
               BN_rand(serial, 128, BN_RAND_TOP_ANY, BN_RAND_BOTTOM_ANY) &&
               BN_to_ASN1_INTEGER(serial, X509_get_serialNumber(cert)) &&
               X509_gmtime_adj(X509_getm_notBefore(cert), -3600) &&
               X509_gmtime_adj(X509_getm_notAfter(cert), (long)CERT_VALID_DAYS * 24 * 3600) &&
               X509_set_pubkey(cert, key);
-    X509_NAME *name = ok ? X509_get_subject_name(cert) : NULL;
-    ok = ok && name &&
+    ok = ok &&
          X509_NAME_add_entry_by_txt(name, "O", MBSTRING_ASC, (const unsigned char *)"Dragon GL", -1,
                                     -1, 0) &&
          X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC, (const unsigned char *)host, -1, -1,
                                     0) &&
+         X509_set_subject_name(cert, name) &&
          X509_set_issuer_name(cert, name);
+    X509_NAME_free(name);
     char san[300];
     snprintf(san, sizeof(san), strcmp(host, "localhost") ? "DNS:%s,DNS:localhost" : "DNS:%s", host);
     ok = ok && add_ext(cert, NID_basic_constraints, "critical,CA:FALSE") &&

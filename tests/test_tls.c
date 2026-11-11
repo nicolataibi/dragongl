@@ -66,9 +66,13 @@ static void test_cert_fingerprint(void) {
     X509_gmtime_adj(X509_getm_notBefore(cert), 0);
     X509_gmtime_adj(X509_getm_notAfter(cert), 3600);
     X509_set_pubkey(cert, key);
-    X509_NAME_add_entry_by_txt(X509_get_subject_name(cert), "CN", MBSTRING_ASC,
-                               (const unsigned char *)"test", -1, -1, 0);
-    X509_set_issuer_name(cert, X509_get_subject_name(cert));
+    X509_NAME *name = X509_NAME_new();
+    CHECK(name);
+    CHECK(X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC,
+                                     (const unsigned char *)"test", -1, -1, 0));
+    CHECK(X509_set_subject_name(cert, name));
+    CHECK(X509_set_issuer_name(cert, name));
+    X509_NAME_free(name);
     CHECK(X509_sign(cert, key, EVP_sha256()) > 0);
 
     unsigned char *der = NULL;

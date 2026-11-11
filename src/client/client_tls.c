@@ -192,7 +192,8 @@ ClientTls *client_tls_connect(int fd, const char *host, int port, const char *ex
         if (is_ip_literal(host)) {
             ok = X509_VERIFY_PARAM_set1_ip_asc(param, host) == 1;
         } else {
-            ok = SSL_set_tlsext_host_name(t->ssl, host) == 1 && SSL_set1_host(t->ssl, host) == 1;
+            ok = SSL_set_tlsext_host_name(t->ssl, host) == 1 &&
+                 X509_VERIFY_PARAM_set1_host(param, host, 0) == 1;
         }
     }
     if (!ok) {

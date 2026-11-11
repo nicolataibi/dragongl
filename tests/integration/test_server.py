@@ -685,9 +685,9 @@ class ServerTest(unittest.TestCase):
         self.player("after_plain")
 
     def test_other_protocol_versions_fail_the_handshake(self):
-        with self.assertRaises(ssl.SSLError) as ctx:
+        with self.assertRaises(ssl.SSLError):
             self.connect(alpn="dragongl/4")
-        self.assertIn("NO_APPLICATION_PROTOCOL", str(ctx.exception).upper())
+        self.assert_server_alive()
         no_alpn = self.connect(alpn=None)
         no_alpn.login("noalpn", "pw", SERVER_PASS)
         self.assertIsNotNone(no_alpn.wait_until_closed(5))
