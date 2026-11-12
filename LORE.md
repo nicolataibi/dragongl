@@ -4742,36 +4742,67 @@ The group gathers in the magical sanctuary of Floor 0. They stock up on rations 
 
 The warm, flickering glow of The Drunken Dragon's hearth seemed the only reassuring thing in a world suspended on the brink of the abyss. Floor 0 was a sanctuary, a bubble of safe light that loomed over the very jaws of madness: the unfathomable labyrinth known to all as Dragon's Maw.
 
+<img src='readme_assets/story/000_The_Drunken_Dragon_Floor_Zero.png' width='800'>
+
 At the corner table, Grog, the mighty Half-Orc, was tearing off the last piece of meat from a roasted leg of mutton with a bite. His greataxe, leaning heavily against the oak bench, was as large as a grown man, its chipped edge telling tales of countless shattered skulls. "If we have to go down into that black hole," he grunted, wiping the grease from his lower tusk with the back of a massive hand, "we might as well do it on a full stomach. Shadows don't get smashed on an empty belly, and I can already feel this place draining our souls, piece by piece."
+
+<img src='readme_assets/story/001_Grog_The_Half_Orc_Warrior.png' width='800'>
 
 "Shadows aren't confronted with brute force at all, my rough friend," replied a melodic and detached voice, almost a whisper carried by the wind. Lyra, the Void-Elf, hadn't touched any food. Her eyes gleamed with an unnatural amethyst light as she carefully and reverently stored a handful of enchanted scrolls, just purchased at great expense from the nearby Arcane Library. Her Arcane Tome, hovering a few inches above the table without any support, seemed to pulse with its own restless energy. "Shadows are dominated by bending the fabric of reality, or by blinding them with the arcane."
 
+<img src='readme_assets/story/002_Lyra_The_Void_Elf_Arcane_Magic.png' width='800'>
+
 Under the table, a frantic jingling interrupted the mage's musings. Fizwick, the Kobold, was piling up with exceptionally swift fingers the remaining copper and silver coins from the purchase of survival rations. His small, coppery scales reflected the amber candlelight, helping him blend even into the table's gloom. "Magic or axes, I don't care at all," he hissed, clutching his jingling pouch to his chest. "What matters is that there's a nice haul to grab down there. And that your chatter doesn't distract my eyes from the traps."
+
+<img src='readme_assets/story/003_The_Drunken_Dragon_Fizwick_Coin_Heist.png' width='800'>
 
 Kael stood, his back turned, staring at the window overlooking the central square of Floor 0. Outside there was no sky, only the rocky vault of the underground refuge and, at its center, the colossal limestone gate leading to the dungeon stairs. His heavy plate armor bore the insignia of his Sacred Oath, polished to a shine in stark contrast to the shadows that seemed to filter through the gate's grates. There was no arrogance in the Human Paladin's posture, only the stoic resignation of one who knows he must act as a shield for the others.
 
+<img src='readme_assets/story/004_The_Last_Refuge.png' width='800'>
+
 "The time has come," Kael declared, turning to his companions. His voice, deep and steady, seemed to silence even the crude clamor of the inn for a moment. "The rations are secured. The scrolls are ready. Whatever dwells on the first level will not find us unprepared. And remember: stay together; the fog down there will play with our minds."
+
+<img src='readme_assets/story/005_The_Time_Has_Come.png' width='800'>
 
 The four rose in unison. The innkeeper, an old dwarf with a glass eye, gave them a grave nod as they passed; he had seen countless bold ones descend, and only a handful climb back up to tell the tale.
 
-Crossing the threshold of the square's safety, the air changed instantly. The magical warmth of Floor 0 was replaced by a chilly, stale draft that smelled of millennial dust, copper, and dried blood. Kael took the lead of the formation, drawing his sword and gripping his heavy shield firmly. Lyra murmured a formula under her breath; in response, a sphere of violet light ignited floating above her shoulder, casting long, distorted shadows on the rocky walls.
+<img src='readme_assets/story/006_The_Four_Rose_In_Unison.png' width='800'>
+
+Crossing the threshold of the square's safety, the air changed instantly. The magical warmth of Floor 0 was replaced by a chilly, stale draft that smelled of millennial dust, copper, and dried blood.
+
+<img src='readme_assets/story/007_crossing.png' width='800'>
+
+Kael took the lead of the formation, drawing his sword and gripping his heavy shield firmly. Lyra murmured a formula under her breath; in response, a sphere of violet light ignited floating above her shoulder, casting long, distorted shadows on the rocky walls.
+
+<img src='readme_assets/story/008_leaving_floor_0.png' width='800'>
 
 They began the slow descent down the monumental staircase. Their footsteps echoed in a silence that seemed to want to swallow them. As Floor 1 approached, the dungeon's dense "Fog of War" began to become tangible, drastically reducing their field of vision. The darkness had a physical, oppressive consistency.
 
+<img src='readme_assets/story/009_the slow descent down.png' width='800'>
+
 As soon as Kael's boots touched the cold flagstones of the first level, Fizwick suddenly crouched low, his tail brushing the ground and his ears twitching. With a fluid motion, he drew his twin daggers.
+
+<img src='readme_assets/story/010_Fizwick_First_Level_Dual_Daggers.png' width='800'>
 
 "Shh," the rogue hissed, his eyes narrowed to yellowish slits scanning the darkness. "We're not alone. I hear the unmistakable scraping of rusty metal on stone. Goblins. And they've already caught our scent."
 
+<img src='readme_assets/story/011_Fizwick_Discovers_Goblin_Ambush.png' width='800'>
+
 Kael lowered his helmet's visor with a metallic click, raising his shield to form a barrier. "Tight formation. Lyra, be ready to illuminate the room as soon as they spring. Grog... do what you do best."
+
+<img src='readme_assets/story/012_Kael_Prepares_For_Goblin_Ambush.png' width='800'>
 
 The Half-Orc grinned in the gloom, showing his lower fangs, while a guttural and ferocious growl began to rise in his chest.
 
+<img src='readme_assets/story/013_The_Half_Orc_Battle_Roar.png' width='800'>
+
 The hunt had officially begun.
+
+<img src='readme_assets/story/014_The_Hunt_Had_Officially_Begun.png' width='800'>
 
 Do you wish to continue exploring the fierce Goblin ambush and discover how the group will behave in their very first tactical encounter on Floor 1?
 
 <img src='readme_assets/story/001 Adventure from the Tavern to the Dungeon.png' width='800'>
-
 
 ## Chapter 2: Beyond the Light
 

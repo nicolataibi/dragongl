@@ -1,3 +1,7 @@
+* Thu Nov 12 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.12.01
+- DOCS: LORE.md: added scene illustrations for every narrative paragraph
+  of Chapter 1 (Floor 0 sanctuary, characters, descent to Floor 1).
+
 * Wed Nov 11 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.11.03
 - PACKAGING: remove CHANGELOG.md from %doc in dragongl.spec: avoids
   rpmlint file-contains-current-date false positives on release day;
