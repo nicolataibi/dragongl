@@ -21,6 +21,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+Game g_game;
 Client g_test_clients[MAX_CLIENTS];
 int g_peer_fd[MAX_CLIENTS];
 
@@ -38,16 +39,15 @@ int fx_init(const char *state_dir, const char *data_dir) {
         fprintf(stderr, "cannot load game data from %s\n", data_dir);
         return 1;
     }
-    master_world = calloc(1, sizeof(World));
-    g_npcs = calloc(MAX_NPCS, sizeof(NPC));
-    if (!master_world || !g_npcs) {
+    if (!game_create(&g_game)) {
         return 1;
     }
+    free(g_game.clients);
     for (int i = 0; i < MAX_NPCS; i++) {
-        g_npcs[i].respawn_timer = -1;
+        g_game.npcs[i].respawn_timer = -1;
     }
     memset(g_test_clients, 0, sizeof(g_test_clients));
-    g_clients = g_test_clients;
+    g_game.clients = g_test_clients;
     for (int i = 0; i < MAX_CLIENTS; i++) {
         g_peer_fd[i] = -1;
     }

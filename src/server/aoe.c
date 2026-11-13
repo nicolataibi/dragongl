@@ -35,8 +35,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-PersistentCloud g_clouds[MAX_CLOUDS];
-
 /* --- Geometry -------------------------------------------------------- */
 
 static float dist_sq(int x1, int y1, int x2, int y2) {
@@ -129,11 +127,11 @@ static VoxelType react(VoxelType t, DamageType type) {
     return t;
 }
 
-void aoe_terraform(const AoeArea *a, int floor_id, DamageType type) {
-    if (!master_world || floor_id < 0 || floor_id >= MAX_FLOORS) {
+void aoe_terraform(Game *game, const AoeArea *a, int floor_id, DamageType type) {
+    if (!game->world || floor_id < 0 || floor_id >= MAX_FLOORS) {
         return;
     }
-    Map *map = &master_world->floors[floor_id].map;
+    Map *map = &game->world->floors[floor_id].map;
     int r = a->radius;
     for (int y = a->oy - r; y <= a->oy + r; y++) {
         for (int x = a->ox - r; x <= a->ox + r; x++) {
@@ -174,14 +172,14 @@ void aoe_announce(const Client *caster, const SpellTemplate *sp) {
 
 /* --- Clouds ------------------------------------------------------------ */
 
-void aoe_init_clouds(void) {
-    memset(g_clouds, 0, sizeof(g_clouds));
+void aoe_init_clouds(Game *game) {
+    memset(game->clouds, 0, sizeof(game->clouds));
 }
 
-bool aoe_spawn_cloud(const SpellTemplate *sp, const SpellCaster *caster, const char *owner,
-                     int floor_id, int cx, int cy) {
+bool aoe_spawn_cloud(Game *game, const SpellTemplate *sp, const SpellCaster *caster,
+                     const char *owner, int floor_id, int cx, int cy) {
     for (int i = 0; i < MAX_CLOUDS; i++) {
-        PersistentCloud *cl = &g_clouds[i];
+        PersistentCloud *cl = &game->clouds[i];
         if (cl->active) {
             continue;
         }
@@ -216,26 +214,26 @@ static Client *cloud_owner(const PersistentCloud *cl, Client *clients, int clien
     return NULL;
 }
 
-static void cloud_round(PersistentCloud *cl, NPC *npcs, Client *owner) {
+static void cloud_round(PersistentCloud *cl, Game *game, Client *owner) {
     AoeArea area = {
         SPELL_TARGET_AOE_CLOUD, cl->spell->effect.radius, cl->cx, cl->cy, cl->cx, cl->cy};
-    FloorIter walk = floor_iter(npcs, cl->floor_id);
+    FloorIter walk = floor_iter(game, cl->floor_id);
     for (int i; (i = floor_iter_next(&walk)) >= 0;) {
-        NPC *n = &npcs[i];
+        NPC *n = &game->npcs[i];
         if (spell_can_affect_npc(n) && aoe_contains(&area, n->x, n->y)) {
-            spell_affect_npc(cl->spell, &cl->caster, n, owner, 1);
+            spell_affect_npc(game, cl->spell, &cl->caster, n, owner, 1);
         }
     }
 }
 
-void aoe_update_clouds(NPC *npcs, Client *clients, int client_count) {
+void aoe_update_clouds(Game *game, Client *clients, int client_count) {
     for (int ci = 0; ci < MAX_CLOUDS; ci++) {
-        PersistentCloud *cl = &g_clouds[ci];
+        PersistentCloud *cl = &game->clouds[ci];
         if (!cl->active) {
             continue;
         }
         Client *owner = cloud_owner(cl, clients, client_count);
-        cloud_round(cl, npcs, owner);
+        cloud_round(cl, game, owner);
         cl->rounds_left--;
         if (cl->rounds_left <= 0) {
             cl->active = false;

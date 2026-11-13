@@ -28,10 +28,9 @@
 
 #include "server_cmd.h"
 #include "server_internal.h"
-#include "server_world.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include "player.h"
+#include "server_traps.h"
+#include <stdarg.h>
 #include <math.h>
 
 const TempleInfo TEMPLES[] = {
@@ -134,267 +133,204 @@ static void evaluate_digging_potential(int nx, int ny, int f, VoxelType vt, char
     }
 }
 
-bool cmd_look(Client *c, const char *cmd, NPC *npcs) {
+/*Appends formatted text to a NUL-terminated buffer, truncating at cap.*/
+static void buf_add(char *buf, size_t cap, const char *fmt, ...)
+    __attribute__((format(printf, 3, 4)));
+static void buf_add(char *buf, size_t cap, const char *fmt, ...) {
+    size_t len = strlen(buf);
+    if (len + 1 >= cap) {
+        return;
+    }
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(buf + len, cap - len, fmt, ap);
+    va_end(ap);
+}
+
+static bool other_player_at(const Client *c, const Client *o, int x, int y) {
+    return o->active && o->authenticated && o != c && o->floor_id == c->floor_id && o->x == x &&
+           o->y == y;
+}
+
+/*What is on the player's own tile: the ground, the temple, tombstones,
+ * creatures, items and other players.*/
+static void look_underfoot(Client *c, Game *game, char *buf, size_t cap) {
+    int px = c->x, py = c->y, f = c->floor_id;
+    snprintf(buf, cap, "%s", get_voxel_name_it(game->world->floors[f].map.data[0][py][px]));
+    for (int i = 0; f == 0 && i < TEMPLE_COUNT; i++) {
+        const TempleInfo *t = &TEMPLES[i];
+        if (px >= t->x0 && px <= t->x1 && py >= t->y0 && py <= t->y1) {
+            buf_add(buf, cap, " | Temple: %s", t->name);
+            break;
+        }
+    }
+    for (int i = 0; i < MAX_TOMBSTONES; i++) {
+        if (game->tombstones[i].active && game->tombstones[i].floor_id == f &&
+            abs(game->tombstones[i].x - px) + abs(game->tombstones[i].y - py) <= 1) {
+            buf_add(buf, cap, "| [⚰ Tombstone of %s — type 'list' to inspect]",
+                    game->tombstones[i].owner);
+        }
+    }
+    FloorIter walk = floor_iter(game, f);
+    for (int i; (i = floor_iter_next(&walk)) >= 0;) {
+        const NPC *n = &game->npcs[i];
+        if (n->x != px || n->y != py) {
+            continue;
+        }
+        if (n->archetype == ARCH_GOLD) {
+            buf_add(buf, cap, "| [Golden Bag]");
+        } else if (n->archetype == ARCH_TREASURE) {
+            buf_add(buf, cap, "| [Treasury Chest]");
+        } else if (n->is_ghost) {
+            buf_add(buf, cap, "| [%s remains]", n->custom_name);
+        } else if (n->archetype == ARCH_MERCHANT) {
+            buf_add(buf, cap, " | [%s]", n->merchant.shop_name);
+        } else if (n->template) {
+            buf_add(buf, cap, " | [%s HP:%d/%d]", n->template->name, n->hp, n->max_hp);
+        }
+    }
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        if (other_player_at(c, &game->clients[i], px, py)) {
+            buf_add(buf, cap, "| [Player: %s]", game->clients[i].username);
+        }
+    }
+}
+
+/*The eight sectors of the look table: 0=N, 1=NE, 2=E, 3=SE, 4=S, 5=SW,
+ * 6=W, 7=NW.*/
+typedef struct {
+    char text[8][256];
+    int count[8];
+} LookSectors;
+
+/*Sector of the offset (dx, dy); a negative dy is north.*/
+static int look_sector(int dx, int dy) {
+    float deg = atan2f(-(float)dy, (float)dx) * (180.0f / 3.1415926535f);
+    if (deg >= 157.5f || deg < -157.5f) {
+        return 6;
+    }
+    /*-157.5 .. 157.5 in steps of 45 degrees: SW, S, SE, E, NE, N, NW*/
+    static const int k_by_step[7] = {5, 4, 3, 2, 1, 0, 7};
+    int step = (int)floorf((deg + 157.5f) / 45.0f);
+    if (step > 6) {
+        step = 6;
+    }
+    return k_by_step[step < 0 ? 0 : step];
+}
+
+static void sector_add(LookSectors *s, int sector, const char *what, int steps) {
+    buf_add(s->text[sector], sizeof(s->text[sector]), "%s%s (%dp)",
+            s->count[sector] > 0 ? ", " : "", what, steps);
+    s->count[sector]++;
+}
+
+/*How a creature or an item shows in the look table.*/
+static void look_npc_label(const NPC *n, char *out, size_t cap) {
+    if (n->archetype == ARCH_MERCHANT) {
+        snprintf(out, cap, "%s", n->merchant.shop_name);
+    } else if (n->archetype == ARCH_GOLD) {
+        snprintf(out, cap, "Gold");
+    } else if (n->archetype == ARCH_TREASURE) {
+        snprintf(out, cap, "Treasure");
+    } else if (n->is_ghost) {
+        snprintf(out, cap, "Remains-%s", n->custom_name);
+    } else {
+        snprintf(out, cap, "%s", n->template ? n->template->name : "Entity");
+    }
+}
+
+/*The notable feature of a voxel, or NULL.*/
+static const char *look_voxel_label(VoxelType vt, int floor_id) {
+    if (vt == VOXEL_STAIRS_DOWN) {
+        return "Stairs-Down";
+    }
+    if (vt == VOXEL_STAIRS_UP) {
+        return "Stairs-Up";
+    }
+    if (floor_id == 0 && (vt == VOXEL_WATER || vt == VOXEL_ICE)) {
+        return "Sacred-Fountain";
+    }
+    if (vt >= VOXEL_CRYSTAL_BLUE && vt <= VOXEL_CRYSTAL_WHITE) {
+        return "Crystal";
+    }
+    return vt == VOXEL_TRAP ? "Trap" : NULL;
+}
+
+/*Everything worth a mention on the cell (nx, ny), `steps` steps away.*/
+static void look_cell(Client *c, Game *game, LookSectors *s, int sector, int nx, int ny,
+                      int steps) {
+    int f = c->floor_id;
+    char label[96];
+    FloorIter walk = floor_iter(game, f);
+    for (int i; (i = floor_iter_next(&walk)) >= 0;) {
+        if (game->npcs[i].x == nx && game->npcs[i].y == ny) {
+            look_npc_label(&game->npcs[i], label, sizeof(label));
+            sector_add(s, sector, label, steps);
+        }
+    }
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        if (other_player_at(c, &game->clients[i], nx, ny)) {
+            snprintf(label, sizeof(label), "Player-%s", game->clients[i].username);
+            sector_add(s, sector, label, steps);
+        }
+    }
+    const char *feature = look_voxel_label(game->world->floors[f].map.data[0][ny][nx], f);
+    if (feature) {
+        sector_add(s, sector, feature, steps);
+    }
+}
+
+bool cmd_look(Client *c, const char *cmd, Game *game) {
     (void)cmd;
     int vis_rad = get_vision_radius(c);
-    int px = c->x;
-    int py = c->y;
-    int f = c->floor_id;
-
     if (vis_rad <= 0) {
         send_text_to_client(
             c->sock,
             "[INSPECTION] You can't see anything: you are surrounded by darkness or blinded!");
         return true;
     }
-
-    //--- 1. PRECISE INSPECTION UNDERFOOT ---
-    VoxelType feet_vt = master_world->floors[f].map.data[0][py][px];
     char feet_buf[512];
-    snprintf(feet_buf, sizeof(feet_buf), "%s", get_voxel_name_it(feet_vt));
+    look_underfoot(c, game, feet_buf, sizeof(feet_buf));
 
-    //Temple on floor 0
-    if (f == 0) {
-        for (int i = 0; i < TEMPLE_COUNT; i++) {
-            const TempleInfo *t = &TEMPLES[i];
-            if (px >= t->x0 && px <= t->x1 && py >= t->y0 && py <= t->y1) {
-                strncat(feet_buf, " | Temple: ", sizeof(feet_buf) - strlen(feet_buf) - 1);
-                strncat(feet_buf, t->name, sizeof(feet_buf) - strlen(feet_buf) - 1);
-                break;
-            }
-        }
-    }
-
-    //Tombstone underfoot or adjacent
-    for (int i = 0; i < MAX_TOMBSTONES; i++) {
-        if (g_tombstones[i].active && g_tombstones[i].floor_id == f &&
-            abs(g_tombstones[i].x - px) + abs(g_tombstones[i].y - py) <= 1) {
-            char tbuf[96];
-            snprintf(tbuf, sizeof(tbuf), "| [⚰ Tombstone of %s — type 'list' to inspect]",
-                     g_tombstones[i].owner);
-            strncat(feet_buf, tbuf, sizeof(feet_buf) - strlen(feet_buf) - 1);
-        }
-    }
-
-    //Objects / Entities underfoot
-    FloorIter walk = floor_iter(npcs, f);
-    for (int i; (i = floor_iter_next(&walk)) >= 0;) {
-        if (npcs[i].x == px && npcs[i].y == py) {
-            if (npcs[i].archetype == ARCH_GOLD) {
-                strncat(feet_buf, "| [Golden Bag]", sizeof(feet_buf) - strlen(feet_buf) - 1);
-            } else if (npcs[i].archetype == ARCH_TREASURE) {
-                strncat(feet_buf, "| [Treasury Chest]", sizeof(feet_buf) - strlen(feet_buf) - 1);
-            } else if (npcs[i].is_ghost) {
-                char gbuf[96]; /*room for a 63-char name + decoration*/
-                snprintf(gbuf, sizeof(gbuf), "| [%s remains]", npcs[i].custom_name);
-                strncat(feet_buf, gbuf, sizeof(feet_buf) - strlen(feet_buf) - 1);
-            } else if (npcs[i].archetype == ARCH_MERCHANT) {
-                char mbuf[96];
-                snprintf(mbuf, sizeof(mbuf), " | [%s]", npcs[i].merchant.shop_name);
-                strncat(feet_buf, mbuf, sizeof(feet_buf) - strlen(feet_buf) - 1);
-            } else if (npcs[i].template) {
-                char nbuf[64];
-                snprintf(nbuf, sizeof(nbuf), " | [%s HP:%d/%d]", npcs[i].template->name, npcs[i].hp,
-                         npcs[i].max_hp);
-                strncat(feet_buf, nbuf, sizeof(feet_buf) - strlen(feet_buf) - 1);
-            }
-        }
-    }
-
-    //Other players underfoot
-    for (int i = 0; i < MAX_CLIENTS; i++) {
-        if (g_clients[i].active && g_clients[i].authenticated && &g_clients[i] != c &&
-            g_clients[i].floor_id == f && g_clients[i].x == px && g_clients[i].y == py) {
-            char pbuf[64];
-            snprintf(pbuf, sizeof(pbuf), "| [Player: %s]", g_clients[i].username);
-            strncat(feet_buf, pbuf, sizeof(feet_buf) - strlen(feet_buf) - 1);
-        }
-    }
-
-    //--- 2. SECTOR INSPECTION (N, NE, E, SE, S, SW, W, NW) ---
-    //Sector mapping: 0=N, 1=NE, 2=E, 3=SE, 4=S, 5=SW, 6=W, 7=NW
-    const char *sector_names[8] = {"N", "NE", "E", "SE", "S", "SW", "W", "NW"};
-    char sec_buf[8][256];
-    int sec_counts[8] = {0};
-    for (int s = 0; s < 8; s++) {
-        sec_buf[s][0] = '\0';
-    }
-
-    //Grid scan in line of sight
+    static const char *const sector_names[8] = {"N", "NE", "E", "SE", "S", "SW", "W", "NW"};
+    LookSectors sectors;
+    memset(&sectors, 0, sizeof(sectors));
     for (int dy = -vis_rad; dy <= vis_rad; dy++) {
         for (int dx = -vis_rad; dx <= vis_rad; dx++) {
-            if (dx == 0 && dy == 0) {
-                continue;
-            }
-            int nx = px + dx;
-            int ny = py + dy;
-            if (nx < 0 || nx >= MAP_WIDTH || ny < 0 || ny >= MAP_HEIGHT) {
-                continue;
-            }
-
+            int nx = c->x + dx;
+            int ny = c->y + dy;
             float dist = sqrtf((float)(dx * dx + dy * dy));
-            if (dist > (float)vis_rad) {
+            if ((dx == 0 && dy == 0) || nx < 0 || nx >= MAP_WIDTH || ny < 0 || ny >= MAP_HEIGHT ||
+                dist > (float)vis_rad) {
                 continue;
             }
-            int dist_steps = (int)roundf(dist);
-
-            //Angular sector calculation (negative dy = North)
-            float dy_map = -(float)dy;
-            float deg = atan2f(dy_map, (float)dx) * (180.0f / 3.1415926535f);
-            int sector = 2; // E
-            if (deg >= 67.5f && deg < 112.5f) {
-                sector = 0; // N
-            } else if (deg >= 22.5f && deg < 67.5f) {
-                sector = 1; // NE
-            } else if (deg >= -22.5f && deg < 22.5f) {
-                sector = 2; // E
-            } else if (deg >= -67.5f && deg < -22.5f) {
-                sector = 3; // SE
-            } else if (deg >= -112.5f && deg < -67.5f) {
-                sector = 4; // S
-            } else if (deg >= -157.5f && deg < -112.5f) {
-                sector = 5; // SW
-            } else if (deg >= 157.5f || deg < -157.5f) {
-                sector = 6; // W
-            } else if (deg >= 112.5f && deg < 157.5f) {
-                sector = 7; // NW
-            }
-
-            if (strlen(sec_buf[sector]) > 180) {
-                continue;
-            }
-
-            //A) Check monsters/NPCs in cell (nx, ny)
-            FloorIter walk = floor_iter(npcs, f);
-            for (int i; (i = floor_iter_next(&walk)) >= 0;) {
-                if (npcs[i].x == nx && npcs[i].y == ny) {
-                    char entry[96];
-                    if (npcs[i].archetype == ARCH_MERCHANT) {
-                        snprintf(entry, sizeof(entry), "%s (%dp)", npcs[i].merchant.shop_name,
-                                 dist_steps);
-                    } else if (npcs[i].archetype == ARCH_GOLD) {
-                        snprintf(entry, sizeof(entry), "Gold (%dp)", dist_steps);
-                    } else if (npcs[i].archetype == ARCH_TREASURE) {
-                        snprintf(entry, sizeof(entry), "Treasure (%dp)", dist_steps);
-                    } else if (npcs[i].is_ghost) {
-                        snprintf(entry, sizeof(entry), "Remains-%s (%dp)", npcs[i].custom_name,
-                                 dist_steps);
-                    } else if (npcs[i].template) {
-                        snprintf(entry, sizeof(entry), "%s (%dp)", npcs[i].template->name,
-                                 dist_steps);
-                    } else {
-                        snprintf(entry, sizeof(entry), "Entity (%dp)", dist_steps);
-                    }
-                    if (sec_counts[sector] > 0) {
-                        strncat(sec_buf[sector], ", ",
-                                sizeof(sec_buf[sector]) - strlen(sec_buf[sector]) - 1);
-                    }
-                    strncat(sec_buf[sector], entry,
-                            sizeof(sec_buf[sector]) - strlen(sec_buf[sector]) - 1);
-                    sec_counts[sector]++;
-                }
-            }
-
-            //B) Control other players in the cell (nx, ny)
-            for (int i = 0; i < MAX_CLIENTS; i++) {
-                if (g_clients[i].active && g_clients[i].authenticated && &g_clients[i] != c &&
-                    g_clients[i].floor_id == f && g_clients[i].x == nx && g_clients[i].y == ny) {
-                    char entry[96];
-                    snprintf(entry, sizeof(entry), "Player-%s (%dp)", g_clients[i].username,
-                             dist_steps);
-                    if (sec_counts[sector] > 0) {
-                        strncat(sec_buf[sector], ", ",
-                                sizeof(sec_buf[sector]) - strlen(sec_buf[sector]) - 1);
-                    }
-                    strncat(sec_buf[sector], entry,
-                            sizeof(sec_buf[sector]) - strlen(sec_buf[sector]) - 1);
-                    sec_counts[sector]++;
-                }
-            }
-
-            //C) Check notable elements of the map (nx, ny)
-            VoxelType vt = master_world->floors[f].map.data[0][ny][nx];
-            if (vt == VOXEL_STAIRS_DOWN) {
-                char entry[64];
-                snprintf(entry, sizeof(entry), "Stairs-Down (%dp)", dist_steps);
-                if (sec_counts[sector] > 0) {
-                    strncat(sec_buf[sector], ", ",
-                            sizeof(sec_buf[sector]) - strlen(sec_buf[sector]) - 1);
-                }
-                strncat(sec_buf[sector], entry,
-                        sizeof(sec_buf[sector]) - strlen(sec_buf[sector]) - 1);
-                sec_counts[sector]++;
-            } else if (vt == VOXEL_STAIRS_UP) {
-                char entry[64];
-                snprintf(entry, sizeof(entry), "Stairs-Up (%dp)", dist_steps);
-                if (sec_counts[sector] > 0) {
-                    strncat(sec_buf[sector], ", ",
-                            sizeof(sec_buf[sector]) - strlen(sec_buf[sector]) - 1);
-                }
-                strncat(sec_buf[sector], entry,
-                        sizeof(sec_buf[sector]) - strlen(sec_buf[sector]) - 1);
-                sec_counts[sector]++;
-            } else if (f == 0 && (vt == VOXEL_WATER || vt == VOXEL_ICE)) {
-                char entry[64];
-                snprintf(entry, sizeof(entry), "Sacred-Fountain (%dp)", dist_steps);
-                if (sec_counts[sector] > 0) {
-                    strncat(sec_buf[sector], ", ",
-                            sizeof(sec_buf[sector]) - strlen(sec_buf[sector]) - 1);
-                }
-                strncat(sec_buf[sector], entry,
-                        sizeof(sec_buf[sector]) - strlen(sec_buf[sector]) - 1);
-                sec_counts[sector]++;
-            } else if (vt >= VOXEL_CRYSTAL_BLUE && vt <= VOXEL_CRYSTAL_WHITE) {
-                char entry[64];
-                snprintf(entry, sizeof(entry), "Crystal (%dp)", dist_steps);
-                if (sec_counts[sector] > 0) {
-                    strncat(sec_buf[sector], ", ",
-                            sizeof(sec_buf[sector]) - strlen(sec_buf[sector]) - 1);
-                }
-                strncat(sec_buf[sector], entry,
-                        sizeof(sec_buf[sector]) - strlen(sec_buf[sector]) - 1);
-                sec_counts[sector]++;
-            } else if (vt == VOXEL_TRAP) {
-                char entry[64];
-                snprintf(entry, sizeof(entry), "Trap (%dp)", dist_steps);
-                if (sec_counts[sector] > 0) {
-                    strncat(sec_buf[sector], ", ",
-                            sizeof(sec_buf[sector]) - strlen(sec_buf[sector]) - 1);
-                }
-                strncat(sec_buf[sector], entry,
-                        sizeof(sec_buf[sector]) - strlen(sec_buf[sector]) - 1);
-                sec_counts[sector]++;
+            int sector = look_sector(dx, dy);
+            if (strlen(sectors.text[sector]) <= 180) { /*a full row takes no more*/
+                look_cell(c, game, &sectors, sector, nx, ny, (int)roundf(dist));
             }
         }
     }
 
-    //--- 3. TABLE OUTPUT TO CLIENT ---
+    static const char *const rule =
+        "+--------+-------------------------------------------------------------+";
     send_text_to_client(c->sock, "[INSPECTION] Illuminated View Range: %d Steps (%d Floor)",
-                        vis_rad, f);
-    send_text_to_client(c->sock, "[UNDER FEET] Position (%d, %d): %s", px, py, feet_buf);
-    send_text_to_client(c->sock,
-                        "+--------+-------------------------------------------------------------+");
-    send_text_to_client(c->sock, "| SECTOR| DETECTIONS IN THE ILLUMINATED AREA |");
-    send_text_to_client(c->sock,
-                        "+--------+-------------------------------------------------------------+");
-
+                        vis_rad, c->floor_id);
+    send_text_to_client(c->sock, "[UNDER FEET] Position (%d, %d): %s", c->x, c->y, feet_buf);
+    send_text_to_client(c->sock, "%s", rule);
+    send_text_to_client(c->sock, "| %-6s | %-59s |", "SECTOR",
+                        "DETECTIONS IN THE ILLUMINATED AREA");
+    send_text_to_client(c->sock, "%s", rule);
     for (int s = 0; s < 8; s++) {
-        if (sec_counts[s] == 0) {
-            send_text_to_client(
-                c->sock, "| %-6s | Free                                                        |",
-                sector_names[s]);
-        } else {
-            send_text_to_client(c->sock, "| %-6s | %-59.59s |", sector_names[s], sec_buf[s]);
-        }
+        send_text_to_client(c->sock, "| %-6s | %-59.59s |", sector_names[s],
+                            sectors.count[s] == 0 ? "Free" : sectors.text[s]);
     }
-    send_text_to_client(c->sock,
-                        "+--------+-------------------------------------------------------------+");
+    send_text_to_client(c->sock, "%s", rule);
     return true;
 }
 
-bool cmd_fountain(Client *c, const char *cmd, NPC *npcs) {
+bool cmd_fountain(Client *c, const char *cmd, Game *game) {
     (void)cmd;
-    (void)npcs;
+    (void)game;
     if (c->floor_id == 0) {
         bool near_fountain = false;
         for (int dy = -3; dy <= 3; dy++) {
@@ -402,7 +338,7 @@ bool cmd_fountain(Client *c, const char *cmd, NPC *npcs) {
                 int nx = c->x + dx;
                 int ny = c->y + dy;
                 if (nx >= 0 && nx < MAP_WIDTH && ny >= 0 && ny < MAP_HEIGHT) {
-                    VoxelType vt = master_world->floors[0].map.data[0][ny][nx];
+                    VoxelType vt = game->world->floors[0].map.data[0][ny][nx];
                     if (vt == VOXEL_WATER || vt == VOXEL_ICE) {
                         near_fountain = true;
                     }
@@ -411,7 +347,7 @@ bool cmd_fountain(Client *c, const char *cmd, NPC *npcs) {
         }
         if (near_fountain) {
             c->hp = c->max_hp;
-            send_detailed_state(c); //Sync HP with the HUD client
+            send_detailed_state(game, c); //Sync HP with the HUD client
             send_text_to_client(
                 c->sock,
                 "[SYSTEM] Drink the water from the sacred fountain and feel your wounds magically heal!");
@@ -425,9 +361,9 @@ bool cmd_fountain(Client *c, const char *cmd, NPC *npcs) {
     return true;
 }
 
-bool cmd_statue(Client *c, const char *cmd, NPC *npcs) {
+bool cmd_statue(Client *c, const char *cmd, Game *game) {
     (void)cmd;
-    (void)npcs;
+    (void)game;
     if (c->floor_id == 0) {
         bool near_crystal = false;
         for (int dy = -3; dy <= 3; dy++) {
@@ -435,7 +371,7 @@ bool cmd_statue(Client *c, const char *cmd, NPC *npcs) {
                 int nx = c->x + dx;
                 int ny = c->y + dy;
                 if (nx >= 0 && nx < MAP_WIDTH && ny >= 0 && ny < MAP_HEIGHT) {
-                    VoxelType vt = master_world->floors[0].map.data[0][ny][nx];
+                    VoxelType vt = game->world->floors[0].map.data[0][ny][nx];
                     if ((vt >= VOXEL_CRYSTAL_BLUE && vt <= VOXEL_CRYSTAL_PURPLE) ||
                         (vt >= VOXEL_CRYSTAL_RED && vt <= VOXEL_CRYSTAL_WHITE)) {
                         near_crystal = true;
@@ -449,7 +385,8 @@ bool cmd_statue(Client *c, const char *cmd, NPC *npcs) {
             }
             c->hunger_level = 0;
             c->exhaustion_level = 0;
-            send_detailed_state(c); //Sync spell slots, hunger and exhaustion with the HUD client
+            send_detailed_state(game,
+                                c); //Sync spell slots, hunger and exhaustion with the HUD client
             send_text_to_client(
                 c->sock,
                 "[SYSTEM] Meditate at the foot of the crystal monument. Your spirit is renewed, chasing away fatigue, hunger and recharging your spells!");
@@ -463,14 +400,14 @@ bool cmd_statue(Client *c, const char *cmd, NPC *npcs) {
     return true;
 }
 
-bool cmd_search(Client *c, const char *cmd, NPC *npcs) {
+bool cmd_search(Client *c, const char *cmd, Game *game) {
     (void)cmd;
-    (void)npcs;
+    (void)game;
     int roll = (rand() % 20) + 1;
     int perception = roll + rules_get_modifier(c->wis);
     bool found_something = false;
 
-    Floor *f = &master_world->floors[c->floor_id];
+    Floor *f = &game->world->floors[c->floor_id];
     for (int i = 0; i < f->trap_count; i++) {
         Trap *t = &f->traps[i];
         if (!t->active || t->detected) {
@@ -504,168 +441,170 @@ bool cmd_search(Client *c, const char *cmd, NPC *npcs) {
     return true;
 }
 
-bool cmd_disarm(Client *c, const char *cmd, NPC *npcs) {
-    Floor *f = &master_world->floors[c->floor_id];
-    Trap *target_trap = NULL;
+/*The trap to work on: the nearest active one within 2 steps (a wall trap
+ * counts from the tile it fires onto); a detected trap wins over a hidden
+ * one that is not closer.*/
+static Trap *disarm_target(const Client *c, Floor *f) {
+    static const int wall_dx[4] = {0, 1, 0, -1};
+    static const int wall_dy[4] = {-1, 0, 1, 0};
+    Trap *target = NULL;
     int min_dist = 999;
-
-    // Sub-mode parsing
-    bool is_salvage = (strstr(cmd, "salvage") != NULL || strstr(cmd, " r") != NULL);
-    bool is_magic = (strstr(cmd, "magic") != NULL || strstr(cmd, " m") != NULL);
-
-    //Search for adjacent or nearby traps (distance <= 2)
     for (int i = 0; i < f->trap_count; i++) {
         Trap *t = &f->traps[i];
         if (!t->active) {
             continue;
         }
-
         int tx = t->x, ty = t->y;
         if (t->type == TRAP_DART_WALL || t->type == TRAP_SPRING_SPEAR) {
-            int wall_dx[4] = {0, 1, 0, -1};
-            int wall_dy[4] = {-1, 0, 1, 0};
             tx += wall_dx[t->wall_dir];
             ty += wall_dy[t->wall_dir];
         }
-
         int dist = abs(c->x - tx) + abs(c->y - ty);
-        if (dist <= 2) {
-            if ((t->detected && dist < min_dist) || (!target_trap && dist < min_dist)) {
-                min_dist = dist;
-                target_trap = t;
-            }
+        if (dist <= 2 && dist < min_dist && (t->detected || !target)) {
+            min_dist = dist;
+            target = t;
         }
     }
+    return target;
+}
 
-    if (!target_trap) {
+static bool trap_is_magical(TrapType type) {
+    return type == TRAP_CURSE_RUNE || type == TRAP_ANTIMAGIC_ZONE || type == TRAP_ILLUSION_MIRROR ||
+           type == TRAP_INVERSION_RUNE || type == TRAP_DARKNESS || type == TRAP_SILENCE ||
+           type == TRAP_TELEPORT || type == TRAP_CRYSTAL_BURST;
+}
+
+static bool has_thief_tools(const Client *c) {
+    for (int i = 0; i < c->backpack_count; i++) {
+        if (c->backpack[i].template_idx == -1) {
+            continue;
+        }
+        const char *iname = item_database[c->backpack[i].template_idx].name;
+        if (strcasestr(iname, "Tool") || strcasestr(iname, "Lockpick") ||
+            strcasestr(iname, "Kit")) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/*Modifier of the disarm check. Arcane: the better of INT and WIS, +4 for
+ * a level-1 slot (spent here). Manual: DEX, plus the proficiency bonus
+ * with tools, twice for a rogue.*/
+static int disarm_modifier(Client *c, bool arcane) {
+    if (arcane) {
+        int mod = rules_get_modifier((c->intel > c->wis) ? c->intel : c->wis);
+        if (c->spell_slots[1] > 0) {
+            c->spell_slots[1]--;
+            mod += 4;
+            send_text_to_client(c->sock,
+                                "[MAGIC] You channel your arcane energy (-1 Slot Lv.1, Focus +4)!");
+        }
+        return mod;
+    }
+    int mod = rules_get_modifier(c->dex);
+    int prof_bonus = 2 + (c->level - 1) / 4;
+    if (c->class_id == CLASS_ROGUE) {
+        mod += prof_bonus * 2;
+    } else if (has_thief_tools(c)) {
+        mod += prof_bonus;
+    }
+    return mod;
+}
+
+/*The disarm check of a player: the die, the modifier, the DC.*/
+typedef struct {
+    const char *method;
+    int roll, mod, total, dc;
+    bool salvage;
+} DisarmCheck;
+
+static void disarm_success(Client *c, Floor *f, Trap *t, const DisarmCheck *k) {
+    t->active = false;
+    t->detected = false;
+    t->respawn_timer = RESPAWN_TRAPS_TICKS;
+    if (f->map.data[0][t->y][t->x] == VOXEL_TRAP) {
+        f->map.data[0][t->y][t->x] = VOXEL_FLOOR;
+    }
+    int xp_reward = 25 + c->floor_id * 5;
+    if (k->roll == 20) {
+        xp_reward *= 2;
+        send_text_to_client(
+            c->sock, "[DISARMS] CRITICAL SUCCESS! [%s] (Roll: 20 Nat + Mod: %d = %d vs DC: %d)",
+            k->method, k->mod, k->total, k->dc);
+        send_text_to_client(
+            c->sock, "[DISARMS] With extraordinary skill you dismantle the trap safely (+%d XP)!",
+            xp_reward);
+    } else {
+        send_text_to_client(c->sock, "[DISARMS] SUCCESS! [%s] (Roll: %d + Mod: %d = %d vs DC: %d)",
+                            k->method, k->roll, k->mod, k->total, k->dc);
+        send_text_to_client(c->sock, "[DISARMS] You successfully neutralize the trap (+%d XP).",
+                            xp_reward);
+    }
+    c->xp += xp_reward;
+    if (k->salvage) {
+        int gold_salvage = 40 + c->floor_id * 15 + (rand() % 30);
+        c->gold += (uint64_t)gold_salvage;
+        send_text_to_client(
+            c->sock,
+            "[RECOVERY] Extract valuable materials and alchemical resources from the mechanism (+%lu Gold Coins)!",
+            (unsigned long)gold_salvage);
+    }
+}
+
+/*A fumble: the trap fires on the player as if he had stepped on it.*/
+static void disarm_backfire(Client *c, Trap *t, const DisarmCheck *k, Game *game) {
+    send_text_to_client(c->sock,
+                        "[DISARMS] CATASTROPHIC FAILURE! [%s] (Roll: %d + Mod: %d = %d vs DC: %d)",
+                        k->method, k->roll, k->mod, k->total, k->dc);
+    send_text_to_client(c->sock, "[DANGER] An execution error triggers the trap!");
+    bool has_shield = ((c->slot_hand_r.template_idx != -1 &&
+                        item_database[c->slot_hand_r.template_idx].category == ITEM_SHIELD) ||
+                       (c->slot_hand_l.template_idx != -1 &&
+                        item_database[c->slot_hand_l.template_idx].category == ITEM_SHIELD));
+    if (has_shield && !trap_is_magical(t->type)) {
+        send_text_to_client(
+            c->sock,
+            "[DEFENSE] You instinctively raise your shield to protect yourself from the trap's blow!");
+    }
+    int orig_x = c->x, orig_y = c->y;
+    c->x = t->x;
+    c->y = t->y;
+    check_traps(c, game);
+    c->x = orig_x;
+    c->y = orig_y;
+}
+
+/*disarm [salvage|r] [magic|m]: a d20 + modifier against the trap's DC
+ * (+3 to salvage its materials). A natural 20 always succeeds; a natural
+ * 1, or missing by 5 or more, fires the trap.*/
+bool cmd_disarm(Client *c, const char *cmd, Game *game) {
+    Floor *f = &game->world->floors[c->floor_id];
+    Trap *t = disarm_target(c, f);
+    if (!t) {
         send_text_to_client(c->sock,
                             "[ERROR] No traps detected in range. Use 'search' to find one.");
         return true;
     }
+    t->detected = true;
 
-    target_trap->detected = true;
+    bool arcane =
+        strstr(cmd, "magic") != NULL || strstr(cmd, " m") != NULL || trap_is_magical(t->type);
+    DisarmCheck k;
+    k.salvage = strstr(cmd, "salvage") != NULL || strstr(cmd, " r") != NULL;
+    k.method = arcane ? "Arcane Dissipation" : "Manual Dexterity";
+    k.roll = (rand() % 20) + 1;
+    k.dc = (t->detection_dc > 0 ? t->detection_dc : 12) + (k.salvage ? 3 : 0);
+    k.mod = disarm_modifier(c, arcane);
+    k.total = k.roll + k.mod;
 
-    //--- DRAGON GL RULES AND MODIFIERS ---
-    int roll = (rand() % 20) + 1;
-    int dc = target_trap->detection_dc > 0 ? target_trap->detection_dc : 12;
-    int total_mod = 0;
-    const char *method_name = "Manual Dexterity";
-
-    //I'll check if it's a magic trap
-    bool is_trap_magical =
-        (target_trap->type == TRAP_CURSE_RUNE || target_trap->type == TRAP_ANTIMAGIC_ZONE ||
-         target_trap->type == TRAP_ILLUSION_MIRROR || target_trap->type == TRAP_INVERSION_RUNE ||
-         target_trap->type == TRAP_DARKNESS || target_trap->type == TRAP_SILENCE ||
-         target_trap->type == TRAP_TELEPORT || target_trap->type == TRAP_CRYSTAL_BURST);
-
-    if (is_magic || is_trap_magical) {
-        method_name = "Arcane Dissipation";
-        int main_stat = (c->intel > c->wis) ? c->intel : c->wis;
-        total_mod = rules_get_modifier(main_stat);
-
-        //Consume 1 spell slot for Arcane Focus (+4)
-        if (c->spell_slots[1] > 0) {
-            c->spell_slots[1]--;
-            total_mod += 4;
-            send_text_to_client(c->sock,
-                                "[MAGIC] You channel your arcane energy (-1 Slot Lv.1, Focus +4)!");
-        }
-    } else {
-        total_mod = rules_get_modifier(c->dex);
-        int prof_bonus = 2 + (c->level - 1) / 4;
-
-        //Mastery Bonus for Thieves or Precision Kits
-        if (c->class_id == CLASS_ROGUE) {
-            total_mod += prof_bonus * 2; // Tactical Mastery
-        } else {
-            bool has_tools = false;
-            for (int i = 0; i < c->backpack_count; i++) {
-                if (c->backpack[i].template_idx != -1) {
-                    const char *iname = item_database[c->backpack[i].template_idx].name;
-                    if (strcasestr(iname, "Tool") || strcasestr(iname, "Lockpick") ||
-                        strcasestr(iname, "Kit")) {
-                        has_tools = true;
-                        break;
-                    }
-                }
-            }
-            if (has_tools) {
-                total_mod += prof_bonus;
-            }
-        }
-    }
-
-    if (is_salvage) {
-        dc += 3; //Tactical Recovery Mode: +3 DC to extract intact materials
-    }
-
-    int total_check = roll + total_mod;
-
-    // --- OPERATION OUTCOME ---
-    if (roll == 20 || total_check >= dc) {
-        target_trap->active = false;
-        target_trap->detected = false;
-        target_trap->respawn_timer = RESPAWN_TRAPS_TICKS;
-
-        if (f->map.data[0][target_trap->y][target_trap->x] == VOXEL_TRAP) {
-            f->map.data[0][target_trap->y][target_trap->x] = VOXEL_FLOOR;
-        }
-
-        int xp_reward = 25 + c->floor_id * 5;
-        c->xp += xp_reward;
-
-        if (roll == 20) {
-            send_text_to_client(
-                c->sock, "[DISARMS] CRITICAL SUCCESS! [%s] (Roll: 20 Nat + Mod: %d = %d vs DC: %d)",
-                method_name, total_mod, total_check, dc);
-            send_text_to_client(
-                c->sock,
-                "[DISARMS] With extraordinary skill you dismantle the trap safely (+%d XP)!",
-                xp_reward * 2);
-            c->xp += xp_reward;
-        } else {
-            send_text_to_client(c->sock,
-                                "[DISARMS] SUCCESS! [%s] (Roll: %d + Mod: %d = %d vs DC: %d)",
-                                method_name, roll, total_mod, total_check, dc);
-            send_text_to_client(c->sock, "[DISARMS] You successfully neutralize the trap (+%d XP).",
-                                xp_reward);
-        }
-
-        //Extra reward if in Tactical Recovery mode
-        if (is_salvage) {
-            uint64_t gold_salvage = 40 + c->floor_id * 15 + (rand() % 30);
-            c->gold += gold_salvage;
-            send_text_to_client(
-                c->sock,
-                "[RECOVERY] Extract valuable materials and alchemical resources from the mechanism (+%lu Gold Coins)!",
-                (unsigned long)gold_salvage);
-        }
-    } else if (roll == 1 || total_check <= dc - 5) {
-        send_text_to_client(
-            c->sock, "[DISARMS] CATASTROPHIC FAILURE! [%s] (Roll: %d + Mod: %d = %d vs DC: %d)",
-            method_name, roll, total_mod, total_check, dc);
-        send_text_to_client(c->sock, "[DANGER] An execution error triggers the trap!");
-
-        //Shield Protection: If a shield is equipped, it absorbs physical impact damage
-        bool has_shield = ((c->slot_hand_r.template_idx != -1 &&
-                            item_database[c->slot_hand_r.template_idx].category == ITEM_SHIELD) ||
-                           (c->slot_hand_l.template_idx != -1 &&
-                            item_database[c->slot_hand_l.template_idx].category == ITEM_SHIELD));
-        if (has_shield && !is_trap_magical) {
-            send_text_to_client(
-                c->sock,
-                "[DEFENSE] You instinctively raise your shield to protect yourself from the trap's blow!");
-        }
-
-        int orig_x = c->x, orig_y = c->y;
-        c->x = target_trap->x;
-        c->y = target_trap->y;
-        check_traps(c, npcs);
-        c->x = orig_x;
-        c->y = orig_y;
+    if (k.roll == 20 || k.total >= k.dc) {
+        disarm_success(c, f, t, &k);
+    } else if (k.roll == 1 || k.total <= k.dc - 5) {
+        disarm_backfire(c, t, &k, game);
     } else {
         send_text_to_client(c->sock, "[DISARMS] FAILURE! [%s] (Roll: %d + Mod: %d = %d vs DC: %d)",
-                            method_name, roll, total_mod, total_check, dc);
+                            k.method, k.roll, k.mod, k.total, k.dc);
         send_text_to_client(
             c->sock,
             "[DISARMS] The attempt fails, but you retreat in time before triggering the mechanism.");
@@ -673,7 +612,7 @@ bool cmd_disarm(Client *c, const char *cmd, NPC *npcs) {
     return true;
 }
 
-bool cmd_examine(Client *c, const char *cmd, NPC *npcs) {
+bool cmd_examine(Client *c, const char *cmd, Game *game) {
     (void)cmd;
     send_text_to_client(c->sock, "[DETAILED EXAMINATION] Area 1 step (Position %d, %d - Floor %d)",
                         c->x, c->y, c->floor_id);
@@ -690,7 +629,7 @@ bool cmd_examine(Client *c, const char *cmd, NPC *npcs) {
     int qy[] = {0, -1, -1, 0, 1, 1, 1, 0, -1};
     const char *qnames[] = {"FEET", "N", "NE", "E", "SE", "S", "SW", "W", "NW"};
 
-    Floor *f = &master_world->floors[c->floor_id];
+    Floor *f = &game->world->floors[c->floor_id];
 
     for (int i = 0; i < 9; i++) {
         int nx = c->x + qx[i];
@@ -704,27 +643,28 @@ bool cmd_examine(Client *c, const char *cmd, NPC *npcs) {
 
             char presence[256] = "";
 
-            FloorIter walk = floor_iter(npcs, c->floor_id);
+            FloorIter walk = floor_iter(game, c->floor_id);
             for (int m; (m = floor_iter_next(&walk)) >= 0;) {
-                if (npcs[m].x == nx && npcs[m].y == ny) {
-                    if (npcs[m].archetype == ARCH_GOLD) {
+                if (game->npcs[m].x == nx && game->npcs[m].y == ny) {
+                    if (game->npcs[m].archetype == ARCH_GOLD) {
                         strncat(presence, "| [Golden Bag]",
                                 sizeof(presence) - strlen(presence) - 1);
-                    } else if (npcs[m].archetype == ARCH_TREASURE) {
+                    } else if (game->npcs[m].archetype == ARCH_TREASURE) {
                         strncat(presence, "| [Treasury Chest]",
                                 sizeof(presence) - strlen(presence) - 1);
-                    } else if (npcs[m].is_ghost) {
+                    } else if (game->npcs[m].is_ghost) {
                         char gbuf[96]; /*room for a 63-char name + decoration*/
-                        snprintf(gbuf, sizeof(gbuf), "| [%s remains]", npcs[m].custom_name);
+                        snprintf(gbuf, sizeof(gbuf), "| [%s remains]", game->npcs[m].custom_name);
                         strncat(presence, gbuf, sizeof(presence) - strlen(presence) - 1);
-                    } else if (npcs[m].archetype == ARCH_MERCHANT) {
+                    } else if (game->npcs[m].archetype == ARCH_MERCHANT) {
                         char mbuf[96];
-                        snprintf(mbuf, sizeof(mbuf), " | [%s]", npcs[m].merchant.shop_name);
+                        snprintf(mbuf, sizeof(mbuf), " | [%s]", game->npcs[m].merchant.shop_name);
                         strncat(presence, mbuf, sizeof(presence) - strlen(presence) - 1);
-                    } else if (npcs[m].template) {
+                    } else if (game->npcs[m].template) {
                         char nbuf[128];
-                        snprintf(nbuf, sizeof(nbuf), " | %s (HP:%d/%d)", npcs[m].template->name,
-                                 npcs[m].hp, npcs[m].max_hp);
+                        snprintf(nbuf, sizeof(nbuf), " | %s (HP:%d/%d)",
+                                 game->npcs[m].template->name, game->npcs[m].hp,
+                                 game->npcs[m].max_hp);
                         strncat(presence, nbuf, sizeof(presence) - strlen(presence) - 1);
                     }
                 }
@@ -783,219 +723,6 @@ bool cmd_examine(Client *c, const char *cmd, NPC *npcs) {
     return true;
 }
 
-/*"t " (lowercase) is the short alias for tunnel directions: 't n' =
- * tunnel north.*/
-bool cmd_tunnel(Client *c, const char *cmd, NPC *npcs) {
-    (void)npcs;
-    const char *dir_str = strchr(cmd, ' ');
-    if (!dir_str) {
-        send_text_to_client(c->sock,
-                            "[SYSTEM] Use: tunnel <n|s|e|w> or 'tunnel d' (down/under your feet)");
-        return true;
-    }
-    dir_str++;
-    while (*dir_str == ' ') {
-        dir_str++;
-    }
-
-    int tx = c->x, ty = c->y;
-    bool digging_down = false;
-
-    if (*dir_str == 'n') {
-        ty--;
-    } else if (*dir_str == 's') {
-        ty++;
-    } else if (*dir_str == 'e') {
-        tx++;
-    } else if (*dir_str == 'w') {
-        tx--;
-    } else if (*dir_str == 'd' || *dir_str == 'g') {
-        digging_down = true;
-    } else {
-        send_text_to_client(c->sock, "[SYSTEM] Invalid direction. Use: n, s, e, w, or d (down)");
-        return true;
-    }
-
-    Floor *f = &master_world->floors[c->floor_id];
-    if (tx < 0 || tx >= MAP_WIDTH || ty < 0 || ty >= MAP_HEIGHT) {
-        send_text_to_client(c->sock, "[SYSTEM] Beyond borders.");
-        return true;
-    }
-
-    VoxelType vt = f->map.data[0][ty][tx];
-
-    bool has_tool = false;
-    ItemInstance *hands[] = {&c->slot_hand_r, &c->slot_hand_l};
-    for (int i = 0; i < 2; i++) {
-        if (hands[i]->template_idx != -1) {
-            const char *iname = item_database[hands[i]->template_idx].name;
-            if (strcasestr(iname, "Pick") || strcasestr(iname, "Piccone") ||
-                strcasestr(iname, "Shovel") || strcasestr(iname, "Pala") ||
-                strcasestr(iname, "Hammer") || strcasestr(iname, "Martello") ||
-                strcasestr(iname, "Mining") || strcasestr(iname, "Tool")) {
-                has_tool = true;
-                break;
-            }
-        }
-    }
-    if (!has_tool) {
-        for (int i = 0; i < c->backpack_count; i++) {
-            if (c->backpack[i].template_idx != -1) {
-                const char *iname = item_database[c->backpack[i].template_idx].name;
-                if (strcasestr(iname, "Pick") || strcasestr(iname, "Piccone") ||
-                    strcasestr(iname, "Shovel") || strcasestr(iname, "Pala") ||
-                    strcasestr(iname, "Hammer") || strcasestr(iname, "Martello") ||
-                    strcasestr(iname, "Mining") || strcasestr(iname, "Tool")) {
-                    has_tool = true;
-                    break;
-                }
-            }
-        }
-    }
-
-    if (vt == VOXEL_GOLD_VEIN) {
-        if (!has_tool) {
-            send_text_to_client(
-                c->sock,
-                "[MINE] The gold vein is too hard to mine bare-handed. You need a pickaxe!");
-            return true;
-        }
-        int gold_yield = (50 + rand() % 100) * (c->floor_id > 0 ? c->floor_id : 1);
-        c->gold += gold_yield;
-        c->xp += 15;
-        f->map.data[0][ty][tx] = VOXEL_FLOOR;
-        broadcast_spell_vfx(tx, ty, tx, ty, 1, 0.8f, 0.7f, 0.1f, c->floor_id); // Gold explosion
-        send_text_to_client(
-            c->sock,
-            "[MINE] You have successfully mined pure gold from the vein! (+%d Gold Coins, +15 XP)",
-            gold_yield);
-    } else if (vt >= VOXEL_CRYSTAL_BLUE && vt <= VOXEL_CRYSTAL_WHITE) {
-        if (!has_tool) {
-            send_text_to_client(
-                c->sock, "[MINE] The magic crystal is as hard as diamond. You need a proper tool!");
-            return true;
-        }
-        int gold_yield = (100 + rand() % 200) * (c->floor_id > 0 ? c->floor_id : 1);
-        c->gold += gold_yield;
-        c->xp += 30;
-        f->map.data[0][ty][tx] = VOXEL_FLOOR;
-
-        // Track for respawn
-        if (f->crystal_respawn_count < 100) {
-            f->crystal_respawns[f->crystal_respawn_count].x = tx;
-            f->crystal_respawns[f->crystal_respawn_count].y = ty;
-            f->crystal_respawns[f->crystal_respawn_count].type = vt;
-            f->crystal_respawns[f->crystal_respawn_count].respawn_timer =
-                50 + (rand() % 50); // 50-100 ticks
-            f->crystal_respawn_count++;
-        }
-
-        //Generate VFX based on crystal color
-        float cr = 1.0f, cg = 1.0f, cb = 1.0f;
-        if (vt == VOXEL_CRYSTAL_BLUE) {
-            cr = 0.3f;
-            cg = 0.7f;
-            cb = 1.0f;
-        } else if (vt == VOXEL_CRYSTAL_PURPLE) {
-            cr = 0.8f;
-            cg = 0.2f;
-            cb = 1.0f;
-        } else if (vt == VOXEL_CRYSTAL_RED) {
-            cr = 1.0f;
-            cg = 0.1f;
-            cb = 0.1f;
-        } else if (vt == VOXEL_CRYSTAL_GREEN) {
-            cr = 0.1f;
-            cg = 1.0f;
-            cb = 0.2f;
-        } else if (vt == VOXEL_CRYSTAL_YELLOW) {
-            cr = 1.0f;
-            cg = 0.9f;
-            cb = 0.1f;
-        } else if (vt == VOXEL_CRYSTAL_ORANGE) {
-            cr = 1.0f;
-            cg = 0.5f;
-            cb = 0.0f;
-        } else if (vt == VOXEL_CRYSTAL_CYAN) {
-            cr = 0.0f;
-            cg = 0.9f;
-            cb = 1.0f;
-        }
-
-        broadcast_spell_vfx(tx, ty, tx, ty, 1, cr, cg, cb, c->floor_id); // Explosion
-
-        send_text_to_client(
-            c->sock,
-            "[MINE] You have shattered the crystal and extracted precious fragments! (+%d Gold, +30 XP)",
-            gold_yield);
-    } else if (vt == VOXEL_MUSHROOM_GLOW) {
-        c->hp = (c->hp + 15 > c->max_hp) ? c->max_hp : c->hp + 15;
-        f->map.data[0][ty][tx] = VOXEL_FLOOR;
-        send_detailed_state(c); //Sync HP with the HUD client
-        send_text_to_client(
-            c->sock,
-            "[MINE] Extract the glowing mushrooms and absorb their life essence (+15 HP).");
-    } else if (vt == VOXEL_WALL || vt == VOXEL_ROCK) {
-        if (!has_tool && (rand() % 100 < 80)) {
-            send_text_to_client(
-                c->sock,
-                "[MINE] Digging rock bare-handed is exhausting and painful... You can't break through.");
-            c->hp -= 1;
-            if (c->hp < 1) {
-                c->hp = 1;
-            }
-            send_detailed_state(c); //Sync HP with the HUD client
-            return true;
-        }
-        f->map.data[0][ty][tx] = VOXEL_FLOOR;
-        broadcast_spell_vfx(tx, ty, tx, ty, 1, 0.6f, 0.6f, 0.6f,
-                            c->floor_id); // Grey rock explosion
-
-        unsigned int hash = (unsigned int)(tx * 73 + ty * 37 + c->floor_id * 19 + 17);
-        if (has_tool && (hash % 100 < 15)) {
-            int bonus = 20 * (c->floor_id > 0 ? c->floor_id : 1);
-            c->gold += bonus;
-            send_text_to_client(
-                c->sock,
-                "[MINE] While digging the rock you found a small supply of silver! (+%d Gold)",
-                bonus);
-        } else {
-            send_text_to_client(c->sock,
-                                "[SYSTEM] You have carved out the rock, opening a passage!");
-        }
-    } else if (digging_down && (vt == VOXEL_MUD || vt == VOXEL_SAND || vt == VOXEL_ASH ||
-                                vt == VOXEL_GRASS || vt == VOXEL_FLOOR)) {
-        if (!has_tool) {
-            send_text_to_client(
-                c->sock,
-                "[MINE] Digging the ground without a shovel or pickaxe takes too much time and effort.");
-            return true;
-        }
-
-        unsigned int hash = (unsigned int)(tx * 31 + ty * 47 + c->floor_id * 13 + 5);
-        if (vt != VOXEL_COBBLE) {
-            f->map.data[0][ty][tx] = VOXEL_COBBLE;
-            if (hash % 100 < 20) {
-                int bonus = 10 * (c->floor_id > 0 ? c->floor_id : 1);
-                c->gold += bonus;
-                send_text_to_client(
-                    c->sock,
-                    "[MINE] While digging in the loose soil you found some lost coins! (+%d Gold)",
-                    bonus);
-            } else {
-                send_text_to_client(c->sock,
-                                    "[MINE] You disturbed the ground, but found nothing of value.");
-            }
-        } else {
-            send_text_to_client(c->sock,
-                                "[MINE] This ground has already been dug out (loose rubble).");
-        }
-    } else {
-        send_text_to_client(c->sock, "[SYSTEM] There is nothing to dig or mine there.");
-    }
-    return true;
-}
-
 /*--- Door memory ---
  * 'close' may ONLY turn back a tile that this server turned from a door
  * into floor with 'open': closing any floor tile would let a player seal
@@ -1006,8 +733,8 @@ static struct {
 } g_recently_opened_doors[MAX_FLOORS][32];
 static int g_recently_opened_door_n[MAX_FLOORS] = {0};
 
-bool cmd_open(Client *c, const char *cmd, NPC *npcs) {
-    (void)npcs;
+bool cmd_open(Client *c, const char *cmd, Game *game) {
+    (void)game;
     const char *dir_str = strchr(cmd, ' ');
     if (!dir_str) {
         send_text_to_client(c->sock, "[SYSTEM] Use: open <n|s|e|w>");
@@ -1029,11 +756,12 @@ bool cmd_open(Client *c, const char *cmd, NPC *npcs) {
         return true;
     }
     /*Bounds: at the map edge tx/ty can step outside the array.*/
-    if (tx < 0 || tx >= MAP_WIDTH || ty < 0 || ty >= MAP_HEIGHT) {
+    /*The outermost ring of rock is the edge of the world: it is never dug.*/
+    if (tx < 1 || tx >= MAP_WIDTH - 1 || ty < 1 || ty >= MAP_HEIGHT - 1) {
         send_text_to_client(c->sock, "[SYSTEM] Beyond borders.");
         return true;
     }
-    Floor *f = &master_world->floors[c->floor_id];
+    Floor *f = &game->world->floors[c->floor_id];
     if (f->map.data[0][ty][tx] == VOXEL_DOOR) {
         f->map.data[0][ty][tx] = VOXEL_FLOOR;
         /*Remember it so 'close' can put the door back.*/
@@ -1057,8 +785,8 @@ bool cmd_open(Client *c, const char *cmd, NPC *npcs) {
     return true;
 }
 
-bool cmd_close(Client *c, const char *cmd, NPC *npcs) {
-    (void)npcs;
+bool cmd_close(Client *c, const char *cmd, Game *game) {
+    (void)game;
     const char *dir_str = strchr(cmd, ' ');
     if (!dir_str) {
         send_text_to_client(c->sock, "[SYSTEM] Use: close <n|s|e|w>");
@@ -1079,11 +807,12 @@ bool cmd_close(Client *c, const char *cmd, NPC *npcs) {
         send_text_to_client(c->sock, "[SYSTEM] Use: close <n|s|e|w>");
         return true;
     }
-    if (tx < 0 || tx >= MAP_WIDTH || ty < 0 || ty >= MAP_HEIGHT) {
+    /*The outermost ring of rock is the edge of the world: it is never dug.*/
+    if (tx < 1 || tx >= MAP_WIDTH - 1 || ty < 1 || ty >= MAP_HEIGHT - 1) {
         send_text_to_client(c->sock, "[SYSTEM] Beyond borders.");
         return true;
     }
-    Floor *f = &master_world->floors[c->floor_id];
+    Floor *f = &game->world->floors[c->floor_id];
     /*Only a floor tile present in the "recently opened doors" registry
    * can become a door again.*/
     bool was_door = false;

@@ -52,11 +52,8 @@ target_include_directories(fuzz_wire PRIVATE ${FUZZ_INCLUDES})
 # The readers and the commands run inside the in-process server fixture.
 foreach(t fuzz_persist fuzz_text_cmd)
     add_executable(${t} ${t}.c fuzz_common.c ${FIXTURE_DIR}/fixture.c
-        ${DRAGONGL_SERVER_SRCS} ${DRAGONGL_SHARED_SRCS})
+        ${DRAGONGL_SERVER_LIB_SRCS} ${DRAGONGL_SHARED_SRCS})
     target_include_directories(${t} PRIVATE ${FUZZ_INCLUDES})
-    target_compile_definitions(${t} PRIVATE DRAGONGL_NO_MAIN
-        DGL_FUZZ_DATA_DIR="${DRAGONGL_ROOT}/data")
-    # Without main() a few file-local helpers and globals of main_server.c are unused.
-    target_compile_options(${t} PRIVATE -Wno-unused-function -Wno-unused-variable)
+    target_compile_definitions(${t} PRIVATE DGL_FUZZ_DATA_DIR="${DRAGONGL_ROOT}/data")
     target_link_libraries(${t} PRIVATE Threads::Threads m PkgConfig::SODIUM OpenSSL::SSL OpenSSL::Crypto)
 endforeach()

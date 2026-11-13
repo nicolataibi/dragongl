@@ -31,6 +31,11 @@
 #include "server_combat.h"
 #include "server_world.h"
 #include "rules.h"
+#include "player.h"
+#include "server_log.h"
+#include "server_loot.h"
+#include "server_tiles.h"
+#include "server_traps.h"
 #include <math.h>
 #include <stdlib.h>
 
@@ -89,21 +94,21 @@ static bool cannot_move(Client *c) {
 }
 
 /*The loot NPC is gone from the tile: the player can step there.*/
-static void loot_taken(NPC *n, Floor *fl, int nx, int ny, int respawn_timer) {
-    npc_set_active(n, false);
+static void loot_taken(Game *game, NPC *n, Floor *fl, int nx, int ny, int respawn_timer) {
+    npc_set_active(game, n, false);
     n->respawn_timer = respawn_timer;
     fl->entity_grid[ny][nx] = 0;
 }
 
 /*A gold pile, the ghost of a dead player, a dropped item or a chest.
  * Returns true when something stays on the tile and blocks the step.*/
-static bool pick_up_loot(Client *c, NPC *n, Floor *fl, int nx, int ny) {
+static bool pick_up_loot(Game *game, Client *c, NPC *n, Floor *fl, int nx, int ny) {
     if (n->archetype == ARCH_GOLD && !n->is_ghost) {
-        c->gold += n->gold_drop;
+        c->gold += (uint64_t)(n->gold_drop > 0 ? n->gold_drop : 0);
         send_text_to_client(c->sock, "[SYSTEM] You pick up a stack of %d gold coins!",
                             n->gold_drop);
         send_combat_event(c->sock, COMBAT_EV_GOLD, c->entity_id, n->gold_drop);
-        loot_taken(n, fl, nx, ny, 0);
+        loot_taken(game, n, fl, nx, ny, 0);
         save_player_data(c);
         return false;
     }
@@ -112,7 +117,7 @@ static bool pick_up_loot(Client *c, NPC *n, Floor *fl, int nx, int ny) {
         bool any = false;
         bool full = false;
         if (n->gold_drop > 0) {
-            c->gold += n->gold_drop;
+            c->gold += (uint64_t)(n->gold_drop > 0 ? n->gold_drop : 0);
             n->gold_drop = 0;
             any = true;
         }
@@ -136,7 +141,7 @@ static bool pick_up_loot(Client *c, NPC *n, Floor *fl, int nx, int ny) {
             if (any) {
                 send_text_to_client(c->sock, "[SYSTEM] Recover everything you were carrying!");
             }
-            loot_taken(n, fl, nx, ny, 0);
+            loot_taken(game, n, fl, nx, ny, 0);
         }
         save_player_data(c);
         return blocked;
@@ -150,7 +155,7 @@ static bool pick_up_loot(Client *c, NPC *n, Floor *fl, int nx, int ny) {
         c->backpack[c->backpack_count++] = n->ghost_loot[0];
         send_text_to_client(c->sock, "[SYSTEM] You picked up: %s",
                             item_database[n->ghost_loot[0].template_idx].name);
-        loot_taken(n, fl, nx, ny, 0);
+        loot_taken(game, n, fl, nx, ny, 0);
         save_player_data(c);
         return false;
     }
@@ -158,7 +163,7 @@ static bool pick_up_loot(Client *c, NPC *n, Floor *fl, int nx, int ny) {
     send_text_to_client(c->sock,
                         "[SYSTEM] You open the treasure chest and find something inside...");
     drop_loot_from_monster(c, n);
-    loot_taken(n, fl, nx, ny, 100);
+    loot_taken(game, n, fl, nx, ny, 100);
     save_player_data(c);
     return false;
 }
@@ -170,8 +175,8 @@ static bool is_loot(const NPC *n) {
 
 /*Meets the entity standing on (nx, ny). Returns true if the step is blocked.*/
 static bool bump_into(Client *c, Floor *fl, int ent_id, int nx, int ny, Client *clients,
-                      NPC *npcs) {
-    NPC *n = npc_by_entity_id(npcs, ent_id);
+                      Game *game) {
+    NPC *n = npc_by_entity_id(game, ent_id);
     if (n) {
         if (n->archetype == ARCH_MERCHANT) {
             send_text_to_client(c->sock,
@@ -182,9 +187,9 @@ static bool bump_into(Client *c, Floor *fl, int ent_id, int nx, int ny, Client *
             return true;
         }
         if (is_loot(n)) {
-            return pick_up_loot(c, n, fl, nx, ny);
+            return pick_up_loot(game, c, n, fl, nx, ny);
         }
-        perform_attack(c, n, npcs);
+        perform_attack(c, n, game);
         return true;
     }
     for (int p = 0; p < MAX_CLIENTS; p++) {
@@ -201,8 +206,8 @@ static bool bump_into(Client *c, Floor *fl, int ent_id, int nx, int ny, Client *
 
 /*Walks onto (nx, ny) when the terrain allows it. Walls of floor 0 open for
  * a player inside a shop who steps through its door.*/
-static void step_onto(Client *c, int nx, int ny, int old_x, int old_y, NPC *npcs) {
-    Floor *fl = &master_world->floors[c->floor_id];
+static void step_onto(Client *c, int nx, int ny, int old_x, int old_y, Game *game) {
+    Floor *fl = &game->world->floors[c->floor_id];
     VoxelType vt = fl->map.data[0][ny][nx];
     bool can_pass = (vt != VOXEL_WALL && vt != VOXEL_ROCK);
     if (!can_pass && vt == VOXEL_WALL && c->floor_id == 0 && is_shop_door(nx, ny) &&
@@ -219,7 +224,7 @@ static void step_onto(Client *c, int nx, int ny, int old_x, int old_y, NPC *npcs
     c->x = nx;
     c->y = ny;
     fl->entity_grid[ny][nx] = c->entity_id;
-    /*A step does not advance global_total_turns: the game clock runs at a
+    /*A step does not advance the round counter: the game clock runs at a
    * fixed 5 ticks/s in update_world(), whatever the players do.*/
 
     if (rules_has_condition_t(c->effects, c->effect_count, COND_BLEEDING)) {
@@ -227,19 +232,19 @@ static void step_onto(Client *c, int nx, int ny, int old_x, int old_y, NPC *npcs
         send_text_to_client(c->sock, "[DANGER] Moving reopens your wounds! You bleed heavily...");
         if (c->hp <= 0) {
             server_log("DEATH", "%s bled to death during the movement.", c->username);
-            save_bones(c);
-            player_respawn_town(c);
+            save_bones(game, c);
+            player_respawn_town(game, c);
             send_text_to_client(
                 c->sock,
                 "[SYSTEM] You died! The Arcane has returned you to town without your equipment!");
         }
     }
-    update_city_doors();
-    check_tile_events(c, npcs);
-    check_traps(c, npcs);
+    update_city_doors(game);
+    check_tile_events(c, game);
+    check_traps(c, game);
 }
 
-void player_move(Client *c, const MsgMove *m, Client *clients, NPC *npcs) {
+void player_move(Client *c, const MsgMove *m, Client *clients, Game *game) {
     /*Where the view was: the map chunk is sent again only if it moved.*/
     int old_x = c->x, old_y = c->y;
     int old_floor = c->floor_id;
@@ -259,22 +264,22 @@ void player_move(Client *c, const MsgMove *m, Client *clients, NPC *npcs) {
     int dy = (m->dy > 0) - (m->dy < 0);
     int nx = c->x + dx, ny = c->y + dy;
     if (nx >= 0 && nx < MAP_WIDTH && ny >= 0 && ny < MAP_HEIGHT) {
-        Floor *fl = &master_world->floors[c->floor_id];
+        Floor *fl = &game->world->floors[c->floor_id];
         int ent_id = fl->entity_grid[ny][nx];
-        bool blocked = ent_id > 0 && bump_into(c, fl, ent_id, nx, ny, clients, npcs);
+        bool blocked = ent_id > 0 && bump_into(c, fl, ent_id, nx, ny, clients, game);
         if (!blocked) {
-            step_onto(c, nx, ny, old_x, old_y, npcs);
+            step_onto(c, nx, ny, old_x, old_y, game);
         }
     }
 
     /*The state goes out even after a blocked step: an attack can end a
    * fight, and the NPC positions would otherwise stay a tick behind.*/
-    broadcast_nearby_entities(c, npcs);
-    send_detailed_state(c);
-    broadcast_player_state(c);
+    broadcast_nearby_entities(c, game);
+    send_detailed_state(game, c);
+    broadcast_player_state(game, c);
     /*Tile events and traps can change the floor (stairs, teleports).*/
     if (c->x != old_x || c->y != old_y || c->floor_id != old_floor) {
-        send_map_chunk(c->sock, &master_world->floors[c->floor_id].map, c->x, c->y,
+        send_map_chunk(c->sock, &game->world->floors[c->floor_id].map, c->x, c->y,
                        INITIAL_VIEW_RADIUS);
     }
 }

@@ -41,13 +41,13 @@ add_executable(dragongl_server_it ${DGL_SERVER_SRCS})
 target_include_directories(dragongl_server_it PRIVATE ${DGL_INCLUDES})
 target_link_libraries(dragongl_server_it PRIVATE Threads::Threads m PkgConfig::SODIUM OpenSSL::SSL OpenSSL::Crypto)
 
-# --- In-process harness: same sources, no main() ---
-add_executable(server_harness server_harness.c harness_spells.c fixture.c ${DGL_SERVER_SRCS})
+# --- In-process harness: every server module but main_server.c ---
+add_executable(server_harness server_harness.c harness_spells.c harness_commands.c fixture.c
+    ${DRAGONGL_SERVER_LIB_SRCS} ${DRAGONGL_SHARED_SRCS})
 target_include_directories(server_harness PRIVATE ${DGL_INCLUDES})
-target_compile_definitions(server_harness PRIVATE DRAGONGL_NO_MAIN
-    DGL_TEST_DATA_DIR="${DGL_ROOT}/data")
-# Without main() a few file-local helpers and globals of main_server.c are unused.
-target_compile_options(server_harness PRIVATE -Wno-unused-function -Wno-unused-variable)
+# DRAGONGL_FAULT_INJECTION: the crash points of binfile_write_atomic().
+target_compile_definitions(server_harness PRIVATE DGL_TEST_DATA_DIR="${DGL_ROOT}/data"
+    DRAGONGL_FAULT_INJECTION)
 target_link_libraries(server_harness PRIVATE Threads::Threads m PkgConfig::SODIUM OpenSSL::SSL OpenSSL::Crypto)
 
 enable_testing()
@@ -64,12 +64,16 @@ add_test(NAME persistence_partial_backpack_roundtrip
          WORKING_DIRECTORY "${DGL_WORK}")
 foreach(t trade_offer_revalidated_on_accept trade_moves_item_and_gold
           trade_into_full_backpack_is_cancelled world_roundtrip npcs_roundtrip
-          tombstone_and_flags_roundtrip writer_queue login_job_outcomes
+          tombstone_and_flags_roundtrip writer_queue crash_during_save
+          login_job_outcomes
           login_worker_async command_table command_words doors
           transit_cantrips_need_a_book
           floor_walk_matches_scan entity_lookup player_move
           spell_attack spell_save_area spell_cone_and_line spell_conditions spell_self
-          spell_cloud spell_special_and_terrain spell_refusals spell_every_effect)
+          spell_cloud spell_special_and_terrain spell_refusals spell_every_effect
+          shop_no_arbitrage shop_needs_a_merchant wear_cursed_stays merchant_restocks
+          boss_floor_is_playable dm_spawn_and_place numeric_arguments
+          tunnel_keeps_the_border)
     add_test(NAME ${t} COMMAND server_harness ${t} WORKING_DIRECTORY "${DGL_WORK}")
 endforeach()
 

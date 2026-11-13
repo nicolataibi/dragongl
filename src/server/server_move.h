@@ -27,6 +27,6 @@
 /* Rate-limited step of one tile towards (m->dx, m->dy), each clamped to
  * -1..1: meets the entity on the tile (merchant, loot, monster, player) or
  * walks there, then sends the new state and, if the view moved, the map. */
-void player_move(Client *c, const MsgMove *m, Client *clients, NPC *npcs);
+void player_move(Client *c, const MsgMove *m, Client *clients, Game *game);
 
 #endif /* SERVER_MOVE_H */

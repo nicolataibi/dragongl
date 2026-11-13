@@ -110,7 +110,7 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release
 | `DRAGONGL_INSTALL_SYSTEMD_UNIT` | `ON` | Install `dragongl-server.service` (server builds only). |
 | `DRAGONGL_SYSTEMD_UNITDIR` | `lib/systemd/system` | Unit directory, relative to the prefix or absolute. |
 
-Warnings are always `-Wall -Wextra -Wpedantic -Wformat -Wformat-security`; `./build.sh -w` adds `-Werror`.
+Warnings are always `-Wall -Wextra -Wpedantic -Wformat -Wformat-security -Wshadow -Wconversion`; `./build.sh -w` adds `-Werror`.
 
 **Version:** the single source of the version is the `Version:` line of `dragongl.spec` (`YYYY.MM.DD.NN`). CMake reads it at configure time and generates `generated/dragongl_config.h` (`DRAGONGL_VERSION`, `DRAGONGL_PKGDATADIR`) and the man pages from `man/*.1.in`; editing the spec re-runs the configuration. Both binaries print it with `--version`. `tools/check_release.py` checks that the spec, the newest `CHANGELOG.md` entry and its date agree (run in CI and in the RPM `%check`).
 
@@ -166,7 +166,7 @@ ctest --test-dir build-tests --output-on-failure
 
 - `protocol_vectors` (`test_protocol_vectors.py`): the Python codec of the protocol table against the generated vectors `tests/protocol_vectors.json`.
 - `server_network` (`test_server.py`): starts a real `dragongl_server` on a free port in a private copy of a generated world and drives it with a TLS protocol-v5 client (`dglproto.py`, on the Python codec of the protocol table). The first run generates the world and takes about a minute.
-- `server_harness`: links the server sources without `main()` (`-DDRAGONGL_NO_MAIN`) and calls the code directly: persistence, trade, the command table, doors, movement, the per-floor NPC walk and the entity lookup.
+- `server_harness`: links every server module but `main_server.c` and calls the code directly: persistence, a save interrupted at each point of its write, trade, shops, equipment, the command table and its numeric arguments, the DM commands, doors, movement, spells, the per-floor NPC walk and the entity lookup.
 
 ```bash
 cmake -B build-integration -G Ninja tests/integration -DCMAKE_BUILD_TYPE=Debug \

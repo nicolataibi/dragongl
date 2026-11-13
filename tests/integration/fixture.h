@@ -6,9 +6,9 @@
  * In-process server fixture, shared by the integration harness
  * (server_harness.c) and the command fuzzer (tests/fuzz).
  *
- * The server translation units are linked without main()
- * (-DDRAGONGL_NO_MAIN). fx_init() loads the game data and allocates an
- * empty world and NPC table; players are backed by socketpair()s: the
+ * Every server module but main_server.c is linked. fx_init() loads the
+ * game data and creates the Game under test (g_game) with an empty world
+ * and NPC table; players are backed by socketpair()s: the
  * server writes into one end, the fixture reads the other, as a TCP peer
  * would.
  */
@@ -16,11 +16,14 @@
 #ifndef DRAGONGL_TEST_FIXTURE_H
 #define DRAGONGL_TEST_FIXTURE_H
 
+#include "game.h"
 #include "server_entities.h"
 
 #include <stdbool.h>
 #include <stddef.h>
 
+/*The game under test (one per process).*/
+extern Game g_game;
 extern Client g_test_clients[MAX_CLIENTS];
 extern int g_peer_fd[MAX_CLIENTS]; /* fixture side of each socketpair, -1 if none */
 

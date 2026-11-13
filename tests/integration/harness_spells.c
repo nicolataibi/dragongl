@@ -25,6 +25,7 @@
 #include "spell_effect.h"
 #include "spell_rules.h"
 #include "spells.h"
+#include "player.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -79,7 +80,7 @@ static int book_of(const char *spell) {
 }
 
 static void open_ground(void) {
-    Floor *fl = &master_world->floors[FLOOR];
+    Floor *fl = &g_game.world->floors[FLOOR];
     for (int y = CY - 40; y <= CY + 40; y++) {
         for (int x = CX - 40; x <= CX + 40; x++) {
             fl->map.data[0][y][x] = VOXEL_FLOOR;
@@ -100,8 +101,8 @@ static Client *caster(ClassType cls) {
             return NULL;
         }
     }
-    memset(g_npcs, 0, sizeof(NPC) * MAX_NPCS);
-    aoe_init_clouds();
+    memset(g_game.npcs, 0, sizeof(NPC) * MAX_NPCS);
+    aoe_init_clouds(&g_game);
     open_ground();
     c->class_id = cls;
     c->level = 5;
@@ -116,7 +117,7 @@ static Client *caster(ClassType cls) {
     for (int l = 0; l <= MAX_SPELL_LEVEL; l++) {
         c->spell_slots[l] = c->spell_slots_max[l] = 9;
     }
-    master_world->floors[FLOOR].entity_grid[CY][CX] = c->entity_id;
+    g_game.world->floors[FLOOR].entity_grid[CY][CX] = c->entity_id;
     fx_drain(0);
     return c;
 }
@@ -138,7 +139,7 @@ static const SpellTemplate *learn(Client *c, const char *name) {
 }
 
 static NPC *foe(int slot, int x, int y) {
-    NPC *n = &g_npcs[slot];
+    NPC *n = &g_game.npcs[slot];
     memset(n, 0, sizeof(*n));
     n->archetype = ARCH_MELEE;
     n->x = n->spawn_x = x;
@@ -150,8 +151,8 @@ static NPC *foe(int slot, int x, int y) {
     n->respawn_timer = -1;
     n->ai_ctx.current_target_id = -1;
     snprintf(n->custom_name, sizeof(n->custom_name), "Dummy %d", slot);
-    npc_set_active(n, true);
-    master_world->floors[FLOOR].entity_grid[y][x] = n->entity_id;
+    npc_set_active(&g_game, n, true);
+    g_game.world->floors[FLOOR].entity_grid[y][x] = n->entity_id;
     return n;
 }
 
@@ -160,7 +161,7 @@ static const char *cast(Client *c, const char *name) {
     char line[128];
     snprintf(line, sizeof(line), "cast %s", name);
     fx_drain(0);
-    handle_text_cmd(c, line, g_npcs);
+    handle_text_cmd(c, line, &g_game);
     g_out_len = fx_output(0, g_out, sizeof(g_out));
     return g_out;
 }
@@ -313,16 +314,16 @@ int test_spell_cloud(void) {
     CHECK(first >= 4 && first <= 16, "first round %d, not 4d4", first);
     int clouds = 0;
     for (int i = 0; i < MAX_CLOUDS; i++) {
-        clouds += g_clouds[i].active;
+        clouds += g_game.clouds[i].active;
     }
-    CHECK(clouds == 1 && g_clouds[0].rounds_left == 2, "clouds %d, rounds left %d", clouds,
-          g_clouds[0].rounds_left);
+    CHECK(clouds == 1 && g_game.clouds[0].rounds_left == 2, "clouds %d, rounds left %d", clouds,
+          g_game.clouds[0].rounds_left);
     for (int r = 0; r < 2; r++) {
         int hp = n->hp;
-        aoe_update_clouds(g_npcs, g_test_clients, MAX_CLIENTS);
+        aoe_update_clouds(&g_game, g_test_clients, MAX_CLIENTS);
         CHECK(n->hp < hp, "round %d of the cloud did nothing", r + 2);
     }
-    CHECK(!g_clouds[0].active, "the cloud outlived its rounds");
+    CHECK(!g_game.clouds[0].active, "the cloud outlived its rounds");
     return 0;
 }
 
@@ -333,14 +334,14 @@ int test_spell_special_and_terrain(void) {
     CHECK(c && learn(c, "Blink") && learn(c, "Ice Storm"), "missing spells");
     cast(c, "Blink");
     CHECK(c->x != CX || c->y != CY, "Blink did not move the caster");
-    master_world->floors[FLOOR].entity_grid[c->y][c->x] = 0;
+    g_game.world->floors[FLOOR].entity_grid[c->y][c->x] = 0;
     c->x = CX;
     c->y = CY;
     NPC *n = foe(10, CX + 10, CY);
     rules_force_d20(2);
     cast(c, "Ice Storm");
     CHECK(n->hp < n->max_hp, "Ice Storm dealt no damage");
-    CHECK(master_world->floors[FLOOR].map.data[0][CY][CX + 11] == VOXEL_ICE,
+    CHECK(g_game.world->floors[FLOOR].map.data[0][CY][CX + 11] == VOXEL_ICE,
           "no ice by the target");
     rules_force_d20(0);
     return 0;

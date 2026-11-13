@@ -27,14 +27,15 @@
 
 #include "server_cmd.h"
 #include "server_internal.h"
+#include "player.h"
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
 #include <math.h>
 
-bool cmd_help(Client *c, const char *cmd, NPC *npcs) {
+bool cmd_help(Client *c, const char *cmd, Game *game) {
     (void)cmd;
-    (void)npcs;
+    (void)game;
     send_text_to_client(c->sock, "[HELP] --- BASIC COMMANDS ---");
     send_text_to_client(c->sock, "  l, look         : Observe the surrounding environment");
     send_text_to_client(c->sock, "  ex, examine     : Examine terrain and minerals 1 step away");
@@ -144,8 +145,8 @@ bool cmd_help(Client *c, const char *cmd, NPC *npcs) {
 }
 
 //train <stat> or train random — awards unspent stat points
-bool cmd_train(Client *c, const char *cmd, NPC *npcs) {
-    (void)npcs;
+bool cmd_train(Client *c, const char *cmd, Game *game) {
+    (void)game;
     const char *stat = cmd + 5;
     while (*stat == ' ') {
         stat++;
@@ -226,13 +227,13 @@ bool cmd_train(Client *c, const char *cmd, NPC *npcs) {
     send_text_to_client(c->sock, "[SYSTEM] You have increased %s! (Points remaining: %d)",
                         stat_name, c->unspent_stat_points);
     save_player_data(c);
-    send_detailed_state(c);
+    send_detailed_state(game, c);
     return true;
 }
 
-bool cmd_stats(Client *c, const char *cmd, NPC *npcs) {
+bool cmd_stats(Client *c, const char *cmd, Game *game) {
     (void)cmd;
-    (void)npcs;
+    (void)game;
     int ts, td, tc, ti, tw, th;
     get_total_stats(c, &ts, &td, &tc, &ti, &tw, &th);
     //Calculate AC
@@ -314,23 +315,23 @@ bool cmd_stats(Client *c, const char *cmd, NPC *npcs) {
     return true;
 }
 
-bool cmd_rest(Client *c, const char *cmd, NPC *npcs) {
+bool cmd_rest(Client *c, const char *cmd, Game *game) {
     (void)cmd;
-    (void)npcs;
+    (void)game;
     if (c->floor_id == 0) {
         c->hp = c->max_hp;
         for (int s = 1; s <= MAX_SPELL_LEVEL; s++) {
             c->spell_slots[s] = c->spell_slots_max[s];
         }
-        send_detailed_state(c); //Sync HP and spell slots with the HUD client
+        send_detailed_state(game, c); //Sync HP and spell slots with the HUD client
         send_text_to_client(c->sock, "[SYSTEM] Rested.");
     }
     return true;
 }
 
-bool cmd_save(Client *c, const char *cmd, NPC *npcs) {
+bool cmd_save(Client *c, const char *cmd, Game *game) {
     (void)cmd;
-    (void)npcs;
+    (void)game;
     save_player_data(c);
     send_text_to_client(c->sock, "[SYSTEM] Saved.");
     return true;

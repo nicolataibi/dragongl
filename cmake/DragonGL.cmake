@@ -29,20 +29,33 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${DRAGONGL_ROOT}
 # targets, so a new translation unit is added in one place.
 set(DRAGONGL_SHARED_SRCS
     "${DRAGONGL_ROOT}/src/shared/map.c"
-    "${DRAGONGL_ROOT}/src/shared/game.c"
+    "${DRAGONGL_ROOT}/src/shared/map_city.c"
+    "${DRAGONGL_ROOT}/src/shared/map_traps.c"
     "${DRAGONGL_ROOT}/src/shared/net.c"
     "${DRAGONGL_ROOT}/src/shared/rules.c"
     "${DRAGONGL_ROOT}/src/shared/spell_effect.c"
     "${DRAGONGL_ROOT}/src/shared/spell_rules.c"
     "${DRAGONGL_ROOT}/src/shared/cJSON.c"
     "${DRAGONGL_ROOT}/src/shared/data_loader.c"
+    "${DRAGONGL_ROOT}/src/shared/data_items.c"
     "${DRAGONGL_ROOT}/src/shared/binio.c"
     "${DRAGONGL_ROOT}/src/shared/wire.c"
     "${DRAGONGL_ROOT}/src/shared/strnum.c"
     "${DRAGONGL_ROOT}/src/shared/tls_common.c"
 )
-set(DRAGONGL_SERVER_SRCS
-    "${DRAGONGL_ROOT}/src/server/main_server.c"
+# Every server module but main(): the server links them with
+# main_server.c, the in-process test harness and the fuzzers with their own
+# entry point.
+set(DRAGONGL_SERVER_LIB_SRCS
+    "${DRAGONGL_ROOT}/src/server/server_state.c"
+    "${DRAGONGL_ROOT}/src/server/server_startup.c"
+    "${DRAGONGL_ROOT}/src/server/server_login.c"
+    "${DRAGONGL_ROOT}/src/server/server_log.c"
+    "${DRAGONGL_ROOT}/src/server/server_tiles.c"
+    "${DRAGONGL_ROOT}/src/server/server_traps.c"
+    "${DRAGONGL_ROOT}/src/server/server_loot.c"
+    "${DRAGONGL_ROOT}/src/server/player_stats.c"
+    "${DRAGONGL_ROOT}/src/server/player_store.c"
     "${DRAGONGL_ROOT}/src/server/server_net.c"
     "${DRAGONGL_ROOT}/src/server/server_conn.c"
     "${DRAGONGL_ROOT}/src/server/auth.c"
@@ -62,6 +75,11 @@ set(DRAGONGL_SERVER_SRCS
     "${DRAGONGL_ROOT}/src/server/cmd_social.c"
     "${DRAGONGL_ROOT}/src/server/cmd_shop.c"
     "${DRAGONGL_ROOT}/src/server/cmd_items.c"
+    "${DRAGONGL_ROOT}/src/server/cmd_equip.c"
+    "${DRAGONGL_ROOT}/src/server/cmd_ground.c"
+    "${DRAGONGL_ROOT}/src/server/cmd_mine.c"
+    "${DRAGONGL_ROOT}/src/server/inventory.c"
+    "${DRAGONGL_ROOT}/src/server/npc_index.c"
     "${DRAGONGL_ROOT}/src/server/cmd_magic.c"
     "${DRAGONGL_ROOT}/src/server/cmd_world.c"
     "${DRAGONGL_ROOT}/src/server/cmd_dm.c"
@@ -71,6 +89,7 @@ set(DRAGONGL_SERVER_SRCS
     "${DRAGONGL_ROOT}/src/server/server_tls.c"
     "${DRAGONGL_ROOT}/src/server/server_options.c"
 )
+set(DRAGONGL_SERVER_SRCS "${DRAGONGL_ROOT}/src/server/main_server.c" ${DRAGONGL_SERVER_LIB_SRCS})
 
 # --- Compiler flags -----------------------------------------------------------
 # Optimization and debug information come from CMAKE_BUILD_TYPE (or from the
@@ -90,7 +109,7 @@ macro(dragongl_compile_settings)
         set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
     endif()
     add_compile_definitions(_DEFAULT_SOURCE)
-    add_compile_options(-Wall -Wextra -Wpedantic -Wformat -Wformat-security)
+    add_compile_options(-Wall -Wextra -Wpedantic -Wformat -Wformat-security -Wshadow -Wconversion)
     if(DRAGONGL_HARDENING)
         set(CMAKE_POSITION_INDEPENDENT_CODE ON)
         include(CheckPIESupported)

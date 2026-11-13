@@ -17,24 +17,19 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include "game.h"
-#include <stdio.h>
+/*
+ * server_loot.h - Loot and the unique artifacts.
+ */
 
-static Floor *current_floor = NULL;
+#ifndef SERVER_LOOT_H
+#define SERVER_LOOT_H
 
-void game_init(void) {
-    current_floor = NULL;
-}
+#include "server_entities.h"
 
-void game_shutdown(void) {
-    // Current floor is now managed by master_world in server/main_server.c
-}
+/*Which artifacts already dropped (each drops once in the life of a world).*/
+void artifacts_load(void);
+void artifacts_save(void);
+/*The loot of a dead monster, by its archetype and floor, next to the killer.*/
+void drop_loot_from_monster(Client *c, NPC *killer);
 
-void game_change_floor(int new_id) {
-    (void)new_id;
-    // Logic delegated to main_server.c master_world
-}
-
-Map *game_get_current_map(void) {
-    return current_floor ? &current_floor->map : NULL;
-}
+#endif /* SERVER_LOOT_H */

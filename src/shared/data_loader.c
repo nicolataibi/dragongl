@@ -20,15 +20,13 @@
 #include "strnum.h"
 #include "binio.h"
 #include "data_loader.h"
-#include "cJSON.h"
+#include "data_internal.h"
 #include "bestiary.h"
 #include "items.h"
-#include "spells.h"
 #include "classes.h"
 #include "spell_effect.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <ctype.h>
 
 //Definition of dynamic global variables
@@ -42,7 +40,7 @@ SpellTemplate *spell_database = NULL;
 int spell_database_size = 0;
 
 //Case-insensitive helper strstr
-static const char *my_strcasestr(const char *haystack, const char *needle) {
+const char *data_strcasestr(const char *haystack, const char *needle) {
     if (!haystack) {
         return NULL;
     }
@@ -81,10 +79,14 @@ static char *read_file_to_string(const char *filepath) {
     fseek(f, 0, SEEK_END);
     long length = ftell(f);
     fseek(f, 0, SEEK_SET);
+    if (length < 0) {
+        fclose(f);
+        return NULL;
+    }
 
-    char *buffer = malloc(length + 1);
+    char *buffer = malloc((size_t)length + 1);
     if (buffer) {
-        size_t read_bytes = fread(buffer, 1, length, f);
+        size_t read_bytes = fread(buffer, 1, (size_t)length, f);
         if (read_bytes != (size_t)length) {
             //Ignore line formatting errors
         }
@@ -96,7 +98,7 @@ static char *read_file_to_string(const char *filepath) {
 
 /* The parsed document of a JSON file, or NULL after an error message that
  * names the file and, for a syntax error, its line and column. */
-static cJSON *parse_json_file(const char *filepath) {
+cJSON *parse_json_file(const char *filepath) {
     char *json_string = read_file_to_string(filepath);
     if (!json_string) {
         fprintf(stderr, "[Data Loader] Error: failed to read %s\n", filepath);
@@ -122,128 +124,82 @@ static cJSON *parse_json_file(const char *filepath) {
     return root;
 }
 
-//Main bestiary parsing function
+/*Sets flags[v] for every name of the array that lookup() knows (v < count).*/
+static void name_flags(const cJSON *names, bool *flags, int count, int (*lookup)(const char *)) {
+    const cJSON *item = NULL;
+    cJSON_ArrayForEach(item, names) {
+        if (cJSON_IsString(item)) {
+            int v = lookup(item->valuestring);
+            if (v >= 0 && v < count) {
+                flags[v] = true;
+            }
+        }
+    }
+}
+
+static int damage_type_index(const char *name) {
+    return (int)damage_type_from_name(name);
+}
+
+static int condition_index(const char *name) {
+    return (int)condition_from_name(name);
+}
+
+static int int_or(const cJSON *obj, const char *key, int fallback) {
+    const cJSON *v = cJSON_GetObjectItem(obj, key);
+    return cJSON_IsNumber(v) ? v->valueint : fallback;
+}
+
+/*One monster of bestiary.json.*/
+static void parse_monster(MonsterTemplate *m, const cJSON *monster) {
+    const cJSON *name = cJSON_GetObjectItem(monster, "name");
+    const cJSON *desc = cJSON_GetObjectItem(monster, "description");
+    const cJSON *arch = cJSON_GetObjectItem(monster, "archetype");
+    if (cJSON_IsString(name)) {
+        m->name = strdup(name->valuestring);
+    }
+    if (cJSON_IsString(desc)) {
+        m->description = strdup(desc->valuestring);
+    }
+    m->hp_avg = int_or(monster, "hp_avg", 0);
+    m->ac = int_or(monster, "ac", 0);
+    m->xp = int_or(monster, "xp", 0);
+    m->gold = int_or(monster, "gold", 0);
+    m->archetype = strdup(cJSON_IsString(arch) ? arch->valuestring : "melee");
+    m->speed = int_or(monster, "speed", 2);
+    m->sight_range = int_or(monster, "sight_range", 5);
+    m->damage_dice = int_or(monster, "damage_dice", 1);
+    m->damage_sides = int_or(monster, "damage_sides", 6);
+    m->floor_min = int_or(monster, "floor_min", 0);
+    m->floor_max = int_or(monster, "floor_max", 99);
+    name_flags(cJSON_GetObjectItem(monster, "damage_resistances"), m->damage_resistances,
+               MAX_DAMAGE_TYPES, damage_type_index);
+    name_flags(cJSON_GetObjectItem(monster, "damage_immunities"), m->damage_immunities,
+               MAX_DAMAGE_TYPES, damage_type_index);
+    name_flags(cJSON_GetObjectItem(monster, "damage_vulnerabilities"), m->damage_vulnerabilities,
+               MAX_DAMAGE_TYPES, damage_type_index);
+    name_flags(cJSON_GetObjectItem(monster, "condition_immunities"), m->condition_immunities,
+               MAX_CONDITIONS, condition_index);
+}
+
 static bool load_bestiary_json(const char *filepath) {
     cJSON *root = parse_json_file(filepath);
     if (!root) {
         return false;
     }
-
     cJSON *monsters = cJSON_GetObjectItem(root, "monsters");
     if (!cJSON_IsArray(monsters)) {
         fprintf(stderr, "[Data Loader] Error: 'monsters' object is not an array in %s\n", filepath);
         cJSON_Delete(root);
         return false;
     }
-
     bestiary_size = cJSON_GetArraySize(monsters);
-    bestiary_data = calloc(bestiary_size, sizeof(MonsterTemplate));
-
+    bestiary_data = calloc((size_t)bestiary_size, sizeof(MonsterTemplate));
     int i = 0;
     cJSON *monster = NULL;
     cJSON_ArrayForEach(monster, monsters) {
-        cJSON *name = cJSON_GetObjectItem(monster, "name");
-        cJSON *hp = cJSON_GetObjectItem(monster, "hp_avg");
-        cJSON *ac = cJSON_GetObjectItem(monster, "ac");
-        cJSON *xp = cJSON_GetObjectItem(monster, "xp");
-        cJSON *gold = cJSON_GetObjectItem(monster, "gold");
-        cJSON *desc = cJSON_GetObjectItem(monster, "description");
-
-        //New data-driven fields (Phase 1)
-        cJSON *arch = cJSON_GetObjectItem(monster, "archetype");
-        cJSON *spd = cJSON_GetObjectItem(monster, "speed");
-        cJSON *sight = cJSON_GetObjectItem(monster, "sight_range");
-        cJSON *dmg_dice = cJSON_GetObjectItem(monster, "damage_dice");
-        cJSON *dmg_sides = cJSON_GetObjectItem(monster, "damage_sides");
-        cJSON *fl_min = cJSON_GetObjectItem(monster, "floor_min");
-        cJSON *fl_max = cJSON_GetObjectItem(monster, "floor_max");
-
-        cJSON *d_res = cJSON_GetObjectItem(monster, "damage_resistances");
-        cJSON *d_imm = cJSON_GetObjectItem(monster, "damage_immunities");
-        cJSON *d_vul = cJSON_GetObjectItem(monster, "damage_vulnerabilities");
-        cJSON *c_imm = cJSON_GetObjectItem(monster, "condition_immunities");
-
-        if (cJSON_IsString(name)) {
-            bestiary_data[i].name = strdup(name->valuestring);
-        }
-        if (cJSON_IsNumber(hp)) {
-            bestiary_data[i].hp_avg = hp->valueint;
-        }
-        if (cJSON_IsNumber(ac)) {
-            bestiary_data[i].ac = ac->valueint;
-        }
-        if (cJSON_IsNumber(xp)) {
-            bestiary_data[i].xp = xp->valueint;
-        }
-        if (cJSON_IsNumber(gold)) {
-            bestiary_data[i].gold = gold->valueint;
-        }
-        if (cJSON_IsString(desc)) {
-            bestiary_data[i].description = strdup(desc->valuestring);
-        }
-
-        //New fields with sensible defaults
-        bestiary_data[i].archetype =
-            cJSON_IsString(arch) ? strdup(arch->valuestring) : strdup("melee");
-        bestiary_data[i].speed = cJSON_IsNumber(spd) ? spd->valueint : 2;
-        bestiary_data[i].sight_range = cJSON_IsNumber(sight) ? sight->valueint : 5;
-        bestiary_data[i].damage_dice = cJSON_IsNumber(dmg_dice) ? dmg_dice->valueint : 1;
-        bestiary_data[i].damage_sides = cJSON_IsNumber(dmg_sides) ? dmg_sides->valueint : 6;
-        bestiary_data[i].floor_min = cJSON_IsNumber(fl_min) ? fl_min->valueint : 0;
-        bestiary_data[i].floor_max = cJSON_IsNumber(fl_max) ? fl_max->valueint : 99;
-
-        // Parse damage resistances
-        if (cJSON_IsArray(d_res)) {
-            cJSON *item = NULL;
-            cJSON_ArrayForEach(item, d_res) {
-                if (cJSON_IsString(item)) {
-                    DamageType dt = damage_type_from_name(item->valuestring);
-                    if (dt < MAX_DAMAGE_TYPES) {
-                        bestiary_data[i].damage_resistances[dt] = true;
-                    }
-                }
-            }
-        }
-        // Parse damage immunities
-        if (cJSON_IsArray(d_imm)) {
-            cJSON *item = NULL;
-            cJSON_ArrayForEach(item, d_imm) {
-                if (cJSON_IsString(item)) {
-                    DamageType dt = damage_type_from_name(item->valuestring);
-                    if (dt < MAX_DAMAGE_TYPES) {
-                        bestiary_data[i].damage_immunities[dt] = true;
-                    }
-                }
-            }
-        }
-        // Parse damage vulnerabilities
-        if (cJSON_IsArray(d_vul)) {
-            cJSON *item = NULL;
-            cJSON_ArrayForEach(item, d_vul) {
-                if (cJSON_IsString(item)) {
-                    DamageType dt = damage_type_from_name(item->valuestring);
-                    if (dt < MAX_DAMAGE_TYPES) {
-                        bestiary_data[i].damage_vulnerabilities[dt] = true;
-                    }
-                }
-            }
-        }
-        // Parse condition immunities
-        if (cJSON_IsArray(c_imm)) {
-            cJSON *item = NULL;
-            cJSON_ArrayForEach(item, c_imm) {
-                if (cJSON_IsString(item)) {
-                    ConditionType ct = condition_from_name(item->valuestring);
-                    if (ct < MAX_CONDITIONS) {
-                        bestiary_data[i].condition_immunities[ct] = true;
-                    }
-                }
-            }
-        }
-
-        i++;
+        parse_monster(&bestiary_data[i++], monster);
     }
-
     cJSON_Delete(root);
     printf("[Data Loader] Successfully loaded %d monsters from %s\n", bestiary_size, filepath);
     return true;
@@ -259,550 +215,6 @@ int get_spell_idx_by_name(const char *name) {
         }
     }
     return -1;
-}
-
-static MaterialType string_to_material_type(const char *str) {
-    if (!str) {
-        return MAT_NONE;
-    }
-    if (strcasecmp(str, "cloth") == 0) {
-        return MAT_CLOTH;
-    }
-    if (strcasecmp(str, "leather") == 0) {
-        return MAT_LEATHER;
-    }
-    if (strcasecmp(str, "wood") == 0) {
-        return MAT_WOOD;
-    }
-    if (strcasecmp(str, "bone") == 0) {
-        return MAT_BONE;
-    }
-    if (strcasecmp(str, "stone") == 0) {
-        return MAT_STONE;
-    }
-    if (strcasecmp(str, "iron") == 0) {
-        return MAT_IRON;
-    }
-    if (strcasecmp(str, "steel") == 0) {
-        return MAT_STEEL;
-    }
-    if (strcasecmp(str, "mithril") == 0) {
-        return MAT_MITHRIL;
-    }
-    if (strcasecmp(str, "glass") == 0) {
-        return MAT_GLASS;
-    }
-    if (strcasecmp(str, "paper") == 0) {
-        return MAT_PAPER;
-    }
-    return MAT_NONE;
-}
-
-//Loading objects from JSON
-/*The JSON fields of one item, as the category parsers read them.*/
-typedef struct {
-    cJSON *item, *name, *desc, *category, *classification, *ac, *damage, *properties, *cost;
-} ItemJson;
-
-/*Weapons and ammunition: damage dice and the weapon properties.*/
-static void item_weapon(ItemTemplate *t, const ItemJson *j) {
-    bool is_ammo = false;
-    if (j->name) {
-        if (cJSON_IsString(j->name)) {
-            if (my_strcasestr(j->name->valuestring, "arrow")) {
-                is_ammo = true;
-            }
-            if (my_strcasestr(j->name->valuestring, "bolt")) {
-                is_ammo = true;
-            }
-            if (my_strcasestr(j->name->valuestring, "bullet")) {
-                is_ammo = true;
-            }
-            if (my_strcasestr(j->name->valuestring, "needle")) {
-                is_ammo = true;
-            }
-        }
-    }
-    if (is_ammo) {
-        t->category = ITEM_AMMO;
-        t->max_stack = 20;
-        t->weight = 0.05f;
-    } else {
-        t->category = ITEM_WEAPON;
-        t->max_durability = 100;
-        t->weight = 3.0f;
-        if (j->properties) {
-            if (cJSON_IsString(j->properties)) {
-                if (my_strcasestr(j->properties->valuestring, "heavy")) {
-                    t->weight = 6.0f;
-                }
-                if (my_strcasestr(j->properties->valuestring, "two-handed")) {
-                    t->weight = 6.0f;
-                }
-                if (my_strcasestr(j->properties->valuestring, "light")) {
-                    t->weight = 2.0f;
-                }
-                if (my_strcasestr(j->properties->valuestring, "finesse")) {
-                    t->weight = 2.0f;
-                }
-            }
-        }
-    }
-}
-
-/*Armor and shields: base AC by weight class, shield bonus.*/
-static void item_armor(ItemTemplate *t, const ItemJson *j) {
-    bool is_shield = false;
-    if (j->classification) {
-        if (cJSON_IsString(j->classification)) {
-            if (strcmp(j->classification->valuestring, "Shield") == 0) {
-                is_shield = true;
-            }
-        }
-    }
-    if (j->name) {
-        if (cJSON_IsString(j->name)) {
-            if (my_strcasestr(j->name->valuestring, "shield")) {
-                is_shield = true;
-            }
-        }
-    }
-    if (is_shield) {
-        t->category = ITEM_SHIELD;
-        t->ac_bonus = 2;
-        t->max_durability = 100;
-        t->weight = 5.0f;
-    } else {
-        t->category = ITEM_ARMOR;
-        t->max_durability = 200;
-        t->weight = 15.0f;
-        if (j->classification) {
-            if (cJSON_IsString(j->classification)) {
-                if (my_strcasestr(j->classification->valuestring, "Heavy")) {
-                    t->weight = 55.0f;
-                }
-                if (my_strcasestr(j->classification->valuestring, "Medium")) {
-                    t->weight = 20.0f;
-                }
-                if (my_strcasestr(j->classification->valuestring, "Light")) {
-                    t->weight = 10.0f;
-                }
-            }
-        }
-    }
-}
-
-/*Potions and oils: what they heal or grant.*/
-static void item_potion(ItemTemplate *t, const ItemJson *j) {
-    bool is_oil = false;
-    if (j->name) {
-        if (cJSON_IsString(j->name)) {
-            if (my_strcasestr(j->name->valuestring, "oil")) {
-                if (!my_strcasestr(j->name->valuestring, "potion")) {
-                    is_oil = true;
-                }
-            }
-        }
-    }
-    if (is_oil) {
-        t->category = ITEM_FUEL;
-        t->duration_turns = 8000;
-        t->max_durability = 8000;
-        t->max_stack = 1;
-        t->weight = 1.0f;
-    } else {
-        t->category = ITEM_CONSUMABLE;
-        t->max_stack = 5;
-        t->weight = 1.0f;
-        t->needs_id = true;
-        if (j->name) {
-            if (cJSON_IsString(j->name)) {
-                if (my_strcasestr(j->name->valuestring, "Healing")) {
-                    if (my_strcasestr(j->name->valuestring, "Greater")) {
-                        t->heal_amount = 40;
-                    } else if (my_strcasestr(j->name->valuestring, "Superior")) {
-                        t->heal_amount = 80;
-                    } else if (my_strcasestr(j->name->valuestring, "Supreme")) {
-                        t->heal_amount = 120;
-                    } else {
-                        t->heal_amount = 20;
-                    }
-                }
-            }
-        }
-    }
-}
-
-/*Adventuring gear: light sources, food, fuel, tools.*/
-static void item_gear(ItemTemplate *t, const ItemJson *j) {
-    bool is_torch = false;
-    bool is_lantern = false;
-    bool is_ration = false;
-    bool is_oil = false;
-    if (j->name) {
-        if (cJSON_IsString(j->name)) {
-            if (my_strcasestr(j->name->valuestring, "torch")) {
-                is_torch = true;
-            }
-            if (my_strcasestr(j->name->valuestring, "lantern")) {
-                is_lantern = true;
-            }
-            if (my_strcasestr(j->name->valuestring, "ration")) {
-                is_ration = true;
-            }
-            if (strcmp(j->name->valuestring, "Oil (flask)") == 0) {
-                is_oil = true;
-            }
-        }
-    }
-    if (is_torch) {
-        t->category = ITEM_LIGHT_SOURCE;
-        t->light_radius = 6;
-        t->duration_turns = 1000;
-        t->max_durability = 1000;
-        t->max_stack = 10;
-        t->weight = 1.0f;
-    } else if (is_lantern) {
-        t->category = ITEM_LIGHT_SOURCE;
-        t->light_radius = 12;
-        t->duration_turns = 8000;
-        t->max_durability = 8000;
-        t->max_stack = 1;
-        t->weight = 2.0f;
-    } else if (is_ration) {
-        t->category = ITEM_CONSUMABLE;
-        t->heal_amount = 5;
-        t->max_stack = 5;
-        t->weight = 1.0f;
-    } else if (is_oil) {
-        t->category = ITEM_FUEL;
-        t->duration_turns = 8000;
-        t->max_durability = 8000;
-        t->max_stack = 10;
-        t->weight = 1.0f;
-    } else {
-        t->category = ITEM_MISC;
-        t->weight = 1.0f;
-    }
-}
-
-/*Spell books: the spells they teach and the classes that can learn them.*/
-static void item_book(ItemTemplate *t, const ItemJson *j) {
-    /*-------------------------------------------------------
-     * Magic Books / Spellbooks / Grimoires
-     * The "properties" field contains "LEVEL_X_Y" where X and Y
-     * are the minimum and maximum levels of the spells contained.
-     * The "book_class_mask" field is the bitmask of the classes
-     * (ClassType bits, see include/classes.h) that can read and
-     * learn spells from this book.
-     * -------------------------------------------------------*/
-    t->category = ITEM_BOOK;
-    t->weight = 2.0f;
-    t->max_stack = 1;
-    t->needs_id = false;
-
-    /* Spell levels from the LEVEL_X_Y property (books without a spell list) */
-    cJSON *props = cJSON_GetObjectItem(j->item, "properties");
-    if (props && cJSON_IsString(props)) {
-        const char *p = props->valuestring;
-        const char *level_tag = my_strcasestr(p, "LEVEL_");
-        if (level_tag) {
-            int mn = 0;
-            int mx = 0;
-            int lv[2] = {0, 0};
-            scan_ints(level_tag + 6, '_', 2, lv);
-            mn = lv[0];
-            mx = lv[1];
-            t->book_min_level = mn;
-            t->book_max_level = mx;
-        }
-    }
-
-    /*book_seq: book sequence in the class series (0-5)*/
-    cJSON *bseq = cJSON_GetObjectItem(j->item, "book_seq");
-    if (bseq && cJSON_IsNumber(bseq)) {
-        t->book_seq = (int)bseq->valuedouble;
-    } else {
-        t->book_seq = 0;
-    }
-
-    /*spells: Array of spell names sorted by ascending level*/
-    t->book_spell_count = 0;
-    cJSON *spells_arr = cJSON_GetObjectItem(j->item, "spells");
-    if (spells_arr && cJSON_IsArray(spells_arr)) {
-        int sc = cJSON_GetArraySize(spells_arr);
-        if (sc > MAX_BOOK_SPELLS) {
-            sc = MAX_BOOK_SPELLS;
-        }
-        for (int si = 0; si < sc; si++) {
-            cJSON *sp_name = cJSON_GetArrayItem(spells_arr, si);
-            if (sp_name && cJSON_IsString(sp_name)) {
-                strncpy(t->book_spell_names[si], sp_name->valuestring, 63);
-                t->book_spell_names[si][63] = '\0';
-                t->book_spell_count++;
-            }
-        }
-    }
-
-    /* Class mask: read exclusively from the "book_class_mask"
-     * JSON field (bitmask of ClassType, see include/classes.h).
-     * Books without a valid mask stay readable by every class. */
-    cJSON *mask_field = cJSON_GetObjectItem(j->item, "book_class_mask");
-    if (mask_field && cJSON_IsNumber(mask_field) && mask_field->valueint > 0) {
-        t->book_class_mask = (uint32_t)mask_field->valueint;
-    } else {
-        t->book_class_mask = (1u << CLASS_COUNT) - 1;
-    }
-}
-
-/*Wondrous items: rings, amulets, wands and other magic.*/
-static void item_wondrous(ItemTemplate *t, const ItemJson *j) {
-    t->needs_id = true;
-    t->weight = 1.0f;
-    if (j->name) {
-        if (cJSON_IsString(j->name)) {
-            const char *n_str = j->name->valuestring;
-            if (my_strcasestr(n_str, "Helm") || my_strcasestr(n_str, "Hat") ||
-                my_strcasestr(n_str, "Crown")) {
-                t->category = ITEM_HEAD;
-                t->max_durability = 80;
-                t->weight = 2.0f;
-            } else if (my_strcasestr(n_str, "Amulet") || my_strcasestr(n_str, "Brooch") ||
-                       my_strcasestr(n_str, "Necklace") || my_strcasestr(n_str, "Periapt")) {
-                t->category = ITEM_NECK;
-                t->weight = 0.5f;
-            } else if (my_strcasestr(n_str, "Cloak") || my_strcasestr(n_str, "Cape") ||
-                       my_strcasestr(n_str, "Mantle")) {
-                t->category = ITEM_BACK;
-                t->weight = 1.0f;
-            } else if (my_strcasestr(n_str, "Gloves") || my_strcasestr(n_str, "Gauntlets")) {
-                t->category = ITEM_HANDS;
-                t->max_durability = 80;
-                t->weight = 2.0f;
-            } else if (my_strcasestr(n_str, "Bracers")) {
-                t->category = ITEM_BRACELET;
-                t->max_durability = 80;
-                t->weight = 1.0f;
-            } else if (my_strcasestr(n_str, "Bracelet") || my_strcasestr(n_str, "Bangle")) {
-                t->category = ITEM_BRACELET;
-                t->max_durability = 60;
-                t->weight = 0.5f;
-            } else if (my_strcasestr(n_str, "Boots") || my_strcasestr(n_str, "Slippers") ||
-                       my_strcasestr(n_str, "Shoes")) {
-                t->category = ITEM_FEET;
-                t->max_durability = 80;
-                t->weight = 2.0f;
-            } else if (my_strcasestr(n_str, "Ring")) {
-                t->category = ITEM_RING;
-                t->weight = 0.1f;
-            } else {
-                t->category = ITEM_MISC;
-            }
-        }
-    }
-}
-
-static void item_category(ItemTemplate *t, const ItemJson *j) {
-    const char *cat_str = j->category->valuestring;
-    if (strcmp(cat_str, "WEAPON") == 0) {
-        item_weapon(t, j);
-    } else if (strcmp(cat_str, "ARMOR") == 0) {
-        item_armor(t, j);
-    } else if (strcmp(cat_str, "POTIONS_OILS") == 0) {
-        item_potion(t, j);
-    } else if (strcmp(cat_str, "ADVENTURING_GEAR") == 0) {
-        item_gear(t, j);
-    } else if (strcmp(cat_str, "BOOK") == 0) {
-        item_book(t, j);
-    } else if (strcmp(cat_str, "WONDROUS_ITEMS") == 0) {
-        item_wondrous(t, j);
-    } else {
-        t->category = ITEM_MISC;
-    }
-}
-
-/*One item of items.json.*/
-static void parse_item(ItemTemplate *t, cJSON *item) {
-    cJSON *name = cJSON_GetObjectItem(item, "name");
-    cJSON *desc = cJSON_GetObjectItem(item, "description");
-    cJSON *category = cJSON_GetObjectItem(item, "category");
-    cJSON *classification = cJSON_GetObjectItem(item, "classification");
-    cJSON *ac = cJSON_GetObjectItem(item, "ac");
-    cJSON *damage = cJSON_GetObjectItem(item, "damage");
-    cJSON *properties = cJSON_GetObjectItem(item, "properties");
-    cJSON *cost = cJSON_GetObjectItem(item, "cost");
-
-    if (cJSON_IsString(name)) {
-        t->name = strdup(name->valuestring);
-    }
-    if (cJSON_IsString(desc)) {
-        t->description = strdup(desc->valuestring);
-    } else {
-        t->description = strdup("No description available.");
-    }
-
-    //New fields (Umoria improvements)
-    cJSON *plural = cJSON_GetObjectItem(item, "plural_name");
-    if (cJSON_IsString(plural)) {
-        t->plural_name = strdup(plural->valuestring);
-    } else {
-        t->plural_name = NULL; // Fallback handled by UI
-    }
-
-    cJSON *cursed = cJSON_GetObjectItem(item, "is_cursed");
-    t->is_cursed = cJSON_IsTrue(cursed);
-
-    t->cast_spell_idx = -1;
-    cJSON *spell_name = cJSON_GetObjectItem(item, "cast_spell");
-    if (cJSON_IsString(spell_name)) {
-        t->cast_spell_idx = get_spell_idx_by_name(spell_name->valuestring);
-    }
-
-    cJSON *charges = cJSON_GetObjectItem(item, "max_charges");
-    t->max_charges = cJSON_IsNumber(charges) ? charges->valueint : 0;
-
-    cJSON *mat = cJSON_GetObjectItem(item, "material");
-    t->material = cJSON_IsString(mat) ? string_to_material_type(mat->valuestring) : MAT_NONE;
-
-    // Defaults
-    t->category = ITEM_MISC;
-    t->str_bonus = 0;
-    t->dex_bonus = 0;
-    t->con_bonus = 0;
-    t->int_bonus = 0;
-    t->wis_bonus = 0;
-    t->cha_bonus = 0;
-    t->damage_dice_count = 0;
-    t->damage_dice_sides = 0;
-    t->attack_bonus = 0;
-    t->ac_bonus = 0;
-    t->ac_base = 0;
-    t->max_durability = 0;
-    t->max_stack = 1;
-    t->needs_id = false;
-    t->heal_amount = 0;
-    t->light_radius = 0;
-    t->duration_turns = 0;
-    t->cost = 0;
-    t->weight = 1.0f;
-
-    if (cJSON_IsString(category)) {
-        ItemJson j = {item, name, desc, category, classification, ac, damage, properties, cost};
-        item_category(t, &j);
-    }
-
-    if (ac) {
-        if (cJSON_IsString(ac)) {
-            const char *ac_str = ac->valuestring;
-            int ac_val = 0;
-            const char *p_ac = ac_str;
-            while (*p_ac) {
-                if (isdigit((unsigned char)*p_ac)) {
-                    ac_val = str_to_int(p_ac);
-                    break;
-                }
-                p_ac++;
-            }
-            if (t->category == ITEM_ARMOR) {
-                t->ac_base = ac_val;
-            } else if (t->category == ITEM_SHIELD || strchr(ac_str, '+')) {
-                t->ac_bonus = ac_val;
-            }
-        }
-    }
-
-    if (damage) {
-        if (cJSON_IsString(damage)) {
-            const char *dmg_str = damage->valuestring;
-            int dice_cnt = 0;
-            int dice_sds = 0;
-            int dice[2] = {0, 0};
-            int read_cnt = scan_ints(dmg_str, 'd', 2, dice);
-            dice_cnt = dice[0];
-            dice_sds = dice[1];
-            if (read_cnt == 2) {
-                t->damage_dice_count = dice_cnt;
-                t->damage_dice_sides = dice_sds;
-            }
-        }
-    }
-
-    if (name) {
-        if (cJSON_IsString(name)) {
-            const char *n_str = name->valuestring;
-            if (my_strcasestr(n_str, "Strength")) {
-                t->str_bonus = 2;
-            }
-            if (my_strcasestr(n_str, "Dexterity")) {
-                t->dex_bonus = 2;
-            }
-            if (my_strcasestr(n_str, "Speed")) {
-                t->dex_bonus = 2;
-            }
-            if (my_strcasestr(n_str, "Constitution")) {
-                t->con_bonus = 2;
-            }
-            if (my_strcasestr(n_str, "Health")) {
-                t->con_bonus = 2;
-            }
-            if (my_strcasestr(n_str, "Intelligence")) {
-                t->int_bonus = 2;
-            }
-            if (my_strcasestr(n_str, "Wisdom")) {
-                t->wis_bonus = 2;
-            }
-            if (my_strcasestr(n_str, "Charisma")) {
-                t->cha_bonus = 2;
-            }
-            if (my_strcasestr(n_str, "Protection")) {
-                t->ac_bonus = 1;
-            }
-        }
-    }
-
-    if (cost) {
-        double c_val = 0.0;
-        if (cJSON_IsString(cost)) {
-            if (!parse_double(cost->valuestring, &c_val, NULL)) {
-                c_val = 0.0;
-            }
-        } else if (cJSON_IsNumber(cost)) {
-            c_val = cost->valuedouble;
-        }
-        uint64_t gp_cost = (uint64_t)(c_val / 100.0);
-        if (gp_cost < 1) {
-            gp_cost = 1;
-        }
-        t->cost = gp_cost;
-    }
-}
-
-static bool load_items_json(const char *filepath) {
-    cJSON *root = parse_json_file(filepath);
-    if (!root) {
-        return false;
-    }
-
-    cJSON *items = cJSON_GetObjectItem(root, "items");
-    if (!cJSON_IsArray(items)) {
-        fprintf(stderr, "[Data Loader] Error: 'items' object is not an array in %s\n", filepath);
-        cJSON_Delete(root);
-        return false;
-    }
-
-    item_database_size = cJSON_GetArraySize(items);
-    item_database = calloc(item_database_size, sizeof(ItemTemplate));
-
-    int i = 0;
-    cJSON *item = NULL;
-    cJSON_ArrayForEach(item, items) {
-        parse_item(&item_database[i], item);
-        i++;
-    }
-
-    cJSON_Delete(root);
-    printf("[Data Loader] Successfully loaded %d items from %s\n", item_database_size, filepath);
-    return true;
 }
 
 /*"classes": "sorcerer,wizard" -> bit N set for ClassType N (classes.h).*/
@@ -910,7 +322,7 @@ static bool load_spells_json(const char *filepath) {
         cJSON_Delete(root);
         return false;
     }
-    spell_database = calloc(spell_database_size, sizeof(SpellTemplate));
+    spell_database = calloc((size_t)spell_database_size, sizeof(SpellTemplate));
 
     int i = 0;
     bool ok = true;

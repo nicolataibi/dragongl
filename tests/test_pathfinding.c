@@ -102,7 +102,7 @@ int main(void) {
     int sa = pathfind_astar(&map, 0, 0, 9, 9, a, MAX_ASTAR_PATH);
     int sb = pathfind_astar(&map, 0, 0, 9, 9, b, MAX_ASTAR_PATH);
     CHECK(sa == sb && sa > 0);
-    CHECK(memcmp(a, b, sizeof(PathNode) * sa) == 0);
+    CHECK(memcmp(a, b, sizeof(PathNode) * (size_t)sa) == 0);
 
     /*--- repeated queries stay fast & correct (visited-stamp reset) ---*/
     for (int i = 0; i < 1000; i++) {

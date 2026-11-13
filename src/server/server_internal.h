@@ -28,13 +28,12 @@
 #include "items.h"
 #include "rules.h"
 #include "combat_log.h"
+#include "game.h"
 #include "protocol.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
-
-long long get_time_ms(void);
 
 /*Game clock: one round = 200 ms of real time (5 rounds/s). A full game
  * day is 1440 rounds = 4.8 minutes of real time. The server's main loop
@@ -57,51 +56,12 @@ long long get_time_ms(void);
 #define LOOT_DROP_CHANCE 60
 
 // Tombstone system
-extern Tombstone g_tombstones[MAX_TOMBSTONES];
-void tombstone_create(Client *c);
-void tombstone_list(Client *c);
-bool tombstone_pickup(Client *c);
+void tombstone_create(Game *game, Client *c);
+void tombstone_list(Game *game, Client *c);
+bool tombstone_pickup(Game *game, Client *c);
 void tombstone_save(const Tombstone *t);
-void tombstone_load_all(void);
+void tombstone_load_all(Game *game);
 
-// Shared globals
-extern World *master_world;
-extern Client *g_clients;
-extern NPC *g_npcs;
-extern int global_total_turns;
-extern int next_id;
-/*Read-only directory of the JSON datasets. Resolved at start: --data-dir,
- * $DRAGONGL_DATA_DIR, <exe>/../data (build tree), DRAGONGL_PKGDATADIR/data.
- * Everything the server writes lives in the state directory (persist.h).*/
-#define DATA_DIR_MAX 256
-extern char g_data_dir[DATA_DIR_MAX];
-
-// World Events
-extern int active_event_type;
-extern int event_floor_id;
-extern int event_time_left;
-extern int event_progress;
-extern int event_goal;
-
-// Internal helpers from main_server.c made public
-void get_total_stats(Client *c, int *ts, int *td, int *tc, int *ti, int *tw, int *th);
-int get_player_ac(Client *c);
-int get_vision_radius(Client *c);
-void sync_entity_grid(NPC *npcs);
-
-/*Atomic file write helpers (temp file in the same directory + fsync +
- * rename): a crash mid-write never truncates the target file; on any
- * error the temp file is removed and the last good file is kept.*/
-/*Delete leftover *.tmp files in dir (stale from a crashed run).*/
-
-void save_bones(Client *c);
-void drop_loot_from_monster(Client *c, NPC *killer);
-void check_level_up(Client *c);
-int get_xp_threshold(int level);
-void damage_item(ItemInstance *it, int amt);
-void save_player_data(Client *c);
-/*1 loaded, 0 no save (new character), -1 wrong password, -2 unreadable.*/
-int load_player_data(Client *c, const char *password);
 /*Queue a MSG_AUTH_FAIL for the client on `sock`.*/
 void send_auth_fail(int sock, const char *reason);
 /*Structured events for the floating combat text (CombatEventKind).*/
@@ -109,18 +69,8 @@ void send_combat_event(int sock, int kind, int entity_id, int amount);
 bool send_welcome(int sock, const MsgWelcome *m);
 void send_time_sync(int sock, const MsgTimeSync *m);
 void send_tombstone_remove(int sock, int entity_id);
-void server_log(const char *cat, const char *fmt, ...);
-void get_full_item_name(const ItemInstance *inst, char *buf, size_t max_len);
-float get_current_weight(Client *c);
 void print_merchant_inventory(Client *c, NPC *merchant);
-void update_city_doors(void);
-void check_tile_events(Client *c, NPC *npcs);
-void check_traps(Client *c, NPC *npcs);
-/* Update the character's deepest floor ever reached (class transit cantrips).
-* Call it every time a client's floor_id changes.*/
-void client_track_explored_floor(Client *c);
-void handle_boss_death(Client *c, NPC *boss);
-void give_starting_gear(Client *c);
+void handle_boss_death(Game *game, Client *c, NPC *boss);
 /*NULL-safe display name for NPC messages/logs: custom_name (ghosts,
  * summons, dominated) > template name > archetype fallback. NEVER
  * dereference n->template->name directly: gold piles, chests and
@@ -131,10 +81,6 @@ const char *npc_name(const NPC *n);
  * client (state + map chunk + nearby entities). Use at EVERY death
  * site instead of setting hp/floor_id/x/y by hand (which leaked the
  * entity_grid and left the client showing the dungeon).*/
-void player_respawn_town(Client *c);
-
-void get_game_time(int *h, int *m);
-float get_movement_cooldown(Client *c);
-int get_equipped_mask(Client *c);
+void player_respawn_town(Game *game, Client *c);
 
 #endif // SERVER_INTERNAL_H

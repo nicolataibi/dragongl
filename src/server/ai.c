@@ -26,8 +26,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-AINodeStatus ai_swarm_behavior(NPC *npc, Client *clients, int num_clients, bool new_round,
-                               NPC *all_npcs);
+AINodeStatus ai_swarm_behavior(Game *game, NPC *npc, Client *clients, int num_clients,
+                               bool new_round);
 
 // Map archetype string -> enum EntityArchetype
 static EntityArchetype archetype_from_string(const char *s) {
@@ -122,7 +122,7 @@ void ai_init_npc(NPC *npc, const char *monster_name, int floor_id) {
         }
     }
 
-    int existing_arch = npc->archetype;
+    int existing_arch = (int)npc->archetype;
     npc->archetype = archetype_from_string(arch_str);
     if (existing_arch == ARCH_BOSS) {
         npc->archetype = ARCH_BOSS;
@@ -187,12 +187,13 @@ void ai_attach_behavior(NPC *npc) {
 }
 
 #include "map.h"
+#include "player.h"
 
-static int get_light_level(Client *target) {
-    if (!master_world || target->floor_id < 0 || target->floor_id >= MAX_FLOORS) {
+static int get_light_level(Game *game, Client *target) {
+    if (!game->world || target->floor_id < 0 || target->floor_id >= MAX_FLOORS) {
         return 0;
     }
-    Map *map = &master_world->floors[target->floor_id].map;
+    Map *map = &game->world->floors[target->floor_id].map;
     int tx = target->x;
     int ty = target->y;
     int light = 0;
@@ -213,7 +214,7 @@ static int get_light_level(Client *target) {
     return light;
 }
 
-static Client *find_closest_target(NPC *npc, Client *clients, int num_clients) {
+static Client *find_closest_target(Game *game, NPC *npc, Client *clients, int num_clients) {
     Client *best_target = NULL;
     int min_d = 9999;
     int base_sight =
@@ -222,7 +223,7 @@ static Client *find_closest_target(NPC *npc, Client *clients, int num_clients) {
     for (int i = 0; i < num_clients; i++) {
         if (clients[i].active && clients[i].authenticated && clients[i].floor_id == npc->floor_id) {
             int d = abs(clients[i].x - npc->x) + abs(clients[i].y - npc->y);
-            int sight_range = base_sight + get_light_level(&clients[i]);
+            int sight_range = base_sight + get_light_level(game, &clients[i]);
             if (d <= sight_range && d < min_d) {
                 min_d = d;
                 best_target = &clients[i];
@@ -237,15 +238,15 @@ static Client *find_closest_target(NPC *npc, Client *clients, int num_clients) {
  * one). The grid is fully rebuilt every round tick by sync_entity_grid();
  * these incremental writes keep it correct for collision checks made
  * WITHIN the same tick, by other NPCs.*/
-static void npc_set_cell(NPC *npc, int x, int y) {
-    if (!master_world) {
+static void npc_set_cell(Game *game, NPC *npc, int x, int y) {
+    if (!game->world) {
         return;
     }
     if (npc->floor_id < 0 || npc->floor_id >= MAX_FLOORS) {
         return;
     }
     if (npc->x >= 0 && npc->x < MAP_WIDTH && npc->y >= 0 && npc->y < MAP_HEIGHT) {
-        Floor *fl = &master_world->floors[npc->floor_id];
+        Floor *fl = &game->world->floors[npc->floor_id];
         if (fl->entity_grid[npc->y][npc->x] == npc->entity_id) {
             fl->entity_grid[npc->y][npc->x] = 0;
         }
@@ -253,7 +254,7 @@ static void npc_set_cell(NPC *npc, int x, int y) {
     npc->x = x;
     npc->y = y;
     if (x >= 0 && x < MAP_WIDTH && y >= 0 && y < MAP_HEIGHT) {
-        master_world->floors[npc->floor_id].entity_grid[y][x] = npc->entity_id;
+        game->world->floors[npc->floor_id].entity_grid[y][x] = npc->entity_id;
     }
 }
 
@@ -262,23 +263,22 @@ static void npc_set_cell(NPC *npc, int x, int y) {
  * stacks two entities on one cell (collisions and melee rely on the
  * entity_grid). O(1) through the entity_grid: this runs for every step
  * attempt of every monster.*/
-static bool cell_occupied(int x, int y, NPC *npc, Client *clients, int num_clients, NPC *all_npcs) {
+static bool cell_occupied(Game *game, int x, int y, NPC *npc, Client *clients, int num_clients) {
     (void)clients;
     (void)num_clients;
-    (void)all_npcs;
     if (x < 0 || x >= MAP_WIDTH || y < 0 || y >= MAP_HEIGHT) {
         return true;
     }
-    if (!master_world || npc->floor_id < 0 || npc->floor_id >= MAX_FLOORS) {
+    if (!game->world || npc->floor_id < 0 || npc->floor_id >= MAX_FLOORS) {
         return true;
     }
-    int id = master_world->floors[npc->floor_id].entity_grid[y][x];
+    int id = game->world->floors[npc->floor_id].entity_grid[y][x];
     return id != 0 && id != npc->entity_id;
 }
 
-static void default_ai_update(NPC *npc, Client *clients, int num_clients, bool new_round,
-                              NPC *all_npcs) {
-    Client *target = find_closest_target(npc, clients, num_clients);
+static void default_ai_update(Game *game, NPC *npc, Client *clients, int num_clients,
+                              bool new_round) {
+    Client *target = find_closest_target(game, npc, clients, num_clients);
     if (!target) {
         return;
     }
@@ -286,7 +286,7 @@ static void default_ai_update(NPC *npc, Client *clients, int num_clients, bool n
     int d = abs(target->x - npc->x) + abs(target->y - npc->y);
     if (d <= 1) {
         if (new_round) {
-            perform_attack_npc(npc, target, all_npcs);
+            perform_attack_npc(npc, target, game);
         }
         return;
     }
@@ -298,10 +298,10 @@ static void default_ai_update(NPC *npc, Client *clients, int num_clients, bool n
     }
     npc->ai_ctx.state_timer = 0;
 
-    if (!master_world) {
+    if (!game->world) {
         return;
     }
-    Map *map = &master_world->floors[npc->floor_id].map;
+    Map *map = &game->world->floors[npc->floor_id].map;
 
     PathNode path[MAX_ASTAR_PATH];
     int steps = pathfind_astar(map, npc->x, npc->y, target->x, target->y, path, MAX_ASTAR_PATH);
@@ -310,8 +310,8 @@ static void default_ai_update(NPC *npc, Client *clients, int num_clients, bool n
         /* path[0] = current position, path[1] = first step.
          * A* only sees the map: if the first step is occupied by a
          * player or another NPC, wait for the next tick. */
-        if (!cell_occupied(path[1].x, path[1].y, npc, clients, num_clients, all_npcs)) {
-            npc_set_cell(npc, path[1].x, path[1].y);
+        if (!cell_occupied(game, path[1].x, path[1].y, npc, clients, num_clients)) {
+            npc_set_cell(game, npc, path[1].x, path[1].y);
         }
     } else if (steps == 0) {
         /* A* found no path: direct fallback (e.g. target is adjacent).
@@ -326,24 +326,24 @@ static void default_ai_update(NPC *npc, Client *clients, int num_clients, bool n
         } else if (npc->y > target->y) {
             ny--;
         }
-        if (!cell_occupied(nx, ny, npc, clients, num_clients, all_npcs)) {
-            npc_set_cell(npc, nx, ny);
+        if (!cell_occupied(game, nx, ny, npc, clients, num_clients)) {
+            npc_set_cell(game, npc, nx, ny);
         }
     }
 }
 
-AINodeStatus ai_swarm_behavior(NPC *npc, Client *clients, int num_clients, bool new_round,
-                               NPC *all_npcs) {
+AINodeStatus ai_swarm_behavior(Game *game, NPC *npc, Client *clients, int num_clients,
+                               bool new_round) {
     if (new_round && npc->hp > 1) {
         // Count adjacent swarms (per-floor index instead of a 50k scan;
         // the stale-entry filters below also cover an index up to one
         // tick old).
         int counter = 0;
-        FloorIter walk = floor_iter(all_npcs, npc->floor_id);
+        FloorIter walk = floor_iter(game, npc->floor_id);
         for (int i; (i = floor_iter_next(&walk)) >= 0;) {
-            if (all_npcs[i].archetype == ARCH_SWARM) {
-                int dx = abs(all_npcs[i].x - npc->x);
-                int dy = abs(all_npcs[i].y - npc->y);
+            if (game->npcs[i].archetype == ARCH_SWARM) {
+                int dx = abs(game->npcs[i].x - npc->x);
+                int dy = abs(game->npcs[i].y - npc->y);
                 if (dx <= 1 && dy <= 1 && (dx > 0 || dy > 0)) {
                     counter++;
                 }
@@ -363,16 +363,16 @@ AINodeStatus ai_swarm_behavior(NPC *npc, Client *clients, int num_clients, bool 
                 int ny = npc->y + try_dy;
 
                 // Check if map tile is empty
-                Map *m = &master_world->floors[npc->floor_id].map;
+                Map *m = &game->world->floors[npc->floor_id].map;
                 if (nx > 0 && nx < MAP_WIDTH - 1 && ny > 0 && ny < MAP_HEIGHT - 1 &&
                     m->data[0][ny][nx] == VOXEL_FLOOR) {
                     // Check if occupied by another npc or a player
-                    bool occupied = cell_occupied(nx, ny, npc, clients, num_clients, all_npcs);
+                    bool occupied = cell_occupied(game, nx, ny, npc, clients, num_clients);
                     if (!occupied) {
                         //Find empty slots
                         int slot = -1;
                         for (int i = 0; i < MAX_NPCS; i++) {
-                            if (!all_npcs[i].active) {
+                            if (!game->npcs[i].active) {
                                 slot = i;
                                 break;
                             }
@@ -381,7 +381,7 @@ AINodeStatus ai_swarm_behavior(NPC *npc, Client *clients, int num_clients, bool 
                             // Split!
                             npc->hp = (npc->hp / 2) > 0 ? (npc->hp / 2) : 1;
 
-                            NPC *clone = &all_npcs[slot];
+                            NPC *clone = &game->npcs[slot];
                             *clone = *npc; //copy all stats
                             /*The copy also copied active=true: undo it so
                              * the activation below goes through
@@ -391,10 +391,10 @@ AINodeStatus ai_swarm_behavior(NPC *npc, Client *clients, int num_clients, bool 
                              * collide with an already-assigned entity_id
                              * (NPC or player) and corrupt the
                              * entity_grid collision lookups.*/
-                            clone->entity_id = next_id++;
+                            clone->entity_id = game->next_id++;
                             /*Register the clone in the grid (the parent's
                              * cell keeps the parent's ID).*/
-                            npc_set_cell(clone, nx, ny);
+                            npc_set_cell(game, clone, nx, ny);
                             clone->hp = npc->hp;
                             /*The clone respawns where it split, not at the
                              * parent's original spawn: with the inherited
@@ -405,9 +405,9 @@ AINodeStatus ai_swarm_behavior(NPC *npc, Client *clients, int num_clients, bool 
                             /*All fields are final: activate the clone
                              * through npc_set_active so the floor caches
                              * count it.*/
-                            npc_set_active(clone, true);
+                            npc_set_active(game, clone, true);
 
-                            broadcast_spell_vfx(npc->x, npc->y, nx, ny, 1, 0.0f, 1.0f, 0.0f,
+                            broadcast_spell_vfx(game, npc->x, npc->y, nx, ny, 1, 0.0f, 1.0f, 0.0f,
                                                 npc->floor_id); // Green explosion
                             return AI_SUCCESS;
                         }
@@ -418,11 +418,11 @@ AINodeStatus ai_swarm_behavior(NPC *npc, Client *clients, int num_clients, bool 
     }
 
     //Default melee behavior
-    default_ai_update(npc, clients, num_clients, new_round, all_npcs);
+    default_ai_update(game, npc, clients, num_clients, new_round);
     return AI_SUCCESS;
 }
 
-void ai_update_npc(NPC *npc, Client *clients, int num_clients, bool new_round, NPC *all_npcs) {
+void ai_update_npc(Game *game, NPC *npc, Client *clients, int num_clients, bool new_round) {
     /*Merchants have no AI; TREASURE and GOLD have NO AI at all: they are
      * pickable loot with template==NULL. Running them through the default
      * behavior made them walk to the player and call
@@ -438,23 +438,23 @@ void ai_update_npc(NPC *npc, Client *clients, int num_clients, bool new_round, N
 
     switch (npc->ai_ctx.behavior) {
     case AI_BEHAVIOR_VOID_CRAWLER:
-        (void)ai_void_crawler_behavior(npc, clients, num_clients, new_round, all_npcs);
+        (void)ai_void_crawler_behavior(game, npc, clients, num_clients, new_round);
         break;
     case AI_BEHAVIOR_MAGE:
-        (void)ai_mage_behavior(npc, clients, num_clients, new_round, all_npcs);
+        (void)ai_mage_behavior(game, npc, clients, num_clients, new_round);
         break;
     case AI_BEHAVIOR_SWARM:
-        (void)ai_swarm_behavior(npc, clients, num_clients, new_round, all_npcs);
+        (void)ai_swarm_behavior(game, npc, clients, num_clients, new_round);
         break;
     default:
-        default_ai_update(npc, clients, num_clients, new_round, all_npcs);
+        default_ai_update(game, npc, clients, num_clients, new_round);
         break;
     }
 }
 
-AINodeStatus ai_mage_behavior(NPC *npc, Client *clients, int num_clients, bool new_round,
-                              NPC *all_npcs) {
-    Client *target = find_closest_target(npc, clients, num_clients);
+AINodeStatus ai_mage_behavior(Game *game, NPC *npc, Client *clients, int num_clients,
+                              bool new_round) {
+    Client *target = find_closest_target(game, npc, clients, num_clients);
     if (!target) {
         return AI_FAILURE;
     }
@@ -478,8 +478,8 @@ AINodeStatus ai_mage_behavior(NPC *npc, Client *clients, int num_clients, bool n
             if (target->hp <= 0) {
                 target->hp = 0;
                 clog_death(target->username, npc_name(npc), npc->floor_id);
-                save_bones(target);
-                player_respawn_town(target);
+                save_bones(game, target);
+                player_respawn_town(game, target);
                 send_text_to_client(
                     target->sock,
                     "[SYSTEM] You died! The Arcane has returned you to town without your equipment!");
@@ -490,7 +490,7 @@ AINodeStatus ai_mage_behavior(NPC *npc, Client *clients, int num_clients, bool n
 
         //No spells left: attack in melee or back away
         if (d <= 1) {
-            perform_attack_npc(npc, target, all_npcs);
+            perform_attack_npc(npc, target, game);
             return AI_SUCCESS;
         }
     }
@@ -508,17 +508,17 @@ AINodeStatus ai_mage_behavior(NPC *npc, Client *clients, int num_clients, bool n
         } else if (npc->y > target->y) {
             ny--;
         }
-        if (!cell_occupied(nx, ny, npc, clients, num_clients, all_npcs)) {
-            npc_set_cell(npc, nx, ny);
+        if (!cell_occupied(game, nx, ny, npc, clients, num_clients)) {
+            npc_set_cell(game, npc, nx, ny);
         }
     }
 
     return AI_RUNNING;
 }
 
-AINodeStatus ai_void_crawler_behavior(NPC *npc, Client *clients, int num_clients, bool new_round,
-                                      NPC *all_npcs) {
-    Client *target = find_closest_target(npc, clients, num_clients);
+AINodeStatus ai_void_crawler_behavior(Game *game, NPC *npc, Client *clients, int num_clients,
+                                      bool new_round) {
+    Client *target = find_closest_target(game, npc, clients, num_clients);
     if (!target) {
         return AI_FAILURE;
     }
@@ -549,7 +549,7 @@ AINodeStatus ai_void_crawler_behavior(NPC *npc, Client *clients, int num_clients
         // Phase 2: Mucous Cloud / Melee
         if (d <= 1) {
             if (rand() % 3 == 0) {
-                perform_attack_npc(npc, target, all_npcs);
+                perform_attack_npc(npc, target, game);
             } else {
                 /*Mucus only: this option replaces the melee attack.*/
                 int save_mod = rules_get_modifier(target->con);
@@ -583,8 +583,8 @@ AINodeStatus ai_void_crawler_behavior(NPC *npc, Client *clients, int num_clients
         } else if (npc->y > target->y) {
             ny--;
         }
-        if (!cell_occupied(nx, ny, npc, clients, num_clients, all_npcs)) {
-            npc_set_cell(npc, nx, ny);
+        if (!cell_occupied(game, nx, ny, npc, clients, num_clients)) {
+            npc_set_cell(game, npc, nx, ny);
         }
     }
 

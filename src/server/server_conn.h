@@ -81,7 +81,7 @@ typedef enum {
     CONN_RX_ERROR   /* socket error */
 } ConnRxStatus;
 
-/* Lifecycle (slot = index in g_clients). conn_open() starts the TLS
+/* Lifecycle (slot = index in game->clients). conn_open() starts the TLS
  * server side on fd; false if TLS is not initialized or fails. The
  * plaintext slots of conn_open_plain() exist only for the in-process
  * tests (tests/integration/fixture.c). */

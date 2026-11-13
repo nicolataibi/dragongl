@@ -29,6 +29,7 @@
 #include "server_commands.h"
 #include "server_cmd.h"
 #include "server_internal.h"
+#include "server_log.h"
 #include <string.h>
 
 static bool list_match(const char *list, const char *cmd, bool prefix) {
@@ -48,12 +49,12 @@ static bool list_match(const char *list, const char *cmd, bool prefix) {
     }
 }
 
-bool cmd_table_run(const CmdEntry *table, size_t n, Client *c, const char *cmd, NPC *npcs) {
+bool cmd_table_run(const CmdEntry *table, size_t n, Client *c, const char *cmd, Game *game) {
     for (size_t i = 0; i < n; i++) {
         const CmdEntry *e = &table[i];
         bool any = !e->names && !e->prefixes;
         if ((any || list_match(e->names, cmd, false) || list_match(e->prefixes, cmd, true)) &&
-            e->run(c, cmd, npcs)) {
+            e->run(c, cmd, game)) {
             return true;
         }
     }
@@ -162,7 +163,7 @@ const CmdEntry *cmd_commands(size_t *n) {
     return COMMANDS;
 }
 
-void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
+void handle_text_cmd(Client *c, const char *cmd, Game *game) {
     if (!c || !cmd) {
         return;
     }
@@ -171,7 +172,7 @@ void handle_text_cmd(Client *c, const char *cmd, NPC *npcs) {
     }
     server_log("CMD", "%s: %s", c->username, cmd);
     size_t n = sizeof(COMMANDS) / sizeof(COMMANDS[0]);
-    if (cmd_table_run(COMMANDS, n, c, cmd, npcs)) {
+    if (cmd_table_run(COMMANDS, n, c, cmd, game)) {
         return;
     }
     /*A known command with missing or wrong arguments gets its usage.*/

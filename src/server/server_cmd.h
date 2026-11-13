@@ -35,7 +35,7 @@
 #include <stddef.h>
 #include "server_entities.h"
 
-typedef bool (*CmdFn)(Client *c, const char *cmd, NPC *npcs);
+typedef bool (*CmdFn)(Client *c, const char *cmd, Game *game);
 
 typedef struct {
     const char *names;    /*"a|b": the command is exactly one of them, or NULL*/
@@ -49,7 +49,7 @@ typedef struct {
 
 /*Runs the first matching entry whose handler accepts the command; true if
  * one did.*/
-bool cmd_table_run(const CmdEntry *table, size_t n, Client *c, const char *cmd, NPC *npcs);
+bool cmd_table_run(const CmdEntry *table, size_t n, Client *c, const char *cmd, Game *game);
 
 /*The first entry of the table whose command word is the first word of cmd
  * (a name, or a prefix without its space), or NULL.*/
@@ -73,74 +73,74 @@ extern const TempleInfo TEMPLES[];
 extern const int TEMPLE_COUNT;
 
 /* cmd_character.c */
-bool cmd_help(Client *c, const char *cmd, NPC *npcs);
-bool cmd_train(Client *c, const char *cmd, NPC *npcs);
-bool cmd_stats(Client *c, const char *cmd, NPC *npcs);
-bool cmd_rest(Client *c, const char *cmd, NPC *npcs);
-bool cmd_save(Client *c, const char *cmd, NPC *npcs);
+bool cmd_help(Client *c, const char *cmd, Game *game);
+bool cmd_train(Client *c, const char *cmd, Game *game);
+bool cmd_stats(Client *c, const char *cmd, Game *game);
+bool cmd_rest(Client *c, const char *cmd, Game *game);
+bool cmd_save(Client *c, const char *cmd, Game *game);
 
 /* cmd_social.c */
-bool cmd_top(Client *c, const char *cmd, NPC *npcs);
-bool cmd_event(Client *c, const char *cmd, NPC *npcs);
-bool cmd_invite(Client *c, const char *cmd, NPC *npcs);
-bool cmd_join(Client *c, const char *cmd, NPC *npcs);
-bool cmd_leave(Client *c, const char *cmd, NPC *npcs);
-bool cmd_party(Client *c, const char *cmd, NPC *npcs);
-bool cmd_trade(Client *c, const char *cmd, NPC *npcs);
-bool cmd_offer(Client *c, const char *cmd, NPC *npcs);
-bool cmd_accept(Client *c, const char *cmd, NPC *npcs);
-bool cmd_cancel(Client *c, const char *cmd, NPC *npcs);
-bool cmd_msg(Client *c, const char *cmd, NPC *npcs);
-bool cmd_say(Client *c, const char *cmd, NPC *npcs);
-bool cmd_who(Client *c, const char *cmd, NPC *npcs);
-bool cmd_block(Client *c, const char *cmd, NPC *npcs);
-bool cmd_unblock(Client *c, const char *cmd, NPC *npcs);
-bool cmd_blocks(Client *c, const char *cmd, NPC *npcs);
+bool cmd_top(Client *c, const char *cmd, Game *game);
+bool cmd_event(Client *c, const char *cmd, Game *game);
+bool cmd_invite(Client *c, const char *cmd, Game *game);
+bool cmd_join(Client *c, const char *cmd, Game *game);
+bool cmd_leave(Client *c, const char *cmd, Game *game);
+bool cmd_party(Client *c, const char *cmd, Game *game);
+bool cmd_trade(Client *c, const char *cmd, Game *game);
+bool cmd_offer(Client *c, const char *cmd, Game *game);
+bool cmd_accept(Client *c, const char *cmd, Game *game);
+bool cmd_cancel(Client *c, const char *cmd, Game *game);
+bool cmd_msg(Client *c, const char *cmd, Game *game);
+bool cmd_say(Client *c, const char *cmd, Game *game);
+bool cmd_who(Client *c, const char *cmd, Game *game);
+bool cmd_block(Client *c, const char *cmd, Game *game);
+bool cmd_unblock(Client *c, const char *cmd, Game *game);
+bool cmd_blocks(Client *c, const char *cmd, Game *game);
 
 /* cmd_shop.c */
-bool cmd_browse(Client *c, const char *cmd, NPC *npcs);
-bool cmd_list(Client *c, const char *cmd, NPC *npcs);
-bool cmd_buy(Client *c, const char *cmd, NPC *npcs);
-bool cmd_sell(Client *c, const char *cmd, NPC *npcs);
-bool cmd_haggle(Client *c, const char *cmd, NPC *npcs);
-bool cmd_identify(Client *c, const char *cmd, NPC *npcs);
-bool cmd_cure(Client *c, const char *cmd, NPC *npcs);
-bool cmd_repair(Client *c, const char *cmd, NPC *npcs);
-bool cmd_uncurse(Client *c, const char *cmd, NPC *npcs);
-bool cmd_talk(Client *c, const char *cmd, NPC *npcs);
+bool cmd_browse(Client *c, const char *cmd, Game *game);
+bool cmd_list(Client *c, const char *cmd, Game *game);
+bool cmd_buy(Client *c, const char *cmd, Game *game);
+bool cmd_sell(Client *c, const char *cmd, Game *game);
+bool cmd_haggle(Client *c, const char *cmd, Game *game);
+bool cmd_identify(Client *c, const char *cmd, Game *game);
+bool cmd_cure(Client *c, const char *cmd, Game *game);
+bool cmd_repair(Client *c, const char *cmd, Game *game);
+bool cmd_uncurse(Client *c, const char *cmd, Game *game);
+bool cmd_talk(Client *c, const char *cmd, Game *game);
 
 /* cmd_items.c */
-bool cmd_retrieve(Client *c, const char *cmd, NPC *npcs);
-bool cmd_inventory(Client *c, const char *cmd, NPC *npcs);
-bool cmd_wear(Client *c, const char *cmd, NPC *npcs);
-bool cmd_remove(Client *c, const char *cmd, NPC *npcs);
-bool cmd_belt(Client *c, const char *cmd, NPC *npcs);
-bool cmd_unbelt(Client *c, const char *cmd, NPC *npcs);
-bool cmd_lore(Client *c, const char *cmd, NPC *npcs);
-bool cmd_fill(Client *c, const char *cmd, NPC *npcs);
-bool cmd_use(Client *c, const char *cmd, NPC *npcs);
-bool cmd_pickup(Client *c, const char *cmd, NPC *npcs);
-bool cmd_get(Client *c, const char *cmd, NPC *npcs);
-bool cmd_drop(Client *c, const char *cmd, NPC *npcs);
-bool cmd_throw(Client *c, const char *cmd, NPC *npcs);
+bool cmd_retrieve(Client *c, const char *cmd, Game *game);
+bool cmd_inventory(Client *c, const char *cmd, Game *game);
+bool cmd_wear(Client *c, const char *cmd, Game *game);
+bool cmd_remove(Client *c, const char *cmd, Game *game);
+bool cmd_belt(Client *c, const char *cmd, Game *game);
+bool cmd_unbelt(Client *c, const char *cmd, Game *game);
+bool cmd_lore(Client *c, const char *cmd, Game *game);
+bool cmd_fill(Client *c, const char *cmd, Game *game);
+bool cmd_use(Client *c, const char *cmd, Game *game);
+bool cmd_pickup(Client *c, const char *cmd, Game *game);
+bool cmd_get(Client *c, const char *cmd, Game *game);
+bool cmd_drop(Client *c, const char *cmd, Game *game);
+bool cmd_throw(Client *c, const char *cmd, Game *game);
 
 /* cmd_magic.c */
-bool cmd_spells(Client *c, const char *cmd, NPC *npcs);
-bool cmd_cast(Client *c, const char *cmd, NPC *npcs);
-bool cmd_pray(Client *c, const char *cmd, NPC *npcs);
+bool cmd_spells(Client *c, const char *cmd, Game *game);
+bool cmd_cast(Client *c, const char *cmd, Game *game);
+bool cmd_pray(Client *c, const char *cmd, Game *game);
 
 /* cmd_world.c */
-bool cmd_look(Client *c, const char *cmd, NPC *npcs);
-bool cmd_fountain(Client *c, const char *cmd, NPC *npcs);
-bool cmd_statue(Client *c, const char *cmd, NPC *npcs);
-bool cmd_search(Client *c, const char *cmd, NPC *npcs);
-bool cmd_disarm(Client *c, const char *cmd, NPC *npcs);
-bool cmd_examine(Client *c, const char *cmd, NPC *npcs);
-bool cmd_tunnel(Client *c, const char *cmd, NPC *npcs);
-bool cmd_open(Client *c, const char *cmd, NPC *npcs);
-bool cmd_close(Client *c, const char *cmd, NPC *npcs);
+bool cmd_look(Client *c, const char *cmd, Game *game);
+bool cmd_fountain(Client *c, const char *cmd, Game *game);
+bool cmd_statue(Client *c, const char *cmd, Game *game);
+bool cmd_search(Client *c, const char *cmd, Game *game);
+bool cmd_disarm(Client *c, const char *cmd, Game *game);
+bool cmd_examine(Client *c, const char *cmd, Game *game);
+bool cmd_tunnel(Client *c, const char *cmd, Game *game);
+bool cmd_open(Client *c, const char *cmd, Game *game);
+bool cmd_close(Client *c, const char *cmd, Game *game);
 
 /* cmd_dm.c */
-bool cmd_dm(Client *c, const char *cmd, NPC *npcs);
+bool cmd_dm(Client *c, const char *cmd, Game *game);
 
 #endif /* SERVER_CMD_H */

@@ -663,7 +663,7 @@ The complete world of Dragon GL is composed of discrete voxels. Every cell of ev
 ### 1. Data Model, Authority and Lifecycle
 
 - **Grid geometry.** A floor is a three-dimensional lattice of `VoxelType` cells with dimensions `MAP_WIDTH × MAP_HEIGHT × MAP_DEPTH` = `300 × 300 × 1` (the depth axis is reserved for future verticality and is not currently exercised). The world comprises `MAX_FLOORS = 101` floors: Floor 0 is the sanctuary city; Floors 1–100 constitute the dungeon.
-- **Server authority.** The master copy of the world resides on the server (`master_world`, of type `World`). Clients never mutate voxel state; they receive incremental map chunks (`send_map_chunk`, initial view radius `INITIAL_VIEW_RADIUS = 100`) purely for rendering and minimap display.
+- **Server authority.** The master copy of the world resides on the server (`game->world`, of type `World`). Clients never mutate voxel state; they receive incremental map chunks (`send_map_chunk`, initial view radius `INITIAL_VIEW_RADIUS = 100`) purely for rendering and minimap display.
 - **Generation.** Initial topology is produced by `generate_procedural_dungeon()` in `src/shared/map.c`. Rooms are carved out of a `VOXEL_ROCK` substrate: perimeter cells become `VOXEL_WALL` (the four corners are deliberately retained as `VOXEL_ROCK` so that digging can never pierce the structure at a corner), interiors become `VOXEL_FLOOR`, and navigation (stairs), doors, liquids, flora, resources, and the themed decorations of the 21 room archetypes are then stamped on top.
 - **Runtime mutation.** Voxel state is modified permanently during play by: mining (`tunnel`), door operation (`open`/`close`), terrain spells (Wall of Stone, Ice Storm, Transmute Rock), elemental area effects (§8.1), environmental traps (Flood, Ceiling Collapse, Stone Tomb), and trap detection/disarmal (`VOXEL_TRAP` markers).
 - **Persistence.** `persist_write_world()` stores every voxel cell (one byte each), every trap table and every crystal-respawn queue in `world.dat`, in the server state directory. The numeric values of the enumeration are part of the on-disk contract: renumbering or reordering `VoxelType` requires a new world format version.
@@ -4506,7 +4506,7 @@ typedef struct {
 This per-floor cache eliminates periodic global scans:
 - **Incremental Updates:** The `floor_stats_npc_died()` and `floor_stats_npc_spawned()` hooks update the specific floor counter in real time with an **O(1)** computational cost.
 - **Hook Points:** They are tied to all NPC lifecycle events (combat deaths, poisoning deaths, natural respawn timers, and loot/treasure collection).
-- **Instant Density Checks:** During the Density Check, the server merely reads `g_floor_stats[floor_id]` to decide if it needs to trigger a respawn. The O(N) search for a specific dead NPC to revive only occurs **during an actual emergency** on that specific floor, isolating the cost completely.
+- **Instant Density Checks:** During the Density Check, the server merely reads the counters of the floor (`floor_stats_get()`) to decide if it needs to trigger a respawn. The O(N) search for a specific dead NPC to revive only occurs **during an actual emergency** on that specific floor, isolating the cost completely.
 
 This approach ensures the server remains highly responsive and performant even under full load (multi-player capacity with 100 floors fully populated in memory).
 

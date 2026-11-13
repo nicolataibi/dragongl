@@ -34,6 +34,9 @@
 #include "server_spawn.h"
 #include "ai.h"
 #include "server_world.h"
+#include "player.h"
+#include "server_log.h"
+#include "server_tiles.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -50,7 +53,7 @@ extern char **environ;
  * by one line per row where each tile is its 2-digit hex VoxelType
  * (00 = VOXEL_ROCK ... 1B = VOXEL_CRYSTAL_WHITE, see include/map.h), so the
  * PDF can render every tile with its exact in-game color. */
-static int dump_floor_v2(const char *path, int floor_id, const Client *c) {
+static int dump_floor_v2(Game *game, const char *path, int floor_id, const Client *c) {
     FILE *fp = fopen(path, "we");
     if (!fp) {
         return -1;
@@ -65,7 +68,7 @@ static int dump_floor_v2(const char *path, int floor_id, const Client *c) {
     }
     for (int y = 0; y < MAP_HEIGHT; y++) {
         for (int x = 0; x < MAP_WIDTH; x++) {
-            fprintf(fp, "%02x", (int)master_world->floors[floor_id].map.data[0][y][x]);
+            fprintf(fp, "%02x", (int)game->world->floors[floor_id].map.data[0][y][x]);
         }
         fputc('\n', fp);
     }
@@ -169,9 +172,9 @@ typedef struct {
 
 static PdfJob g_pdf_jobs[PDF_JOBS_MAX];
 
-static void pdf_notify(const PdfJob *j, const char *msg) {
+static void pdf_notify(Game *game, const PdfJob *j, const char *msg) {
     for (int i = 0; i < MAX_CLIENTS; i++) {
-        const Client *c = &g_clients[i];
+        const Client *c = &game->clients[i];
         if (c->active && c->authenticated && c->is_dm && strcmp(c->username, j->dm_user) == 0) {
             send_text_to_client(c->sock, "%s", msg);
             return;
@@ -179,7 +182,7 @@ static void pdf_notify(const PdfJob *j, const char *msg) {
     }
 }
 
-void pdf_jobs_poll(void) {
+void pdf_jobs_poll(Game *game) {
     for (int k = 0; k < PDF_JOBS_MAX; k++) {
         PdfJob *j = &g_pdf_jobs[k];
         if (j->pid <= 0) {
@@ -208,13 +211,13 @@ void pdf_jobs_poll(void) {
                      WIFSIGNALED(status) ? WTERMSIG(status) : 0);
         }
         server_log("DM", "%s", msg);
-        pdf_notify(j, msg);
+        pdf_notify(game, j, msg);
         memset(j, 0, sizeof(*j));
     }
 }
 
 /*dm_pdf <floor> / dm_mapfloor: dump the floor, start the generator.*/
-static void dm_pdf_map(Client *c, int floor_id) {
+static void dm_pdf_map(Game *game, Client *c, int floor_id) {
     PdfJob *slot = NULL;
     for (int k = 0; k < PDF_JOBS_MAX; k++) {
         if (g_pdf_jobs[k].pid > 0 && g_pdf_jobs[k].floor_id == floor_id) {
@@ -236,7 +239,7 @@ static void dm_pdf_map(Client *c, int floor_id) {
     char dump[STATE_DIR_MAX + 64], pdf[STATE_DIR_MAX + 64];
     if (!state_path(dump, sizeof(dump), "maps/map_dump_floor_%d.txt", floor_id) ||
         !state_path(pdf, sizeof(pdf), "maps/map_floor_%d.pdf", floor_id) ||
-        dump_floor_v2(dump, floor_id, c) != 0) {
+        dump_floor_v2(game, dump, floor_id, c) != 0) {
         send_text_to_client(c->sock, "[DM] Error writing the map dump in the state directory.");
         return;
     }
@@ -271,8 +274,8 @@ static void dm_pdf_map(Client *c, int floor_id) {
                         floor_id);
 }
 
-static bool cmd_dm_gold(Client *c, const char *cmd, NPC *npcs) {
-    (void)npcs;
+static bool cmd_dm_gold(Client *c, const char *cmd, Game *game) {
+    (void)game;
     /*A bounded amount: the negation below must not overflow.*/
     long long amount = 0;
     if (!parse_ll(cmd + 8, &amount, NULL) || amount < -1000000000000LL ||
@@ -282,16 +285,18 @@ static bool cmd_dm_gold(Client *c, const char *cmd, NPC *npcs) {
     }
     if (amount < 0 && c->gold < (uint64_t)(-amount)) {
         c->gold = 0;
+    } else if (amount < 0) {
+        c->gold -= (uint64_t)(-amount);
     } else {
-        c->gold += amount;
+        c->gold += (uint64_t)amount;
     }
     send_text_to_client(c->sock, "[DM] %lld's updated gold. Total: %llu", amount,
                         (unsigned long long)c->gold);
     return true;
 }
 
-static bool cmd_dm_level(Client *c, const char *cmd, NPC *npcs) {
-    (void)npcs;
+static bool cmd_dm_level(Client *c, const char *cmd, Game *game) {
+    (void)game;
     int target = str_to_int(cmd + 9);
     if (c->level >= 20) {
         send_text_to_client(c->sock, "[DM] You are already at maximum level (20).");
@@ -308,8 +313,8 @@ static bool cmd_dm_level(Client *c, const char *cmd, NPC *npcs) {
     return true;
 }
 
-static bool cmd_dm_find_monster(Client *c, const char *cmd, NPC *npcs) {
-    (void)npcs;
+static bool cmd_dm_find_monster(Client *c, const char *cmd, Game *game) {
+    (void)game;
     const char *search = cmd + 16;
     int found_count = 0;
     send_text_to_client(c->sock, "[DM] Monster '%s' search results:", search);
@@ -329,8 +334,8 @@ static bool cmd_dm_find_monster(Client *c, const char *cmd, NPC *npcs) {
     return true;
 }
 
-static bool cmd_dm_find_item(Client *c, const char *cmd, NPC *npcs) {
-    (void)npcs;
+static bool cmd_dm_find_item(Client *c, const char *cmd, Game *game) {
+    (void)game;
     const char *search = cmd + 13;
     int found_count = 0;
     send_text_to_client(c->sock, "[DM] Object '%s' search results:", search);
@@ -350,49 +355,44 @@ static bool cmd_dm_find_item(Client *c, const char *cmd, NPC *npcs) {
     return true;
 }
 
-static bool cmd_dm_telemetry(Client *c, const char *cmd, NPC *npcs) {
+static bool cmd_dm_telemetry(Client *c, const char *cmd, Game *game) {
     (void)cmd;
     int active_c = 0, active_n = 0, total_t = 0, active_t = 0;
     for (int i = 0; i < MAX_CLIENTS; i++) {
-        if (g_clients[i].active) {
+        if (game->clients[i].active) {
             active_c++;
         }
     }
     for (int i = 0; i < MAX_NPCS; i++) {
-        if (npcs[i].active) {
+        if (game->npcs[i].active) {
             active_n++;
         }
     }
     for (int f = 0; f < MAX_FLOORS; f++) {
-        total_t += master_world->floors[f].trap_count;
-        for (int j = 0; j < master_world->floors[f].trap_count; j++) {
-            if (master_world->floors[f].traps[j].active) {
+        total_t += game->world->floors[f].trap_count;
+        for (int j = 0; j < game->world->floors[f].trap_count; j++) {
+            if (game->world->floors[f].traps[j].active) {
                 active_t++;
             }
         }
     }
     send_text_to_client(c->sock, "[DM] Telemetry: Turns:%d, Clients:%d, NPCs:%d/%d, Traps:%d/%d",
-                        global_total_turns, active_c, active_n, MAX_NPCS, active_t, total_t);
+                        game->total_turns, active_c, active_n, MAX_NPCS, active_t, total_t);
     return true;
 }
 
-static bool cmd_dm_spawn_boss(Client *c, const char *cmd, NPC *npcs) {
+static bool cmd_dm_spawn_boss(Client *c, const char *cmd, Game *game) {
     int target_floor = 0;
     /*%d skips the leading space after the command word*/
-    if (!parse_int(cmd + 13, &target_floor, NULL) || target_floor <= 0) {
-        send_text_to_client(c->sock, "[DM] Use: dm_spawn_boss <floor> (ex: dm_spawn_boss 10)");
+    if (!parse_int(cmd + 13, &target_floor, NULL) || target_floor <= 0 ||
+        target_floor >= MAX_FLOORS) {
+        send_text_to_client(c->sock, "[DM] Use: dm_spawn_boss <floor 1-%d> (ex: dm_spawn_boss 10)",
+                            MAX_FLOORS - 1);
         return true;
     }
 
-    int empty_idx = -1;
-    for (int i = 0; i < MAX_NPCS; i++) {
-        if (!npcs[i].active && npcs[i].template == NULL && npcs[i].respawn_timer == -1) {
-            empty_idx = i;
-            break;
-        }
-    }
-
-    if (empty_idx == -1) {
+    NPC *b = npc_alloc(game);
+    if (!b) {
         send_text_to_client(c->sock, "[DM] ERROR: No free NPC slots (MAX_NPCS reached).");
         return true;
     }
@@ -417,12 +417,11 @@ static bool cmd_dm_spawn_boss(Client *c, const char *cmd, NPC *npcs) {
     }
 
     int boss_id = pool[rand() % psize];
-    NPC *b = &npcs[empty_idx];
     memset(b, 0, sizeof(NPC));
     /*active is set at the END of the setup, through npc_set_active: the
    * floor caches need the final fields.*/
     b->archetype = ARCH_BOSS;
-    b->entity_id = next_id++;
+    b->entity_id = game->next_id++;
     b->floor_id = target_floor;
     b->x = MAP_CENTER_X;
     b->y = MAP_CENTER_Y;
@@ -434,14 +433,93 @@ static bool cmd_dm_spawn_boss(Client *c, const char *cmd, NPC *npcs) {
     b->max_hp = b->hp;
     snprintf(b->custom_name, sizeof(b->custom_name), "Boss %s", b->template->name);
     ai_init_npc(b, b->custom_name, b->floor_id);
-    npc_set_active(b, true);
+    npc_set_active(game, b, true);
 
     send_text_to_client(c->sock, "[DM] Boss %s (Entity %d) successfully spawned on floor %d!",
                         b->custom_name, b->entity_id, target_floor);
     return true;
 }
 
-static bool cmd_dm_boss(Client *c, const char *cmd, NPC *npcs) {
+/*Everything a DM wants to know about one boss.*/
+static void dm_boss_report(Client *c, const NPC *n, int ordinal) {
+    const char *bname = (n->template) ? n->template->name : "Unknown Boss";
+    send_text_to_client(c->sock, "[DM] ╔═══════════════════════ ═══════════════════════╗");
+    send_text_to_client(c->sock, "[DM] BOSS #%d — %s (NPC id %d)", ordinal, bname, n->entity_id);
+    send_text_to_client(c->sock, "[DM] ╚═══════════════════════ ═══════════════════════╝");
+    send_text_to_client(c->sock, "[DM] Position: Floor %d X:%d Y:%d", n->floor_id, n->x, n->y);
+    send_text_to_client(c->sock, "[DM] Spawn : X:%d Y:%d", n->spawn_x, n->spawn_y);
+    /*Combat statistics*/
+    send_text_to_client(c->sock, "[DM] HP : %d / %d", n->hp, n->max_hp);
+    send_text_to_client(c->sock, "[DM] CA : %d", n->ac);
+    send_text_to_client(c->sock, "[DM] Attack: +%d Damage: %dd%d", n->attack_bonus, n->damage_dice,
+                        n->damage_sides);
+    send_text_to_client(c->sock, "[DM] XP: %d Gold: %d", n->xp_reward, n->gold_drop);
+    send_text_to_client(c->sock, "[DM] Moral: %d", n->morale);
+    /*Data from template bestiary*/
+    if (n->template) {
+        const MonsterTemplate *t = n->template;
+        send_text_to_client(c->sock, "[DM] View: %d Speed: %d", t->sight_range, t->speed);
+        send_text_to_client(c->sock, "[DM] Floors : %d-%d", t->floor_min, t->floor_max);
+        if (t->description && t->description[0] != '\0') {
+            send_text_to_client(c->sock, "[DM] Lore : %.120s", t->description);
+        }
+    }
+    /*Active spell slots*/
+    bool has_slots = false;
+    for (int sl = 1; sl <= MAX_SPELL_LEVEL; sl++) {
+        if (n->spell_slots_max[sl] > 0) {
+            has_slots = true;
+            break;
+        }
+    }
+    if (has_slots) {
+        char slot_buf[256];
+        slot_buf[0] = '\0';
+        for (int sl = 1; sl <= MAX_SPELL_LEVEL; sl++) {
+            if (n->spell_slots_max[sl] <= 0) {
+                continue;
+            }
+            char tmp[24];
+            snprintf(tmp, sizeof(tmp), "L%d:%d/%d  ", sl, n->spell_slots[sl],
+                     n->spell_slots_max[sl]);
+            strncat(slot_buf, tmp, sizeof(slot_buf) - strlen(slot_buf) - 1);
+        }
+        send_text_to_client(c->sock, "[DM] Ki/Inc Slot: %s", slot_buf);
+    }
+    /*Loot ghost (items he carries)*/
+    bool has_loot = false;
+    for (int li = 0; li < 30; li++) {
+        if (n->ghost_loot[li].template_idx >= 0 && n->ghost_loot[li].stack_count > 0) {
+            has_loot = true;
+            break;
+        }
+    }
+    if (has_loot) {
+        send_text_to_client(c->sock, "[DM] --- Inventory/Loot ---");
+        for (int li = 0; li < 30; li++) {
+            if (n->ghost_loot[li].template_idx < 0 || n->ghost_loot[li].stack_count <= 0) {
+                continue;
+            }
+            char loot_buf[128];
+            get_full_item_name(&n->ghost_loot[li], loot_buf, sizeof(loot_buf));
+            send_text_to_client(c->sock, "[DM] [%d] %s", li, loot_buf);
+        }
+    } else {
+        send_text_to_client(c->sock, "[DM] Inventory: empty (loot generated on death)");
+    }
+    /*Active effects*/
+    if (n->effect_count > 0) {
+        send_text_to_client(c->sock, "[DM] --- Active Effects (%d) ---", n->effect_count);
+        for (int ei = 0; ei < n->effect_count; ei++) {
+            const char *ename = n->effects[ei].name ? n->effects[ei].name : "?";
+            send_text_to_client(c->sock, "[DM] [%d] %s val:%d duration:%d round", ei, ename,
+                                n->effects[ei].value, n->effects[ei].duration_rounds);
+        }
+    }
+    send_text_to_client(c->sock, "[DM] ──────────────────────── ────────────────────────");
+}
+
+static bool cmd_dm_boss(Client *c, const char *cmd, Game *game) {
     int target_floor = 0;
     if (!parse_int(cmd + 7, &target_floor, NULL)) {
         send_text_to_client(c->sock, "[DM] Use: dm_boss <floor> (ex: dm_boss 10)");
@@ -449,6 +527,10 @@ static bool cmd_dm_boss(Client *c, const char *cmd, NPC *npcs) {
         return true;
     }
     /*Bosses live on floors multiples of 10*/
+    if (target_floor < 1 || target_floor >= MAX_FLOORS) {
+        send_text_to_client(c->sock, "[DM] The dungeon has floors 1 to %d.", MAX_FLOORS - 1);
+        return true;
+    }
     if (target_floor <= 0 || target_floor % 10 != 0) {
         int nearest_below = (target_floor / 10) * 10;
         int nearest_above = nearest_below + 10;
@@ -466,115 +548,35 @@ static bool cmd_dm_boss(Client *c, const char *cmd, NPC *npcs) {
         return true;
     }
     int boss_count = 0;
-    FloorIter walk = floor_iter(npcs, target_floor);
+    FloorIter walk = floor_iter(game, target_floor);
     for (int i; (i = floor_iter_next(&walk)) >= 0;) {
-        if (npcs[i].archetype != ARCH_BOSS) {
-            continue;
+        if (game->npcs[i].archetype == ARCH_BOSS) {
+            dm_boss_report(c, &game->npcs[i], ++boss_count);
         }
-        boss_count++;
-        const char *bname = (npcs[i].template) ? npcs[i].template->name : "Unknown Boss";
-        send_text_to_client(c->sock, "[DM] ╔═══════════════════════ ═══════════════════════╗");
-        send_text_to_client(c->sock, "[DM] BOSS #%d — %s (NPC id %d)", boss_count, bname,
-                            npcs[i].entity_id);
-        send_text_to_client(c->sock, "[DM] ╚═══════════════════════ ═══════════════════════╝");
-        /* Posizione */
-        send_text_to_client(c->sock, "[DM] Position: Floor %d X:%d Y:%d", npcs[i].floor_id,
-                            npcs[i].x, npcs[i].y);
-        send_text_to_client(c->sock, "[DM] Spawn : X:%d Y:%d", npcs[i].spawn_x, npcs[i].spawn_y);
-        /*Combat statistics*/
-        send_text_to_client(c->sock, "[DM] HP : %d / %d", npcs[i].hp, npcs[i].max_hp);
-        send_text_to_client(c->sock, "[DM] CA : %d", npcs[i].ac);
-        send_text_to_client(c->sock, "[DM] Attack: +%d Damage: %dd%d", npcs[i].attack_bonus,
-                            npcs[i].damage_dice, npcs[i].damage_sides);
-        send_text_to_client(c->sock, "[DM] XP: %d Gold: %d", npcs[i].xp_reward, npcs[i].gold_drop);
-        send_text_to_client(c->sock, "[DM] Moral: %d", npcs[i].morale);
-        /*Data from template bestiary*/
-        if (npcs[i].template) {
-            const MonsterTemplate *t = npcs[i].template;
-            send_text_to_client(c->sock, "[DM] View: %d Speed: %d", t->sight_range, t->speed);
-            send_text_to_client(c->sock, "[DM] Floors : %d-%d", t->floor_min, t->floor_max);
-            if (t->description && t->description[0] != '\0') {
-                send_text_to_client(c->sock, "[DM] Lore : %.120s", t->description);
-            }
-        }
-        /*Active spell slots*/
-        bool has_slots = false;
-        for (int sl = 1; sl <= MAX_SPELL_LEVEL; sl++) {
-            if (npcs[i].spell_slots_max[sl] > 0) {
-                has_slots = true;
-                break;
-            }
-        }
-        if (has_slots) {
-            char slot_buf[256];
-            slot_buf[0] = '\0';
-            for (int sl = 1; sl <= MAX_SPELL_LEVEL; sl++) {
-                if (npcs[i].spell_slots_max[sl] <= 0) {
-                    continue;
-                }
-                char tmp[24];
-                snprintf(tmp, sizeof(tmp), "L%d:%d/%d  ", sl, npcs[i].spell_slots[sl],
-                         npcs[i].spell_slots_max[sl]);
-                strncat(slot_buf, tmp, sizeof(slot_buf) - strlen(slot_buf) - 1);
-            }
-            send_text_to_client(c->sock, "[DM] Ki/Inc Slot: %s", slot_buf);
-        }
-        /*Loot ghost (items he carries)*/
-        bool has_loot = false;
-        for (int li = 0; li < 30; li++) {
-            if (npcs[i].ghost_loot[li].template_idx >= 0 &&
-                npcs[i].ghost_loot[li].stack_count > 0) {
-                has_loot = true;
-                break;
-            }
-        }
-        if (has_loot) {
-            send_text_to_client(c->sock, "[DM] --- Inventory/Loot ---");
-            for (int li = 0; li < 30; li++) {
-                if (npcs[i].ghost_loot[li].template_idx < 0 ||
-                    npcs[i].ghost_loot[li].stack_count <= 0) {
-                    continue;
-                }
-                char loot_buf[128];
-                get_full_item_name(&npcs[i].ghost_loot[li], loot_buf, sizeof(loot_buf));
-                send_text_to_client(c->sock, "[DM] [%d] %s", li, loot_buf);
-            }
-        } else {
-            send_text_to_client(c->sock, "[DM] Inventory: empty (loot generated on death)");
-        }
-        /*Active effects*/
-        if (npcs[i].effect_count > 0) {
-            send_text_to_client(c->sock, "[DM] --- Active Effects (%d) ---", npcs[i].effect_count);
-            for (int ei = 0; ei < npcs[i].effect_count; ei++) {
-                const char *ename = npcs[i].effects[ei].name ? npcs[i].effects[ei].name : "?";
-                send_text_to_client(c->sock, "[DM] [%d] %s val:%d duration:%d round", ei, ename,
-                                    npcs[i].effects[ei].value, npcs[i].effects[ei].duration_rounds);
-            }
-        }
-        send_text_to_client(c->sock, "[DM] ──────────────────────── ────────────────────────");
     }
 
     int dead_count = 0;
     for (int i = 0; i < MAX_NPCS; i++) {
-        if (npcs[i].active) {
+        if (game->npcs[i].active) {
             continue;
         }
-        if (npcs[i].floor_id != target_floor) {
+        if (game->npcs[i].floor_id != target_floor) {
             continue;
         }
-        if (npcs[i].archetype != ARCH_BOSS) {
+        if (game->npcs[i].archetype != ARCH_BOSS) {
             continue;
         }
-        if (npcs[i].respawn_timer <= 0) {
+        if (game->npcs[i].respawn_timer <= 0) {
             continue;
         }
         dead_count++;
-        const char *bname = (npcs[i].template) ? npcs[i].template->name : "Unknown Boss";
+        const char *bname =
+            (game->npcs[i].template) ? game->npcs[i].template->name : "Unknown Boss";
         send_text_to_client(c->sock,
                             "[DM] *** DEAD BOSS — %s (NPC id %d) — respawn in %d round ***", bname,
-                            npcs[i].entity_id, npcs[i].respawn_timer);
-        send_text_to_client(c->sock, "[DM] Spawn: X:%d Y:%d |  Max HP: %d", npcs[i].spawn_x,
-                            npcs[i].spawn_y, npcs[i].max_hp);
+                            game->npcs[i].entity_id, game->npcs[i].respawn_timer);
+        send_text_to_client(c->sock, "[DM] Spawn: X:%d Y:%d |  Max HP: %d", game->npcs[i].spawn_x,
+                            game->npcs[i].spawn_y, game->npcs[i].max_hp);
     }
 
     if (boss_count == 0 && dead_count == 0) {
@@ -591,13 +593,17 @@ static bool cmd_dm_boss(Client *c, const char *cmd, NPC *npcs) {
     return true;
 }
 
-static bool cmd_dm_merchant(Client *c, const char *cmd, NPC *npcs) {
+static bool cmd_dm_merchant(Client *c, const char *cmd, Game *game) {
     int target_floor = 0;
     if (!parse_int(cmd + 12, &target_floor, NULL)) {
         send_text_to_client(c->sock, "[DM] Use: dm_merchant <floor> (ex: dm_merchant 5)");
         send_text_to_client(
             c->sock,
             "[DM] Wandering merchants appear every 5 floors (e.g. 5, 15, 25), excluding boss floors.");
+        return true;
+    }
+    if (target_floor < 1 || target_floor >= MAX_FLOORS) {
+        send_text_to_client(c->sock, "[DM] The dungeon has floors 1 to %d.", MAX_FLOORS - 1);
         return true;
     }
     /*Merchants appear every 5 floors, but not on multiples of 10 (boss floors)*/
@@ -627,31 +633,32 @@ static bool cmd_dm_merchant(Client *c, const char *cmd, NPC *npcs) {
         return true;
     }
     int merch_count = 0;
-    FloorIter walk = floor_iter(npcs, target_floor);
+    FloorIter walk = floor_iter(game, target_floor);
     for (int i; (i = floor_iter_next(&walk)) >= 0;) {
-        if (npcs[i].archetype != ARCH_MERCHANT) {
+        if (game->npcs[i].archetype != ARCH_MERCHANT) {
             continue;
         }
         merch_count++;
         send_text_to_client(c->sock, "[DM] ╔═══════════════════════ ═══════════════════════╗");
         send_text_to_client(c->sock, "[DM] WANDING MERCHANT #%d (NPC id %d)", merch_count,
-                            npcs[i].entity_id);
+                            game->npcs[i].entity_id);
         send_text_to_client(c->sock, "[DM] ╚═══════════════════════ ═══════════════════════╝");
         /* Position */
-        send_text_to_client(c->sock, "[DM] Position: Floor %d X:%d Y:%d", npcs[i].floor_id,
-                            npcs[i].x, npcs[i].y);
+        send_text_to_client(c->sock, "[DM] Position: Floor %d X:%d Y:%d", game->npcs[i].floor_id,
+                            game->npcs[i].x, game->npcs[i].y);
         /*Stats (a merchant usually doesn't fight, but we show it anyway)*/
-        send_text_to_client(c->sock, "[DM] HP : %d / %d", npcs[i].hp, npcs[i].max_hp);
-        send_text_to_client(c->sock, "[DM] Restock timer: %d", npcs[i].merchant.restock_timer);
+        send_text_to_client(c->sock, "[DM] HP : %d / %d", game->npcs[i].hp, game->npcs[i].max_hp);
+        send_text_to_client(c->sock, "[DM] Restock timer: %d",
+                            game->npcs[i].merchant.restock_timer);
 
         /*Inventory for sale*/
-        if (npcs[i].merchant.item_count > 0) {
+        if (game->npcs[i].merchant.item_count > 0) {
             send_text_to_client(c->sock, "[DM] --- Goods for sale (%s) ---",
-                                npcs[i].merchant.shop_name);
-            for (int li = 0; li < npcs[i].merchant.item_count; li++) {
-                int t_idx = npcs[i].merchant.item_templates[li];
-                int stock = npcs[i].merchant.item_stock[li];
-                int max_stock = npcs[i].merchant.item_stock_max[li];
+                                game->npcs[i].merchant.shop_name);
+            for (int li = 0; li < game->npcs[i].merchant.item_count; li++) {
+                int t_idx = game->npcs[i].merchant.item_templates[li];
+                int stock = game->npcs[i].merchant.item_stock[li];
+                int max_stock = game->npcs[i].merchant.item_stock_max[li];
                 if (t_idx >= 0 && t_idx < item_database_size) {
                     send_text_to_client(c->sock, "[DM] [%d] %s (Quantity: %d/%d)", li,
                                         item_database[t_idx].name, stock, max_stock);
@@ -672,47 +679,58 @@ static bool cmd_dm_merchant(Client *c, const char *cmd, NPC *npcs) {
     return true;
 }
 
-static bool cmd_dm_spawn(Client *c, const char *cmd, NPC *npcs) {
-    int v[3] = {0};
-    if (scan_ints(cmd + 9, ' ', 3, v) == 3) {
-        int tid = v[0], tx = v[1], ty = v[2];
-        /*Bounds on x/y: an out-of-map coordinate would write a bogus
-     * position into the NPC and corrupt entity_grid lookups.*/
-        if (tid >= 0 && tid < bestiary_size && tx >= 0 && tx < MAP_WIDTH && ty >= 0 &&
-            ty < MAP_HEIGHT) {
-            for (int i = 0; i < MAX_NPCS; i++) {
-                if (!npcs[i].active) {
-                    npcs[i].entity_id = next_id++;
-                    npcs[i].floor_id = c->floor_id;
-                    npcs[i].x = tx;
-                    npcs[i].y = ty;
-                    npcs[i].spawn_x = tx;
-                    npcs[i].spawn_y = ty;
-                    npcs[i].template_idx = tid;
-                    npcs[i].template = &bestiary_data[tid];
-                    npcs[i].hp = npcs[i].max_hp = npcs[i].template->hp_avg;
-                    ai_attach_behavior(&npcs[i]);
-                    master_world->floors[c->floor_id].entity_grid[ty][tx] = npcs[i].entity_id;
-                    /*Activate only once the template is assigned: npc_set_active
-           * needs the final fields.*/
-                    npc_set_active(&npcs[i], true);
-                    send_text_to_client(c->sock, "[DM] Spawned %s at %d,%d", npcs[i].template->name,
-                                        tx, ty);
-                    return true;
-                }
-            }
-            send_text_to_client(c->sock, "[DM] ERROR: No free NPC slots.");
-        } else {
-            send_text_to_client(c->sock, "[DM] Use: dm_spawn <bestiary_id> <x 0-%d> <y 0-%d>",
-                                MAP_WIDTH - 1, MAP_HEIGHT - 1);
-        }
-        return true;
+/*A free tile of the DM's floor for dm_spawn / dm_place, or NULL after
+ * telling the DM why not.*/
+static Floor *dm_target_tile(Client *c, Game *game, int x, int y) {
+    Floor *fl = &game->world->floors[c->floor_id];
+    if (!tile_free(fl, x, y)) {
+        send_text_to_client(c->sock, "[DM] %d,%d is not a free, walkable tile of this floor.", x,
+                            y);
+        return NULL;
     }
-    return false; /*usage*/
+    return fl;
 }
 
-static bool cmd_dm_goto(Client *c, const char *cmd, NPC *npcs) {
-    (void)npcs;
+static bool cmd_dm_spawn(Client *c, const char *cmd, Game *game) {
+    int v[3] = {0};
+    if (scan_ints(cmd + 9, ' ', 3, v) != 3) {
+        return false; /*usage*/
+    }
+    int tid = v[0], tx = v[1], ty = v[2];
+    if (tid < 0 || tid >= bestiary_size) {
+        send_text_to_client(c->sock, "[DM] Use: dm_spawn <bestiary_id 0-%d> <x> <y>",
+                            bestiary_size - 1);
+        return true;
+    }
+    Floor *fl = dm_target_tile(c, game, tx, ty);
+    if (!fl) {
+        return true;
+    }
+    NPC *n = npc_alloc(game);
+    if (!n) {
+        send_text_to_client(c->sock, "[DM] ERROR: No free NPC slots.");
+        return true;
+    }
+    /*Nothing of the slot's previous tenant (loot, name, effects, timers).*/
+    memset(n, 0, sizeof(*n));
+    n->entity_id = game->next_id++;
+    n->floor_id = c->floor_id;
+    n->x = n->spawn_x = tx;
+    n->y = n->spawn_y = ty;
+    n->template_idx = tid;
+    n->template = &bestiary_data[tid];
+    n->hp = n->max_hp = n->template->hp_avg;
+    ai_attach_behavior(n);
+    fl->entity_grid[ty][tx] = n->entity_id;
+    /*Activate only once the template is assigned: npc_set_active needs the
+     * final fields.*/
+    npc_set_active(game, n, true);
+    send_text_to_client(c->sock, "[DM] Spawned %s at %d,%d", n->template->name, tx, ty);
+    return true;
+}
+
+static bool cmd_dm_goto(Client *c, const char *cmd, Game *game) {
+    (void)game;
     int v[3] = {0};
     if (scan_ints(cmd + 8, ' ', 3, v) == 3) {
         int f = v[0], tx = v[1], ty = v[2];
@@ -722,7 +740,7 @@ static bool cmd_dm_goto(Client *c, const char *cmd, NPC *npcs) {
             /*Keep entity_grid and the other players' views consistent with
        * the teleport.*/
             int old_floor = c->floor_id;
-            Floor *ofl = &master_world->floors[old_floor];
+            Floor *ofl = &game->world->floors[old_floor];
             if (ofl->entity_grid[c->y][c->x] == c->entity_id) {
                 ofl->entity_grid[c->y][c->x] = 0;
             }
@@ -730,13 +748,13 @@ static bool cmd_dm_goto(Client *c, const char *cmd, NPC *npcs) {
             client_track_explored_floor(c);
             c->x = tx;
             c->y = ty;
-            master_world->floors[f].entity_grid[ty][tx] = c->entity_id;
+            game->world->floors[f].entity_grid[ty][tx] = c->entity_id;
             if (old_floor != f) {
-                notify_player_left_floor(c, old_floor);
+                notify_player_left_floor(game, c, old_floor);
             }
             send_text_to_client(c->sock, "[DM] Teleported to Floor %d (%d,%d)", f, tx, ty);
             // Force map refresh
-            send_map_chunk(c->sock, &master_world->floors[f].map, tx, ty, 15);
+            send_map_chunk(c->sock, &game->world->floors[f].map, tx, ty, 15);
             return true;
         }
         send_text_to_client(c->sock,
@@ -747,25 +765,25 @@ static bool cmd_dm_goto(Client *c, const char *cmd, NPC *npcs) {
     return false; /*usage*/
 }
 
-static bool cmd_dm_pdf(Client *c, const char *cmd, NPC *npcs) {
-    (void)npcs;
+static bool cmd_dm_pdf(Client *c, const char *cmd, Game *game) {
+    (void)game;
     int f = 0;
     if (parse_int(cmd + 7, &f, NULL) && f >= 0 && f < MAX_FLOORS) {
-        dm_pdf_map(c, f);
+        dm_pdf_map(game, c, f);
     } else {
         send_text_to_client(c->sock, "[DM] Use: dm_pdf <floor 0-%d>", MAX_FLOORS - 1);
     }
     return true;
 }
 
-static bool cmd_dm_mapfloor(Client *c, const char *cmd, NPC *npcs) {
+static bool cmd_dm_mapfloor(Client *c, const char *cmd, Game *game) {
     (void)cmd;
-    (void)npcs;
-    dm_pdf_map(c, c->floor_id);
+    (void)game;
+    dm_pdf_map(game, c, c->floor_id);
     return true;
 }
 
-static bool cmd_dm_shop(Client *c, const char *cmd, NPC *npcs) {
+static bool cmd_dm_shop(Client *c, const char *cmd, Game *game) {
     int v[2] = {0, 1};
     if (scan_ints(cmd + 8, ' ', 2, v) < 1) {
         return false; /*usage*/
@@ -777,13 +795,13 @@ static bool cmd_dm_shop(Client *c, const char *cmd, NPC *npcs) {
         return true;
     }
     {
-        FloorIter walk = floor_iter(npcs, c->floor_id);
+        FloorIter walk = floor_iter(game, c->floor_id);
         for (int i; (i = floor_iter_next(&walk)) >= 0;) {
-            if (npcs[i].archetype == ARCH_MERCHANT) {
-                if (abs(npcs[i].x - c->x) + abs(npcs[i].y - c->y) <= 5) {
-                    add_item_to_shop(&npcs[i], iid, qty);
+            if (game->npcs[i].archetype == ARCH_MERCHANT) {
+                if (abs(game->npcs[i].x - c->x) + abs(game->npcs[i].y - c->y) <= 5) {
+                    add_item_to_shop(&game->npcs[i], iid, qty);
                     send_text_to_client(c->sock, "[DM] Added item %d (qty %d) to %s", iid, qty,
-                                        npcs[i].merchant.shop_name);
+                                        game->npcs[i].merchant.shop_name);
                     return true;
                 }
             }
@@ -793,41 +811,33 @@ static bool cmd_dm_shop(Client *c, const char *cmd, NPC *npcs) {
     return true;
 }
 
-static bool cmd_dm_place(Client *c, const char *cmd, NPC *npcs) {
+static bool cmd_dm_place(Client *c, const char *cmd, Game *game) {
     int v[3] = {0};
-    if (scan_ints(cmd + 9, ' ', 3, v) == 3) {
-        int iid = v[0], tx = v[1], ty = v[2];
-        /*Bounds: out-of-range x/y would index the map and the
-     * entity_grid out of bounds on the very next sync tick.*/
-        if (iid >= 0 && iid < item_database_size && tx >= 0 && tx < MAP_WIDTH && ty >= 0 &&
-            ty < MAP_HEIGHT) {
-            for (int i = 0; i < MAX_NPCS; i++) {
-                if (!npcs[i].active) {
-                    npcs[i].entity_id = next_id++;
-                    npcs[i].floor_id = c->floor_id;
-                    npcs[i].x = tx;
-                    npcs[i].y = ty;
-                    npcs[i].archetype = ARCH_TREASURE;
-                    npcs[i].template_idx = iid; // Store item ID here for chests
-                    npcs[i].hp = npcs[i].max_hp = 1;
-                    /*Activate after floor_id/archetype are final. The slot's
-           * template is untouched (a reused corpse may keep its own):
-           * npc_set_active applies the same counted/not-counted rule as
-           * floor_stats_rebuild.*/
-                    npc_set_active(&npcs[i], true);
-                    send_text_to_client(c->sock, "[DM] Placed treasure with item %s at %d,%d",
-                                        item_database[iid].name, tx, ty);
-                    return true;
-                }
-            }
-            send_text_to_client(c->sock, "[DM] ERROR: No free NPC slots.");
-        } else {
-            send_text_to_client(c->sock, "[DM] Use: dm_place <item_id 0-%d> <x 0-%d> <y 0-%d>",
-                                item_database_size - 1, MAP_WIDTH - 1, MAP_HEIGHT - 1);
-        }
+    if (scan_ints(cmd + 9, ' ', 3, v) != 3) {
+        return false; /*usage*/
+    }
+    int iid = v[0], tx = v[1], ty = v[2];
+    if (iid < 0 || iid >= item_database_size) {
+        send_text_to_client(c->sock, "[DM] Use: dm_place <item_id 0-%d> <x> <y>",
+                            item_database_size - 1);
         return true;
     }
-    return false; /*usage*/
+    if (!dm_target_tile(c, game, tx, ty)) {
+        return true;
+    }
+    const ItemTemplate *it = &item_database[iid];
+    ItemInstance item;
+    memset(&item, 0, sizeof(item));
+    item.template_idx = iid;
+    item.durability = it->max_durability > 0 ? it->max_durability : 100;
+    item.stack_count = 1;
+    item.is_identified = true;
+    if (!npc_spawn_item(game, c->floor_id, tx, ty, &item)) {
+        send_text_to_client(c->sock, "[DM] ERROR: No free NPC slots.");
+        return true;
+    }
+    send_text_to_client(c->sock, "[DM] Placed %s at %d,%d", it->name, tx, ty);
+    return true;
 }
 
 static const CmdEntry DM_COMMANDS[] = {
@@ -855,9 +865,9 @@ const char *cmd_dm_usage(const char *cmd) {
     return e ? e->usage : NULL;
 }
 
-bool cmd_dm(Client *c, const char *cmd, NPC *npcs) {
+bool cmd_dm(Client *c, const char *cmd, Game *game) {
     if (!c->is_dm) {
         return false;
     }
-    return cmd_table_run(DM_COMMANDS, sizeof(DM_COMMANDS) / sizeof(DM_COMMANDS[0]), c, cmd, npcs);
+    return cmd_table_run(DM_COMMANDS, sizeof(DM_COMMANDS) / sizeof(DM_COMMANDS[0]), c, cmd, game);
 }

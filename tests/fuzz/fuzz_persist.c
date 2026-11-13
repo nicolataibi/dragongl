@@ -89,7 +89,7 @@ static void read_back(int kind) {
         (void)persist_read_flags(g_path, flags, FUZZ_FLAGS, why, sizeof(why));
         break;
     default:
-        (void)persist_read_world(g_path, master_world, why, sizeof(why));
+        (void)persist_read_world(g_path, g_game.world, why, sizeof(why));
         break;
     }
 }

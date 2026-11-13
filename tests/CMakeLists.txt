@@ -55,6 +55,7 @@ add_test(NAME spell_rules COMMAND test_spell_rules)
 # --- spell balance: every damage spell of data/spells.json simulated with
 # --- the game's loader and resolution, against tests/spell_balance.json
 add_executable(spell_balance spell_balance.c ${DG_SRCS}/shared/data_loader.c
+    ${DG_SRCS}/shared/data_items.c
     ${DG_SRCS}/shared/spell_rules.c ${DG_SRCS}/shared/spell_effect.c ${DG_SRCS}/shared/rules.c
     ${DG_SRCS}/shared/cJSON.c ${DG_SRCS}/shared/strnum.c ${DG_SRCS}/shared/binio.c)
 target_link_libraries(spell_balance m)

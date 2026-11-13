@@ -44,6 +44,8 @@ Checks
   data            tools/check_data.py: schema, references, canonical form of data/
   spelling        codespell (.codespellrc) on the game data, the documentation,
                   the man pages, the sources and the tools
+  deps            tools/check_deps.py: the layers of the source tree (which
+                  module may include which) and no cycle among the headers.
   metrics         tools/metrics.py: function and file length, coverage, against
                   the limits of tools/quality_limits.json
   protocol        tools/gen_protocol.py --check: the files generated from
@@ -55,7 +57,8 @@ Checks
   fuzz [SECONDS]  build the libFuzzer targets of tests/fuzz, write their seeds
                   and run each for SECONDS (default 60); crashes are saved
                   in build-quality/fuzz/artifacts/
-  all             format protocol tidy data spelling coverage metrics tsan, then fuzz 30
+  all             format protocol deps tidy data spelling coverage metrics tsan, then
+                  fuzz 30
 
 Options
   -j N            parallel jobs (default: number of CPUs)
@@ -86,9 +89,18 @@ llvm_tool() {
 
 need() { command -v "$1" >/dev/null 2>&1 || die "$1 not found"; }
 
+# Drops the paths that are in the index but no longer in the working tree
+# (a deletion not staged yet).
+existing() {
+    while IFS= read -r f; do
+        [ -e "$ROOT/$f" ] && printf '%s\n' "$f"
+    done
+    return 0
+}
+
 c_sources() {
     git -C "$ROOT" ls-files --cached --others --exclude-standard '*.c' '*.h' |
-        grep -v '^src/shared/cJSON\.'
+        grep -v '^src/shared/cJSON\.' | existing
 }
 
 # configure <dir> <source dir> [cmake args...]
@@ -153,7 +165,7 @@ spelling_files() {
     git -C "$ROOT" ls-files --cached --others --exclude-standard 'data/*.json' '*.md' \
         'man/*' 'src/*.c' 'src/*.h' 'include/*.h' 'tests/*.c' 'tests/*.h' 'tests/*.py' \
         'tools/*.py' 'tools/*.sh' 'protocol/*' 'dragongl.spec' |
-        grep -v -e '^LORE\.md$' -e '^src/shared/cJSON\.' -e '_gen\.'
+        grep -v -e '^LORE\.md$' -e '^src/shared/cJSON\.' -e '_gen\.' | existing
 }
 
 check_spelling() {
@@ -167,6 +179,11 @@ check_spelling() {
 check_protocol() {
     section "generated protocol files"
     python3 "$ROOT/tools/gen_protocol.py" --check
+}
+
+check_deps() {
+    section "deps"
+    python3 "$ROOT/tools/check_deps.py"
 }
 
 check_metrics() {
@@ -203,16 +220,12 @@ check_coverage() {
     # Measured: the server and the shared code (the client is covered by
     # the smoke test, which runs on a GPU-less runner without llvm-cov).
     local -a filter=(-ignore-filename-regex='(cJSON|/tests/|/generated/|/src/client/|/include/)')
-    # main_server.c is built twice (with main() for the server, without it
-    # for the harness): llvm-cov notes the functions that differ; harmless.
-    exec 3>&2 2> >(grep -v 'functions have mismatched data' >&3)
     "$cov" report "${objects[@]}" -instr-profile="$d/all.profdata" "${filter[@]}" \
         >"$d/report.txt"
     "$cov" show "${objects[@]}" -instr-profile="$d/all.profdata" "${filter[@]}" \
         -format=html -output-dir="$d/html" >/dev/null
     "$cov" export "${objects[@]}" -instr-profile="$d/all.profdata" "${filter[@]}" \
         -summary-only >"$d/export.json"
-    exec 2>&3 3>&-
     python3 - "$d/export.json" "$d/summary.json" <<'EOF'
 import json, sys
 totals = json.load(open(sys.argv[1]))["data"][0]["totals"]
@@ -284,8 +297,8 @@ main() {
         fuzz)
             if [[ ${2:-} =~ ^[0-9]+$ ]]; then checks+=("fuzz:$2"); shift; else checks+=(fuzz:60); fi
             ;;
-        all) checks+=(format protocol tidy data spelling coverage metrics tsan fuzz:30) ;;
-        format | format-fix | tidy | data | spelling | metrics | protocol | coverage | tsan)
+        all) checks+=(format protocol deps tidy data spelling coverage metrics tsan fuzz:30) ;;
+        format | format-fix | tidy | data | deps | spelling | metrics | protocol | coverage | tsan)
             checks+=("$1")
             ;;
         *) usage >&2; die "unknown check '$1'" ;;
@@ -303,6 +316,7 @@ main() {
         tidy) check_tidy ;;
         data) check_data ;;
         spelling) check_spelling ;;
+        deps) check_deps ;;
         metrics) check_metrics ;;
         protocol) check_protocol ;;
         coverage) check_coverage ;;

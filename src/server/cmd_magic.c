@@ -42,9 +42,9 @@
  * Show only spells in the known_spells bitfield, grouped together
  * per level with the number of slots remaining.
  * -------------------------------------------------------*/
-bool cmd_spells(Client *c, const char *cmd, NPC *npcs) {
+bool cmd_spells(Client *c, const char *cmd, Game *game) {
     (void)cmd;
-    (void)npcs;
+    (void)game;
     int listed = 0;
     /*Group by level: 0 (cantrip) .. MAX_SPELL_LEVEL*/
     for (int lv = 0; lv <= MAX_SPELL_LEVEL; lv++) {
@@ -128,7 +128,7 @@ static bool has_book_of(const Client *c, const char *spell) {
  * the argument unchanged.*/
 static const char *spell_by_book_index(const Client *c, const char *arg) {
     int bl[2] = {0};
-    if (scan_ints(arg, ' ', 2, bl) != 2) {
+    if (scan_ints(arg, ' ', 2, bl) != 2 || bl[0] < 1 || bl[1] < 0) {
         return arg;
     }
     int b_idx = bl[0] - 1; /*1-based in the backpack listing*/
@@ -144,7 +144,7 @@ static const char *spell_by_book_index(const Client *c, const char *arg) {
 }
 
 //cast <name> or cast <book_idx> <spell_idx>
-bool cmd_cast(Client *c, const char *cmd, NPC *npcs) {
+bool cmd_cast(Client *c, const char *cmd, Game *game) {
     if (rules_has_condition_t(c->effects, c->effect_count, COND_SILENCED)) {
         send_text_to_client(c->sock, "[SYSTEM] You are silenced and cannot cast spells!");
         return true;
@@ -188,15 +188,15 @@ bool cmd_cast(Client *c, const char *cmd, NPC *npcs) {
         return true;
     }
     /*The slot is spent only when the spell goes off.*/
-    if (spell_cast(c, sp, npcs) && slv > 0) {
+    if (spell_cast(c, sp, game) && slv > 0) {
         c->spell_slots[slv]--;
     }
     return true;
 }
 
-bool cmd_pray(Client *c, const char *cmd, NPC *npcs) {
+bool cmd_pray(Client *c, const char *cmd, Game *game) {
     (void)cmd;
-    (void)npcs;
+    (void)game;
     if (c->xp >= 100) {
         c->xp -= 100;
         int heal = c->max_hp / 4;
@@ -204,7 +204,7 @@ bool cmd_pray(Client *c, const char *cmd, NPC *npcs) {
         if (c->hp > c->max_hp) {
             c->hp = c->max_hp;
         }
-        send_detailed_state(c); //Sync HP and XP with the HUD client
+        send_detailed_state(game, c); //Sync HP and XP with the HUD client
         send_text_to_client(
             c->sock, "[SYSTEM] You pray hard, sacrificing 100 XP. Restores %d HP (HP: %d/%d).",
             heal, c->hp, c->max_hp);

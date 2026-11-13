@@ -31,9 +31,9 @@
  * @c: The client sending the command.
  * @cmd: The text command.
  * @npcs: The array of all NPCs on the server.*/
-void handle_text_cmd(Client *c, const char *cmd, NPC *npcs);
+void handle_text_cmd(Client *c, const char *cmd, Game *game);
 
 /* Reap finished DM PDF generators and notify the DM (main loop). */
-void pdf_jobs_poll(void);
+void pdf_jobs_poll(Game *game);
 
 #endif // SERVER_COMMANDS_H

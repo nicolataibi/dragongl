@@ -36,7 +36,7 @@
  * @c: Pointer to the attacking client.
  * @t: Pointer to the target NPC.
  * @npcs: Array of all NPCs (for secondary AOEs).*/
-void perform_attack(Client *c, NPC *t, NPC *npcs);
+void perform_attack(Client *c, NPC *t, Game *game);
 
 /*False (after telling the player) when a condition takes his actions:
  * paralyzed, stunned, unconscious, petrified, frozen, incapacitated.*/
@@ -47,13 +47,13 @@ bool client_can_act(Client *c);
  * <by>", or the melee line when by is NULL), the event progress and the
  * loot; a boss ends its fight. c may be NULL (no one to credit). Returns
  * the XP each member received.*/
-int npc_killed(Client *c, NPC *t, const char *by);
+int npc_killed(Game *game, Client *c, NPC *t, const char *by);
 
 /**
  * perform_attack_npc - Performs an NPC attack on a player.
  * @n: Pointer to the attacking NPC.
  * @c: Pointer to the target client.
  * @npcs: Array of all NPCs.*/
-void perform_attack_npc(NPC *n, Client *c, NPC *npcs);
+void perform_attack_npc(NPC *n, Client *c, Game *game);
 
 #endif /* SERVER_COMBAT_H */

@@ -31,6 +31,9 @@
 #include "spells.h"
 #include "auth.h"
 
+/*The whole state of a running game (game.h).*/
+typedef struct Game Game;
+
 /* Size in uint64_t of the bitfield for known spells.
  * MAX_SPELL_DB_SIZE is defined in spells.h (512).
  * 512 / 64 = 8 words of 64 bits = 64 bytes. */
@@ -182,8 +185,9 @@ typedef struct {
     ActiveEffect effects[MAX_EFFECTS_PER_ENTITY];
     int effect_count;
     // Bargaining system
-    int pending_trade_item_idx;    //Item index (store or backpack)
-    uint64_t pending_trade_price;  //Negotiated price
+    int pending_trade_item_idx;     //Item index (store or backpack)
+    int pending_trade_template_idx; //The item haggled for: the deal is void if the slot holds another
+    uint64_t pending_trade_price;   //Negotiated price
     int pending_trade_merchant_id; //ID of the merchant you trade with (-1 if none)
     bool pending_trade_is_buy;     // true = purchase, false = sale
     int pending_trade_attempts;    //Number of consecutive attempts

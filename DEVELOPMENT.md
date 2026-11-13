@@ -63,21 +63,44 @@ The server abandons monolithic structures in favor of lightweight composition:
 Every floor maintains an `entity_grid` occupancy map. Looking up an entity at coordinates `(x, y)` or running melee collision detection runs in constant time $O(1)$, avoiding full entity-array scans.
 
 ### FloorStats Cache
-NPC lifecycle events (`floor_stats_npc_died()`, `floor_stats_npc_spawned()`) update per-floor counters incrementally. Emergency respawn checks read `g_floor_stats[floor_id]` in $O(1)$ time without traversing dormant floors.
+NPC lifecycle events (`floor_stats_npc_died()`, `floor_stats_npc_spawned()`) update per-floor counters incrementally. Emergency respawn checks read the counters of a floor (`floor_stats_get()`) in $O(1)$ time without traversing dormant floors.
 
 ### NPC lifecycle, floor walks and entity lookups
-- **`npc_set_active()`** (`server_world.c`) is the only place where an NPC becomes alive or dead: it keeps the floor counters and the per-floor index in step. Set the final fields (floor, template, archetype) first, then activate; never write `n->active` by hand.
-- **Floor walk:** `FloorIter it = floor_iter(npcs, f); for (int i; (i = floor_iter_next(&it)) >= 0;)` visits the active NPCs of floor `f`, in slot order, exactly like a scan of all `MAX_NPCS` slots would (NPCs spawned during the walk included), in O(NPCs on the floor). Use it for every per-floor query instead of a full scan.
-- **Entity id → NPC:** `npc_by_entity_id()` answers in O(1) from a map rebuilt every tick (an NPC spawned since then is found by one scan). Entity ids are unique: `next_id` only grows and is saved with the NPCs.
+- **`npc_set_active()`** (`npc_index.c`) is the only place where an NPC becomes alive or dead: it keeps the floor counters and the per-floor index in step. Set the final fields (floor, template, archetype) first, then activate; never write `n->active` by hand.
+- **Floor walk:** `FloorIter it = floor_iter(game, f); for (int i; (i = floor_iter_next(&it)) >= 0;)` visits the active NPCs of floor `f`, in slot order, exactly like a scan of all `MAX_NPCS` slots would (NPCs spawned during the walk included), in O(NPCs on the floor). Use it for every per-floor query instead of a full scan.
+- **Entity id → NPC:** `npc_by_entity_id()` answers in O(1) from a map rebuilt every tick (an NPC spawned since then is found by one scan). Entity ids are unique: `game->next_id` only grows and is saved with the NPCs.
+- **New NPCs:** `npc_alloc()` hands out a slot (one that never held a creature first, a dead monster last) and `npc_spawn_item()` puts an item on the ground; never look for a free slot by hand, the leftovers of its previous tenant (loot, name, timers) would come along.
+
+### The game state: `Game`
+The server has no global game state. `struct Game` (`src/server/game.h`) holds the world, the client and NPC tables, the round counter, the next entity id, the world event, the tombstones, the clouds and the data directory; `main()` creates one with `game_create()` and every function that reads or changes the game takes it as `Game *game` (the tests and the fuzzers own one too, `g_game` in `tests/integration/fixture.c`). What stays `static` inside a module is derived or technical: the per-floor NPC index and the entity map (`npc_index.c`, rebuilt from the NPC table), the connection table, the writer and login queues.
 
 ### Server source layout
-- `main_server.c`: options, start-up, the event loop (`run_server`), message dispatch, logins, traps and tile events, shutdown.
-- `server_move.c`: one step of a player (`MSG_MOVE`): bump into a merchant, loot, a monster or a player, or walk onto the tile.
-- `server_world.c`: the game tick (`update_world`: autosave, global event, player rounds, NPC rounds, density monitor), the floor index and the entity map.
-- Connections: `server_conn.c` owns every socket: TLS handshake, receive buffer, send queue, deferred removal and the refusal slots; `server_tls.c` the certificate and the TLS context; `server_net.c` encodes the messages for a client. The codec itself (`src/shared/wire.c`) is generated from `protocol/messages.json`, and `src/shared/tls_common.c` holds what client and server share (TLS 1.3 context, ALPN, fingerprints). On the client, `client_tls.c` runs the session and the trust decision, `known_servers.c` the trust-on-first-use store.
-- Text commands: `server_commands.c` holds the command table and `handle_text_cmd()`; the handlers live in one file per group: `cmd_character.c` (help, train, stats, rest, save), `cmd_social.c` (party, trade, chat, block list, leaderboard), `cmd_shop.c` (merchants), `cmd_items.c` (inventory, use, get, drop, throw), `cmd_magic.c` (spells, cast), `cmd_world.c` (look, search, disarm, examine, tunnel, doors) and `cmd_dm.c` (the `dm_*` commands and their own table).
+The sources are layered, and `tools/check_deps.py` (`tools/quality.sh deps`, CI) refuses an include that points upward or a cycle among the headers:
 
-A new command is one handler `bool cmd_x(Client *c, const char *cmd, NPC *npcs)` (true when it handled the command) and one row of `COMMANDS[]`: exact names and/or prefixes separated by `|`, and a usage line. Every prefix ends with a space, so it matches the whole word followed by arguments (`"train "` never matches `trainer`); list the bare word among the names when the command also works without arguments. The table is walked in order and the first match whose handler returns true wins, so a prefix row covers every later row it matches (`"c <n>"` is cast, `"c"` alone is close). When no handler accepts the line, the player gets the usage of the row named by the first word, otherwise "Unrecognized command". The `command_table` and `command_words` tests of the harness check all this.
+| Layer | Files | Knows about |
+| --- | --- | --- |
+| shared | `include/`, `src/shared/` | rules, data, map, protocol; nothing of the server or the client |
+| model | `server.h`, `server_entities.h`, `auth.h` | the types of the server |
+| infra | `server_log`, `combat_log`, `persist`, `writer`, `login_worker`, `server_conn`, `server_tls`, `pathfinding` | files, sockets, threads; not the game being played |
+| game | everything else | the simulation |
+| commands | `cmd_*.c`, `server_commands.c` | the text commands of the players |
+| main | `main_server.c`, `server_startup.c`, `server_login.c`, `server_options.c` | the composition of the program |
+
+The client (`src/client/`) is a separate program and includes `shared` only.
+
+- `main_server.c`: `main()`, the event loop (`run_server`), message dispatch, shutdown. `server_options.c` the command line, `server_startup.c` the data directory, the game data and the world (loaded or generated), `server_login.c` connections being accepted and logins being finished.
+- `server_state.c`: `game_create()` / `game_destroy()`.
+- `server_move.c`: one step of a player (`MSG_MOVE`): bump into a merchant, loot, a monster or a player, or walk onto the tile. `server_tiles.c` what the tile does (stairs, doors, entity grid), `server_traps.c` the traps.
+- `server_world.c`: the game tick (`update_world`: autosave, global event, player rounds, NPC rounds, density monitor), `npc_alloc()`. `npc_index.c`: `npc_set_active()`, the floor counters, the per-floor index and the entity map.
+- `server_combat.c` attacks and kills, `server_loot.c` what a monster drops and the artifacts, `server_spawn.c` the population of the city and of the dungeon, `tombstone.c` the remains of a dead character.
+- `player_stats.c` what is computed from a character (totals, armor class, weight, level), `player_store.c` its save file, `inventory.c` finding and removing what it carries.
+- Connections: `server_conn.c` owns every socket: TLS handshake, receive buffer, send queue, deferred removal and the refusal slots; `server_tls.c` the certificate and the TLS context; `server_net.c` encodes the messages for a client. The codec itself (`src/shared/wire.c`) is generated from `protocol/messages.json`, and `src/shared/tls_common.c` holds what client and server share (TLS 1.3 context, ALPN, fingerprints). On the client, `client_tls.c` runs the session and the trust decision, `known_servers.c` the trust-on-first-use store.
+- Text commands: `server_commands.c` holds the command table and `handle_text_cmd()`; the handlers live in one file per group: `cmd_character.c` (help, train, stats, rest, save), `cmd_social.c` (party, trade, chat, block list, leaderboard), `cmd_shop.c` (merchants), `cmd_items.c` (inventory, lore, study, use), `cmd_equip.c` (wear, remove, belt), `cmd_ground.c` (pickup, get, drop, throw), `cmd_magic.c` (spells, cast), `cmd_world.c` (look, search, disarm, examine, doors), `cmd_mine.c` (tunnel) and `cmd_dm.c` (the `dm_*` commands and their own table).
+- Shared code: `map.c` generates a dungeon floor, `map_city.c` the city, `map_traps.c` the traps; `data_loader.c` reads the bestiary and the spells, `data_items.c` the items.
+
+A number typed by a player goes through `src/shared/strnum.c` (`parse_int`, `scan_ints`, `str_to_int`: no undefined behaviour, clamped) and is checked against its range before it indexes anything; a line of a 1-based list (`buy 3`) through `list_index()`.
+
+A new command is one handler `bool cmd_x(Client *c, const char *cmd, Game *game)` (true when it handled the command) and one row of `COMMANDS[]`: exact names and/or prefixes separated by `|`, and a usage line. Every prefix ends with a space, so it matches the whole word followed by arguments (`"train "` never matches `trainer`); list the bare word among the names when the command also works without arguments. The table is walked in order and the first match whose handler returns true wins, so a prefix row covers every later row it matches (`"c <n>"` is cast, `"c"` alone is close). When no handler accepts the line, the player gets the usage of the row named by the first word, otherwise "Unrecognized command". The `command_table` and `command_words` tests of the harness check all this.
 
 ### Spells: data, resolution, balance
 A spell does what the `effect` object of its record in `data/spells.json` says; nothing is read from the description. `data/schema/spells.schema.json` documents every field:
@@ -99,7 +122,7 @@ A spell does what the `effect` object of its record in `data/spells.json` says; 
 ## 4. Threading & Synchronization Model
 
 The server runs the game on one thread (the `epoll` main loop, fixed 200 ms tick) and moves the slow work off it:
-- **Writer thread** (`src/server/writer.c`): saves are encoded in memory by the game loop and written by this thread (write, `fsync`, `rename`). One pending job per file at most: a newer snapshot replaces a queued one. `writer_wait_for(path)` blocks until a file's pending writes are done. Before `writer_start()` and after `writer_stop()` every write is synchronous (startup, shutdown, tests).
+- **Writer thread** (`src/server/writer.c`): saves are encoded in memory by the game loop and written by this thread (write, `fsync`, `rename`). A process killed at any point of that sequence leaves the previous file or the new one, never half of one (`crash_during_save` in the harness kills a child at each point; `test_killed_server_recovers` kills a real server). One pending job per file at most: a newer snapshot replaces a queued one. `writer_wait_for(path)` blocks until a file's pending writes are done. Before `writer_start()` and after `writer_stop()` every write is synchronous (startup, shutdown, tests).
 - **Login worker** (`src/server/login_worker.c`): DM password check, save read and Argon2id verify/hash. `login_begin()` submits a job and marks the slot `login_pending`; the worker signals an `eventfd` and `login_finish()` applies the result on the main loop.
 - **Child processes:** the DM PDF generator is spawned and reaped with `waitpid(WNOHANG)` once per loop pass (`pdf_jobs_poll()`).
 - **Leaderboard:** `top` scans the saves at most once a minute and takes the characters online from memory.
@@ -174,7 +197,8 @@ Every quality gate of CI runs locally with one command; build trees go to `build
 | `protocol` | `tools/gen_protocol.py --check`: the files generated from `protocol/messages.json` (`include/protocol_gen.h`, `include/wire.h`, `src/shared/wire.c`, `tests/test_protocol_conformance.c`, `tests/protocol_vectors.json`, sections 2-3 of `PROTOCOL.md`) are up to date | a generated file differs from what the table gives |
 | `data` | `tools/check_data.py`: `data/schema/*.schema.json` (JSON Schema 2020-12), references resolved by name (book spells, `cast_spell`), unique names, class consistency of books, canonical form (2-space indent, UTF-8) | any error (`tools/check_data.py --fix` rewrites the form) |
 | `spelling` | codespell (`.codespellrc`: the game words it would take for typos) on the game data, the documentation, the man pages, the sources and the tools; `LORE.md` is left out, its catalogue cuts texts mid-word | a known misspelling |
-| `metrics` | `tools/metrics.py`: function and file length, coverage | a value over `tools/quality_limits.json` |
+| `deps` | `tools/check_deps.py`: the layers of the source tree (see *Server source layout*) and the include graph of the headers | an include that points to a higher layer, a cycle |
+| `metrics` | `tools/metrics.py`: function and file length (the server and the shared code also on their own: no function over 120 lines, no file over 1,000), coverage | a value over `tools/quality_limits.json` |
 | `coverage` | unit + integration suites built with `-fprofile-instr-generate -fcoverage-mapping`, every process (servers spawned by the network tests included) writes its profile; `llvm-cov` report of `src/server` + `src/shared` in `build-quality/coverage/` (`report.txt`, `html/`) | line coverage under `coverage_line_percent` |
 | `tsan` | the integration suite under ThreadSanitizer: the in-process harness and the network tests with a TSan server | any report |
 | `fuzz [S]` | the libFuzzer targets of `tests/fuzz` (wire decoders, save-file readers, text commands), S seconds each (default 60), with seeds written by the targets themselves | a crash, leak or timeout; the input goes to `build-quality/fuzz/artifacts/` |
@@ -195,10 +219,10 @@ A fuzz crash is replayed with the target binary: `build-quality/fuzz/build/fuzz_
 
 `.github/workflows/ci.yml` runs on every push and pull request:
 
-* Release builds with clang and gcc and `-Werror`;
+* Release builds with clang and gcc and `-Werror` (`-Wall -Wextra -Wpedantic -Wshadow -Wconversion`);
 * the unit tests (Release and ASan/UBSan), the server integration tests under ASan/UBSan, the client smoke test under ASan/UBSan (Xvfb, lavapipe, Vulkan validation layer);
 * a server-only build without any graphics package, the RPM build with rpmlint in a Fedora container;
-* static analysis: cppcheck and `tools/check_release.py`; clang-tidy; format, game data, spelling and metrics;
+* static analysis: cppcheck and `tools/check_release.py`; clang-tidy; format, game data, spelling, dependencies and metrics;
 * coverage (report uploaded as an artifact and summarized on the run page), ThreadSanitizer, fuzzing 60 s per target.
 
 `.github/workflows/fuzz-nightly.yml` fuzzes each target for 20 minutes every night on a corpus kept between runs; `.github/workflows/codeql.yml` runs GitHub code scanning (security-and-quality) on `main` and weekly.
@@ -206,7 +230,7 @@ A fuzz crash is replayed with the target binary: `build-quality/fuzz/build/fuzz_
 False positives are suppressed where they occur, with the reason: `// cppcheck-suppress <id>` and `// NOLINT(<check>)` / `// NOLINTNEXTLINE(<check>)`. A clang-tidy check that does not fit the code base is disabled in `.clang-tidy`, with a comment that says why.
 
 ### Guidelines for Contributions:
-1. **Warning-Clean Build:** All C code must compile cleanly with `-Wall -Wextra -Wpedantic` using clang and gcc, pass clang-tidy, and be formatted with clang-format (`tools/quality.sh format-fix`).
+1. **Warning-Clean Build:** All C code must compile cleanly with `-Wall -Wextra -Wpedantic -Wshadow -Wconversion` using clang and gcc, pass clang-tidy, and be formatted with clang-format (`tools/quality.sh format-fix`).
 2. **Data Structure Bounds:** Enum-indexed arrays must be sized using `MAX_*` sentinels to guarantee type safety without bitmask overflow.
 3. **Wire and file formats:** a message is changed in one place, its entry in `protocol/messages.json` (fields, ranges, checks, an example), then `tools/gen_protocol.py` regenerates the structs, the codec, the conformance test, the vectors and the message sections of `PROTOCOL.md` (`tools/quality.sh protocol` fails on a stale file). Every wire change increments `version` there, which is also the ALPN protocol `dragongl/<version>`. On-disk formats have their own version numbers in `src/server/persist.h`.
 4. **Function size:** within the limits of `tools/quality_limits.json` (`tools/quality.sh metrics`); split by responsibility (see `update_world`, `check_traps`, the item and spell loaders).

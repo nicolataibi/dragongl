@@ -112,7 +112,6 @@ void world_init(World *world);
 /* Generate one floor: the city on floor 0, a dungeon below, and its traps.
  * Uses rand(): the caller seeds the RNG. */
 void floor_init(Floor *floor, int floor_id);
-void map_dig_room(Map *map, int x, int y, int w, int h);
 void generate_procedural_dungeon(Map *map, int floor_id);
 
 /* Angle in radians of shop slot 0..10 on the ring of floor 0 (map.c,

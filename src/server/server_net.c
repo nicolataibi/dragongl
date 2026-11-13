@@ -23,6 +23,8 @@
 #include "wire.h"
 #include "map.h"
 #include "game.h"
+#include "player.h"
+#include "server_log.h"
 #include <string.h>
 #include <stdio.h>
 #include <stdarg.h>
@@ -136,7 +138,78 @@ void send_map_chunk(int sock, Map *map, int cx, int cy, int size) {
     }
 }
 
-void send_detailed_state(Client *c) {
+/*The bit of each condition in MsgState.status_icons (bit 10: exhausted,
+ * bit 11: a book waits to be studied).*/
+static uint32_t state_status_icons(Client *c) {
+    static const ConditionType k_icons[] = {
+        COND_POISONED, COND_BLINDED,  COND_PARALYZED, COND_STUNNED, COND_UNCONSCIOUS,
+        COND_BURNING,  COND_BLEEDING, COND_PETRIFIED, COND_CURSED,  COND_FROZEN};
+    uint32_t icons = 0;
+    for (unsigned bit = 0; bit < sizeof(k_icons) / sizeof(k_icons[0]); bit++) {
+        if (rules_has_condition_t(c->effects, c->effect_count, k_icons[bit])) {
+            icons |= 1u << bit;
+        }
+    }
+    if (c->exhaustion_level > 0) {
+        icons |= 1u << 10;
+    }
+    if (c->needs_study) {
+        icons |= 1u << 11;
+    }
+    return icons;
+}
+
+/*The name the HUD shows for an equipment slot ("" when empty).*/
+static void slot_name(const ItemInstance *slot, char dest[32]) {
+    dest[0] = '\0';
+    if (slot->template_idx < 0 || slot->template_idx >= item_database_size) {
+        return;
+    }
+    copy_str(dest, slot->is_artifact ? slot->artifact_name : item_database[slot->template_idx].name,
+             32);
+}
+
+static void state_equipment(Client *c, MsgState *s) {
+    slot_name(&c->slot_head, s->eq_head);
+    slot_name(&c->slot_neck, s->eq_neck);
+    slot_name(&c->slot_body, s->eq_body);
+    slot_name(&c->slot_back, s->eq_back);
+    slot_name(&c->slot_hand_r, s->eq_hand_r);
+    slot_name(&c->slot_hand_l, s->eq_hand_l);
+    slot_name(&c->slot_hands, s->eq_hands);
+    slot_name(&c->slot_arm_r, s->eq_arm_r);
+    slot_name(&c->slot_arm_l, s->eq_arm_l);
+    slot_name(&c->slot_feet, s->eq_feet);
+    for (int i = 0; i < 10; i++) {
+        slot_name(&c->slot_rings[i], s->eq_ring[i]);
+    }
+    for (int i = 0; i < 4; i++) {
+        slot_name(&c->belt[i], s->eq_belt[i]);
+    }
+}
+
+/*Weapon and armor names and the attack and damage bonuses of a melee
+ * attack (the formula of perform_attack).*/
+static void state_combat(Client *c, MsgState *s) {
+    const ItemInstance *weapon =
+        (c->slot_hand_r.template_idx != -1) ? &c->slot_hand_r : &c->slot_hand_l;
+    const ItemTemplate *w =
+        (weapon->template_idx != -1) ? &item_database[weapon->template_idx] : NULL;
+    copy_str(s->weapon_name, w ? w->name : "Bare Hands", sizeof(s->weapon_name));
+    copy_str(s->armor_name,
+             c->slot_body.template_idx != -1 ? item_database[c->slot_body.template_idx].name
+                                             : "None",
+             sizeof(s->armor_name));
+    int ts, td, tc, ti, tw, th;
+    get_total_stats(c, &ts, &td, &tc, &ti, &tw, &th);
+    int a_mod = (w && w->damage_dice_sides <= 6) ? rules_get_modifier(td) : rules_get_modifier(ts);
+    s->to_hit = (w ? w->attack_bonus + weapon->to_hit_bonus : 0) + a_mod + (c->level / 2) +
+                rules_event_bonus(c->effects, c->effect_count, EVENT_ON_ATTACK);
+    s->to_dmg = rules_get_modifier(ts) + (w ? weapon->to_dam_bonus : 0) +
+                rules_event_bonus(c->effects, c->effect_count, EVENT_ON_DAMAGE);
+}
+
+void send_detailed_state(Game *game, Client *c) {
     MsgState s;
     memset(&s, 0, sizeof(s));
     s.entity_id = c->entity_id;
@@ -146,8 +219,8 @@ void send_detailed_state(Client *c) {
     s.hp = c->hp;
     s.max_hp = c->max_hp;
     s.floor_id = c->floor_id;
-    get_game_time(&s.game_hour, &s.game_min);
-    s.total_turns = global_total_turns;
+    get_game_time(game, &s.game_hour, &s.game_min);
+    s.total_turns = game->total_turns;
     s.str = c->str;
     s.dex = c->dex;
     s.con = c->con;
@@ -161,124 +234,22 @@ void send_detailed_state(Client *c) {
     s.gold = c->gold;
     s.vision_radius = get_vision_radius(c);
     s.ac = get_player_ac(c);
-    // Weapon name
-    if (c->slot_hand_r.template_idx != -1) {
-        copy_str(s.weapon_name, item_database[c->slot_hand_r.template_idx].name,
-                 sizeof(s.weapon_name));
-    } else if (c->slot_hand_l.template_idx != -1) {
-        copy_str(s.weapon_name, item_database[c->slot_hand_l.template_idx].name,
-                 sizeof(s.weapon_name));
-    } else {
-        copy_str(s.weapon_name, "Bare Hands", sizeof(s.weapon_name));
-    }
-    // Armor name
-    if (c->slot_body.template_idx != -1) {
-        copy_str(s.armor_name, item_database[c->slot_body.template_idx].name, sizeof(s.armor_name));
-    } else {
-        copy_str(s.armor_name, "None", sizeof(s.armor_name));
-    }
-    // Combat bonuses
-    int ts2, td2, tc2, ti2, tw2, th2;
-    get_total_stats(c, &ts2, &td2, &tc2, &ti2, &tw2, &th2);
-    s.to_dmg = rules_get_modifier(ts2);
-    {
-        const ItemTemplate *w2 = NULL;
-        if (c->slot_hand_r.template_idx != -1) {
-            w2 = &item_database[c->slot_hand_r.template_idx];
-        } else if (c->slot_hand_l.template_idx != -1) {
-            w2 = &item_database[c->slot_hand_l.template_idx];
-        }
-        int a_mod =
-            (w2 && w2->damage_dice_sides <= 6) ? rules_get_modifier(td2) : rules_get_modifier(ts2);
-        s.to_hit = (w2 ? w2->attack_bonus : 0) + a_mod + (c->level / 2) +
-                   rules_event_bonus(c->effects, c->effect_count, EVENT_ON_ATTACK);
-    }
-
-    //--- POPULATION OF STATUS ICONS (BITMASK) ---
-    s.status_icons = 0;
-    if (rules_has_condition_t(c->effects, c->effect_count, COND_POISONED)) {
-        s.status_icons |= (1 << 0);
-    }
-    if (rules_has_condition_t(c->effects, c->effect_count, COND_BLINDED)) {
-        s.status_icons |= (1 << 1);
-    }
-    if (rules_has_condition_t(c->effects, c->effect_count, COND_PARALYZED)) {
-        s.status_icons |= (1 << 2);
-    }
-    if (rules_has_condition_t(c->effects, c->effect_count, COND_STUNNED)) {
-        s.status_icons |= (1 << 3);
-    }
-    if (rules_has_condition_t(c->effects, c->effect_count, COND_UNCONSCIOUS)) {
-        s.status_icons |= (1 << 4);
-    }
-    if (rules_has_condition_t(c->effects, c->effect_count, COND_BURNING)) {
-        s.status_icons |= (1 << 5);
-    }
-    if (rules_has_condition_t(c->effects, c->effect_count, COND_BLEEDING)) {
-        s.status_icons |= (1 << 6);
-    }
-    if (rules_has_condition_t(c->effects, c->effect_count, COND_PETRIFIED)) {
-        s.status_icons |= (1 << 7);
-    }
-    if (rules_has_condition_t(c->effects, c->effect_count, COND_CURSED)) {
-        s.status_icons |= (1 << 8);
-    }
-    if (rules_has_condition_t(c->effects, c->effect_count, COND_FROZEN)) {
-        s.status_icons |= (1 << 9);
-    }
-    if (c->exhaustion_level > 0) {
-        s.status_icons |= (1 << 10);
-    }
-    if (c->needs_study) {
-        s.status_icons |= (1 << 11);
-    }
-
+    state_combat(c, &s);
+    s.status_icons = state_status_icons(c);
     s.bosses_defeated = c->bosses_defeated;
     s.hunger_level = c->hunger_level;
     for (int i = 0; i < 10; i++) {
         s.spell_slots[i] = c->spell_slots[i];
         s.spell_slots_max[i] = c->spell_slots_max[i];
     }
-
-/* Slot equipment names */
-#define SLOT_NAME(slot_field, dest)                                                                \
-    do {                                                                                           \
-        if ((slot_field).template_idx >= 0 && (slot_field).template_idx < item_database_size) {    \
-            if ((slot_field).is_artifact)                                                          \
-                copy_str((dest), (slot_field).artifact_name, 32);                                  \
-            else                                                                                   \
-                copy_str((dest), item_database[(slot_field).template_idx].name, 32);               \
-            (dest)[31] = '\0';                                                                     \
-        } else {                                                                                   \
-            (dest)[0] = '\0';                                                                      \
-        }                                                                                          \
-    } while (0)
-
-    SLOT_NAME(c->slot_head, s.eq_head);
-    SLOT_NAME(c->slot_neck, s.eq_neck);
-    SLOT_NAME(c->slot_body, s.eq_body);
-    SLOT_NAME(c->slot_back, s.eq_back);
-    SLOT_NAME(c->slot_hand_r, s.eq_hand_r);
-    SLOT_NAME(c->slot_hand_l, s.eq_hand_l);
-    SLOT_NAME(c->slot_hands, s.eq_hands);
-    SLOT_NAME(c->slot_arm_r, s.eq_arm_r);
-    SLOT_NAME(c->slot_arm_l, s.eq_arm_l);
-    SLOT_NAME(c->slot_feet, s.eq_feet);
-    for (int i = 0; i < 10; i++) {
-        SLOT_NAME(c->slot_rings[i], s.eq_ring[i]);
-    }
-    for (int i = 0; i < 4; i++) {
-        SLOT_NAME(c->belt[i], s.eq_belt[i]);
-    }
-#undef SLOT_NAME
-
+    state_equipment(c, &s);
     if (wire_put_state(tx_frame(), &s)) {
         tx_send(c->sock);
     }
 }
 
-void broadcast_spell_vfx(int sx, int sy, int tx, int ty, int vfx_type, float r, float g, float b,
-                         int floor_id) {
+void broadcast_spell_vfx(Game *game, int sx, int sy, int tx, int ty, int vfx_type, float r, float g,
+                         float b, int floor_id) {
     MsgSpellVFX msg;
     msg.start_x = sx;
     msg.start_y = sy;
@@ -292,9 +263,9 @@ void broadcast_spell_vfx(int sx, int sy, int tx, int ty, int vfx_type, float r, 
         return;
     }
     for (int i = 0; i < MAX_CLIENTS; i++) {
-        if (g_clients[i].active && g_clients[i].authenticated &&
-            g_clients[i].floor_id == floor_id) {
-            tx_send(g_clients[i].sock);
+        if (game->clients[i].active && game->clients[i].authenticated &&
+            game->clients[i].floor_id == floor_id) {
+            tx_send(game->clients[i].sock);
         }
     }
 }
@@ -409,130 +380,108 @@ static void flush_entity_batch(int sock, const EntityUpdateRec *recs, int count)
     }
 }
 
-void broadcast_nearby_entities(Client *c, NPC *npcs) {
-    /*Send only entities the player can plausibly perceive:
-  * Euclidean distance <= vision radius + margin.
-  * Before the distance filter the function shipped EVERY active NPC on
-  * the floor (~300+ MsgState at ~1.5 KB each, ~450 KB per single step on
-  * a full floor) even though the client discards anything beyond its own
-  * view. On top of the filter, entities are sent INCREMENTALLY: a full
-  * MsgState only the first time the client sees them, then 12-byte
-  * compact records batched in a single MSG_ENTITY_UPDATE. The scan walks
-  * the per-floor index (O(entities on the floor)) with a full-scan
-  * fallback for an overflowed floor.*/
-    int vr = get_vision_radius(c);
-    int radius = vr + 32;
+static bool within(int x, int y, const Client *c, int r2) {
+    int ddx = x - c->x;
+    int ddy = y - c->y;
+    return ddx * ddx + ddy * ddy <= r2;
+}
+
+/*NPCs in range: a full state the first time the client sees one, then
+ * 12-byte records batched in MSG_ENTITY_UPDATE.*/
+static void send_nearby_npcs(Client *c, int c_idx, Game *game, int r2) {
+    EntityUpdateRec recs[BATCH_ENTITY_CAP];
+    int nrec = 0;
+    FloorIter walk = floor_iter(game, c->floor_id);
+    for (int i; (i = floor_iter_next(&walk)) >= 0;) {
+        const NPC *n = &game->npcs[i];
+        if (!within(n->x, n->y, c, r2)) {
+            continue;
+        }
+        if (!client_seen_test(c_idx, i)) {
+            send_full_npc_state(c->sock, n);
+            client_seen_set(c_idx, i);
+            continue;
+        }
+        if (nrec >= BATCH_ENTITY_CAP) {
+            flush_entity_batch(c->sock, recs, nrec);
+            nrec = 0;
+        }
+        recs[nrec].entity_id = n->entity_id;
+        recs[nrec].x = n->x;
+        recs[nrec].y = n->y;
+        recs[nrec].hp = n->hp; /*int32_t: boss HP can exceed int16*/
+        nrec++;
+    }
+    if (nrec > 0) {
+        flush_entity_batch(c->sock, recs, nrec);
+    }
+}
+
+/*Tombstones in range, as entities with the negative id -(slot + 1).*/
+static void send_nearby_tombstones(Game *game, Client *c, int r2) {
+    for (int i = 0; i < MAX_TOMBSTONES; i++) {
+        const Tombstone *t = &game->tombstones[i];
+        if (!t->active || t->floor_id != c->floor_id || !within(t->x, t->y, c, r2)) {
+            continue;
+        }
+        MsgState s;
+        memset(&s, 0, sizeof(s));
+        s.entity_id = -(i + 1);
+        s.x = t->x;
+        s.y = t->y;
+        s.hp = 1;
+        s.max_hp = 1;
+        s.floor_id = t->floor_id;
+        s.shop_spec = SHOP_SPEC_NONE;
+        s.is_tombstone = 1;
+        if (wire_put_state(tx_frame(), &s)) {
+            tx_send(c->sock);
+        }
+    }
+}
+
+/*Other players in range: the same compact path as the NPCs.*/
+static void send_nearby_players(Game *game, Client *c, int c_idx, int r2) {
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        const Client *o = &game->clients[i];
+        if (!o->active || !o->authenticated || o->floor_id != c->floor_id ||
+            o->entity_id == c->entity_id || !within(o->x, o->y, c, r2)) {
+            continue;
+        }
+        if (!player_seen_test(c_idx, i)) {
+            send_full_player_state(c->sock, o);
+            player_seen_set(c_idx, i);
+        } else {
+            EntityUpdateRec pr = {o->entity_id, o->x, o->y, o->hp};
+            flush_entity_batch(c->sock, &pr, 1);
+        }
+    }
+}
+
+/*Sends the player what he can plausibly perceive: the entities within
+ * the vision radius + 32 tiles (48 to 64). Sending the whole floor cost
+ * ~450 KB per step on a full one, and the client discards what is beyond
+ * its view anyway.*/
+void broadcast_nearby_entities(Client *c, Game *game) {
+    int radius = get_vision_radius(c) + 32;
     if (radius < 48) {
         radius = 48;
     }
     if (radius > 64) {
         radius = 64;
     }
-    int r2 = radius * radius;
-
-    int c_idx = (int)(c - g_clients); /*c is always a g_clients member*/
+    int c_idx = (int)(c - game->clients); /*c is always a member of game->clients*/
     if (c_idx < 0 || c_idx >= MAX_CLIENTS) {
         return;
     }
     client_seen_maybe_reset(c_idx, c->floor_id);
-
-    EntityUpdateRec recs[BATCH_ENTITY_CAP];
-    int nrec = 0;
-
-    /*--- Active NPCs ---*/
-    FloorIter walk = floor_iter(npcs, c->floor_id);
-    for (int i; (i = floor_iter_next(&walk)) >= 0;) {
-        const NPC *n = &npcs[i];
-        int ddx = n->x - c->x;
-        int ddy = n->y - c->y;
-        if (ddx * ddx + ddy * ddy > r2) {
-            continue;
-        }
-        if (!client_seen_test(c_idx, i)) {
-            send_full_npc_state(c->sock, n);
-            client_seen_set(c_idx, i);
-        } else {
-            if (nrec >= BATCH_ENTITY_CAP) {
-                flush_entity_batch(c->sock, recs, nrec);
-                nrec = 0;
-            }
-            recs[nrec].entity_id = n->entity_id;
-            recs[nrec].x = n->x;
-            recs[nrec].y = n->y;
-            recs[nrec].hp = n->hp; /*int32_t: boss HP can exceed int16*/
-            nrec++;
-        }
-    }
-    if (nrec > 0) {
-        flush_entity_batch(c->sock, recs, nrec);
-    }
-
-    /*--- Active Tombstones on the same plane ---*/
-    for (int i = 0; i < MAX_TOMBSTONES; i++) {
-        if (!g_tombstones[i].active) {
-            continue;
-        }
-        if (g_tombstones[i].floor_id != c->floor_id) {
-            continue;
-        }
-        {
-            int ddx = g_tombstones[i].x - c->x;
-            int ddy = g_tombstones[i].y - c->y;
-            if (ddx * ddx + ddy * ddy > r2) {
-                continue;
-            }
-        }
-        int tomb_id = -(i + 1);
-        MsgState s;
-        memset(&s, 0, sizeof(s));
-        s.entity_id = tomb_id;
-        s.x = g_tombstones[i].x;
-        s.y = g_tombstones[i].y;
-        s.hp = 1;
-        s.max_hp = 1;
-        s.floor_id = g_tombstones[i].floor_id;
-        s.is_merchant = 0;
-        s.shop_spec = SHOP_SPEC_NONE;
-        s.is_tombstone = 1;
-        s.is_player = 0;
-        if (wire_put_state(tx_frame(), &s)) {
-            tx_send(c->sock);
-        }
-    }
-
-    /*--- Active Players on the same plane: the same compact path as NPCs
-   * (full state only the first time the client sees them, then 12-byte
-   * records; player IDs are positive and unique like NPC IDs) ---*/
-    for (int i = 0; i < MAX_CLIENTS; i++) {
-        if (g_clients[i].active && g_clients[i].authenticated &&
-            g_clients[i].floor_id == c->floor_id) {
-            if (g_clients[i].entity_id == c->entity_id) {
-                continue;
-            }
-            {
-                int ddx = g_clients[i].x - c->x;
-                int ddy = g_clients[i].y - c->y;
-                if (ddx * ddx + ddy * ddy > r2) {
-                    continue;
-                }
-            }
-            if (!player_seen_test(c_idx, i)) {
-                send_full_player_state(c->sock, &g_clients[i]);
-                player_seen_set(c_idx, i);
-            } else {
-                EntityUpdateRec pr;
-                pr.entity_id = g_clients[i].entity_id;
-                pr.x = g_clients[i].x;
-                pr.y = g_clients[i].y;
-                pr.hp = g_clients[i].hp;
-                flush_entity_batch(c->sock, &pr, 1);
-            }
-        }
-    }
+    send_nearby_npcs(c, c_idx, game, radius * radius);
+    send_nearby_tombstones(game, c, radius * radius);
+    send_nearby_players(game, c, c_idx, radius * radius);
 }
 
-void notify_player_left_floor(Client *c, int old_floor) {
-    int c_idx = (int)(c - g_clients); /*c is always a g_clients member*/
+void notify_player_left_floor(Game *game, Client *c, int old_floor) {
+    int c_idx = (int)(c - game->clients); /*c is always a member of game->clients*/
     MsgState s;
     memset(&s, 0, sizeof(s));
     s.entity_id = c->entity_id;
@@ -550,12 +499,12 @@ void notify_player_left_floor(Client *c, int old_floor) {
         return;
     }
     for (int i = 0; i < MAX_CLIENTS; i++) {
-        if (g_clients[i].active && g_clients[i].authenticated &&
-            g_clients[i].floor_id == old_floor) {
-            if (g_clients[i].entity_id == c->entity_id) {
+        if (game->clients[i].active && game->clients[i].authenticated &&
+            game->clients[i].floor_id == old_floor) {
+            if (game->clients[i].entity_id == c->entity_id) {
                 continue;
             }
-            tx_send(g_clients[i].sock);
+            tx_send(game->clients[i].sock);
             /*The receiver just lost this entity (hp<=0 removal): clear the
        * "seen" bit so the NEXT time the two players share a floor the
        * state is sent in FULL. A compact update for an id the client
@@ -568,8 +517,8 @@ void notify_player_left_floor(Client *c, int old_floor) {
     }
 }
 
-void broadcast_player_state(Client *c) {
-    int c_idx = (int)(c - g_clients); /*c is always a g_clients member*/
+void broadcast_player_state(Game *game, Client *c) {
+    int c_idx = (int)(c - game->clients); /*c is always a member of game->clients*/
     if (c_idx < 0 || c_idx >= MAX_CLIENTS) {
         return;
     }
@@ -583,25 +532,25 @@ void broadcast_player_state(Client *c) {
     rec.hp = c->hp;
 
     for (int i = 0; i < MAX_CLIENTS; i++) {
-        if (!g_clients[i].active || !g_clients[i].authenticated) {
+        if (!game->clients[i].active || !game->clients[i].authenticated) {
             continue;
         }
-        if (g_clients[i].floor_id != c->floor_id) {
+        if (game->clients[i].floor_id != c->floor_id) {
             continue;
         }
-        if (g_clients[i].entity_id == c->entity_id) {
+        if (game->clients[i].entity_id == c->entity_id) {
             continue;
         }
         /*Stale bitmap (the receiver moved since its last full scan):
      * reset it so EVERYTHING — NPCs and players — is re-sent in full.*/
-        client_seen_maybe_reset(i, g_clients[i].floor_id);
+        client_seen_maybe_reset(i, game->clients[i].floor_id);
         if (!player_seen_test(i, c_idx)) {
             /*First time this client sees this player: full state (identity:
        * username, is_player, hp/max_hp, ...).*/
-            send_full_player_state(g_clients[i].sock, c);
+            send_full_player_state(game->clients[i].sock, c);
             player_seen_set(i, c_idx);
         } else {
-            flush_entity_batch(g_clients[i].sock, &rec, 1);
+            flush_entity_batch(game->clients[i].sock, &rec, 1);
         }
     }
 }

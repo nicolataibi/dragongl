@@ -1,3 +1,98 @@
+* Sat Nov 14 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.14.01
+- SERVER: no global game state. struct Game (src/server/game.h) holds the
+  world, the client and NPC tables, the round counter, the next entity
+  id, the world event, the tombstones, the clouds and the data directory;
+  main() creates one (game_create) and every function that reads or
+  changes the game takes it as "Game *game", in place of the NPC table
+  that 200 functions passed along and of 13 global variables. Command
+  handlers are bool cmd_x(Client *c, const char *cmd, Game *game). The
+  tests and the fuzzers own their Game. Module-private caches derived
+  from it (the per-floor NPC index, the entity map) stay in npc_index.c.
+- SERVER: main_server.c goes from 3,396 lines to 466: main(), the event
+  loop, the message dispatch and the shutdown. New modules: server_state.c,
+  server_startup.c, server_login.c, server_log.c, server_tiles.c,
+  server_traps.c, server_loot.c, player_stats.c, player_store.c,
+  npc_index.c, inventory.c, cmd_equip.c, cmd_ground.c, cmd_mine.c; in the
+  shared code map_city.c, map_traps.c and data_items.c. The dead
+  include/game.h and src/shared/game.c are gone. The harness and the
+  fuzzers link every server module but main_server.c: -DDRAGONGL_NO_MAIN
+  is gone.
+- CODE: no function of the server and of the shared code is longer than
+  120 lines (there were 27) and no file longer than 1,000 lines (there
+  were 5): the long functions were split into named steps and tables
+  (loot, look, disarm, mining, study, use, wear, throw, shops, login,
+  player and NPC rounds, dungeon population, tombstones, attacks, state
+  and entity messages, A*, city and trap generation, item loading).
+  tools/quality_limits.json holds both at 0 for the server; the client
+  keeps its ratchet (7 functions over 120 lines, render_vk.c and
+  vk_init.c over 1,000) until its own phase.
+- BUILD: -Wshadow and -Wconversion join the warning flags of every
+  target; the code is clean with clang and gcc under -Werror. The sign
+  conversions they found are explicit and checked (gold added from a
+  loot, data file sizes, table sizes).
+- TOOLS: tools/check_deps.py (tools/quality.sh deps, CI): the sources are
+  layered (shared, model, infra, game, commands, main; the client sees
+  the shared code only) and an include that points to a higher layer, or
+  a cycle among the headers, fails the check. The log, the writer, the
+  login worker and the connections no longer include the game headers.
+- TOOLS: quality.sh and metrics.py skip a file that is deleted but still
+  in the git index (a patch applied and not staged yet).
+- TESTS: crash during a save. The harness kills a child process at each
+  of the six points of the atomic write (temporary file created, header,
+  half of the payload, written, synced, renamed): the file on disk is
+  always the previous save or the new one, the temporary file is removed
+  at the next start, the next save works. The hook is compiled only with
+  -DDRAGONGL_FAULT_INJECTION (the harness). test_killed_server_recovers
+  sends SIGKILL to a real server while the saves of the characters that
+  just left are written, three times, and logs in again.
+- TESTS: every text command that reads a number (27 commands) with 13
+  values nobody types (0, negative, INT_MIN, INT_MAX and beyond, 20
+  digits, exponents, hex, empty), also under ASan/UBSan; shops, cursed
+  equipment, merchant restock, boss floors, the DM spawn and place
+  commands, the edge of the map (8 harness tests, 37 in all).
+  Line coverage of the server and the shared code goes from 54% to 62%;
+  the ratchet is at 61%.
+- FIX: haggling could be turned into unlimited gold: a discount on the
+  purchase and a premium on the sale of the same item crossed. The
+  purchase never costs less than 80% of the price and the sale never
+  pays more than 75%, whatever the dice say.
+- FIX: a haggled price was kept for the backpack slot, not for the item:
+  moving another item into the slot sold it at that price.
+- FIX: "sell" worked anywhere in the dungeon, with no merchant.
+- FIX: merchants never got their stock back: their restock timer was
+  read as the respawn timer of a dead monster.
+- FIX: floor 20 was solid rock, with no room and no stairs: the dungeon
+  ended at floor 19. An existing world keeps that floor until it is
+  generated again (dragongl-reset-world).
+- FIX: wearing an item over a cursed one replaced it; wearing from the
+  belt with a full backpack lost the replaced item.
+- FIX: the outermost ring of the map could be dug with "tunnel".
+- FIX: a thrown item hit merchants and allies. A creature it kills is a
+  kill like any other (party experience, loot, boss and event rules).
+- FIX: dm_place created a chest that could hand out the loot left in its
+  slot by a previous creature (a duplicated item); it now puts that item
+  on the ground. dm_spawn and dm_place refuse a wall, an occupied tile
+  and the edge of the map, and take their slot from npc_alloc() like
+  every other spawn (a monster no longer inherits the name, the gold and
+  the timers of the slot).
+- FIX: dm_spawn_boss, dm_boss and dm_merchant accepted floors outside
+  the dungeon (out-of-bounds floor; integer overflow on INT_MAX).
+- FIX: "browse" and "cast <book> <spell>" with INT_MIN overflowed a
+  signed integer; a list number typed by a player goes through
+  list_index().
+- FIX: pathfind_astar() accepted more steps than its path buffer holds.
+- FIX: the server clock is CLOCK_MONOTONIC: an adjustment of the wall
+  clock no longer stalls the game or makes it run the missed rounds.
+- GAMEPLAY: conditions and effects of a character also expire in town
+  (light and hunger still only in the dungeon). Poison and bleeding cost
+  a monster 1 HP a round, fire 2, and a monster they kill is a kill like
+  any other. A second dose of a potion refreshes its effect instead of
+  stacking. The HUD attack and damage bonuses include the weapon and the
+  active buffs. Digging tools are found by their English names only.
+- DOCS: DEVELOPMENT.md: the Game structure, the layers and the module
+  map, npc_alloc(), numeric arguments, the deps check; BUILD.md: flags
+  and harness.
+
 * Thu Nov 12 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.12.01
 - DOCS: LORE.md: added scene illustrations for every narrative paragraph
   of Chapter 1 (Floor 0 sanctuary, characters, descent to Floor 1).

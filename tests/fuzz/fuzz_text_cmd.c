@@ -108,15 +108,15 @@ int LLVMFuzzerInitialize(int *argc, char ***argv) {
 
     srand(1);
     for (int f = 0; f < FUZZ_FLOORS; f++) {
-        floor_init(&master_world->floors[f], f);
+        floor_init(&g_game.world->floors[f], f);
     }
-    next_id = 1;
-    spawn_city_merchants(g_npcs, &next_id);
-    spawn_magic_shops(g_npcs, &next_id);
-    spawn_martial_archive(g_npcs, &next_id);
-    g_next_id = next_id;
+    g_game.next_id = 1;
+    spawn_city_merchants(&g_game);
+    spawn_magic_shops(&g_game);
+    spawn_martial_archive(&g_game);
+    g_next_id = g_game.next_id;
     for (int i = 0; i < MAX_NPCS; i++) {
-        if (g_npcs[i].active || g_npcs[i].respawn_timer >= 0) {
+        if (g_game.npcs[i].active || g_game.npcs[i].respawn_timer >= 0) {
             g_city_slots = i + 1;
         }
     }
@@ -125,10 +125,10 @@ int LLVMFuzzerInitialize(int *argc, char ***argv) {
     if (!g_floors || !g_city_npcs) {
         exit(1);
     }
-    memcpy(g_floors, master_world->floors, sizeof(Floor) * FUZZ_FLOORS);
-    memcpy(g_city_npcs, g_npcs, sizeof(NPC) * (size_t)g_city_slots);
-    floor_index_rebuild(g_npcs);
-    floor_stats_rebuild(g_npcs);
+    memcpy(g_floors, g_game.world->floors, sizeof(Floor) * FUZZ_FLOORS);
+    memcpy(g_city_npcs, g_game.npcs, sizeof(NPC) * (size_t)g_city_slots);
+    floor_index_rebuild(&g_game);
+    floor_stats_rebuild(&g_game);
     return 0;
 }
 
@@ -149,17 +149,17 @@ static void restore_player(void) {
 /* Back to the world of LLVMFuzzerInitialize: floors, NPCs, ids. Floors
  * 2 and deeper were never generated and only change through the DM. */
 static void restore_world(void) {
-    memcpy(master_world->floors, g_floors, sizeof(Floor) * FUZZ_FLOORS);
-    memcpy(g_npcs, g_city_npcs, sizeof(NPC) * (size_t)g_city_slots);
+    memcpy(g_game.world->floors, g_floors, sizeof(Floor) * FUZZ_FLOORS);
+    memcpy(g_game.npcs, g_city_npcs, sizeof(NPC) * (size_t)g_city_slots);
     for (int i = g_city_slots; i < MAX_NPCS; i++) {
-        if (g_npcs[i].active || g_npcs[i].respawn_timer >= 0) {
-            memset(&g_npcs[i], 0, sizeof(g_npcs[i]));
-            g_npcs[i].respawn_timer = -1;
+        if (g_game.npcs[i].active || g_game.npcs[i].respawn_timer >= 0) {
+            memset(&g_game.npcs[i], 0, sizeof(g_game.npcs[i]));
+            g_game.npcs[i].respawn_timer = -1;
         }
     }
-    next_id = g_next_id;
-    floor_index_rebuild(g_npcs);
-    floor_stats_rebuild(g_npcs);
+    g_game.next_id = g_next_id;
+    floor_index_rebuild(&g_game);
+    floor_stats_rebuild(&g_game);
 }
 
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
@@ -178,7 +178,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     Client *c = &g_test_clients[0];
     c->is_dm = strncmp(tc.cmd, "dm_", 3) == 0;
     srand(1);
-    handle_text_cmd(c, tc.cmd, g_npcs);
+    handle_text_cmd(c, tc.cmd, &g_game);
     fx_drain(0);
     return 0;
 }

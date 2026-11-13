@@ -43,6 +43,9 @@
 #include "bestiary.h"
 #include "spell_cast.h"
 #include "spell_rules.h"
+#include "player.h"
+#include "server_log.h"
+#include "server_tiles.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -142,7 +145,7 @@ static int spell_terrain_stamp(Floor *floor, int cx, int cy, int radius, VoxelTy
     return changed;
 }
 
-void spell_router_terrain(Client *c, const SpellTemplate *sp, int x, int y) {
+void spell_router_terrain(Game *game, Client *c, const SpellTemplate *sp, int x, int y) {
     static const struct {
         VoxelType voxel;
         const char *what;
@@ -152,11 +155,11 @@ void spell_router_terrain(Client *c, const SpellTemplate *sp, int x, int y) {
         [SPELL_TERRAIN_MUD] = {VOXEL_MUD, "are swallowed by the mud"},
     };
     SpellTerrain t = sp->effect.terrain;
-    if (t <= SPELL_TERRAIN_NONE || t > SPELL_TERRAIN_MUD || !master_world || c->floor_id < 0 ||
+    if (t <= SPELL_TERRAIN_NONE || t > SPELL_TERRAIN_MUD || !game->world || c->floor_id < 0 ||
         c->floor_id >= MAX_FLOORS) {
         return;
     }
-    Floor *floor = &master_world->floors[c->floor_id];
+    Floor *floor = &game->world->floors[c->floor_id];
     int radius = sp->effect.radius > 0 ? sp->effect.radius : 2;
     int changed = spell_terrain_stamp(floor, x, y, radius, k_terrain[t].voxel, true);
     /*The caster's cell always stays passable.*/
@@ -178,23 +181,11 @@ void spell_router_terrain(Client *c, const SpellTemplate *sp, int x, int y) {
  * ==========================================================================*/
 
 /**
- * find_free_npc_slot — Searches for a free slot in the global NPC array.
- * Returns the pointer to the first NPC with active == false, or NULL.*/
-static NPC *find_free_npc_slot(NPC *npcs) {
-    for (int i = 0; i < MAX_NPCS; i++) {
-        if (!npcs[i].active) {
-            return &npcs[i];
-        }
-    }
-    return NULL;
-}
-
-/**
  * find_spawn_cell — Searches for a free VOXEL_FLOOR cell adjacent to the caster.
  *Try the 8 cardinal + diagonal directions, then expand the radius.
  * Returns true and sets *out_x, *out_y if found.*/
-static bool find_spawn_cell(Client *c, int *out_x, int *out_y) {
-    Floor *floor = &master_world->floors[c->floor_id];
+static bool find_spawn_cell(Game *game, Client *c, int *out_x, int *out_y) {
+    Floor *floor = &game->world->floors[c->floor_id];
 
     static const int dx[] = {0, 1, 0, -1, 1, -1, 1, -1};
     static const int dy[] = {-1, 0, 1, 0, -1, 1, 1, -1};
@@ -245,9 +236,9 @@ static bool find_spawn_cell(Client *c, int *out_x, int *out_y) {
  * -------------------------------------------------------------------------*/
 static bool handle_summon_elemental(SpellContext *ctx) {
     Client *c = ctx->caster;
-    NPC *npcs = ctx->npcs;
+    Game *game = ctx->game;
 
-    NPC *slot = find_free_npc_slot(npcs);
+    NPC *slot = npc_alloc(game);
     if (!slot) {
         send_text_to_client(c->sock,
                             "[MAGIC] The ethereal plane is overcrowded: summoning failed!");
@@ -257,13 +248,13 @@ static bool handle_summon_elemental(SpellContext *ctx) {
     int sx = 0;
     int sy = 0;
 
-    if (!find_spawn_cell(c, &sx, &sy)) {
+    if (!find_spawn_cell(game, c, &sx, &sy)) {
         send_text_to_client(c->sock, "[MAGIC] No free space to summon the elemental!");
         return true;
     }
 
     /*Choose the elemental type based on the voxel under the caster*/
-    Floor *floor = &master_world->floors[c->floor_id];
+    Floor *floor = &game->world->floors[c->floor_id];
     VoxelType under = floor->map.data[0][c->y][c->x];
 
     const char *elem_name = "Earth Elemental";
@@ -294,10 +285,10 @@ static bool handle_summon_elemental(SpellContext *ctx) {
 
     /* Initialize the summoned NPC */
     memset(slot, 0, sizeof(NPC));
-    slot->entity_id = next_id++;
+    slot->entity_id = game->next_id++;
     /*Through npc_set_active: the slot was just zeroed (template==NULL), so
      * the floor counters skip it, like floor_stats_rebuild does.*/
-    npc_set_active(slot, true);
+    npc_set_active(game, slot, true);
     slot->archetype = ARCH_MELEE;
     slot->template = NULL;
     slot->template_idx = -1;
@@ -343,27 +334,27 @@ static bool handle_summon_elemental(SpellContext *ctx) {
  * -------------------------------------------------------------------------*/
 static bool handle_animate_dead(SpellContext *ctx) {
     Client *c = ctx->caster;
-    NPC *npcs = ctx->npcs;
+    Game *game = ctx->game;
 
     /*Search for a nearby corpse (NPC not active with valid template)*/
     NPC *corpse = NULL;
     int min_d = 8; /*maximum summon range*/
 
     for (int i = 0; i < MAX_NPCS; i++) {
-        if (npcs[i].active) {
+        if (game->npcs[i].active) {
             continue;
         }
-        if (npcs[i].template == NULL) {
+        if (game->npcs[i].template == NULL) {
             continue;
         }
-        if (npcs[i].floor_id != c->floor_id) {
+        if (game->npcs[i].floor_id != c->floor_id) {
             continue;
         }
 
-        int d = abs(npcs[i].x - c->x) + abs(npcs[i].y - c->y);
+        int d = abs(game->npcs[i].x - c->x) + abs(game->npcs[i].y - c->y);
         if (d < min_d) {
             min_d = d;
-            corpse = &npcs[i];
+            corpse = &game->npcs[i];
         }
     }
 
@@ -375,7 +366,7 @@ static bool handle_animate_dead(SpellContext *ctx) {
 
     /*Reactivate the corpse as an undead ally (it has a template, so
      * npc_set_active also counts it on the floor)*/
-    npc_set_active(corpse, true);
+    npc_set_active(game, corpse, true);
     corpse->hp = corpse->max_hp / 2; /* revives with half HP */
     corpse->xp_reward = 0;
     corpse->gold_drop = 0;
@@ -385,7 +376,7 @@ static bool handle_animate_dead(SpellContext *ctx) {
     snprintf(corpse->custom_name, sizeof(corpse->custom_name), "[SUMMONED] Skeleton of %s",
              original);
 
-    Floor *floor = &master_world->floors[c->floor_id];
+    Floor *floor = &game->world->floors[c->floor_id];
     floor->entity_grid[corpse->y][corpse->x] = corpse->entity_id;
 
     send_text_to_client(c->sock, "[MAGIC] Animate Dead: The bones of the %s rise at your command!",
@@ -484,8 +475,9 @@ static bool handle_dominate_monster(SpellContext *ctx) {
  * For now implemented as "Teleport random" (basic version).
  * -------------------------------------------------------------------------*/
 static bool handle_teleport(SpellContext *ctx) {
+    Game *game = ctx->game;
     Client *c = ctx->caster;
-    Floor *floor = &master_world->floors[c->floor_id];
+    Floor *floor = &game->world->floors[c->floor_id];
 
     /* Collect available free cells */
     int free_xs[256];
@@ -578,8 +570,9 @@ static bool handle_invisibility(SpellContext *ctx) {
  *random direction. Safe: it doesn't end up inside the walls.
  * -------------------------------------------------------------------------*/
 static bool handle_blink(SpellContext *ctx) {
+    Game *game = ctx->game;
     Client *c = ctx->caster;
-    Floor *floor = &master_world->floors[c->floor_id];
+    Floor *floor = &game->world->floors[c->floor_id];
 
     int blink_dist = 5 + rules_roll_dice(1, 6); /* 5-10 cells */
 
@@ -710,8 +703,9 @@ static bool transit_find_dungeon_entry(Floor *fl, int *ox, int *oy) {
  * Pact Passage, Arcane Transit).
  * -------------------------------------------------------------------------*/
 static bool handle_class_transit(SpellContext *ctx) {
+    Game *game = ctx->game;
     Client *c = ctx->caster;
-    if (!c || !master_world) {
+    if (!c || !game->world) {
         return true;
     }
 
@@ -734,7 +728,7 @@ static bool handle_class_transit(SpellContext *ctx) {
         target_floor = 0;
     }
 
-    Floor *fl = &master_world->floors[target_floor];
+    Floor *fl = &game->world->floors[target_floor];
 
     /*--- Find a safe landing tile ---*/
     int lx = -1, ly = -1;
@@ -754,7 +748,7 @@ static bool handle_class_transit(SpellContext *ctx) {
     }
 
     /*--- Perform the transit ---*/
-    master_world->floors[c->floor_id].entity_grid[c->y][c->x] = 0;
+    game->world->floors[c->floor_id].entity_grid[c->y][c->x] = 0;
     int old_floor = c->floor_id;
     int old_x = c->x, old_y = c->y;
 
@@ -766,8 +760,8 @@ static bool handle_class_transit(SpellContext *ctx) {
 
     /*The player changed floor: remove him from the clients still on the
     * old floor (hp<=0 message) and announce him to the new floor.*/
-    notify_player_left_floor(c, old_floor);
-    broadcast_player_state(c);
+    notify_player_left_floor(game, c, old_floor);
+    broadcast_player_state(game, c);
 
     if (target_floor > old_floor) {
         send_text_to_client(c->sock,
@@ -784,9 +778,9 @@ static bool handle_class_transit(SpellContext *ctx) {
                         old_y, c->floor_id, c->x, c->y);
 
     /*--- Sync the client with the new floor ---*/
-    send_detailed_state(c);
+    send_detailed_state(game, c);
     send_map_chunk(c->sock, &fl->map, c->x, c->y, INITIAL_VIEW_RADIUS);
-    broadcast_nearby_entities(c, g_npcs);
+    broadcast_nearby_entities(c, game);
     save_player_data(c);
 
     server_log("MAGIC", "%s used %s: floor %d -> %d (%d,%d).", c->username, ctx->sp->name,

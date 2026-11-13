@@ -174,24 +174,10 @@ static AStarNode *open_pop(void) {
 
 /* ─────────────────────────── Public API ──────────────────────────────── */
 
-int pathfind_astar(const Map *map, int sx, int sy, int tx, int ty, PathNode *out_path,
-                   int max_steps) {
-    /* Input validation */
-    if (!map || !out_path || max_steps <= 0) {
-        return 0;
-    }
-    if (sx < 0 || sx >= MAP_WIDTH || sy < 0 || sy >= MAP_HEIGHT) {
-        return 0;
-    }
-    if (tx < 0 || tx >= MAP_WIDTH || ty < 0 || ty >= MAP_HEIGHT) {
-        return 0;
-    }
-    if (sx == tx && sy == ty) {
-        return 0;
-    }
-
-    /*Stamp-based reset, O(1) per query instead of clearing 2.9 MB: a node
-     * is "open"/"closed" for THIS query iff its stamp equals g_query_id.*/
+/*Starts a query: stamp-based reset (O(1) instead of clearing 2.9 MB: a
+ * node is open or closed for this query iff its stamp equals g_query_id)
+ * and the start node in the heap.*/
+static void astar_begin(int sx, int sy, int tx, int ty) {
     g_query_id++;
     if (g_query_id == 0) { /*uint32 overflow: wipe the stamps once*/
         for (int i = 0; i < MAP_HEIGHT * MAP_WIDTH; i++) {
@@ -201,8 +187,6 @@ int pathfind_astar(const Map *map, int sx, int sy, int tx, int ty, PathNode *out
         g_query_id = 1;
     }
     heap_count = 0;
-
-    /*Starting node*/
     AStarNode *start = &grid[sy][sx];
     start->x = sx;
     start->y = sy;
@@ -213,91 +197,84 @@ int pathfind_astar(const Map *map, int sx, int sy, int tx, int ty, PathNode *out
     start->heap_pos = -1;
     start->open_stamp = g_query_id;
     open_push(start);
+}
 
-    /*Directions: up, down, left, right*/
-    const int dx[4] = {0, 0, -1, 1};
-    const int dy[4] = {-1, 1, 0, 0};
+/*The path from the start to the node, start first. 0 if it does not fit
+ * in max_steps: a truncated path would not begin at the source, and the
+ * caller taking its second node would teleport the entity; "no path" makes
+ * it fall back to a safe single step.*/
+static int astar_path(const AStarNode *node, int sx, int sy, PathNode *out_path, int max_steps) {
+    int path_len = 0;
+    PathNode reverse[MAX_ASTAR_PATH];
+    while (node->parent_x >= 0 && path_len < max_steps) {
+        reverse[path_len].x = node->x;
+        reverse[path_len].y = node->y;
+        path_len++;
+        node = &grid[node->parent_y][node->parent_x];
+    }
+    if (path_len >= max_steps) {
+        return 0;
+    }
+    reverse[path_len].x = sx;
+    reverse[path_len].y = sy;
+    path_len++;
+    for (int i = 0; i < path_len; i++) {
+        out_path[i] = reverse[path_len - 1 - i];
+    }
+    return path_len;
+}
 
+/*Relaxes the neighbor (nx, ny) of current.*/
+static void astar_visit(const Map *map, const AStarNode *current, int nx, int ny, int tx, int ty) {
+    if (!tile_is_walkable(map, nx, ny)) {
+        return;
+    }
+    AStarNode *neighbor = &grid[ny][nx];
+    if (neighbor->closed_stamp == g_query_id) {
+        return;
+    }
+    int tentative_g = current->g + 1;
+    bool in_open = (neighbor->open_stamp == g_query_id);
+    if (in_open && tentative_g >= neighbor->g) {
+        return;
+    }
+    neighbor->x = nx;
+    neighbor->y = ny;
+    neighbor->g = tentative_g;
+    neighbor->f = tentative_g + heuristic(nx, ny, tx, ty);
+    neighbor->parent_x = current->x;
+    neighbor->parent_y = current->y;
+    if (in_open) {
+        open_decrease_key(neighbor); /*f decreased: restore the heap order*/
+    } else {
+        /*A full queue leaves the node unqueued: it is retried if it is
+         * evaluated again with a better g.*/
+        open_push(neighbor);
+    }
+}
+
+int pathfind_astar(const Map *map, int sx, int sy, int tx, int ty, PathNode *out_path,
+                   int max_steps) {
+    if (!map || !out_path || max_steps <= 0 || max_steps > MAX_ASTAR_PATH) {
+        return 0;
+    }
+    if (sx < 0 || sx >= MAP_WIDTH || sy < 0 || sy >= MAP_HEIGHT || tx < 0 || tx >= MAP_WIDTH ||
+        ty < 0 || ty >= MAP_HEIGHT || (sx == tx && sy == ty)) {
+        return 0;
+    }
+    astar_begin(sx, sy, tx, ty);
+    static const int dx[4] = {0, 0, -1, 1};
+    static const int dy[4] = {-1, 1, 0, 0};
     while (heap_count > 0) {
         AStarNode *current = open_pop();
         current->open_stamp = 0;
         current->closed_stamp = g_query_id;
-
-        int cx = current->x;
-        int cy = current->y;
-
-        /*Found? Let's reconstruct the path*/
-        if (cx == tx && cy == ty) {
-            /*Backward reconstruction*/
-            int path_len = 0;
-            PathNode reverse[MAX_ASTAR_PATH];
-            AStarNode *node = current;
-
-            while (node->parent_x >= 0 && path_len < max_steps) {
-                reverse[path_len].x = node->x;
-                reverse[path_len].y = node->y;
-                path_len++;
-                node = &grid[node->parent_y][node->parent_x];
-            }
-            /*I add the starting node. If the buffer is full the true path
-             * has more nodes than it can hold: return "no path" so the
-             * caller falls back to a SAFE single step. A truncated path
-             * would not start at the source, and using its path[1] would
-             * teleport the entity.*/
-            if (path_len >= max_steps) {
-                return 0;
-            }
-            reverse[path_len].x = sx;
-            reverse[path_len].y = sy;
-            path_len++;
-
-            /*I reverse in out_path (start → end)*/
-            int total = path_len < max_steps ? path_len : max_steps;
-            for (int i = 0; i < total; i++) {
-                out_path[i] = reverse[total - 1 - i];
-            }
-            return total;
+        if (current->x == tx && current->y == ty) {
+            return astar_path(current, sx, sy, out_path, max_steps);
         }
-
-        /*We expand the neighbors (4 directions)*/
         for (int d = 0; d < 4; d++) {
-            int nx = cx + dx[d];
-            int ny = cy + dy[d];
-
-            if (!tile_is_walkable(map, nx, ny)) {
-                continue;
-            }
-
-            AStarNode *neighbor = &grid[ny][nx];
-            if (neighbor->closed_stamp == g_query_id) {
-                continue;
-            }
-
-            int tentative_g = current->g + 1;
-            bool in_open = (neighbor->open_stamp == g_query_id);
-
-            if (!in_open || tentative_g < neighbor->g) {
-                neighbor->x = nx;
-                neighbor->y = ny;
-                neighbor->g = tentative_g;
-                neighbor->f = tentative_g + heuristic(nx, ny, tx, ty);
-                neighbor->parent_x = cx;
-                neighbor->parent_y = cy;
-
-                if (!in_open) {
-                    if (!open_push(neighbor)) {
-                        /*Queue full right now: it will be retried if the
-                         * neighbor is re-evaluated with a better g.*/
-                        continue;
-                    }
-                } else {
-                    /*f decreased: restore the heap order (decrease-key)*/
-                    open_decrease_key(neighbor);
-                }
-            }
+            astar_visit(map, current, current->x + dx[d], current->y + dy[d], tx, ty);
         }
     }
-
-    /*No paths found*/
-    return 0;
+    return 0; /*no path*/
 }

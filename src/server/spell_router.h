@@ -41,7 +41,7 @@
 typedef struct {
     Client *caster;          /*The client casting the spell*/
     const SpellTemplate *sp; /*Current spell template*/
-    NPC *npcs;               /*Global array of NPCs*/
+    Game *game;              /*The game the spell is cast in*/
     NPC *target;             /* Single target found (can be NULL) */
 } SpellContext;
 
@@ -59,6 +59,6 @@ bool spell_router_dispatch(SpellContext *ctx);
 
 /*Stamps the spell's terrain (wall, ice, mud) around (x, y), radius the
  * effect's radius (2 if it has none). The caster's cell stays free.*/
-void spell_router_terrain(Client *c, const SpellTemplate *sp, int x, int y);
+void spell_router_terrain(Game *game, Client *c, const SpellTemplate *sp, int x, int y);
 
 #endif /* SPELL_ROUTER_H */

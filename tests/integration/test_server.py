@@ -115,6 +115,13 @@ class ServerProcess:
             self._log.close()
         self.check_sanitizers()
 
+    def kill(self):
+        """SIGKILL: no shutdown save, no cleanup."""
+        self.proc.kill()
+        self.proc.wait()
+        if not self._log.closed:
+            self._log.close()
+
     def check_sanitizers(self):
         with open(self.log_path, errors="replace") as f:
             f.seek(self._log_start)
@@ -355,6 +362,29 @@ class ServerTest(unittest.TestCase):
         self.restart_server()
         again = self.player("walker")
         self.assertEqual(again.position, here)
+
+    def test_killed_server_recovers(self):
+        """SIGKILL while the saves of the characters that just left are
+        being written: the next start finds a readable world and readable
+        saves (the previous ones or the new ones, never half of one)."""
+        names = ["kill%d" % i for i in range(4)]
+        for attempt in range(3):
+            players = [self.player(name) for name in names]
+            for p in players:
+                p.close()
+            self.clients = []
+            time.sleep(0.01 * attempt)
+            self.server.kill()
+            self.server = ServerProcess(self.workdir, free_port())
+            self.server.wait_ready(timeout=300)
+            log = self.server_log_text()
+            for bad in ("unreadable", "checksum mismatch", "New world generated"):
+                self.assertNotIn(bad, log, "after kill %d" % attempt)
+            leftovers = [n for n in os.listdir(self.state("saves")) if n.endswith(".tmp")]
+            self.assertEqual(leftovers, [], "temporary files not removed at start")
+        for name in names:
+            self.player(name)
+        self.assert_server_alive()
 
     # --- credentials (phase 3) -------------------------------------------------
     def test_server_refuses_to_start_without_a_password(self):

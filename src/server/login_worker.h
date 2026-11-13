@@ -92,4 +92,7 @@ void login_job_free(LoginJob *job);
 /* The worker's part, also usable synchronously (tests). */
 void login_job_run(LoginJob *job);
 
+/*The log line of a refused login.*/
+void log_login_outcome(const LoginJob *job);
+
 #endif

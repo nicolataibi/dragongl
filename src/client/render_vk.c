@@ -697,30 +697,30 @@ static void render_vk_hud(VkVertex *v, uint32_t *c, uint32_t max_v, float sw, fl
      * AR COMPASS (3D -> 2D Projection)
      * ============================================================= */
     {
-        float sx, sy;
+        float cx, cy;
         bool vis;
         // North (Z = -3)
-        project_point(mvp, px, 0.5f, pz - 3.0f, sw, sh, &sx, &sy, &vis);
+        project_point(mvp, px, 0.5f, pz - 3.0f, sw, sh, &cx, &cy, &vis);
         if (vis) {
-            draw_text_vk(v, c, max_v, sx - 4.0f, sy - 4.0f, "N", 1.0f, 1.0f, 0.2f, 0.2f);
+            draw_text_vk(v, c, max_v, cx - 4.0f, cy - 4.0f, "N", 1.0f, 1.0f, 0.2f, 0.2f);
         }
 
         // South (Z = 3)
-        project_point(mvp, px, 0.5f, pz + 3.0f, sw, sh, &sx, &sy, &vis);
+        project_point(mvp, px, 0.5f, pz + 3.0f, sw, sh, &cx, &cy, &vis);
         if (vis) {
-            draw_text_vk(v, c, max_v, sx - 4.0f, sy - 4.0f, "S", 1.0f, 0.8f, 0.8f, 0.8f);
+            draw_text_vk(v, c, max_v, cx - 4.0f, cy - 4.0f, "S", 1.0f, 0.8f, 0.8f, 0.8f);
         }
 
         // East (X = 3)
-        project_point(mvp, px + 3.0f, 0.5f, pz, sw, sh, &sx, &sy, &vis);
+        project_point(mvp, px + 3.0f, 0.5f, pz, sw, sh, &cx, &cy, &vis);
         if (vis) {
-            draw_text_vk(v, c, max_v, sx - 4.0f, sy - 4.0f, "E", 1.0f, 0.8f, 0.8f, 0.8f);
+            draw_text_vk(v, c, max_v, cx - 4.0f, cy - 4.0f, "E", 1.0f, 0.8f, 0.8f, 0.8f);
         }
 
         // West (X = -3)
-        project_point(mvp, px - 3.0f, 0.5f, pz, sw, sh, &sx, &sy, &vis);
+        project_point(mvp, px - 3.0f, 0.5f, pz, sw, sh, &cx, &cy, &vis);
         if (vis) {
-            draw_text_vk(v, c, max_v, sx - 4.0f, sy - 4.0f, "W", 1.0f, 0.8f, 0.8f, 0.8f);
+            draw_text_vk(v, c, max_v, cx - 4.0f, cy - 4.0f, "W", 1.0f, 0.8f, 0.8f, 0.8f);
         }
     }
 
@@ -1206,7 +1206,7 @@ static void update_gpd_buffers(VkState *s, float dt, FrameSnapshot *snap) {
                 y1 = MAP_HEIGHT - 1;
             }
             count = 0;
-            uint32_t map_capacity_needed = (uint32_t)((x1 - x0 + 1) * (y1 - y0 + 1) * 2u);
+            uint32_t map_capacity_needed = (uint32_t)((x1 - x0 + 1) * (y1 - y0 + 1)) * 2u;
             if (!ensure_map_gpd_capacity(map_capacity_needed)) {
                 fprintf(stderr, "[VK] Map GPD cache allocation failed\n");
                 s_map_gpd_count = 0;

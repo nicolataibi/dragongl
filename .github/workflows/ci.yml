@@ -223,6 +223,10 @@ jobs:
       - name: Spelling
         run: tools/quality.sh spelling
 
+      # Layers of the source tree and include cycles (tools/check_deps.py).
+      - name: Dependencies
+        run: tools/quality.sh deps
+
       # Function and file length against tools/quality_limits.json.
       - name: Metrics
         run: tools/quality.sh metrics

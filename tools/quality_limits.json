@@ -1,7 +1,9 @@
 {
-  "coverage_line_percent": 54.0,
-  "function_lines_max": 305,
-  "functions_over_120": 34,
-  "file_lines_max": 3396,
-  "files_over_1000": 7
+  "coverage_line_percent": 61.0,
+  "function_lines_max": 294,
+  "functions_over_120": 7,
+  "file_lines_max": 1700,
+  "files_over_1000": 2,
+  "server_functions_over_120": 0,
+  "server_files_over_1000": 0
 }

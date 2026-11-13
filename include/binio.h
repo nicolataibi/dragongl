@@ -108,6 +108,22 @@ bool br_done(const BinReader *r);
 bool binfile_write_atomic(const char *path, uint32_t magic, uint16_t version,
                           const BinWriter *payload);
 
+#ifdef DRAGONGL_FAULT_INJECTION
+/* Test builds only (tests/integration): the process dies, as if killed,
+ * when binfile_write_atomic() reaches this point of its sequence. */
+typedef enum {
+    BINFILE_CRASH_NONE = 0,
+    BINFILE_CRASH_TMP_CREATED,  /* <path>.tmp exists and is empty */
+    BINFILE_CRASH_HEADER,       /* header written, no payload */
+    BINFILE_CRASH_HALF_PAYLOAD, /* header and half of the payload */
+    BINFILE_CRASH_WRITTEN,      /* everything written, before fsync */
+    BINFILE_CRASH_SYNCED,       /* fsync done, before the rename */
+    BINFILE_CRASH_RENAMED,      /* renamed, before the directory fsync */
+    BINFILE_CRASH_POINTS
+} BinFileCrashPoint;
+extern BinFileCrashPoint binfile_crash_point;
+#endif
+
 typedef enum {
     BINFILE_OK = 1,
     BINFILE_MISSING = 0, /* the file does not exist */

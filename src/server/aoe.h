@@ -44,7 +44,7 @@ bool aoe_contains(const AoeArea *a, int x, int y);
 
 /*The voxel chemistry of a damage type over the area: fire melts ice and
  * burns wood, cold freezes water, acid eats doors, force breaks walls.*/
-void aoe_terraform(const AoeArea *a, int floor_id, DamageType type);
+void aoe_terraform(Game *game, const AoeArea *a, int floor_id, DamageType type);
 
 /*The line the caster sees when the area spell goes off.*/
 void aoe_announce(const Client *caster, const SpellTemplate *sp);
@@ -63,14 +63,12 @@ typedef struct {
     char owner[32];     /*caster's username: kills by the cloud credit him*/
 } PersistentCloud;
 
-extern PersistentCloud g_clouds[MAX_CLOUDS];
-
-void aoe_init_clouds(void);
+void aoe_init_clouds(Game *game);
 /*A new cloud of sp at (cx, cy); false when all MAX_CLOUDS are in use.*/
-bool aoe_spawn_cloud(const SpellTemplate *sp, const SpellCaster *caster, const char *owner,
-                     int floor_id, int cx, int cy);
+bool aoe_spawn_cloud(Game *game, const SpellTemplate *sp, const SpellCaster *caster,
+                     const char *owner, int floor_id, int cx, int cy);
 /*One round of every cloud: its effect on the NPCs inside, then the
  * countdown.*/
-void aoe_update_clouds(NPC *npcs, Client *clients, int client_count);
+void aoe_update_clouds(Game *game, Client *clients, int client_count);
 
 #endif /* AOE_H */

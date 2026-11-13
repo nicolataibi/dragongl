@@ -418,7 +418,7 @@ int main(int argc, char **argv) {
         * weight, social status) are local - the server never uses them.
         * The rolled STR/DEX/CON/INT/WIS/CHA arrive in-game as a
         * [CHARACTER] message right after the welcome.*/
-        srand(time(NULL));
+        srand((unsigned int)time(NULL));
         final_age = rules_roll_dice(3, 6) + 15;
         final_height = rules_roll_dice(4, 10) + 140;
         final_weight = rules_roll_dice(4, 10) + 50;

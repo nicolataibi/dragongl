@@ -30,6 +30,8 @@
 #include "server_cmd.h"
 #include "persist.h"
 #include "server_internal.h"
+#include "player.h"
+#include "server_log.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -118,7 +120,7 @@ static void leaderboard_rescan(void) {
     g_board_ok = true;
 }
 
-static void show_leaderboard(Client *c) {
+static void show_leaderboard(Game *game, Client *c) {
     time_t now = time(NULL);
     if (g_board_scanned == 0 || now - g_board_scanned >= LEADERBOARD_RESCAN_S ||
         now < g_board_scanned) {
@@ -134,7 +136,7 @@ static void show_leaderboard(Client *c) {
     memcpy(entries, g_board, sizeof(LeaderboardEntry) * (size_t)n);
     /*Characters in play: their live values replace the (older) saved ones.*/
     for (int i = 0; i < MAX_CLIENTS; i++) {
-        const Client *p = &g_clients[i];
+        const Client *p = &game->clients[i];
         if (!p->active || !p->authenticated || p->is_dm) {
             continue;
         }
@@ -177,14 +179,14 @@ static void show_leaderboard(Client *c) {
 
 /*Find a player online by username (case-insensitive).
 *Returns NULL if absent or unauthenticated.*/
-static Client *find_online_player(const char *name) {
+static Client *find_online_player(Game *game, const char *name) {
     if (!name || name[0] == '\0') {
         return NULL;
     }
     for (int i = 0; i < MAX_CLIENTS; i++) {
-        if (g_clients[i].active && g_clients[i].authenticated &&
-            strcasecmp(g_clients[i].username, name) == 0) {
-            return &g_clients[i];
+        if (game->clients[i].active && game->clients[i].authenticated &&
+            strcasecmp(game->clients[i].username, name) == 0) {
+            return &game->clients[i];
         }
     }
     return NULL;
@@ -299,42 +301,43 @@ static void trade_execute(Client *c, Client *t) {
 }
 
 //top, leaderboard — Shows player rankings
-bool cmd_top(Client *c, const char *cmd, NPC *npcs) {
+bool cmd_top(Client *c, const char *cmd, Game *game) {
     (void)cmd;
-    (void)npcs;
-    show_leaderboard(c);
+    (void)game;
+    show_leaderboard(game, c);
     return true;
 }
 
 //--- GLOBAL EVENT --- displays the current event
-bool cmd_event(Client *c, const char *cmd, NPC *npcs) {
+bool cmd_event(Client *c, const char *cmd, Game *game) {
     (void)cmd;
-    (void)npcs;
-    if (active_event_type == 0) {
+    (void)game;
+    if (game->event.type == 0) {
         send_text_to_client(c->sock, "[EVENT] No global events active at the moment.");
     } else {
-        int mins_left = (event_time_left * 200) / 60000;
-        int secs_left = ((event_time_left * 200) % 60000) / 1000;
-        send_text_to_client(c->sock, "[GLOBAL EVENT] Invasion of Plane %d!", event_floor_id);
-        send_text_to_client(c->sock, "  Goal: kill %d Skeletons — Progress: %d/%d", event_goal,
-                            event_progress, event_goal);
+        int mins_left = (game->event.time_left * 200) / 60000;
+        int secs_left = ((game->event.time_left * 200) % 60000) / 1000;
+        send_text_to_client(c->sock, "[GLOBAL EVENT] Invasion of Plane %d!", game->event.floor_id);
+        send_text_to_client(c->sock, "  Goal: kill %d Skeletons — Progress: %d/%d",
+                            game->event.goal, game->event.progress, game->event.goal);
         send_text_to_client(c->sock, "  Time left: %d min %d sec", mins_left, secs_left);
     }
     return true;
 }
 
 //--- PARTY SYSTEM ---
-bool cmd_invite(Client *c, const char *cmd, NPC *npcs) {
-    (void)npcs;
+bool cmd_invite(Client *c, const char *cmd, Game *game) {
+    (void)game;
     char target_name[32];
     strncpy(target_name, cmd + 7, 31);
     target_name[31] = '\0';
     bool found = false;
     for (int i = 0; i < MAX_CLIENTS; i++) {
-        if (g_clients[i].active && g_clients[i].authenticated &&
-            strcmp(g_clients[i].username, target_name) == 0) {
-            copy_str(g_clients[i].pending_invite, c->username, sizeof(g_clients[i].pending_invite));
-            send_text_to_client(g_clients[i].sock,
+        if (game->clients[i].active && game->clients[i].authenticated &&
+            strcmp(game->clients[i].username, target_name) == 0) {
+            copy_str(game->clients[i].pending_invite, c->username,
+                     sizeof(game->clients[i].pending_invite));
+            send_text_to_client(game->clients[i].sock,
                                 "[PARTY] %s has invited you to his party! Type 'join' to accept.",
                                 c->username);
             send_text_to_client(c->sock, "[PARTY] Invitation sent to %s.", target_name);
@@ -348,9 +351,9 @@ bool cmd_invite(Client *c, const char *cmd, NPC *npcs) {
     return true;
 }
 
-bool cmd_join(Client *c, const char *cmd, NPC *npcs) {
+bool cmd_join(Client *c, const char *cmd, Game *game) {
     (void)cmd;
-    (void)npcs;
+    (void)game;
     if (strlen(c->pending_invite) == 0) {
         send_text_to_client(c->sock, "[PARTY] No pending invitations.");
         return true;
@@ -364,19 +367,21 @@ bool cmd_join(Client *c, const char *cmd, NPC *npcs) {
     }
     bool leader_online = false;
     for (int i = 0; i < MAX_CLIENTS; i++) {
-        if (g_clients[i].active && g_clients[i].authenticated &&
-            strcmp(g_clients[i].username, c->pending_invite) == 0) {
+        if (game->clients[i].active && game->clients[i].authenticated &&
+            strcmp(game->clients[i].username, c->pending_invite) == 0) {
             leader_online = true;
             // Set the leader of the person who invited us as our leader
-            if (strlen(g_clients[i].party_leader) > 0) {
-                copy_str(c->party_leader, g_clients[i].party_leader, sizeof(c->party_leader));
+            if (strlen(game->clients[i].party_leader) > 0) {
+                copy_str(c->party_leader, game->clients[i].party_leader, sizeof(c->party_leader));
             } else {
                 //They didn't have a party, so they become the leader
-                strncpy(g_clients[i].party_leader, g_clients[i].username, 31);
-                strncpy(c->party_leader, g_clients[i].username, 31);
+                copy_str(game->clients[i].party_leader, game->clients[i].username,
+                         sizeof(game->clients[i].party_leader));
+                copy_str(c->party_leader, game->clients[i].username, sizeof(c->party_leader));
             }
             send_text_to_client(c->sock, "[PARTY] You have joined %s' party!", c->party_leader);
-            send_text_to_client(g_clients[i].sock, "[PARTY] %s has joined the party!", c->username);
+            send_text_to_client(game->clients[i].sock, "[PARTY] %s has joined the party!",
+                                c->username);
             c->pending_invite[0] = '\0';
             break;
         }
@@ -388,9 +393,9 @@ bool cmd_join(Client *c, const char *cmd, NPC *npcs) {
     return true;
 }
 
-bool cmd_leave(Client *c, const char *cmd, NPC *npcs) {
+bool cmd_leave(Client *c, const char *cmd, Game *game) {
     (void)cmd;
-    (void)npcs;
+    (void)game;
     if (strlen(c->party_leader) == 0) {
         send_text_to_client(c->sock, "[PARTY] You are not in any party.");
         return true;
@@ -399,19 +404,21 @@ bool cmd_leave(Client *c, const char *cmd, NPC *npcs) {
     // If the leader leaves, the party is dissolved
     if (strcmp(c->party_leader, c->username) == 0) {
         for (int i = 0; i < MAX_CLIENTS; i++) {
-            if (g_clients[i].active && strcmp(g_clients[i].party_leader, c->username) == 0 &&
-                strcmp(g_clients[i].username, c->username) != 0) {
-                send_text_to_client(g_clients[i].sock,
+            if (game->clients[i].active &&
+                strcmp(game->clients[i].party_leader, c->username) == 0 &&
+                strcmp(game->clients[i].username, c->username) != 0) {
+                send_text_to_client(game->clients[i].sock,
                                     "[PARTY] The leader has disbanded the party.");
-                g_clients[i].party_leader[0] = '\0';
+                game->clients[i].party_leader[0] = '\0';
             }
         }
     } else {
         // Notify others that they left
         for (int i = 0; i < MAX_CLIENTS; i++) {
-            if (g_clients[i].active && strcmp(g_clients[i].party_leader, c->party_leader) == 0 &&
-                strcmp(g_clients[i].username, c->username) != 0) {
-                send_text_to_client(g_clients[i].sock, "[PARTY] %s has left the party.",
+            if (game->clients[i].active &&
+                strcmp(game->clients[i].party_leader, c->party_leader) == 0 &&
+                strcmp(game->clients[i].username, c->username) != 0) {
+                send_text_to_client(game->clients[i].sock, "[PARTY] %s has left the party.",
                                     c->username);
             }
         }
@@ -420,9 +427,9 @@ bool cmd_leave(Client *c, const char *cmd, NPC *npcs) {
     return true;
 }
 
-bool cmd_party(Client *c, const char *cmd, NPC *npcs) {
+bool cmd_party(Client *c, const char *cmd, Game *game) {
     (void)cmd;
-    (void)npcs;
+    (void)game;
     if (strlen(c->party_leader) == 0) {
         send_text_to_client(
             c->sock, "[PARTY] You are not in any party. Create one by inviting: invite <name>");
@@ -430,17 +437,19 @@ bool cmd_party(Client *c, const char *cmd, NPC *npcs) {
     }
     send_text_to_client(c->sock, "=== PARTY MEMBERS (Leaders: %s) ===", c->party_leader);
     for (int i = 0; i < MAX_CLIENTS; i++) {
-        if (g_clients[i].active && strcmp(g_clients[i].party_leader, c->party_leader) == 0) {
-            send_text_to_client(c->sock, "- %s (Lvl %d, %d/%d HP)", g_clients[i].username,
-                                g_clients[i].level, g_clients[i].hp, g_clients[i].max_hp);
+        if (game->clients[i].active &&
+            strcmp(game->clients[i].party_leader, c->party_leader) == 0) {
+            send_text_to_client(c->sock, "- %s (Lvl %d, %d/%d HP)", game->clients[i].username,
+                                game->clients[i].level, game->clients[i].hp,
+                                game->clients[i].max_hp);
         }
     }
     return true;
 }
 
 // --- TRADE SYSTEM P2P ---
-bool cmd_trade(Client *c, const char *cmd, NPC *npcs) {
-    (void)npcs;
+bool cmd_trade(Client *c, const char *cmd, Game *game) {
+    (void)game;
     char target_name[32];
     strncpy(target_name, cmd + 6, 31);
     target_name[31] = '\0';
@@ -452,7 +461,7 @@ bool cmd_trade(Client *c, const char *cmd, NPC *npcs) {
 
     bool found = false;
     for (int i = 0; i < MAX_CLIENTS; i++) {
-        Client *t = &g_clients[i];
+        Client *t = &game->clients[i];
         if (t->active && t->authenticated && strcmp(t->username, target_name) == 0) {
             if (abs(t->x - c->x) > 2 || abs(t->y - c->y) > 2 || t->floor_id != c->floor_id) {
                 send_text_to_client(c->sock, "[TRADE] %s is too far away.", target_name);
@@ -489,16 +498,16 @@ bool cmd_trade(Client *c, const char *cmd, NPC *npcs) {
     return true;
 }
 
-bool cmd_offer(Client *c, const char *cmd, NPC *npcs) {
-    (void)npcs;
+bool cmd_offer(Client *c, const char *cmd, Game *game) {
+    (void)game;
     if (strlen(c->trading_with) == 0) {
         send_text_to_client(c->sock, "[TRADE] You are not in any trade.");
         return true;
     }
     Client *t = NULL;
     for (int i = 0; i < MAX_CLIENTS; i++) {
-        if (g_clients[i].active && strcmp(g_clients[i].username, c->trading_with) == 0) {
-            t = &g_clients[i];
+        if (game->clients[i].active && strcmp(game->clients[i].username, c->trading_with) == 0) {
+            t = &game->clients[i];
             break;
         }
     }
@@ -520,7 +529,7 @@ bool cmd_offer(Client *c, const char *cmd, NPC *npcs) {
             send_text_to_client(c->sock, "[TRADE] You don't have enough gold.");
             return true;
         }
-        c->trade_offer_gold = gold;
+        c->trade_offer_gold = (uint64_t)gold;
         c->trade_offer_item_idx = -1;
         if (parsed == 2) {
             int idx = item - 1;
@@ -547,18 +556,18 @@ bool cmd_offer(Client *c, const char *cmd, NPC *npcs) {
     return true;
 }
 
-bool cmd_accept(Client *c, const char *cmd, NPC *npcs) {
+bool cmd_accept(Client *c, const char *cmd, Game *game) {
     (void)cmd;
-    (void)npcs;
+    (void)game;
     if (strlen(c->trading_with) == 0) {
         send_text_to_client(c->sock, "[TRADE] You are not in any trade.");
         return true;
     }
     Client *t = NULL;
     for (int i = 0; i < MAX_CLIENTS; i++) {
-        if (g_clients[i].active && g_clients[i].authenticated &&
-            strcmp(g_clients[i].username, c->trading_with) == 0) {
-            t = &g_clients[i];
+        if (game->clients[i].active && game->clients[i].authenticated &&
+            strcmp(game->clients[i].username, c->trading_with) == 0) {
+            t = &game->clients[i];
             break;
         }
     }
@@ -590,17 +599,18 @@ bool cmd_accept(Client *c, const char *cmd, NPC *npcs) {
     return true;
 }
 
-bool cmd_cancel(Client *c, const char *cmd, NPC *npcs) {
+bool cmd_cancel(Client *c, const char *cmd, Game *game) {
     (void)cmd;
-    (void)npcs;
+    (void)game;
     if (strlen(c->trading_with) == 0) {
         send_text_to_client(c->sock, "[TRADE] You are not in any trade.");
         return true;
     }
     for (int i = 0; i < MAX_CLIENTS; i++) {
-        if (g_clients[i].active && strcmp(g_clients[i].username, c->trading_with) == 0) {
-            send_text_to_client(g_clients[i].sock, "[TRADE] %s canceled the trade.", c->username);
-            g_clients[i].trading_with[0] = '\0';
+        if (game->clients[i].active && strcmp(game->clients[i].username, c->trading_with) == 0) {
+            send_text_to_client(game->clients[i].sock, "[TRADE] %s canceled the trade.",
+                                c->username);
+            game->clients[i].trading_with[0] = '\0';
             break;
         }
     }
@@ -612,8 +622,8 @@ bool cmd_cancel(Client *c, const char *cmd, NPC *npcs) {
 //--- MESSAGING SYSTEM BETWEEN PLAYERS ---
 
 /*Private message: msg/tell/whisper <name> <text>*/
-bool cmd_msg(Client *c, const char *cmd, NPC *npcs) {
-    (void)npcs;
+bool cmd_msg(Client *c, const char *cmd, Game *game) {
+    (void)game;
     int pfx = 0;
     if (strncmp(cmd, "msg ", 4) == 0) {
         pfx = 3;
@@ -648,7 +658,7 @@ bool cmd_msg(Client *c, const char *cmd, NPC *npcs) {
             send_text_to_client(c->sock, "[MSG] You cannot message yourself.");
             return true;
         }
-        Client *t = find_online_player(target_name);
+        Client *t = find_online_player(game, target_name);
         if (!t) {
             send_text_to_client(c->sock, "[MSG] Player %s is not online.", target_name);
             return true;
@@ -672,8 +682,8 @@ bool cmd_msg(Client *c, const char *cmd, NPC *npcs) {
 
 /*Local chat: say/shout <text>, heard by the players of the same floor
  * within MSG_LOCAL_RADIUS, except those who blocked the speaker.*/
-bool cmd_say(Client *c, const char *cmd, NPC *npcs) {
-    (void)npcs;
+bool cmd_say(Client *c, const char *cmd, Game *game) {
+    (void)game;
     int pfx = 0;
     if (strncmp(cmd, "say ", 4) == 0) {
         pfx = 3;
@@ -696,7 +706,7 @@ bool cmd_say(Client *c, const char *cmd, NPC *npcs) {
         }
         int heard = 0;
         for (int i = 0; i < MAX_CLIENTS; i++) {
-            Client *t = &g_clients[i];
+            Client *t = &game->clients[i];
             if (!t->active || !t->authenticated || t == c) {
                 continue;
             }
@@ -720,21 +730,22 @@ bool cmd_say(Client *c, const char *cmd, NPC *npcs) {
 }
 
 /*who — "list of players online" */
-bool cmd_who(Client *c, const char *cmd, NPC *npcs) {
+bool cmd_who(Client *c, const char *cmd, Game *game) {
     (void)cmd;
-    (void)npcs;
+    (void)game;
     int count = 0;
     for (int i = 0; i < MAX_CLIENTS; i++) {
-        if (g_clients[i].active && g_clients[i].authenticated) {
+        if (game->clients[i].active && game->clients[i].authenticated) {
             count++;
         }
     }
     send_text_to_client(c->sock, "[WHO] %d player(s) online:", count);
     for (int i = 0; i < MAX_CLIENTS; i++) {
-        if (g_clients[i].active && g_clients[i].authenticated) {
-            send_text_to_client(c->sock, "  - %s (floor %d)%s", g_clients[i].username,
-                                g_clients[i].floor_id,
-                                strcmp(g_clients[i].username, c->username) == 0 ? " (you)" : "");
+        if (game->clients[i].active && game->clients[i].authenticated) {
+            send_text_to_client(c->sock, "  - %s (floor %d)%s", game->clients[i].username,
+                                game->clients[i].floor_id,
+                                strcmp(game->clients[i].username, c->username) == 0 ? " (you)"
+                                                                                    : "");
         }
     }
     return true;
@@ -743,8 +754,8 @@ bool cmd_who(Client *c, const char *cmd, NPC *npcs) {
 /*block <name> — add a player to the block list.
 *Works even if the player is offline: the name comes
 *stored like this the block is valid when you return to play.*/
-bool cmd_block(Client *c, const char *cmd, NPC *npcs) {
-    (void)npcs;
+bool cmd_block(Client *c, const char *cmd, Game *game) {
+    (void)game;
     char name[32];
     strncpy(name, cmd + 6, sizeof(name) - 1);
     name[sizeof(name) - 1] = '\0';
@@ -777,8 +788,8 @@ bool cmd_block(Client *c, const char *cmd, NPC *npcs) {
 }
 
 /*unblock <name> — remove a player from the block list*/
-bool cmd_unblock(Client *c, const char *cmd, NPC *npcs) {
-    (void)npcs;
+bool cmd_unblock(Client *c, const char *cmd, Game *game) {
+    (void)game;
     char name[32];
     strncpy(name, cmd + 8, sizeof(name) - 1);
     name[sizeof(name) - 1] = '\0';
@@ -804,9 +815,9 @@ bool cmd_unblock(Client *c, const char *cmd, NPC *npcs) {
 }
 
 /*blocks — shows the block list*/
-bool cmd_blocks(Client *c, const char *cmd, NPC *npcs) {
+bool cmd_blocks(Client *c, const char *cmd, Game *game) {
     (void)cmd;
-    (void)npcs;
+    (void)game;
     if (c->blocked_count == 0) {
         send_text_to_client(c->sock, "[BLOCK] Your block list is empty. Use 'block <name>'.");
         return true;

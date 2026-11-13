@@ -18,8 +18,9 @@
  */
 
 #include "writer.h"
+#include "net.h"
 
-#include "server_internal.h"
+#include "server_log.h"
 
 #include <errno.h>
 #include <pthread.h>

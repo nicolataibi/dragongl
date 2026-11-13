@@ -27,6 +27,7 @@
 #include "server_world.h"
 #include "spell_effect.h"
 #include "spell_router.h"
+#include "player.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -144,8 +145,8 @@ static void report(Client *caster, const SpellTemplate *sp, const SpellCaster *s
     send_text_to_client(caster->sock, "%s", line);
 }
 
-bool spell_affect_npc(const SpellTemplate *sp, const SpellCaster *sc, NPC *n, Client *caster,
-                      int condition_rounds) {
+bool spell_affect_npc(Game *game, const SpellTemplate *sp, const SpellCaster *sc, NPC *n,
+                      Client *caster, int condition_rounds) {
     const SpellEffect *e = &sp->effect;
     SpellTargetInfo t = npc_target_info(n, e, caster);
     SpellOutcome o = spell_resolve(e, sc, &t);
@@ -164,7 +165,7 @@ bool spell_affect_npc(const SpellTemplate *sp, const SpellCaster *sc, NPC *n, Cl
     }
     clog_spell(caster ? caster->username : sp->name, sp->name, npc_name(n), o.damage, o.saved);
     if (e->kind == SPELL_KIND_DAMAGE && n->hp <= 0 && n->active) {
-        npc_killed(caster, n, sp->name);
+        npc_killed(game, caster, n, sp->name);
     }
     return o.landed;
 }
@@ -183,12 +184,12 @@ static int cells_between(int x1, int y1, int x2, int y2) {
     return dx > dy ? dx : dy;
 }
 
-static NPC *nearest_target(const Client *c, NPC *npcs, int reach) {
+static NPC *nearest_target(const Client *c, Game *game, int reach) {
     NPC *best = NULL;
     int best_d = reach + 1;
-    FloorIter walk = floor_iter(npcs, c->floor_id);
+    FloorIter walk = floor_iter(game, c->floor_id);
     for (int i; (i = floor_iter_next(&walk)) >= 0;) {
-        NPC *n = &npcs[i];
+        NPC *n = &game->npcs[i];
         if (n->floor_id != c->floor_id || !spell_can_affect_npc(n)) {
             continue;
         }
@@ -215,7 +216,7 @@ static bool needs_target(const SpellEffect *e) {
     }
 }
 
-static bool aim(const Client *c, const SpellTemplate *sp, NPC *npcs, CastAim *a) {
+static bool aim(const Client *c, const SpellTemplate *sp, Game *game, CastAim *a) {
     const SpellEffect *e = &sp->effect;
     memset(a, 0, sizeof(*a));
     a->ox = a->tx = c->x;
@@ -225,7 +226,7 @@ static bool aim(const Client *c, const SpellTemplate *sp, NPC *npcs, CastAim *a)
     }
     bool from_caster = e->target == SPELL_TARGET_AOE_CONE || e->target == SPELL_TARGET_AOE_LINE;
     int reach = from_caster ? e->radius : e->range;
-    a->target = reach > 0 ? nearest_target(c, npcs, reach) : NULL;
+    a->target = reach > 0 ? nearest_target(c, game, reach) : NULL;
     if (!a->target) {
         if (needs_target(e)) {
             send_text_to_client(c->sock, "[MAGIC] %s: no enemy within %d cells.", sp->name, reach);
@@ -253,7 +254,7 @@ static void cast_heal(Client *c, const SpellTemplate *sp, const SpellCaster *sc)
     send_combat_event(c->sock, COMBAT_EV_HEAL, c->entity_id, c->hp - before);
 }
 
-static void cast_buff(Client *c, const SpellTemplate *sp) {
+static void cast_buff(Game *game, Client *c, const SpellTemplate *sp) {
     static const RuleEventType k_event[] = {
         [SPELL_BUFF_AC] = EVENT_ON_DEFEND,
         [SPELL_BUFF_ATTACK] = EVENT_ON_ATTACK,
@@ -275,35 +276,35 @@ static void cast_buff(Client *c, const SpellTemplate *sp) {
     }
     send_text_to_client(c->sock, "[MAGIC] %s: %+d %s for %d rounds.", sp->name, e->value,
                         k_stat[e->stat], e->rounds);
-    send_detailed_state(c);
+    send_detailed_state(game, c);
 }
 
-static void cast_offense(Client *c, const SpellTemplate *sp, const SpellCaster *sc, NPC *npcs,
+static void cast_offense(Client *c, const SpellTemplate *sp, const SpellCaster *sc, Game *game,
                          const CastAim *a) {
     const SpellEffect *e = &sp->effect;
     if (e->target == SPELL_TARGET_SINGLE) {
         send_text_to_client(c->sock, "[ACTION] You cast %s at %s!", sp->name, npc_name(a->target));
-        spell_affect_npc(sp, sc, a->target, c, 0);
+        spell_affect_npc(game, sp, sc, a->target, c, 0);
         return;
     }
     AoeArea area = {e->target, e->radius, a->ox, a->oy, a->tx, a->ty};
     aoe_announce(c, sp);
     if (e->kind == SPELL_KIND_DAMAGE) {
-        aoe_terraform(&area, c->floor_id, e->damage_type);
+        aoe_terraform(game, &area, c->floor_id, e->damage_type);
     }
     int cloud_rounds = e->target == SPELL_TARGET_AOE_CLOUD ? 1 : 0;
     int hits = 0;
-    FloorIter walk = floor_iter(npcs, c->floor_id);
+    FloorIter walk = floor_iter(game, c->floor_id);
     for (int i; (i = floor_iter_next(&walk)) >= 0;) {
-        NPC *n = &npcs[i];
+        NPC *n = &game->npcs[i];
         if (n->floor_id == c->floor_id && spell_can_affect_npc(n) &&
             aoe_contains(&area, n->x, n->y)) {
-            spell_affect_npc(sp, sc, n, c, cloud_rounds);
+            spell_affect_npc(game, sp, sc, n, c, cloud_rounds);
             hits++;
         }
     }
     if (e->target == SPELL_TARGET_AOE_CLOUD &&
-        !aoe_spawn_cloud(sp, sc, c->username, c->floor_id, a->ox, a->oy)) {
+        !aoe_spawn_cloud(game, sp, sc, c->username, c->floor_id, a->ox, a->oy)) {
         send_text_to_client(c->sock, "  > The air is saturated: the cloud cannot linger.");
     }
     if (hits == 0) {
@@ -314,28 +315,28 @@ static void cast_offense(Client *c, const SpellTemplate *sp, const SpellCaster *
     }
 }
 
-bool spell_cast(Client *c, const SpellTemplate *sp, NPC *npcs) {
+bool spell_cast(Client *c, const SpellTemplate *sp, Game *game) {
     CastAim a;
-    if (!aim(c, sp, npcs, &a)) {
+    if (!aim(c, sp, game, &a)) {
         return false;
     }
     SpellCaster sc;
     spell_caster_of(c, &sc);
-    broadcast_spell_vfx(c->x, c->y, a.tx, a.ty, sp->vfx_type, sp->vfx_r, sp->vfx_g, sp->vfx_b,
+    broadcast_spell_vfx(game, c->x, c->y, a.tx, a.ty, sp->vfx_type, sp->vfx_r, sp->vfx_g, sp->vfx_b,
                         c->floor_id);
     switch (sp->effect.kind) {
     case SPELL_KIND_DAMAGE:
     case SPELL_KIND_CONDITION:
-        cast_offense(c, sp, &sc, npcs, &a);
+        cast_offense(c, sp, &sc, game, &a);
         break;
     case SPELL_KIND_HEAL:
         cast_heal(c, sp, &sc);
         break;
     case SPELL_KIND_BUFF:
-        cast_buff(c, sp);
+        cast_buff(game, c, sp);
         break;
     case SPELL_KIND_SPECIAL: {
-        SpellContext ctx = {c, sp, npcs, a.target};
+        SpellContext ctx = {c, sp, game, a.target};
         spell_router_dispatch(&ctx);
         break;
     }
@@ -346,7 +347,7 @@ bool spell_cast(Client *c, const SpellTemplate *sp, NPC *npcs) {
         break;
     }
     if (sp->effect.terrain != SPELL_TERRAIN_NONE) {
-        spell_router_terrain(c, sp, a.ox, a.oy);
+        spell_router_terrain(game, c, sp, a.ox, a.oy);
     }
     check_level_up(c);
     return true;

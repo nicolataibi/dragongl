@@ -47,7 +47,7 @@ static void print_server_usage(const char *argv0) {
 }
 
 /*Returns -1 to go on, otherwise the exit status (0 after --help/--version,
- * 2 on invalid options). --data-dir is stored in g_data_dir.*/
+ * 2 on invalid options).*/
 int parse_options(int argc, char **argv, ServerOptions *o) {
     for (int i = 1; i < argc; i++) {
         const char *opt = argv[i];
@@ -93,7 +93,7 @@ int parse_options(int argc, char **argv, ServerOptions *o) {
             }
             o->port = (int)port;
         } else if (strcmp(opt, "-D") == 0 || strcmp(opt, "--data-dir") == 0) {
-            copy_str(g_data_dir, val, sizeof(g_data_dir));
+            o->data_dir = val;
         } else if (strcmp(opt, "-S") == 0 || strcmp(opt, "--state-dir") == 0) {
             o->state_dir = val;
         } else if (strcmp(opt, "--password-file") == 0) {

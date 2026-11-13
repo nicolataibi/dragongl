@@ -45,7 +45,10 @@ def sources():
                              cwd=ROOT, check=True, capture_output=True, text=True).stdout
     except (OSError, subprocess.CalledProcessError):
         out = ""
-    files = sorted({f for f in out.split() if not VENDORED.match(f)})
+    # A file deleted in the working tree is still in the index until the
+    # deletion is staged.
+    files = sorted({f for f in out.split()
+                    if not VENDORED.match(f) and os.path.isfile(os.path.join(ROOT, f))})
     if not files:  # not a git checkout (release tarball): walk the tree
         for base, _, names in os.walk(os.path.join(ROOT, "src")):
             for n in names:
@@ -85,6 +88,10 @@ def functions(lines):
     return found
 
 
+def client(rel):
+    return rel.startswith("src/client/")
+
+
 def measure():
     funcs, files = [], []
     for rel in sources():
@@ -103,6 +110,10 @@ def measure():
         "functions_over_60": sum(1 for f in funcs if f[3] > 60),
         "file_lines_max": max((f[1] for f in files), default=0),
         "files_over_1000": sum(1 for f in files if f[1] > 1000),
+        # The server and the shared code alone: the client keeps its own
+        # ratchet until its rendering code is split.
+        "server_functions_over_120": sum(1 for f in funcs if f[3] > 120 and not client(f[0])),
+        "server_files_over_1000": sum(1 for f in files if f[1] > 1000 and not client(f[0])),
         "coverage_line_percent": None,
     }
     if os.path.exists(COVERAGE):

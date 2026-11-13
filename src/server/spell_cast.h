@@ -33,12 +33,12 @@ bool spell_can_affect_npc(const NPC *n);
  * condition_rounds rounds, or the effect's rounds when 0), the line to
  * the caster and the kill reward. caster may be NULL (a cloud whose caster
  * left). True if the effect landed.*/
-bool spell_affect_npc(const SpellTemplate *sp, const SpellCaster *sc, NPC *n, Client *caster,
-                      int condition_rounds);
+bool spell_affect_npc(Game *game, const SpellTemplate *sp, const SpellCaster *sc, NPC *n,
+                      Client *caster, int condition_rounds);
 
 /*Casts sp: picks the target, resolves the effect, leaves the terrain.
  * False (after telling the caster why) when there is nothing to cast at:
  * the caller then keeps the spell slot.*/
-bool spell_cast(Client *c, const SpellTemplate *sp, NPC *npcs);
+bool spell_cast(Client *c, const SpellTemplate *sp, Game *game);
 
 #endif

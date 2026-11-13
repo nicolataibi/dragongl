@@ -21,10 +21,10 @@
 #include "auth.h"
 #include "net.h"
 #include "server_entities.h"
-#include "server_internal.h"
 #include "server_tls.h"
 #include "tls_common.h"
 #include "wire.h"
+#include "server_log.h"
 
 #include <errno.h>
 #include <stdint.h>

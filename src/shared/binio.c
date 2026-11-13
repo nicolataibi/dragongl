@@ -285,6 +285,38 @@ static void fsync_parent_dir(const char *path) {
     }
 }
 
+#ifdef DRAGONGL_FAULT_INJECTION
+BinFileCrashPoint binfile_crash_point = BINFILE_CRASH_NONE;
+#define CRASH_POINT(point)                                                                         \
+    do {                                                                                           \
+        if (binfile_crash_point == (point)) {                                                      \
+            _exit(137);                                                                            \
+        }                                                                                          \
+    } while (0)
+#else
+#define CRASH_POINT(point) ((void)0)
+#endif
+
+/*Header then payload into the temporary file.*/
+static bool write_image(int fd, const uint8_t *hdr, size_t hdr_len, const BinWriter *payload) {
+    CRASH_POINT(BINFILE_CRASH_TMP_CREATED);
+    if (!write_all(fd, hdr, hdr_len)) {
+        return false;
+    }
+    CRASH_POINT(BINFILE_CRASH_HEADER);
+#ifdef DRAGONGL_FAULT_INJECTION
+    if (binfile_crash_point == BINFILE_CRASH_HALF_PAYLOAD) {
+        (void)write_all(fd, payload->data, payload->len / 2);
+        _exit(137);
+    }
+#endif
+    if (!write_all(fd, payload->data, payload->len)) {
+        return false;
+    }
+    CRASH_POINT(BINFILE_CRASH_WRITTEN);
+    return fsync(fd) == 0;
+}
+
 bool binfile_write_atomic(const char *path, uint32_t magic, uint16_t version,
                           const BinWriter *payload) {
     if (payload->failed || payload->len > BINFILE_MAX_PAYLOAD) {
@@ -308,12 +340,14 @@ bool binfile_write_atomic(const char *path, uint32_t magic, uint16_t version,
     if (fd < 0) {
         return false;
     }
-    bool ok = write_all(fd, hdr, sizeof(hdr)) && write_all(fd, payload->data, payload->len) &&
-              fsync(fd) == 0;
+    bool ok = write_image(fd, hdr, sizeof(hdr), payload);
     int saved = errno;
     if (close(fd) != 0 && ok) {
         ok = false;
         saved = errno;
+    }
+    if (ok) {
+        CRASH_POINT(BINFILE_CRASH_SYNCED);
     }
     if (ok && rename(tmp, path) != 0) {
         ok = false;
@@ -324,6 +358,7 @@ bool binfile_write_atomic(const char *path, uint32_t magic, uint16_t version,
         errno = saved;
         return false;
     }
+    CRASH_POINT(BINFILE_CRASH_RENAMED);
     fsync_parent_dir(path);
     return true;
 }
