@@ -30,6 +30,7 @@
 #include "server_cmd.h"
 #include "dragongl_config.h"
 #include "persist.h"
+#include "binio.h"
 #include "login_worker.h"
 #include "server_metrics.h"
 #include "writer.h"
@@ -57,7 +58,7 @@ extern char **environ;
  * (00 = VOXEL_ROCK ... 1B = VOXEL_CRYSTAL_WHITE, see include/map.h), so the
  * PDF can render every tile with its exact in-game color. */
 static int dump_floor_v2(Game *game, const char *path, int floor_id, const Client *c) {
-    FILE *fp = fopen(path, "we");
+    FILE *fp = fopen_private(path);
     if (!fp) {
         return -1;
     }
@@ -549,7 +550,7 @@ static bool cmd_dm_boss(Client *c, const char *cmd, Game *game) {
         send_text_to_client(c->sock, "[DM] The dungeon has floors 1 to %d.", MAX_FLOORS - 1);
         return true;
     }
-    if (target_floor <= 0 || target_floor % 10 != 0) {
+    if (target_floor % 10 != 0) {
         int nearest_below = (target_floor / 10) * 10;
         int nearest_above = nearest_below + 10;
         if (nearest_below <= 0) {
@@ -625,7 +626,7 @@ static bool cmd_dm_merchant(Client *c, const char *cmd, Game *game) {
         return true;
     }
     /*Merchants appear every 5 floors, but not on multiples of 10 (boss floors)*/
-    if (target_floor <= 0 || target_floor % 5 != 0 || target_floor % 10 == 0) {
+    if (target_floor % 5 != 0 || target_floor % 10 == 0) {
         int nearest_below = target_floor - (target_floor % 5);
         if (nearest_below % 10 == 0) {
             nearest_below -= 5;

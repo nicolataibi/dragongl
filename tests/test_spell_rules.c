@@ -103,6 +103,17 @@ static void test_parse_errors(void) {
     expect_error("{\"kind\":\"buff\",\"target\":\"self\",\"range\":0,\"rounds\":1,"
                  "\"stat\":\"luck\",\"value\":1}",
                  "effect.stat");
+    /* Whole numbers only, in the range of int (cJSON saturates beyond it). */
+    expect_error("{\"kind\":\"utility\",\"target\":\"self\",\"range\":1.5}", "effect.range");
+    expect_error("{\"kind\":\"utility\",\"target\":\"self\",\"range\":-0.25}", "effect.range");
+    expect_error("{\"kind\":\"utility\",\"target\":\"self\",\"range\":3e9}", "effect.range");
+    expect_error("{\"kind\":\"utility\",\"target\":\"self\",\"range\":\"6\"}", "effect.range");
+    SpellEffect e;
+    char err[160] = "";
+    EXPECT(
+        parse("{\"kind\":\"utility\",\"target\":\"self\",\"range\":6.0}", &e, err, sizeof(err)) &&
+            e.range == 6,
+        "6.0 is a whole number: %s", err);
 }
 
 static SpellCaster caster(int level, int mod) {

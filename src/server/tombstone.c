@@ -266,9 +266,12 @@ void tombstone_list(Game *game, Client *c) {
         }
 
         /*Format the date of death*/
-        char timestr[32];
-        struct tm *tm_info = localtime(&t->death_time);
-        strftime(timestr, sizeof(timestr), "%d/%m/%Y %H:%M", tm_info);
+        char timestr[32] = "?";
+        struct tm tm_info;
+        /*localtime_r: localtime() returns a buffer shared by every thread.*/
+        if (localtime_r(&t->death_time, &tm_info)) {
+            strftime(timestr, sizeof(timestr), "%d/%m/%Y %H:%M", &tm_info);
+        }
 
         send_text_to_client(c->sock, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         send_text_to_client(c->sock, "⚰  TOMBSTONE — %s", t->owner);

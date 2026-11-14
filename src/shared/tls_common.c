@@ -37,10 +37,21 @@ bool tls_cert_fingerprint(X509 *cert, char *out, size_t cap) {
         }
         return false;
     }
-    size_t at = (size_t)snprintf(out, cap, "SHA256:");
-    for (unsigned int i = 0; i < len; i++) {
-        at += (size_t)snprintf(out + at, cap - at, i ? ":%02X" : "%02X", md[i]);
+    /*"SHA256:" and 32 bytes as "AB:CD:...": cap >= TLS_FINGERPRINT_LEN
+     * was checked above, so every write is in bounds.*/
+    static const char hex[] = "0123456789ABCDEF";
+    size_t at = 0;
+    for (const char *p = "SHA256:"; *p; p++) {
+        out[at++] = *p;
     }
+    for (unsigned int i = 0; i < len; i++) {
+        if (i) {
+            out[at++] = ':';
+        }
+        out[at++] = hex[md[i] >> 4];
+        out[at++] = hex[md[i] & 0x0F];
+    }
+    out[at] = '\0';
     return true;
 }
 

@@ -382,7 +382,9 @@ static void respawn_traps_and_crystals(Game *game) {
     /* --- Crystal respawn --- */
     for (int f_id = 0; f_id < MAX_FLOORS; f_id++) {
         Floor *f = &game->world->floors[f_id];
-        for (int i = 0; i < f->crystal_respawn_count; i++) {
+        /*From the end: a restored crystal is replaced in the list by the
+         * last one, which has already been counted down.*/
+        for (int i = f->crystal_respawn_count - 1; i >= 0; i--) {
             CrystalRespawn *cr = &f->crystal_respawns[i];
             if (cr->respawn_timer > 0) {
                 cr->respawn_timer--;
@@ -424,10 +426,8 @@ static void respawn_traps_and_crystals(Game *game) {
 
                     broadcast_spell_vfx(game, cr->x, cr->y, cr->x, cr->y, 1, r, g, b, f_id);
 
-                    // Remove from list
                     f->crystal_respawns[i] = f->crystal_respawns[f->crystal_respawn_count - 1];
                     f->crystal_respawn_count--;
-                    i--; // re-check this index
                 }
             }
         }

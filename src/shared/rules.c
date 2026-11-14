@@ -98,14 +98,14 @@ int rules_roll_dice(int count, int sides) {
 
 bool rules_update_effects(ActiveEffect *effects, int *effect_count) {
     bool changed = false;
-    for (int i = 0; i < *effect_count; i++) {
+    /*From the end: an expired effect is replaced by the last one, which
+     * has already been counted down.*/
+    for (int i = *effect_count - 1; i >= 0; i--) {
         if (!effects[i].is_persistent) {
             effects[i].duration_rounds--;
             if (effects[i].duration_rounds <= 0) {
-                //Remove the effect by moving the last one into place
                 effects[i] = effects[*effect_count - 1];
                 (*effect_count)--;
-                i--; // Recheck current index
                 changed = true;
             }
         }

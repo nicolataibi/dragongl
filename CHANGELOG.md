@@ -1,3 +1,43 @@
+* Sat Nov 14 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.14.10
+- SECURITY: the combat log and the map dumps of dm_pdf were created with
+  fopen(), mode 0666 less the umask: a server started by hand with the
+  usual umask 022 left them readable by other local users (the systemd
+  unit sets UMask=0077 and was not affected; CodeQL
+  cpp/world-writable-file-creation). They are created 0600 now, like the
+  saves (fopen_private() in binio.c); a test creates them under umask 0.
+- SECURITY: the combat log and the tombstone read the time with
+  localtime(), whose buffer is shared by every thread; localtime_r()
+  now, as the server log already did.
+- SECURITY: the TLS fingerprint was written with snprintf() calls whose
+  sizes came from the previous return values (safe only because the
+  buffer size is checked first); it is written byte by byte now.
+- FIX: 'get' with a number that is not in the list took the first thing
+  on the tile ('get 9' with one item picked it up), and an unknown
+  direction ('get up') picked up from your own tile. Both now answer
+  what is wrong. The list of choices is aligned.
+- FIX: a throne room with an odd radius had no gold tile at the throne
+  (its position was compared as a fraction).
+- FIX: a data file read short (changed while reading, or an I/O error)
+  was parsed as far as it went; it is refused with an error now.
+- FIX: examine printed a garbled table header and 'Treasury Chest'.
+- CODE: the other CodeQL findings of the security-and-quality suite are
+  gone: loops that changed their own counter (they count down now), two
+  comparisons that were always false, an empty if, a redundant check
+  before free(), a complex condition (slot names in a table), four long
+  functions without comments (cmd_examine and cmd_get split into
+  documented helpers, the minimap colours in a table), and the
+  whole-number check of the spell effects, which compared two doubles
+  for equality (same results; tests for 1.5, 3e9 and 6.0 added).
+- CI: CodeQL builds against the cJSON of the system: the copy in
+  third_party/ is no longer analysed (its three findings are
+  upstream's).
+- DOCS: SECURITY.md, section G: how code scanning is handled, and the 17
+  cpp/path-injection findings accepted by design (every path starts from
+  a directory chosen by the user who runs the program; names from the
+  network are checked before they become paths), with the command that
+  dismisses them. PACKAGING.md: the COPR chroots where the packages
+  build.
+
 * Sat Nov 14 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.14.09
 - PACKAGING: no bundled library in the packages. cJSON, the only
   third-party code, moved from include/ and src/shared/ to

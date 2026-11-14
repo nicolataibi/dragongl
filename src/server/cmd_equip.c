@@ -129,6 +129,20 @@ bool cmd_wear(Client *c, const char *cmd, Game *game) {
     return true;
 }
 
+/*True if word names a slot: "|"-separated names, case ignored.*/
+static bool slot_named(const char *names, const char *word) {
+    size_t len = strlen(word);
+    for (const char *p = names; p;) {
+        const char *bar = strchr(p, '|');
+        size_t n = bar ? (size_t)(bar - p) : strlen(p);
+        if (n == len && strncasecmp(p, word, n) == 0) {
+            return true;
+        }
+        p = bar ? bar + 1 : NULL;
+    }
+    return false;
+}
+
 //===== MECHANICAL 1: REMOVE (remove equipped item) =====
 /*"t <dir>" is tunnel, so this command has no one-letter alias.*/
 bool cmd_remove(Client *c, const char *cmd, Game *game) {
@@ -143,8 +157,17 @@ bool cmd_remove(Client *c, const char *cmd, Game *game) {
     ItemInstance *sls[] = {&c->slot_head,   &c->slot_neck,   &c->slot_body,  &c->slot_back,
                            &c->slot_hand_r, &c->slot_hand_l, &c->slot_hands, &c->slot_arm_r,
                            &c->slot_arm_l,  &c->slot_feet};
-    const char *snames[] = {"head",   "neck",  "body",  "back",  "hand_r",
-                            "hand_l", "hands", "arm_r", "arm_l", "feet"};
+    /*The names of each slot; "arm" and "arms" take the right arm first.*/
+    const char *snames[] = {"head",
+                            "neck",
+                            "body",
+                            "back",
+                            "hand_r",
+                            "hand_l",
+                            "hands",
+                            "arm_r|right_arm|r.a|arm|arms",
+                            "arm_l|left_arm|l.a|arm|arms",
+                            "feet"};
     ItemInstance *target_slot = NULL;
     int scount = 10;
     //Search by slot name or item name
@@ -153,17 +176,7 @@ bool cmd_remove(Client *c, const char *cmd, Game *game) {
             continue;
         }
         const char *iname = item_database[sls[si2]->template_idx].name;
-        bool slot_match = (strcasecmp(input, snames[si2]) == 0);
-        if (!slot_match) {
-            if ((si2 == 7 && (strcasecmp(input, "right_arm") == 0 ||
-                              strcasecmp(input, "arm_r") == 0 || strcasecmp(input, "r.a") == 0)) ||
-                (si2 == 8 && (strcasecmp(input, "left_arm") == 0 ||
-                              strcasecmp(input, "arm_l") == 0 || strcasecmp(input, "l.a") == 0)) ||
-                ((si2 == 7 || si2 == 8) &&
-                 (strcasecmp(input, "arm") == 0 || strcasecmp(input, "arms") == 0))) {
-                slot_match = true;
-            }
-        }
+        bool slot_match = slot_named(snames[si2], input);
         if (strcasestr(iname, input) != NULL || slot_match ||
             (sls[si2]->is_artifact && strcasestr(sls[si2]->artifact_name, input) != NULL)) {
             target_slot = sls[si2];

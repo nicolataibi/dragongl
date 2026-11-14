@@ -612,114 +612,108 @@ bool cmd_disarm(Client *c, const char *cmd, Game *game) {
     return true;
 }
 
+/*Appends to out what stands on (nx, ny) of the floor: treasure, remains,
+ * a merchant, a monster with its hit points.*/
+static void tile_presence(Game *game, int floor_id, int nx, int ny, char *out, size_t cap) {
+    out[0] = '\0';
+    FloorIter walk = floor_iter(game, floor_id);
+    for (int m; (m = floor_iter_next(&walk)) >= 0;) {
+        const NPC *n = &game->npcs[m];
+        if (n->x != nx || n->y != ny) {
+            continue;
+        }
+        char part[160] = "";
+        if (n->archetype == ARCH_GOLD) {
+            snprintf(part, sizeof(part), " | [Golden Bag]");
+        } else if (n->archetype == ARCH_TREASURE) {
+            snprintf(part, sizeof(part), " | [Treasure Chest]");
+        } else if (n->is_ghost) {
+            snprintf(part, sizeof(part), " | [%s remains]", n->custom_name);
+        } else if (n->archetype == ARCH_MERCHANT) {
+            snprintf(part, sizeof(part), " | [%s]", n->merchant.shop_name);
+        } else if (n->template) {
+            snprintf(part, sizeof(part), " | %s (HP:%d/%d)", n->template->name, n->hp, n->max_hp);
+        }
+        size_t used = strlen(out);
+        snprintf(out + used, cap - used, "%s", part);
+    }
+}
+
+/*Pickaxes, shovels, hammers and mining tools dig ('tunnel').*/
+static bool is_mining_tool(const ItemInstance *it) {
+    if (it->template_idx == -1) {
+        return false;
+    }
+    static const char *const words[] = {"Pick", "Shovel", "Hammer", "Mining", "Tool"};
+    const char *name = item_database[it->template_idx].name;
+    for (size_t w = 0; w < sizeof(words) / sizeof(words[0]); w++) {
+        if (strcasestr(name, words[w])) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/*The first mining tool in the hands, else in the backpack, or NULL.*/
+static const ItemInstance *find_mining_tool(const Client *c) {
+    if (is_mining_tool(&c->slot_hand_r)) {
+        return &c->slot_hand_r;
+    }
+    if (is_mining_tool(&c->slot_hand_l)) {
+        return &c->slot_hand_l;
+    }
+    for (int i = 0; i < c->backpack_count; i++) {
+        if (is_mining_tool(&c->backpack[i])) {
+            return &c->backpack[i];
+        }
+    }
+    return NULL;
+}
+
+#define EXAMINE_RULE                                                                               \
+    "+--------+-----------------------+-------------------------------------------------------+"
+
+/*examine: the tile underfoot and the eight around it, what mining each
+ * could yield and what stands there; then whether you can dig.*/
 bool cmd_examine(Client *c, const char *cmd, Game *game) {
     (void)cmd;
-    send_text_to_client(c->sock, "[DETAILED EXAMINATION] Area 1 step (Position %d, %d - Floor %d)",
+    send_text_to_client(c->sock, "[DETAILED EXAMINATION] Around you (position %d, %d - floor %d)",
                         c->x, c->y, c->floor_id);
-    send_text_to_client(
-        c->sock,
-        "+--------+-----------------------+-------------------------------------------------------+");
-    send_text_to_client(c->sock,
-                        "| SQUARE. | TYPE GROUND / WALL | MINING EVALUATION AND ATTENDANCE |");
-    send_text_to_client(
-        c->sock,
-        "+--------+-----------------------+-------------------------------------------------------+");
+    send_text_to_client(c->sock, EXAMINE_RULE);
+    send_text_to_client(c->sock, "| %-6s | %-21s | %-53s |", "TILE", "GROUND / WALL",
+                        "MINING, AND WHO IS THERE");
+    send_text_to_client(c->sock, EXAMINE_RULE);
 
-    int qx[] = {0, 0, 1, 1, 1, 0, -1, -1, -1};
-    int qy[] = {0, -1, -1, 0, 1, 1, 1, 0, -1};
-    const char *qnames[] = {"FEET", "N", "NE", "E", "SE", "S", "SW", "W", "NW"};
-
-    Floor *f = &game->world->floors[c->floor_id];
-
+    static const int qx[] = {0, 0, 1, 1, 1, 0, -1, -1, -1};
+    static const int qy[] = {0, -1, -1, 0, 1, 1, 1, 0, -1};
+    static const char *const qnames[] = {"FEET", "N", "NE", "E", "SE", "S", "SW", "W", "NW"};
+    const Floor *f = &game->world->floors[c->floor_id];
     for (int i = 0; i < 9; i++) {
         int nx = c->x + qx[i];
         int ny = c->y + qy[i];
-        if (nx >= 0 && nx < MAP_WIDTH && ny >= 0 && ny < MAP_HEIGHT) {
-            VoxelType vt = f->map.data[0][ny][nx];
-            const char *vname = get_voxel_name_it(vt);
-
-            char v_min[128];
-            evaluate_digging_potential(nx, ny, c->floor_id, vt, v_min, sizeof(v_min));
-
-            char presence[256] = "";
-
-            FloorIter walk = floor_iter(game, c->floor_id);
-            for (int m; (m = floor_iter_next(&walk)) >= 0;) {
-                if (game->npcs[m].x == nx && game->npcs[m].y == ny) {
-                    if (game->npcs[m].archetype == ARCH_GOLD) {
-                        strncat(presence, "| [Golden Bag]",
-                                sizeof(presence) - strlen(presence) - 1);
-                    } else if (game->npcs[m].archetype == ARCH_TREASURE) {
-                        strncat(presence, "| [Treasury Chest]",
-                                sizeof(presence) - strlen(presence) - 1);
-                    } else if (game->npcs[m].is_ghost) {
-                        char gbuf[96]; /*room for a 63-char name + decoration*/
-                        snprintf(gbuf, sizeof(gbuf), "| [%s remains]", game->npcs[m].custom_name);
-                        strncat(presence, gbuf, sizeof(presence) - strlen(presence) - 1);
-                    } else if (game->npcs[m].archetype == ARCH_MERCHANT) {
-                        char mbuf[96];
-                        snprintf(mbuf, sizeof(mbuf), " | [%s]", game->npcs[m].merchant.shop_name);
-                        strncat(presence, mbuf, sizeof(presence) - strlen(presence) - 1);
-                    } else if (game->npcs[m].template) {
-                        char nbuf[128];
-                        snprintf(nbuf, sizeof(nbuf), " | %s (HP:%d/%d)",
-                                 game->npcs[m].template->name, game->npcs[m].hp,
-                                 game->npcs[m].max_hp);
-                        strncat(presence, nbuf, sizeof(presence) - strlen(presence) - 1);
-                    }
-                }
-            }
-
-            char combined[512];
-            snprintf(combined, sizeof(combined), "%s%s", v_min, presence);
-
-            send_text_to_client(c->sock, "| %-6s | %-21s | %-53s |", qnames[i], vname, combined);
+        if (nx < 0 || nx >= MAP_WIDTH || ny < 0 || ny >= MAP_HEIGHT) {
+            continue;
         }
+        VoxelType vt = f->map.data[0][ny][nx];
+        char mining[128], presence[256], combined[400];
+        evaluate_digging_potential(nx, ny, c->floor_id, vt, mining, sizeof(mining));
+        tile_presence(game, c->floor_id, nx, ny, presence, sizeof(presence));
+        snprintf(combined, sizeof(combined), "%s%s", mining, presence);
+        send_text_to_client(c->sock, "| %-6s | %-21s | %-53s |", qnames[i], get_voxel_name_it(vt),
+                            combined);
     }
+    send_text_to_client(c->sock, EXAMINE_RULE);
 
-    send_text_to_client(
-        c->sock,
-        "+--------+-----------------------+-------------------------------------------------------+");
-
-    bool has_mining_tool = false;
-    char tool_name[64] = "";
-    ItemInstance *hands[] = {&c->slot_hand_r, &c->slot_hand_l};
-    for (int i = 0; i < 2; i++) {
-        if (hands[i]->template_idx != -1) {
-            const char *iname = item_database[hands[i]->template_idx].name;
-            if (strcasestr(iname, "Pick") || strcasestr(iname, "Shovel") ||
-                strcasestr(iname, "Hammer") || strcasestr(iname, "Mining") ||
-                strcasestr(iname, "Tool")) {
-                has_mining_tool = true;
-                snprintf(tool_name, sizeof(tool_name), "%s", iname);
-                break;
-            }
-        }
-    }
-    if (!has_mining_tool) {
-        for (int i = 0; i < c->backpack_count; i++) {
-            if (c->backpack[i].template_idx != -1) {
-                const char *iname = item_database[c->backpack[i].template_idx].name;
-                if (strcasestr(iname, "Pick") || strcasestr(iname, "Shovel") ||
-                    strcasestr(iname, "Hammer") || strcasestr(iname, "Mining") ||
-                    strcasestr(iname, "Tool")) {
-                    has_mining_tool = true;
-                    snprintf(tool_name, sizeof(tool_name), "%s", iname);
-                    break;
-                }
-            }
-        }
-    }
-
-    if (has_mining_tool) {
-        send_text_to_client(
-            c->sock, "[TOOLS] You have the right tool (%s). Use 'tunnel <dir>' to dig!", tool_name);
+    const ItemInstance *tool = find_mining_tool(c);
+    if (tool) {
+        send_text_to_client(c->sock,
+                            "[TOOLS] You have the right tool (%s). Use 'tunnel <dir>' to dig!",
+                            item_database[tool->template_idx].name);
     } else {
         send_text_to_client(
             c->sock,
             "[TOOLS] No pickaxes or shovels. Get a tool for extracting minerals and treasures.");
     }
-
     return true;
 }
 

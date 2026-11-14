@@ -367,6 +367,10 @@ int test_dm_spawn_and_place(void) {
     CHECK(active_npcs_at(CX + 1, CY + 1) == 0, "an item that is not in the data");
     fl->entity_grid[c->y][c->x] = 0;
     c->x = CX + 1;
+    run(c, "get 9");
+    CHECK(said("no number 9") && c->backpack_count == 0, "'get 9' with one item: %s", g_out);
+    run(c, "get up");
+    CHECK(said("Usage: get") && c->backpack_count == 0, "'get up': %s", g_out);
     run(c, "get");
     CHECK(c->backpack_count == 1 && c->backpack[0].template_idx == dagger &&
               c->backpack[0].stack_count == 1,

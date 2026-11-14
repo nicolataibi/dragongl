@@ -33,7 +33,7 @@ CI (`rpmbuild` with `%check`, then `rpmlint`).
 | Configuration | `/etc/dragongl/dragongl-server.conf` is `%config(noreplace)`, mode 0600 because it holds passwords | rpmlint (one filter, explained) |
 | File ownership | every directory the packages create is owned; `%{_datadir}/dragongl` is co-owned by the packages that do not depend on each other; the icon directories belong to `hicolor-icon-theme`, which is required | rpmlint |
 | Documentation | man pages for every command in `%{_bindir}`; the Markdown guides in `-doc` | `mandoc -T lint` in CI |
-| Architectures | no `ExcludeArch`: the code has no assembly and no assumption on the byte order of the host (the wire format and the save files are explicitly little-endian) | built on x86_64 only so far: see below |
+| Architectures | no `ExcludeArch`: the code has no assembly and no assumption on the byte order of the host (the wire format and the save files are explicitly little-endian) | COPR: Fedora 44, 45 and rawhide on x86_64 and i386, EPEL 10 on x86_64 (2026.11.14.09) |
 
 ## rpmlint filters
 
@@ -72,8 +72,8 @@ them.
 
 ## Known gaps
 
-- **Not run here:** `fedora-review` and builds on architectures other
-  than x86_64 need Fedora and its builders. The table above is the
+- **Not run yet:** `fedora-review`, and a build on an architecture other
+  than x86 (aarch64 in COPR would be the first). The table above is the
   author's reading of the guidelines, checked by the tools named in it;
   a reviewer may still ask for changes.
 - **The man pages `analyze_balance(1)` and `generate_pdf_map(1)`** have

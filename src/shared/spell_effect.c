@@ -8,6 +8,8 @@
 
 #include "spell_effect.h"
 
+#include <limits.h>
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -101,7 +103,10 @@ static bool read_int(Reader *r, const char *field, bool required, int lo, int hi
     if (!v) {
         return required ? fail(r, field, "missing") : true;
     }
-    if (!cJSON_IsNumber(v) || v->valuedouble != (double)v->valueint) {
+    /*A whole number in the range of int: cJSON saturates valueint, so the
+     * range is checked on the double.*/
+    if (!cJSON_IsNumber(v) || v->valuedouble < (double)INT_MIN ||
+        v->valuedouble > (double)INT_MAX || v->valuedouble - floor(v->valuedouble) > 0.0) {
         return fail(r, field, "not an integer");
     }
     if (v->valueint < lo || v->valueint > hi) {

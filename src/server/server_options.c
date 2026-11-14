@@ -51,9 +51,10 @@ static void print_server_usage(const char *argv0) {
 /*Returns -1 to go on, otherwise the exit status (0 after --help/--version,
  * 2 on invalid options).*/
 int parse_options(int argc, char **argv, ServerOptions *o) {
-    for (int i = 1; i < argc; i++) {
-        const char *opt = argv[i];
-        const char *val = (i + 1 < argc) ? argv[i + 1] : NULL;
+    int i = 1;
+    while (i < argc) {
+        const char *opt = argv[i++];
+        const char *val = i < argc ? argv[i] : NULL;
         if (strcmp(opt, "-h") == 0 || strcmp(opt, "--help") == 0) {
             print_server_usage(argv[0]);
             return 0;
@@ -85,7 +86,7 @@ int parse_options(int argc, char **argv, ServerOptions *o) {
             fprintf(stderr, "%s: %s needs a value\n", argv[0], opt);
             return 2;
         }
-        i++;
+        i++; /*the value*/
         if (strcmp(opt, "-P") == 0 || strcmp(opt, "--port") == 0) {
             char *end = NULL;
             long port = strtol(val, &end, 10);

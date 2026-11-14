@@ -327,7 +327,7 @@ static void log_rows(Hud *h, float x, float bottom, int cols, int visible, int s
         if (seen >= scroll + visible) {
             /*Enough to fill the panel: count the rest only to know where
              * scrolling must stop.*/
-            for (back++; client_log_get(back, line, sizeof(line)); back++) {
+            for (int rest = back + 1; client_log_get(rest, line, sizeof(line)); rest++) {
                 seen += text_wrap_count(line, cols);
             }
             break;

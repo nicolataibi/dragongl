@@ -45,6 +45,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 
 #define BINFILE_HEADER_SIZE 16
 /* Upper bound for a payload: larger files are rejected before allocation. */
@@ -121,6 +122,11 @@ uint32_t br_count(BinReader *r, uint32_t max);
 bool br_done(const BinReader *r);
 
 /* --- Files ---------------------------------------------------------------- */
+/* Opens path for writing, truncated, created with mode 0600 whatever the
+ * umask: the files of the server (logs, map dumps) are readable by the
+ * user that runs it only, like its saves. NULL with errno set on error. */
+FILE *fopen_private(const char *path);
+
 /* Write header + payload to <path>.tmp, fsync, rename over <path>, fsync
  * the directory. On any error the temporary file is removed, the previous
  * file is kept, and false is returned with errno set. */

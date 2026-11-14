@@ -39,124 +39,123 @@ bool cmd_pickup(Client *c, const char *cmd, Game *game) {
     return true;
 }
 
-// --- MISSING ROGUELIKE COMMANDS ---
+/*The step of a compass direction (n, ne, e, ... nw), false if word is
+ * not one.*/
+static bool direction_step(const char *word, int *dx, int *dy) {
+    static const struct {
+        const char *name;
+        int dx, dy;
+    } dirs[] = {{"n", 0, -1}, {"ne", 1, -1}, {"e", 1, 0},  {"se", 1, 1},
+                {"s", 0, 1},  {"sw", -1, 1}, {"w", -1, 0}, {"nw", -1, -1}};
+    for (size_t i = 0; i < sizeof(dirs) / sizeof(dirs[0]); i++) {
+        if (strcasecmp(word, dirs[i].name) == 0) {
+            *dx = dirs[i].dx;
+            *dy = dirs[i].dy;
+            return true;
+        }
+    }
+    return false;
+}
+
+/*Takes one thing from the ground: gold into the purse, an item into the
+ * backpack, or the loot of a closed chest onto the ground.*/
+static void collect(Game *game, Client *c, NPC *n) {
+    if (n->archetype == ARCH_GOLD) {
+        c->gold += (uint64_t)(n->gold_drop > 0 ? n->gold_drop : 0);
+        send_text_to_client(c->sock, "[SYSTEM] You have collected %d gold coins!", n->gold_drop);
+        send_combat_event(c->sock, COMBAT_EV_GOLD, c->entity_id, n->gold_drop);
+        npc_set_active(game, n, false);
+    } else if (n->ghost_loot[0].stack_count > 0) {
+        if (c->backpack_count >= MAX_BACKPACK) {
+            send_text_to_client(c->sock, "[SYSTEM] Backpack full! Unable to collect.");
+            return;
+        }
+        c->backpack[c->backpack_count++] = n->ghost_loot[0];
+        send_text_to_client(c->sock, "[SYSTEM] You have collected: %s",
+                            item_database[n->ghost_loot[0].template_idx].name);
+        npc_set_active(game, n, false);
+        n->respawn_timer = 0;
+    } else {
+        send_text_to_client(c->sock, "[SYSTEM] Open the chest and find something...");
+        drop_loot_from_monster(c, n);
+        npc_set_active(game, n, false);
+        n->respawn_timer = 100;
+    }
+    /*The floor counters follow npc_set_active() at each removal.*/
+    save_player_data(c);
+}
+
+/*get [direction] [n]: what lies on the tile (or the adjacent one in that
+ * direction); with several things there, n chooses one of the list.*/
 bool cmd_get(Client *c, const char *cmd, Game *game) {
     int target_x = c->x;
     int target_y = c->y;
-    int target_idx = -1;
-
+    int target_idx = 0;
+    bool idx_given = false;
     char dir[16] = {0};
     char idx_str[16] = {0};
-    const char *args = cmd + (cmd[0] == 'g' && cmd[1] == 'e' ? 3 : 1);
-    while (*args == ' ') {
-        args++;
-    }
-
-    if (sscanf(args, "%15s %15s", dir, idx_str) >= 1) {
-        if (isdigit(dir[0])) {
+    const char *args = strchr(cmd, ' ');
+    if (args && sscanf(args, "%15s %15s", dir, idx_str) >= 1) {
+        int dx = 0, dy = 0;
+        if (isdigit((unsigned char)dir[0])) {
             target_idx = str_to_int(dir);
-        } else {
-            if (strcasecmp(dir, "N") == 0) {
-                target_y--;
-            } else if (strcasecmp(dir, "S") == 0) {
-                target_y++;
-            } else if (strcasecmp(dir, "W") == 0) {
-                target_x--;
-            } else if (strcasecmp(dir, "E") == 0) {
-                target_x++;
-            } else if (strcasecmp(dir, "NW") == 0) {
-                target_y--;
-                target_x--;
-            } else if (strcasecmp(dir, "NE") == 0) {
-                target_y--;
-                target_x++;
-            } else if (strcasecmp(dir, "SW") == 0) {
-                target_y++;
-                target_x--;
-            } else if (strcasecmp(dir, "SE") == 0) {
-                target_y++;
-                target_x++;
-            }
-
-            if (idx_str[0] && isdigit(idx_str[0])) {
+            idx_given = true;
+            dir[0] = '\0';
+        } else if (direction_step(dir, &dx, &dy)) {
+            target_x += dx;
+            target_y += dy;
+            if (isdigit((unsigned char)idx_str[0])) {
                 target_idx = str_to_int(idx_str);
+                idx_given = true;
             }
+        } else {
+            send_text_to_client(c->sock, "[SYSTEM] Usage: get [n|ne|e|se|s|sw|w|nw] [n]");
+            return true;
         }
     }
 
+    /*Gold and chests (an item on the ground is a chest that holds it).*/
     int items[64];
     int count = 0;
     FloorIter walk = floor_iter(game, c->floor_id);
-    for (int i; (i = floor_iter_next(&walk)) >= 0;) {
-        if (game->npcs[i].x == target_x && game->npcs[i].y == target_y) {
-            if (game->npcs[i].archetype == ARCH_TREASURE || game->npcs[i].archetype == ARCH_GOLD) {
-                if (count < 64) {
-                    items[count++] = i;
-                }
-            }
+    for (int i; (i = floor_iter_next(&walk)) >= 0 && count < 64;) {
+        const NPC *n = &game->npcs[i];
+        if (n->x == target_x && n->y == target_y &&
+            (n->archetype == ARCH_TREASURE || n->archetype == ARCH_GOLD)) {
+            items[count++] = i;
         }
     }
-
     if (count == 0) {
         send_text_to_client(c->sock, "[SYSTEM] There is nothing to collect here.");
         return true;
     }
+    if (idx_given && (target_idx < 1 || target_idx > count)) {
+        send_text_to_client(c->sock, "[SYSTEM] There is no number %d here: 1 to %d.", target_idx,
+                            count);
+        return true;
+    }
+    if (count == 1 || idx_given) {
+        collect(game, c, &game->npcs[items[idx_given ? target_idx - 1 : 0]]);
+        return true;
+    }
 
-    if (count == 1 || target_idx > 0) {
-        int pick = (target_idx > 0 && target_idx <= count) ? items[target_idx - 1] : items[0];
-        NPC *n = &game->npcs[pick];
+    /*Several things and no choice: the list.*/
+    send_text_to_client(c->sock, "[SYSTEM] There are more objects:");
+    for (int i = 0; i < count; i++) {
+        const NPC *n = &game->npcs[items[i]];
         if (n->archetype == ARCH_GOLD) {
-            c->gold += (uint64_t)(n->gold_drop > 0 ? n->gold_drop : 0);
-            send_text_to_client(c->sock, "[SYSTEM] You have collected %d gold coins!",
-                                n->gold_drop);
-            send_combat_event(c->sock, COMBAT_EV_GOLD, c->entity_id, n->gold_drop);
-            npc_set_active(game, n, false);
-        } else if (n->archetype == ARCH_TREASURE) {
-            if (n->ghost_loot[0].stack_count > 0) {
-                if (c->backpack_count >= MAX_BACKPACK) {
-                    send_text_to_client(c->sock, "[SYSTEM] Backpack full! Unable to collect.");
-                } else {
-                    c->backpack[c->backpack_count++] = n->ghost_loot[0];
-                    send_text_to_client(c->sock, "[SYSTEM] You have collected: %s",
-                                        item_database[n->ghost_loot[0].template_idx].name);
-                    npc_set_active(game, n, false);
-                    n->respawn_timer = 0;
-                }
-            } else {
-                send_text_to_client(c->sock, "[SYSTEM] Open the chest and find something...");
-                drop_loot_from_monster(c, n);
-                npc_set_active(game, n, false);
-                n->respawn_timer = 100;
-            }
-        }
-        /*The floor counters follow npc_set_active() at each removal.*/
-        save_player_data(c);
-    } else {
-        send_text_to_client(c->sock, "[SYSTEM] There are more objects:");
-        for (int i = 0; i < count; i++) {
-            NPC *n = &game->npcs[items[i]];
-            if (n->archetype == ARCH_GOLD) {
-                char buf[128];
-                snprintf(buf, sizeof(buf), "%d. %d gold coins", i + 1, n->gold_drop);
-                send_text_to_client(c->sock, buf);
-            } else if (n->ghost_loot[0].stack_count > 0) {
-                char buf[128];
-                snprintf(buf, sizeof(buf), "  %d. %s", i + 1,
-                         item_database[n->ghost_loot[0].template_idx].name);
-                send_text_to_client(c->sock, buf);
-            } else {
-                char buf[128];
-                snprintf(buf, sizeof(buf), "%d. Treasure chest", i + 1);
-                send_text_to_client(c->sock, buf);
-            }
-        }
-        char prompt[128];
-        if (target_x == c->x && target_y == c->y) {
-            snprintf(prompt, sizeof(prompt), "What do you want to collect? Use 'get <n>'.");
+            send_text_to_client(c->sock, "  %d. %d gold coins", i + 1, n->gold_drop);
+        } else if (n->ghost_loot[0].stack_count > 0) {
+            send_text_to_client(c->sock, "  %d. %s", i + 1,
+                                item_database[n->ghost_loot[0].template_idx].name);
         } else {
-            snprintf(prompt, sizeof(prompt), "What do you want to collect? Use 'get %s <n>'.", dir);
+            send_text_to_client(c->sock, "  %d. Treasure chest", i + 1);
         }
-        send_text_to_client(c->sock, prompt);
+    }
+    if (dir[0]) {
+        send_text_to_client(c->sock, "What do you want to collect? Use 'get %s <n>'.", dir);
+    } else {
+        send_text_to_client(c->sock, "What do you want to collect? Use 'get <n>'.");
     }
     return true;
 }

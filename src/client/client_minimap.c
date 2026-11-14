@@ -83,126 +83,36 @@ void minimap_mark_explored(int cx, int cy, int radius) {
     }
 }
 
-/*----------------------------------------------------------------
- * tile_to_color — Converts a voxel type to a minimap color.
- * ----------------------------------------------------------------*/
+/*The colour of each kind of tile on the minimap. A tile not listed (rock,
+ * and anything not worth a colour) stays transparent, like unexplored
+ * ground.*/
+static const MiniPixel k_tile_colors[VOXEL_COUNT] = {
+    [VOXEL_FLOOR] = {40, 40, 50, 255},
+    [VOXEL_WALL] = {120, 120, 130, 255},
+    [VOXEL_OBSIDIAN] = {30, 15, 60, 255},
+    [VOXEL_DOOR] = {130, 80, 30, 255},
+    [VOXEL_STAIRS_DOWN] = {230, 230, 0, 255},
+    [VOXEL_STAIRS_UP] = {0, 230, 230, 255},
+    [VOXEL_WATER] = {20, 80, 200, 255},
+    [VOXEL_LAVA] = {255, 60, 0, 255},
+    [VOXEL_GRASS] = {20, 100, 20, 255},
+    [VOXEL_ICE] = {150, 200, 255, 255},
+    [VOXEL_SAND] = {200, 180, 100, 255},
+    [VOXEL_GOLD_VEIN] = {200, 180, 20, 255},
+    [VOXEL_CRYSTAL_BLUE] = {80, 180, 255, 255},
+    [VOXEL_CRYSTAL_PURPLE] = {200, 50, 255, 255},
+    [VOXEL_MUSHROOM_GLOW] = {50, 255, 130, 255},
+    [VOXEL_TRAP] = {200, 50, 30, 255},
+    [VOXEL_WOOD] = {100, 75, 50, 255},
+    [VOXEL_COBBLE] = {75, 75, 75, 255},
+    [VOXEL_MUD] = {75, 50, 25, 255},
+    [VOXEL_MARBLE] = {230, 230, 230, 255},
+    [VOXEL_ASH] = {65, 65, 65, 255},
+};
+
 static MiniPixel tile_to_color(TileType t) {
-    MiniPixel c = {0, 0, 0, 255};
-    switch (t) {
-    case VOXEL_FLOOR:
-        c.r = 40;
-        c.g = 40;
-        c.b = 50;
-        break;
-    case VOXEL_WALL:
-        c.r = 120;
-        c.g = 120;
-        c.b = 130;
-        break;
-    case VOXEL_OBSIDIAN:
-        c.r = 30;
-        c.g = 15;
-        c.b = 60;
-        break;
-    case VOXEL_DOOR:
-        c.r = 130;
-        c.g = 80;
-        c.b = 30;
-        break;
-    case VOXEL_STAIRS_DOWN:
-        c.r = 230;
-        c.g = 230;
-        c.b = 0;
-        break;
-    case VOXEL_STAIRS_UP:
-        c.r = 0;
-        c.g = 230;
-        c.b = 230;
-        break;
-    case VOXEL_WATER:
-        c.r = 20;
-        c.g = 80;
-        c.b = 200;
-        break;
-    case VOXEL_LAVA:
-        c.r = 255;
-        c.g = 60;
-        c.b = 0;
-        break;
-    case VOXEL_GRASS:
-        c.r = 20;
-        c.g = 100;
-        c.b = 20;
-        break;
-    case VOXEL_ICE:
-        c.r = 150;
-        c.g = 200;
-        c.b = 255;
-        break;
-    case VOXEL_SAND:
-        c.r = 200;
-        c.g = 180;
-        c.b = 100;
-        break;
-    case VOXEL_GOLD_VEIN:
-        c.r = 200;
-        c.g = 180;
-        c.b = 20;
-        break;
-    case VOXEL_CRYSTAL_BLUE:
-        c.r = 80;
-        c.g = 180;
-        c.b = 255;
-        break;
-    case VOXEL_CRYSTAL_PURPLE:
-        c.r = 200;
-        c.g = 50;
-        c.b = 255;
-        break;
-    case VOXEL_MUSHROOM_GLOW:
-        c.r = 50;
-        c.g = 255;
-        c.b = 130;
-        break;
-    case VOXEL_TRAP:
-        c.r = 200;
-        c.g = 50;
-        c.b = 30;
-        break;
-    case VOXEL_WOOD:
-        c.r = 100;
-        c.g = 75;
-        c.b = 50;
-        break;
-    case VOXEL_COBBLE:
-        c.r = 75;
-        c.g = 75;
-        c.b = 75;
-        break;
-    case VOXEL_MUD:
-        c.r = 75;
-        c.g = 50;
-        c.b = 25;
-        break;
-    case VOXEL_MARBLE:
-        c.r = 230;
-        c.g = 230;
-        c.b = 230;
-        break;
-    case VOXEL_ASH:
-        c.r = 65;
-        c.g = 65;
-        c.b = 65;
-        break;
-    case VOXEL_ROCK:
-    default:
-        c.r = 0;
-        c.g = 0;
-        c.b = 0;
-        c.a = 0; /*completely transparent = not explored*/
-        break;
-    }
-    return c;
+    MiniPixel none = {0, 0, 0, 0};
+    return t < VOXEL_COUNT ? k_tile_colors[t] : none;
 }
 
 /* ----------------------------------------------------------------

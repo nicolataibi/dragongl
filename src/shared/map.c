@@ -206,8 +206,9 @@ static VoxelType shaped_theme_voxel(int theme, int x, int y, double cx, double c
         return (d >= r * 0.8 && d < r * 0.9) ? VOXEL_WOOD : VOXEL_SAND;
     case 18: /*lava caldera*/
         return d < r * 0.5 ? VOXEL_LAVA : VOXEL_OBSIDIAN;
-    case 19: /*throne room: a carpet to the throne*/
-        if (x == cx && y == cy - (r / 2)) {
+    case 19: /*throne room: a carpet to the throne, half a radius north of the
+              * centre (the centre and the radius are whole numbers)*/
+        if (x == (int)cx && y == (int)cy - (int)r / 2) {
             return VOXEL_GOLD_VEIN;
         }
         return fabsf((float)(x - cx)) <= 1 ? VOXEL_ASH : VOXEL_MARBLE;

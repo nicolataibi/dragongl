@@ -294,6 +294,20 @@ static void fsync_parent_dir(const char *path) {
     }
 }
 
+FILE *fopen_private(const char *path) {
+    int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
+    if (fd < 0) {
+        return NULL;
+    }
+    FILE *f = fdopen(fd, "w");
+    if (!f) {
+        int saved = errno;
+        close(fd);
+        errno = saved;
+    }
+    return f;
+}
+
 #ifdef DRAGONGL_FAULT_INJECTION
 BinFileCrashPoint binfile_crash_point = BINFILE_CRASH_NONE;
 #define CRASH_POINT(point)                                                                         \

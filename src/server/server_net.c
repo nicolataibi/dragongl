@@ -103,9 +103,12 @@ void send_auth_fail(int sock, const char *reason) {
     }
 }
 
+/*A chunk never needs to be larger than the map (which is square).*/
+_Static_assert(WIRE_MAX_CHUNK_SIDE <= MAP_WIDTH, "a map chunk larger than the map");
+
 void send_map_chunk(int sock, Map *map, int cx, int cy, int size) {
     MsgMapChunk mc;
-    if (size <= 0 || size > WIRE_MAX_CHUNK_SIDE || size > MAP_WIDTH) { /*the map is square*/
+    if (size <= 0 || size > WIRE_MAX_CHUNK_SIDE) {
         return;
     }
     int sx = cx - size / 2, sy = cy - size / 2;

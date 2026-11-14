@@ -18,6 +18,7 @@
  */
 
 #include "combat_log.h"
+#include "binio.h"
 #include <stdio.h>
 #include <time.h>
 #include <string.h>
@@ -113,7 +114,7 @@ static void clog_maybe_flush_and_rotate(void) {
         char rotated[CLOG_PATH_MAX + 8];
         snprintf(rotated, sizeof(rotated), "%s.1", g_log_path);
         rename(g_log_path, rotated); /*overwrites the previous rotation*/
-        g_log_file = fopen(g_log_path, "we");
+        g_log_file = fopen_private(g_log_path);
         if (g_log_file) {
             g_file_entries = 0;
             fprintf(g_log_file, "[\n");
@@ -126,9 +127,12 @@ static void clog_maybe_flush_and_rotate(void) {
  * a constant, but the path is the same for every field).*/
 static void write_timestamp(void) {
     time_t now = time(NULL);
-    struct tm *t = localtime(&now);
-    char buf[32];
-    strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S", t);
+    struct tm t;
+    char buf[32] = "";
+    /*localtime_r: localtime() returns a buffer shared by every thread.*/
+    if (localtime_r(&now, &t)) {
+        strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S", &t);
+    }
     fputs("\"ts\":", g_log_file);
     write_json_string(buf);
 }
@@ -137,7 +141,7 @@ void clog_init(const char *filepath) {
     if (g_log_file) {
         fclose(g_log_file);
     }
-    g_log_file = fopen(filepath, "we");
+    g_log_file = fopen_private(filepath);
     if (!g_log_file) {
         g_log_path[0] = '\0';
         return;

@@ -18,6 +18,7 @@
 
 #include "binio.h"
 #include "classes.h"
+#include "combat_log.h"
 #include "data_loader.h"
 #include "items.h"
 #include "spells.h"
@@ -38,6 +39,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -867,6 +869,33 @@ static int test_command_words(void) {
 
 /* "open <dir>" and "close <dir>": the direction used to be unreachable
  * (only the bare words matched, and they ask for a direction). */
+/* The files the server writes outside binfile_write_atomic() (the combat
+ * log, the map dumps) are 0600 whatever the umask, like its saves. */
+static int test_private_files(void) {
+    char dir[] = "/tmp/dragongl-private-XXXXXX";
+    CHECK(mkdtemp(dir) != NULL, "mkdtemp failed");
+    char a[64], b[64];
+    snprintf(a, sizeof(a), "%s/dump.txt", dir);
+    snprintf(b, sizeof(b), "%s/combat_log.json", dir);
+    mode_t old = umask(0);
+    FILE *f = fopen_private(a);
+    clog_init(b);
+    umask(old);
+    CHECK(f != NULL, "fopen_private failed");
+    fputs("x\n", f);
+    fclose(f);
+    clog_close();
+    struct stat st;
+    CHECK(stat(a, &st) == 0 && (st.st_mode & 0777) == 0600, "dump mode %o",
+          (unsigned)(st.st_mode & 0777));
+    CHECK(stat(b, &st) == 0 && (st.st_mode & 0777) == 0600, "combat log mode %o",
+          (unsigned)(st.st_mode & 0777));
+    unlink(a);
+    unlink(b);
+    rmdir(dir);
+    return 0;
+}
+
 static int test_doors(void) {
     Client *c = fx_player(0, "doorman");
     CHECK(c != NULL, "socketpair failed");
@@ -1208,6 +1237,7 @@ static const TestCase k_tests[] = {
     {"command_table", test_command_table},
     {"command_words", test_command_words},
     {"command_docs", test_command_docs},
+    {"private_files", test_private_files},
     {"doors", test_doors},
     {"transit_cantrips_need_a_book", test_transit_cantrips_need_a_book},
     {"floor_walk_matches_scan", test_floor_walk_matches_scan},

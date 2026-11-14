@@ -86,11 +86,14 @@ static char *read_file_to_string(const char *filepath) {
 
     char *buffer = malloc((size_t)length + 1);
     if (buffer) {
-        size_t read_bytes = fread(buffer, 1, (size_t)length, f);
-        if (read_bytes != (size_t)length) {
-            //Ignore line formatting errors
+        /*A short read (the file changed size, an I/O error) leaves a
+         * truncated document: refuse it rather than parse half a file.*/
+        if (fread(buffer, 1, (size_t)length, f) != (size_t)length) {
+            free(buffer);
+            buffer = NULL;
+        } else {
+            buffer[length] = '\0';
         }
-        buffer[length] = '\0';
     }
     fclose(f);
     return buffer;
@@ -396,9 +399,7 @@ void cleanup_data_loaders(void) {
         for (int i = 0; i < item_database_size; i++) {
             free((void *)item_database[i].name);
             free((void *)item_database[i].description);
-            if (item_database[i].plural_name) {
-                free((void *)item_database[i].plural_name);
-            }
+            free((void *)item_database[i].plural_name);
         }
         free(item_database);
         item_database = NULL;

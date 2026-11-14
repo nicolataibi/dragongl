@@ -32,6 +32,25 @@
 #include <string.h>
 #include <unistd.h>
 
+/*Vertex input of the HUD: one interleaved VkVertex per vertex (position,
+ *colour, normal), at locations 0, 1 and 2 of the vertex shader.*/
+static const VkVertexInputBindingDescription k_hud_binding = {
+    .binding = 0, .stride = sizeof(VkVertex), .inputRate = VK_VERTEX_INPUT_RATE_VERTEX};
+static const VkVertexInputAttributeDescription k_hud_attributes[3] = {
+    {.location = 0,
+     .binding = 0,
+     .format = VK_FORMAT_R32G32B32_SFLOAT,
+     .offset = offsetof(VkVertex, pos)},
+    {.location = 1,
+     .binding = 0,
+     .format = VK_FORMAT_R32G32B32A32_SFLOAT,
+     .offset = offsetof(VkVertex, color)},
+    {.location = 2,
+     .binding = 0,
+     .format = VK_FORMAT_R32G32B32_SFLOAT,
+     .offset = offsetof(VkVertex, normal)},
+};
+
 /*The 2D HUD pipeline (host vertex buffer, alpha blending, no depth test)
  *and the scene pipeline. They depend on the colour and depth formats
  *only — viewport and scissor are dynamic — so a resize keeps them.*/
@@ -47,6 +66,7 @@ bool vk_create_pipelines(VkState *s) {
         }
         return false;
     }
+    /*Shader stages: the vertex and fragment shaders of shader.glsl.*/
     VkPipelineShaderStageCreateInfo stages[2] = {{0}, {0}};
     stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
@@ -57,27 +77,15 @@ bool vk_create_pipelines(VkState *s) {
     stages[1].module = frag_mod;
     stages[1].pName = "main";
 
-    VkVertexInputBindingDescription bind_desc = {0};
-    bind_desc.binding = 0;
-    bind_desc.stride = sizeof(VkVertex);
-    bind_desc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-    VkVertexInputAttributeDescription attr_descs[3] = {{0}, {0}, {0}};
-    attr_descs[0].location = 0;
-    attr_descs[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-    attr_descs[0].offset = offsetof(VkVertex, pos);
-    attr_descs[1].location = 1;
-    attr_descs[1].format = VK_FORMAT_R32G32B32A32_SFLOAT;
-    attr_descs[1].offset = offsetof(VkVertex, color);
-    attr_descs[2].location = 2;
-    attr_descs[2].format = VK_FORMAT_R32G32B32_SFLOAT;
-    attr_descs[2].offset = offsetof(VkVertex, normal);
     VkPipelineVertexInputStateCreateInfo vi_ci = {0};
     vi_ci.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
     vi_ci.vertexBindingDescriptionCount = 1;
-    vi_ci.pVertexBindingDescriptions = &bind_desc;
+    vi_ci.pVertexBindingDescriptions = &k_hud_binding;
     vi_ci.vertexAttributeDescriptionCount = 3;
-    vi_ci.pVertexAttributeDescriptions = attr_descs;
+    vi_ci.pVertexAttributeDescriptions = k_hud_attributes;
 
+    /*Fixed function: triangle lists, one viewport (dynamic), no culling:
+     * the HUD quads are wound either way.*/
     VkPipelineInputAssemblyStateCreateInfo ia_ci = {0};
     ia_ci.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
     ia_ci.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
@@ -94,8 +102,10 @@ bool vk_create_pipelines(VkState *s) {
     VkPipelineMultisampleStateCreateInfo ms_ci = {0};
     ms_ci.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
     ms_ci.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+    /*No depth test: the HUD is drawn last, over the scene.*/
     VkPipelineDepthStencilStateCreateInfo ds_ci = {0};
     ds_ci.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    /*Straight alpha blending; the alpha of the target is left as is.*/
     VkPipelineColorBlendAttachmentState cba = {0};
     cba.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
                          VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
@@ -115,6 +125,8 @@ bool vk_create_pipelines(VkState *s) {
     dyn_ci.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
     dyn_ci.dynamicStateCount = 2;
     dyn_ci.pDynamicStates = dyn_states;
+    /*Dynamic rendering: the formats of the attachments instead of a
+     * render pass.*/
     VkPipelineRenderingCreateInfo pr_ci = {0};
     pr_ci.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
     pr_ci.colorAttachmentCount = 1;
@@ -135,6 +147,7 @@ bool vk_create_pipelines(VkState *s) {
     gp_ci.pColorBlendState = &cb_ci;
     gp_ci.pDynamicState = &dyn_ci;
     gp_ci.layout = s->pipeline_layout;
+    /*The modules are not needed once the pipeline exists.*/
     bool ok = vkCreateGraphicsPipelines(s->device, VK_NULL_HANDLE, 1, &gp_ci, NULL,
                                         &s->pipeline_hud) == VK_SUCCESS;
     vkDestroyShaderModule(s->device, vert_mod, NULL);
