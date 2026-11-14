@@ -94,6 +94,7 @@ typedef struct {
 } TomeAnim;
 
 static TomeAnim g_tome[CLIENT_MAX_ENTITIES];
+static uint32_t g_seed; /* 0: the clock */
 
 /* ─────────────────────────── RNG ─────────────────────────── */
 
@@ -293,7 +294,7 @@ static void tome_init(TomeAnim *a, int slot, int entity_id, int floor_id, int mx
     a->owner_id = entity_id;
     a->owner_floor = floor_id;
     a->rng = (uint32_t)(uint64_t)entity_id * 2654435761u ^ (uint32_t)(uint64_t)floor_id * 40503u ^
-             (uint32_t)time(NULL) ^ (uint32_t)(slot + 1) * 69069u;
+             (g_seed ? g_seed : (uint32_t)time(NULL)) ^ (uint32_t)(slot + 1) * 69069u;
     if (a->rng == 0) {
         a->rng = 0x9e3779b9u;
     }
@@ -313,6 +314,10 @@ static void tome_init(TomeAnim *a, int slot, int entity_id, int floor_id, int mx
 }
 
 /* ─────────────────── Public API ─────────────────── */
+
+void tome_anim_set_seed(uint32_t seed) {
+    g_seed = seed;
+}
 
 void tome_anim_reset_all(void) {
     memset(g_tome, 0, sizeof(g_tome));

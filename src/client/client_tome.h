@@ -21,6 +21,7 @@
 #define CLIENT_TOME_H
 
 #include <stdbool.h>
+#include <stdint.h>
 #include "map.h"
 
 /*
@@ -38,6 +39,11 @@
  * renderers. Only the render thread touches this state (never the net
  * thread), so no locking is needed.
  */
+
+/* The animations started from now on draw their random numbers from this
+ * seed instead of the clock, so that a run can be repeated (the tests);
+ * 0 goes back to the clock. */
+void tome_anim_set_seed(uint32_t seed);
 
 /* Invalidate the animation of every slot (e.g. on reconnect). */
 void tome_anim_reset_all(void);

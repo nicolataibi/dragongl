@@ -1,3 +1,14 @@
+* Sat Nov 14 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.14.06
+- TESTS: the tome test failed about one run in a hundred (in the check
+  phase of the RPM build of 2026.11.14.05): the flight of the floating
+  tome is random and seeded from the clock, and the test asked every
+  flight to cross more than 50 half-tile cells. Over 20,000 seeds 206
+  flights cross 50 or fewer, the fewest 40; none is wrong. The test now
+  flies 200 fixed seeds, the same at every run, each inside the shop,
+  moving, changing height and turning, and asks for more than 30 cells.
+- CLIENT: tome_anim_set_seed() gives the animation of the tome a seed
+  instead of the clock, for the tests; the game still uses the clock.
+
 * Sat Nov 14 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.14.05
 - FIX: the RPM build of 2026.11.14.04 failed with 'Empty files file
   debugsourcefiles.list': the -ffile-prefix-map of the reproducible

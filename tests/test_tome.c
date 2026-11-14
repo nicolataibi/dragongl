@@ -77,15 +77,9 @@ static float mat4_rot_angle(const float a[16], const float b[16]) {
     return acosf((tr - 1.0f) / 2.0f);
 }
 
-int main(void) {
-    TileType map[MAP_HEIGHT * MAP_WIDTH];
-    const int cx = 150, cy = 150; /* merchant tile = shop center */
-    const float dt = 1.0f / 60.0f;
-
-    /* === 1. The book stays inside the shop and wanders === */
-    build_shop_map(map, cx, cy);
-    tome_anim_reset_all();
-
+/* One flight of 40 simulated seconds in the shop around (cx,cy): inside
+ * the room, moving around, changing height, turning on itself. */
+static void check_flight(const TileType *map, int cx, int cy, float dt) {
     float pos0[3], pos[3], orient[16], orient0[16];
     tome_anim_update(0, 4242, 0, cx, cy, map, dt, pos0, orient0);
     mat4_check_orthonormal(orient0);
@@ -132,12 +126,32 @@ int main(void) {
 
     /* The trajectory must actually move around (not hover in place) */
     CHECK(max_dx + max_dz > 1.0f);
-    CHECK(distinct_cells > 50);
+    CHECK(distinct_cells > 30);
     /* ...and it must change height sometimes */
     CHECK(max_h - min_h > 0.2f);
     /* ...and it must rotate on itself over the run (accumulated angle:
      * at >= 1.2 rad/s for ~40 s the total is hundreds of radians) */
     CHECK(rot_total > 10.0f);
+}
+
+int main(void) {
+    TileType map[MAP_HEIGHT * MAP_WIDTH];
+    const int cx = 150, cy = 150; /* merchant tile = shop center */
+    const float dt = 1.0f / 60.0f;
+
+    /* === 1. The book stays inside the shop and wanders ===
+     * The flight is random: each seed is one flight, and the same seeds
+     * are flown at every run (with the clock as seed, about one run in a
+     * hundred met the rare flight that crosses fewer cells than the old
+     * limit of 50; over 20,000 seeds the fewest is 40). */
+    build_shop_map(map, cx, cy);
+    float pos[3], orient[16];
+    for (uint32_t seed = 1; seed <= 200; seed++) {
+        tome_anim_set_seed(seed);
+        tome_anim_reset_all();
+        check_flight(map, cx, cy, dt);
+    }
+    tome_anim_set_seed(1);
 
     /* === 2. Unknown map (all rock): fallback box, no crash === */
     tome_anim_reset_all();
