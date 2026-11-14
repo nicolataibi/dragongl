@@ -31,13 +31,13 @@ dragongl-dev/
 
 ## 2. Rendering: Vulkan 1.3, GPU-Driven
 
-The client has a single renderer (`src/client/render_vk.c`, `src/client/vk_init.c`): Vulkan 1.3 with dynamic rendering and synchronization2, the only device features it enables.
+The client has a single renderer (`src/client/render_vk.c` and the `vk_*.c` modules, table below): Vulkan 1.3 with dynamic rendering and synchronization2, the only device features it enables.
 
 1. **Instance upload:** the CPU writes compact instance descriptors (`GpdInstance`, `GpdOriented`: position, scale, colour, orientation) into persistently mapped storage buffers, one set per frame slot. Map tiles are rebuilt only for a window around the player and only when the map changed.
 2. **GPU culling and expansion:** compute shaders (`gpd_cull_map.comp`, `gpd_cull_dyn.comp`, `gpd_expand_*.comp`) drop what lies beyond the vision radius and generate the triangles into a device-local vertex buffer.
 3. **Indirect draw:** `gpd_final.comp` writes the `VkDrawIndirectCommand`; the scene is one `vkCmdDrawIndirect`, the HUD a second draw from a host vertex buffer.
 
-**Frame loop** (`draw_frame`): wait for the fence of the slot (three frames in flight), acquire an image, reset the fence, record, submit, present. The image-available semaphore and the fence belong to the frame slot; the render-finished semaphore belongs to the swapchain image. A resize (GLFW callback), `VK_ERROR_OUT_OF_DATE_KHR` or `VK_SUBOPTIMAL_KHR` rebuilds the swapchain (with `oldSwapchain`) before the next frame; a minimized window is waited out. Viewport and scissor are dynamic state, so pipelines survive a resize.
+**Frame loop** (`vk_draw_frame`, `vk_frame.c`): wait for the fence of the slot (three frames in flight), acquire an image, reset the fence, record, submit, present. The image-available semaphore and the fence belong to the frame slot; the render-finished semaphore belongs to the swapchain image. A resize (GLFW callback), `VK_ERROR_OUT_OF_DATE_KHR` or `VK_SUBOPTIMAL_KHR` rebuilds the swapchain (with `oldSwapchain`) before the next frame; a minimized window is waited out. Viewport and scissor are dynamic state, so pipelines survive a resize.
 
 **Device selection:** every GPU is listed at start-up with the reason it is unusable, if any (no Vulkan 1.3, no swapchain, no graphics+compute queue that can present to the window). Discrete GPUs win over integrated, virtual and software ones, then the larger device-local memory. `DRAGONGL_GPU=<index|name>` overrides the choice.
 
@@ -45,7 +45,31 @@ The client has a single renderer (`src/client/render_vk.c`, `src/client/vk_init.
 
 **Validation:** `VK_INSTANCE_LAYERS=VK_LAYER_KHRONOS_validation` enables the Khronos layer. `tests/client/test_client.py` runs the real client against a real server under Xvfb with Mesa lavapipe and the validation layer: it fails on any validation message, checks that frames are drawn, resizes the window and quits with Escape (`./build.sh -k`, and in CI).
 
+**Lost device:** `VK_ERROR_DEVICE_LOST` or `VK_ERROR_SURFACE_LOST_KHR` from acquire, submit or present sets `device_lost`; the main loop then destroys the whole renderer and builds it again on the same window (`restart_renderer`, at most three times in a session), and the scene is uploaded again from the game state, which is untouched. `DRAGONGL_TEST_DEVICE_LOST=<frame>` reports a loss at that frame: `tests/client` uses it, since a real driver cannot be made to lose its device on demand.
+
+**Frame time:** the interval between frames goes into a histogram (`include/histogram.h`, the one the server uses for its rounds); the client prints the count, p50, p99 and maximum at exit, F3 shows the current value, and `--frames N` draws N frames and exits. Measure on the GPU of the players: on lavapipe (CI) the number says only that nothing stalls.
+
+**Client modules** (`src/client/`; no function over 120 lines, no file over 1,000):
+
+| Module | Role |
+| :--- | :--- |
+| `main_client.c`, `client_login.c` | command line, connection and login, the character prompts |
+| `net_thread.c`, `client_tls.c`, `known_servers.c` | the connection: TLS, pinned fingerprints, messages of the server into the client state |
+| `cli_thread.c` | commands typed in the terminal |
+| `client_config.c` | `client.conf`: settings, keys of the actions, keys bound to commands; `--print-config` |
+| `client_input.c` | GLFW callbacks: actions, camera, the command line of the window, HUD scale |
+| `line_edit.c`, `client_log.c` | the edited line with its history; the last 256 messages and word wrapping |
+| `hud_theme.c`, `hud_draw.c` | colours and their contrast; quads and the 5x7 font, snapped to device pixels, sRGB to linear when the swapchain is sRGB |
+| `hud.c`, `hud_world.c` | the panels; the labels placed in the scene (compass, names, combat numbers) |
+| `render_vk.c` | window, main loop, swapchain rebuild, restart after a lost device, frame times |
+| `vk_init.c`, `vk_device.c`, `vk_swapchain.c`, `vk_pipeline.c`, `vk_gpd.c` | instance and device, swapchain, HUD pipeline, compute and scene pipelines with their buffers (`vk_internal.h`) |
+| `vk_scene.c`, `vk_frame.c` | instances of tiles, entities and particles; one frame: acquire, record, submit, present |
+| `client_math.c`, `client_minimap.c`, `client_particles.c`, `client_fct.c`, `client_tome.c` | matrices, minimap, particles, combat numbers, the animated tomes |
+
+`line_edit`, `client_config`, `client_log` and `hud_theme` use neither GLFW nor Vulkan and are unit-tested (`tests/test_client_ui.c`); key codes in `client_config.h` are GLFW's by value, checked by `_Static_assert` in `client_input.c`.
+
 ### Visual FX & HUD
+- **HUD:** one vertex buffer of coloured quads in virtual pixels: `hud_begin` takes the framebuffer size and the scale (`ui_scale_auto`: the monitor content scale and the window height, steps of 0.25 from 0.5 to 4), every quad is snapped to device pixels. Text is always on a panel or on its own plate; `test_contrast` holds every colour of `hud_theme.c` to 4.5:1 against the panel over black and over white, composited in linear light as the GPU blends it.
 - **Floating Combat Text (FCT):** 3D world coordinates of damage/healing values are projected onto the 2D HUD viewport using the camera's Model-View-Projection (MVP) matrix.
 - **Particle System:** `MSG_SPELL_VFX` packets spawn framerate-independent, delta-time animated particles with school-dependent color coding.
 
@@ -220,7 +244,7 @@ Every quality gate of CI runs locally with one command; build trees go to `build
 | `data` | `tools/check_data.py`: `data/schema/*.schema.json` (JSON Schema 2020-12), references resolved by name (book spells, `cast_spell`), unique names, class consistency of books, canonical form (2-space indent, UTF-8) | any error (`tools/check_data.py --fix` rewrites the form) |
 | `spelling` | codespell (`.codespellrc`: the game words it would take for typos) on the game data, the documentation, the man pages, the sources and the tools; `LORE.md` is left out, its catalogue cuts texts mid-word | a known misspelling |
 | `deps` | `tools/check_deps.py`: the layers of the source tree (see *Server source layout*) and the include graph of the headers | an include that points to a higher layer, a cycle |
-| `metrics` | `tools/metrics.py`: function and file length (the server and the shared code also on their own: no function over 120 lines, no file over 1,000), coverage | a value over `tools/quality_limits.json` |
+| `metrics` | `tools/metrics.py`: function and file length (no function over 120 lines, no file over 1,000), coverage | a value over `tools/quality_limits.json` |
 | `coverage` | unit + integration suites built with `-fprofile-instr-generate -fcoverage-mapping`, every process (servers spawned by the network tests included) writes its profile; `llvm-cov` report of `src/server` + `src/shared` in `build-quality/coverage/` (`report.txt`, `html/`) | line coverage under `coverage_line_percent` |
 | `tsan` | the integration suite under ThreadSanitizer: the in-process harness and the network tests with a TSan server | any report |
 | `fuzz [S]` | the libFuzzer targets of `tests/fuzz` (wire decoders, save-file readers, text commands), S seconds each (default 60), with seeds written by the targets themselves | a crash, leak or timeout; the input goes to `build-quality/fuzz/artifacts/` |

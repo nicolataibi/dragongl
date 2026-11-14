@@ -1,3 +1,67 @@
+* Sat Nov 14 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.14.03
+- CLIENT: commands are typed in the window. Enter or '/' opens a command
+  line in the message panel: cursor, Left/Right, Home/End,
+  Ctrl+Left/Right by word, Backspace, Delete, Ctrl+U, Ctrl+K, and the
+  last 64 commands with Up/Down. The terminal that started the client
+  still takes commands and prints every message.
+- CLIENT: new HUD. Every text is on a panel or on its own plate:
+  character (hit points as bar and numbers, vitality, experience, gold,
+  armour class, abilities, spell slots, conditions as words), minimap,
+  equipment, boss trophies, and the last messages of the server, wrapped
+  and coloured by their tag, with Shift+PageUp/PageDown over the last
+  256. F1 lists the keys in use, F3 shows the frame time, Tab hides
+  equipment and trophies (hidden by default under 1000 pixels of width).
+  The reticle in the middle of the screen is gone.
+- CLIENT: the HUD scales from 0.5x to 4x: from the monitor scale (HiDPI)
+  and the height of the window, with --ui-scale, with ui_scale in the
+  settings file, or with Ctrl+= and Ctrl+- while playing. Glyphs are
+  snapped to device pixels at every scale.
+- CLIENT: settings file $XDG_CONFIG_HOME/dragongl/client.conf: ui_scale,
+  reduce_motion, show_fps, two keys for every action (key.move_north =
+  W, Up) and up to 32 keys that send a command (bind.F5 = look).
+  --print-config writes it with every default; a line that is not
+  understood is reported with its number and the rest applies. The
+  camera has keys (Q, E, R, F): the mouse is no longer required for
+  anything.
+- CLIENT: a lost device or surface (VK_ERROR_DEVICE_LOST,
+  VK_ERROR_SURFACE_LOST_KHR) no longer ends the game: the renderer is
+  rebuilt on the same window, three times at most in a session.
+- CLIENT: the time of every frame goes into a histogram: count, p50, p99
+  and maximum are printed at exit; --frames N draws N frames and exits.
+- CLIENT: reduce_motion = yes: no particles, combat numbers stay where
+  they appear, the water does not wave.
+- CLIENT: HUD colours are sRGB values, converted to linear light when
+  the swapchain is sRGB: the contrast the unit test checks is the one on
+  the screen. The colours of the scene are unchanged.
+- CLIENT: creating a character prints one summary of the choices before
+  the login instead of two.
+- CODE: vk_init.c (1,456 lines) is vk_init.c, vk_device.c,
+  vk_swapchain.c, vk_pipeline.c and vk_gpd.c; render_vk.c (1,700) is
+  render_vk.c, vk_frame.c, vk_scene.c, hud.c, hud_world.c, hud_draw.c,
+  client_input.c and client_math.c; main_client.c lost the login prompts
+  to client_login.c. No function of the project is over 120 lines and no
+  file over 1,000 (the client had 7 and 2): quality_limits.json holds
+  both at 0 for the whole tree, without the server-only limits.
+- CODE: histogram.c (the one of the server metrics) moved to the shared
+  code: the client measures its frames with it.
+- TESTS: client_ui unit test for the code that needs no window: line
+  editing and history, key names, the settings file with its errors, the
+  HUD scale, the message log and its wrapping, and the contrast of every
+  HUD colour against the panel over black and over white (at least
+  4.5:1, composited as the GPU blends it).
+- TESTS: client test (Xvfb, lavapipe, validation layer), four new cases:
+  commands typed, edited and recalled in the window reach the server;
+  client.conf with a rebound key, a key bound to a command and a wrong
+  line; the device reported lost at frame 20 (DRAGONGL_TEST_DEVICE_LOST)
+  and the game going on after the restart; --frames 120 printing the
+  frame times.
+- DOCS: ACCESSIBILITY.md lists what the client provides, the test behind
+  each point, and what it does not do. docs/GPU_TESTING.md is the
+  checklist for the tests on real GPUs (drivers, HiDPI, resize, lost
+  device, frame time), which CI cannot run: no frame time has been
+  measured on a real GPU yet. Man pages, README (table of keys),
+  DEVELOPMENT.md (client modules) and BUILD.md updated.
+
 * Sat Nov 14 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.14.02
 - SERVER: floors without characters sleep. A living NPC acts, saves
   against its conditions and ages its effects only on a floor where at

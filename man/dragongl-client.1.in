@@ -3,7 +3,7 @@
 dragongl-client \- Dragon GL client launcher script
 .SH SYNOPSIS
 .B dragongl-client
-[\fB\-\-fingerprint\fR \fIsha256\fR] [\fIserver_host\fR [\fIport\fR]]
+[\fIoptions\fR] [\fIserver_host\fR [\fIport\fR]]
 .br
 .B dragongl-client
 .BR \-h " | " \-\-help
@@ -32,6 +32,18 @@ interactive prompt (handy over SSH).
 .BI \-\-fingerprint " sha256"
 Trust only the server certificate with this SHA-256 fingerprint (see
 .BR dragongl_client (1)).
+.TP
+.BI \-\-ui\-scale " n"
+Size of the HUD, 0.5 to 4.
+.TP
+.B \-\-print\-config
+Write the settings file with every default to standard output and exit
+(the banner is not printed).
+.TP
+.BI \-\-frames " n"
+Draw
+.I n
+frames, print the frame times and exit.
 .TP
 .BR \-h ", " \-\-help
 Show a short help message and exit.

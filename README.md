@@ -188,7 +188,13 @@ The client renders with Vulkan 1.3 (a GPU and driver with Vulkan 1.3 are require
 
 # Window size, GPU choice, validation layer
 DRAGONGL_WINDOW=1920x1080 DRAGONGL_GPU=1 VK_INSTANCE_LAYERS=VK_LAYER_KHRONOS_validation ./dragongl-client
+
+# A larger HUD; your own keys
+./dragongl-client --ui-scale 2
+./dragongl-client --print-config > ~/.config/dragongl/client.conf
 ```
+
+The HUD follows the monitor scale (HiDPI) and the size of the window. Settings and keys live in `~/.config/dragongl/client.conf`: `ui_scale`, `reduce_motion`, `show_fps`, two keys for every action (`key.move_north = W, Up`) and keys that send a command (`bind.F5 = look`). What the client does for accessibility, and how it is tested, is in [ACCESSIBILITY.md](ACCESSIBILITY.md); the tests to run on a real GPU are in [docs/GPU_TESTING.md](docs/GPU_TESTING.md).
 
 ### 3. Resetting the Game World (`dragongl-reset-world`)
 
@@ -202,7 +208,24 @@ To wipe temporary server saves and reset world persistence:
 
 ## Player Quick Reference & Controls
 
-Dragon GL features a classic NetHack/Angband-style console interface alongside real-time 3D movement:
+Dragon GL features a classic NetHack/Angband-style command interface alongside real-time 3D movement. Commands are typed in the window (or in the terminal that started the client); the answers appear in the message panel.
+
+### Keys
+
+| Key | Action |
+| :--- | :--- |
+| `W` `A` `S` `D`, arrows | Step north, west, south, east |
+| `Enter`, `/` | Type a command: `Enter` sends it, `Escape` cancels, `Up`/`Down` recall the earlier ones |
+| `Q` `E`, `R` `F` | Turn the camera; raise and lower it (or drag with the mouse) |
+| `PageUp` `PageDown` | Zoom (or the mouse wheel) |
+| `Shift+PageUp` `Shift+PageDown` | Older and newer messages |
+| `Ctrl+=` `Ctrl+-` | Larger and smaller HUD |
+| `Tab` | Equipment and boss trophies on/off |
+| `F3` | Frame time on/off |
+| `F1` | The list of keys in use |
+| `Escape` | Leave the game |
+
+Every key can be changed in `client.conf`.
 
 ### Essential Console Commands
 

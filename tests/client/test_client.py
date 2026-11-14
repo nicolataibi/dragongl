@@ -136,7 +136,7 @@ class ClientSmokeTest(unittest.TestCase):
                                             self.read(path)).group(1)
         return proc, port
 
-    def start_client(self, port, name, config=None, extra_args=()):
+    def start_client(self, port, name, config=None, extra_args=(), extra_env=None):
         """The client, with its own known_servers under `config` (a new
         directory by default: the first connection records the server)."""
         out = open(os.path.join(self.tmp, name + ".log"), "wb")
@@ -146,6 +146,7 @@ class ClientSmokeTest(unittest.TestCase):
                    VK_ICD_FILENAMES=lavapipe_icd(), VK_DRIVER_FILES=lavapipe_icd(),
                    VK_INSTANCE_LAYERS="VK_LAYER_KHRONOS_validation",
                    DRAGONGL_WINDOW="1280x800", XDG_CONFIG_HOME=config)
+        env.update(extra_env or {})
         # server password, name, password, new character, race, subrace,
         # class, sex, alignment
         answers = "%s\n%s\npw-%s\n1\n0\n-1\n0\nM\n0\n" % (GATE, name, name)
@@ -225,6 +226,42 @@ class ClientSmokeTest(unittest.TestCase):
         xtest.fake_input(self.x, X.KeyRelease, code)
         self.x.sync()
 
+    def press(self, *keysyms, shift=False):
+        """Key presses in the client window, one after the other."""
+        win = self.client_window()
+        self.assertIsNotNone(win, "no client window")
+        win.set_input_focus(X.RevertToParent, X.CurrentTime)
+        shift_code = self.x.keysym_to_keycode(XK.XK_Shift_L)
+        for name in keysyms:
+            code = self.x.keysym_to_keycode(XK.string_to_keysym(name))
+            self.assertNotEqual(code, 0, "no key for %r" % name)
+            if shift:
+                xtest.fake_input(self.x, X.KeyPress, shift_code)
+            xtest.fake_input(self.x, X.KeyPress, code)
+            self.x.sync()
+            time.sleep(0.05)
+            xtest.fake_input(self.x, X.KeyRelease, code)
+            if shift:
+                xtest.fake_input(self.x, X.KeyRelease, shift_code)
+            self.x.sync()
+            time.sleep(0.05)
+
+    def type_text(self, text):
+        names = {" ": "space", "-": "minus", "/": "slash"}
+        self.press(*[names.get(ch, ch) for ch in text])
+
+    def logged_in(self, port, name, config=None, extra_args=(), env=None):
+        client, log = self.start_client(port, name, config, extra_args, env)
+        self.assertTrue(wait_for(lambda: "Authentication completed" in self.read(log), 60),
+                        self.read(log)[-2000:])
+        self.assertTrue(wait_for(lambda: "Vulkan initialization complete" in self.read(log), 60),
+                        self.read(log)[-2000:])
+        time.sleep(2)  # a few frames
+        return client, log
+
+    def count(self, log, needle):
+        return self.read(log).count(needle)
+
     # --- tests -----------------------------------------------------------------
     def test_render_resize_and_quit(self):
         _server, port = self.start_server()
@@ -250,6 +287,124 @@ class ClientSmokeTest(unittest.TestCase):
         except subprocess.TimeoutExpired:
             self.fail("Escape did not close the client")
         self.assertEqual(status, 0, self.read(log)[-2000:])
+        self.assert_no_validation_errors(log)
+
+    def test_command_line_in_the_window(self):
+        """Commands are typed in the window: Enter opens the line, Enter
+        sends it, Up brings the last one back, Escape cancels the line
+        without leaving the game."""
+        _server, port = self.start_server()
+        client, log = self.logged_in(port, "typist")
+        self.press("Return")
+        self.type_text("whox")
+        self.press("BackSpace", "Return")
+        self.assertTrue(wait_for(lambda: self.count(log, "[WHO]") == 1, 10),
+                        "the command typed in the window got no answer:\n" + self.read(log)[-800:])
+        # History: Up brings "who" back; edited at the start with Home.
+        self.press("Return", "Up", "Return")
+        self.assertTrue(wait_for(lambda: self.count(log, "[WHO]") == 2, 10),
+                        "the command from the history got no answer")
+        # The slash key opens the line and is not typed into it.
+        self.press("slash")
+        self.type_text("who")
+        self.press("Return")
+        self.assertTrue(wait_for(lambda: self.count(log, "[WHO]") == 3, 10),
+                        "a line opened with '/' was not sent as typed")
+        # While typing, the movement keys are text and Escape only cancels.
+        self.press("Return")
+        self.type_text("wasd")
+        self.press("Escape")
+        time.sleep(0.5)
+        self.assertIsNone(client.poll(), "Escape left the game while a command was being typed")
+        self.assertEqual(self.count(log, "[WHO]"), 3)
+        # The other keys of the HUD: list of keys, frame time, panels, size.
+        self.press("F1", "F3", "Tab")
+        self.press("Escape")  # closes the list of keys, not the game
+        time.sleep(0.5)
+        self.assertIsNone(client.poll(), "Escape left the game instead of closing the key list")
+        self.press("Escape")
+        try:
+            status = client.wait(20)
+        except subprocess.TimeoutExpired:
+            self.fail("Escape did not close the client")
+        self.assertEqual(status, 0)
+        self.assert_no_validation_errors(log)
+
+    def test_settings_file_and_keys(self):
+        """client.conf: a rebound key, a key bound to a command, the HUD
+        scale; a line that is not understood is reported and the rest
+        applies."""
+        _server, port = self.start_server()
+        config = tempfile.mkdtemp(dir=self.tmp)
+        os.makedirs(os.path.join(config, "dragongl"))
+        with open(os.path.join(config, "dragongl", "client.conf"), "w") as f:
+            f.write("ui_scale = 2\nreduce_motion = yes\nshow_fps = yes\n"
+                    "key.quit = F10\nbind.F5 = who\ncolour = red\n")
+        client, log = self.logged_in(port, "tuner", config)
+        self.assertIn("client.conf, line 6: unknown setting", self.read(log))
+        self.press("F5")
+        self.assertTrue(wait_for(lambda: self.count(log, "[WHO]") == 1, 10),
+                        "the key bound to a command sent nothing")
+        self.press("Escape")
+        time.sleep(1)
+        self.assertIsNone(client.poll(), "Escape still quits after key.quit = F10")
+        self.press("F10")
+        try:
+            self.assertEqual(client.wait(20), 0)
+        except subprocess.TimeoutExpired:
+            self.fail("the rebound quit key did not close the client")
+        self.assert_no_validation_errors(log)
+
+        # --print-config: the file with every default; it needs no server.
+        out = subprocess.run([CLIENT, "--print-config"], capture_output=True, text=True,
+                             env=dict(os.environ, XDG_CONFIG_HOME=self.tmp), timeout=20)
+        self.assertEqual(out.returncode, 0)
+        for line in ("ui_scale = auto", "key.move_north", "key.command", "# bind.F5 = look"):
+            self.assertIn(line, out.stdout)
+        bad = subprocess.run([CLIENT, "--ui-scale", "9"], capture_output=True, text=True,
+                             timeout=20)
+        self.assertEqual(bad.returncode, 2)
+        self.assertIn("--ui-scale takes a number from 0.5 to 4", bad.stderr)
+
+    def test_device_lost_restarts_the_renderer(self):
+        """The device is reported lost at frame 20 (DRAGONGL_TEST_DEVICE_LOST):
+        the renderer is rebuilt on the same window and the game goes on."""
+        _server, port = self.start_server()
+        client, log = self.logged_in(port, "phoenix", None, (),
+                                     {"DRAGONGL_TEST_DEVICE_LOST": "20"})
+        self.assertTrue(wait_for(lambda: "[VK] Renderer restarted." in self.read(log), 30),
+                        self.read(log)[-1500:])
+        self.assertEqual(self.count(log, "Vulkan initialization complete"), 2)
+        time.sleep(2)
+        self.assertIsNone(client.poll(), "the client exited after the restart")
+        width, height = self.drawn_extent()
+        self.assertGreaterEqual((width, height), (1270, 790), "nothing drawn after the restart")
+        # Still playing: a command typed in the window is answered.
+        self.press("Return")
+        self.type_text("who")
+        self.press("Return")
+        self.assertTrue(wait_for(lambda: self.count(log, "[WHO]") == 1, 10))
+        self.press("Escape")
+        self.assertEqual(client.wait(20), 0)
+        self.assert_no_validation_errors(log)
+
+    def test_frame_times_are_measured(self):
+        """--frames N draws N frames, prints their times and exits."""
+        _server, port = self.start_server()
+        client, log = self.start_client(port, "timer", None, ("--frames", "120"))
+        try:
+            self.assertEqual(client.wait(120), 0, self.read(log)[-1500:])
+        except subprocess.TimeoutExpired:
+            self.fail("--frames 120 did not end")
+        m = re.search(r"\[VK\] Frames: (\d+), frame time p50 ([\d.]+) p99 ([\d.]+) max ([\d.]+) ms",
+                      self.read(log))
+        self.assertIsNotNone(m, self.read(log)[-1500:])
+        self.assertEqual(int(m.group(1)), 119)  # intervals between 120 frames
+        p50, p99, worst = float(m.group(2)), float(m.group(3)), float(m.group(4))
+        self.assertTrue(0.0 < p50 <= p99 <= worst, m.group(0))
+        # A software renderer in CI: a frame over a second means a stall,
+        # not a slow machine.
+        self.assertLess(p99, 1000.0, m.group(0))
         self.assert_no_validation_errors(log)
 
     def test_server_certificate_is_pinned_on_first_use(self):

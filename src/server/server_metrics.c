@@ -31,69 +31,6 @@ static MetricHistogram g_life[METRIC_SERIES];
 static MetricHistogram g_window[METRIC_SERIES];
 static uint64_t g_budget_us[METRIC_SERIES];
 
-void histogram_add(MetricHistogram *h, uint64_t usec, uint64_t budget_us) {
-    uint64_t b = usec / METRICS_BUCKET_US;
-    if (b >= METRICS_BUCKETS) {
-        b = METRICS_BUCKETS - 1;
-    }
-    h->bucket[b]++;
-    h->count++;
-    h->sum_us += usec;
-    if (usec > h->max_us) {
-        h->max_us = usec;
-    }
-    if (budget_us > 0 && usec > budget_us) {
-        h->over_budget++;
-    }
-}
-
-double histogram_percentile_ms(const MetricHistogram *h, double pct) {
-    if (h->count == 0) {
-        return 0.0;
-    }
-    /*Rank of the sample: the smallest one whose cumulative share reaches
-     * pct (nearest-rank).*/
-    double exact = pct / 100.0 * (double)h->count;
-    uint64_t rank = (uint64_t)exact;
-    if ((double)rank < exact) {
-        rank++;
-    }
-    if (rank < 1) {
-        rank = 1;
-    }
-    uint64_t seen = 0;
-    for (int b = 0; b < METRICS_BUCKETS; b++) {
-        seen += h->bucket[b];
-        if (seen >= rank) {
-            if (b == METRICS_BUCKETS - 1) {
-                return (double)h->max_us / 1000.0; /*open-ended bucket*/
-            }
-            uint64_t edge = (uint64_t)(b + 1) * METRICS_BUCKET_US;
-            return (double)(edge < h->max_us ? edge : h->max_us) / 1000.0;
-        }
-    }
-    return (double)h->max_us / 1000.0;
-}
-
-void histogram_summary(const MetricHistogram *h, MetricSummary *out) {
-    memset(out, 0, sizeof(*out));
-    out->count = h->count;
-    out->over_budget = h->over_budget;
-    if (h->count == 0) {
-        return;
-    }
-    out->mean_ms = (double)h->sum_us / (double)h->count / 1000.0;
-    out->p50_ms = histogram_percentile_ms(h, 50.0);
-    out->p99_ms = histogram_percentile_ms(h, 99.0);
-    out->max_ms = (double)h->max_us / 1000.0;
-}
-
-uint64_t metrics_now_us(void) {
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (uint64_t)ts.tv_sec * 1000000u + (uint64_t)ts.tv_nsec / 1000u;
-}
-
 void metrics_init(uint64_t tick_budget_us, uint64_t loop_budget_us) {
     memset(g_life, 0, sizeof(g_life));
     memset(g_window, 0, sizeof(g_window));

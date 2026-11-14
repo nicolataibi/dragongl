@@ -90,6 +90,15 @@ add_executable(test_tome test_tome.c ${DG_SRCS}/client/client_tome.c)
 target_link_libraries(test_tome m)
 add_test(NAME tome COMMAND test_tome)
 
+# --- command line, keys and configuration, HUD scale and colour contrast
+add_executable(test_client_ui test_client_ui.c
+    ${DG_SRCS}/client/line_edit.c
+    ${DG_SRCS}/client/client_config.c
+    ${DG_SRCS}/client/client_log.c
+    ${DG_SRCS}/client/hud_theme.c)
+target_link_libraries(test_client_ui m Threads::Threads)
+add_test(NAME client_ui COMMAND test_client_ui)
+
 # --- VFX/FCT pool concurrency (B1 regression: net-thread spawn vs
 # --- render-thread update/draw, now guarded by g_particles_mutex/g_fct_mutex)
 add_executable(test_vfx_threads test_vfx_threads.c

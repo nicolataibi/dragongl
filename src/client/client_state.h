@@ -109,10 +109,6 @@ typedef struct {
 } FrameSnapshot;
 void frame_snapshot_acquire(FrameSnapshot *snap); /*lock, copy, unlock*/
 
-#define MAX_LOG_LINES 8
-extern char g_log_lines[MAX_LOG_LINES][256];
-extern int g_log_count;
-
 extern pthread_mutex_t g_state_mutex;
 extern pthread_mutex_t g_net_mutex;
 /*Shared by THREE threads (render loop, net thread, CLI thread), hence
@@ -128,6 +124,5 @@ extern atomic_bool g_map_dirty;
 
 void client_send_move(int dx, int dy);
 void client_send_text_cmd(const char *cmd);
-void client_log_add(const char *text);
 
 #endif // CLIENT_STATE_H

@@ -3,7 +3,10 @@
 dragongl_client \- Dragon GL 3D game client
 .SH SYNOPSIS
 .B dragongl_client
-[\fB\-\-fingerprint\fR \fIsha256\fR] [\fIserver_host\fR [\fIport\fR]]
+[\fB\-\-fingerprint\fR \fIsha256\fR] [\fB\-\-ui\-scale\fR \fIn\fR]
+[\fB\-\-frames\fR \fIn\fR] [\fIserver_host\fR [\fIport\fR]]
+.br
+.B dragongl_client \-\-print\-config
 .br
 .B dragongl_client
 .BR \-h " | " \-\-help " | " \-V " | " \-\-version
@@ -36,6 +39,86 @@ integrated before software, then the most device memory).
 The window opens at 80% of the screen and can be resized freely; the
 swapchain is rebuilt on resize and whenever the driver reports it out of
 date. Closing the window or pressing Escape quits.
+
+When the driver reports the device or the surface lost (a driver update or
+reset, a GPU removed), the client rebuilds the renderer on the same window
+and the game goes on; after three losses in one session it exits with the
+reason. At exit it prints how many frames it drew and their times (median,
+99th percentile, maximum).
+.SS Window and keys
+The HUD shows the character (hit points as a bar and as numbers, vitality,
+experience, gold, armour class, abilities, spell slots, conditions), the
+minimap, the equipment, the boss trophies and the last messages of the
+server. Its size follows the monitor scale and the height of the window;
+.B Ctrl+=
+and
+.B Ctrl+\-
+change it.
+
+Commands are typed in the window:
+.B Enter
+or
+.B /
+opens the command line,
+.B Enter
+sends it,
+.B Escape
+cancels it. While typing: Left, Right, Home, End, Ctrl+Left and Ctrl+Right
+(by word), Backspace, Delete, Ctrl+U and Ctrl+K (delete to the start or to
+the end), Up and Down (the last 64 commands). Commands may also be typed
+in the terminal that started the client, where every message of the server
+is printed as well.
+
+Default keys:
+.BR W ", " A ", " S ", " D
+or the arrows move;
+.BR Q " and " E
+turn the camera,
+.BR R " and " F
+raise and lower it,
+.BR PageUp " and " PageDown
+zoom (the mouse does the same: drag and wheel);
+.BR Shift+PageUp " and " Shift+PageDown
+scroll the messages;
+.B Tab
+shows or hides equipment and trophies (hidden by default in a narrow
+window);
+.B F3
+shows the frame time;
+.B F1
+lists the keys in use;
+.B Escape
+quits.
+.SS Settings file
+.I client.conf
+(see FILES) holds one setting per line,
+.IR "name = value" ;
+.B #
+starts a comment. A line that is not understood is reported with its
+number and the others apply.
+.TP
+.BR ui_scale " = " auto " | " \fIn\fR
+Size of the HUD, 0.5 to 4.
+.TP
+.BR reduce_motion " = " yes " | " no
+No particle effects, combat numbers stay where they appear, the water does
+not wave.
+.TP
+.BR show_fps " = " yes " | " no
+Frame time in the top right corner.
+.TP
+.BI key. action " = " "key\fR[\fB, \fIkey\fR]"
+The keys of an action (two at most, or
+.BR none ).
+A key is a letter, a digit, F1 to F25, a name (Enter, Escape, Tab, Space,
+Up, PageUp, KPAdd, Slash, Equal, ...) with optional
+.BR Shift+ ", " Ctrl+ ", " Alt+ .
+.B \-\-print\-config
+lists every action with its default keys.
+.TP
+.BI bind. key " = " command
+The key sends the command as if typed (32 at most), for example
+.BR "bind.F5 = look" .
 .SS Disconnection
 When the server closes the connection, stops answering (TCP keepalive,
 about 90 s) or sends a message the client cannot decode, the client prints
@@ -70,6 +153,31 @@ Trust only the server certificate with this SHA-256 fingerprint
 (\fBSHA256:AB:CD:...\fR, or 64 hexadecimal digits) and record it in
 .IR known_servers ,
 replacing an older entry for that server.
+.TP
+.BI \-\-ui\-scale " n"
+Size of the HUD, 0.5 to 4; overrides
+.B ui_scale
+of the settings file.
+.TP
+.B \-\-print\-config
+Write the settings file with every default and key to standard output and
+exit. Redirect it to
+.I client.conf
+and edit it.
+.TP
+.BI \-\-frames " n"
+Draw
+.I n
+frames, print the frame times and exit (for measurements and tests).
+.TP
+.BR \-h ", " \-\-help
+Show the usage and exit.
+.TP
+.BR \-V ", " \-\-version
+Show the version and exit.
+.SH EXIT STATUS
+0 when the player quits or the server closes the connection; 1 when the
+connection, the login or the renderer fails; 2 for a wrong command line.
 .SH ENVIRONMENT
 .TP
 .B DRAGONGL_WINDOW
@@ -98,6 +206,13 @@ names the system does not provide are skipped with a warning.
 .TP
 .I @DRAGONGL_PKGDATADIR@/shaders/*.spv
 Compiled shaders.
+.TP
+.I $XDG_CONFIG_HOME/dragongl/client.conf
+Settings and keys
+.RI ( ~/.config/dragongl/client.conf
+without
+.BR XDG_CONFIG_HOME );
+optional.
 .TP
 .I $XDG_CONFIG_HOME/dragongl/known_servers
 Servers trusted by fingerprint

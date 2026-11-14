@@ -110,14 +110,30 @@ endif()
 if(DRAGONGL_BUILD_CLIENT)
     add_executable(dragongl_client
         src/client/main_client.c
+        src/client/client_login.c
+        src/client/client_config.c
+        src/client/client_input.c
+        src/client/client_log.c
+        src/client/client_math.c
+        src/client/line_edit.c
         src/client/net_thread.c
         src/client/cli_thread.c
         src/client/client_fct.c
         src/client/client_minimap.c
         src/client/client_particles.c
         src/client/client_tome.c
+        src/client/hud.c
+        src/client/hud_draw.c
+        src/client/hud_theme.c
+        src/client/hud_world.c
         src/client/render_vk.c
         src/client/vk_init.c
+        src/client/vk_device.c
+        src/client/vk_swapchain.c
+        src/client/vk_pipeline.c
+        src/client/vk_gpd.c
+        src/client/vk_scene.c
+        src/client/vk_frame.c
         src/client/client_tls.c
         src/client/known_servers.c
         ${DRAGONGL_SHARED_SRCS}

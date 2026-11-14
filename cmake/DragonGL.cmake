@@ -39,6 +39,7 @@ set(DRAGONGL_SHARED_SRCS
     "${DRAGONGL_ROOT}/src/shared/data_loader.c"
     "${DRAGONGL_ROOT}/src/shared/data_items.c"
     "${DRAGONGL_ROOT}/src/shared/binio.c"
+    "${DRAGONGL_ROOT}/src/shared/histogram.c"
     "${DRAGONGL_ROOT}/src/shared/wire.c"
     "${DRAGONGL_ROOT}/src/shared/strnum.c"
     "${DRAGONGL_ROOT}/src/shared/tls_common.c"

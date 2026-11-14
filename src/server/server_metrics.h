@@ -30,6 +30,8 @@
 #ifndef DRAGONGL_SERVER_METRICS_H
 #define DRAGONGL_SERVER_METRICS_H
 
+#include "histogram.h"
+
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -39,38 +41,6 @@ typedef enum {
     METRIC_LOOP, /*one pass of the event loop, the wait in epoll excluded*/
     METRIC_SERIES
 } MetricSeries;
-
-/*Histogram of durations: METRICS_BUCKETS buckets of METRICS_BUCKET_US
- * microseconds, the last one open-ended. Percentiles are read at the upper
- * edge of their bucket: never below the truth, at most one bucket above.*/
-#define METRICS_BUCKET_US 250
-#define METRICS_BUCKETS   2000 /*0 .. 500 ms*/
-
-typedef struct {
-    uint64_t count;
-    uint64_t sum_us;
-    uint64_t max_us;
-    uint64_t over_budget; /*samples longer than the budget of the series*/
-    uint32_t bucket[METRICS_BUCKETS];
-} MetricHistogram;
-
-/*A reading of one histogram, in milliseconds.*/
-typedef struct {
-    uint64_t count;
-    double mean_ms;
-    double p50_ms;
-    double p99_ms;
-    double max_ms;
-    uint64_t over_budget;
-} MetricSummary;
-
-void histogram_add(MetricHistogram *h, uint64_t usec, uint64_t budget_us);
-/*The value under which pct percent of the samples fall (0 when empty).*/
-double histogram_percentile_ms(const MetricHistogram *h, double pct);
-void histogram_summary(const MetricHistogram *h, MetricSummary *out);
-
-/*Monotonic clock in microseconds.*/
-uint64_t metrics_now_us(void);
 
 /*Budget of each series: a sample over it is counted as "over budget".*/
 void metrics_init(uint64_t tick_budget_us, uint64_t loop_budget_us);

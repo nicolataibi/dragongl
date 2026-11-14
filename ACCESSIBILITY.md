@@ -1,63 +1,38 @@
-# Accessibility Statement
+# Accessibility
 
-## 1. Commitment
+What the Dragon GL client does for players who need larger text, more
+contrast, less motion or the keyboard alone, and how each point is
+checked. A point without a test is listed under *Known limitations*, not
+here.
 
-The project aims to make its software, documentation, and related resources accessible and usable by as many people as reasonably possible.
+## What the client provides
 
-Accessibility is considered an ongoing aspect of software quality, usability, and inclusive design.
+| Need | What the client does | Checked by |
+| :--- | :--- | :--- |
+| Readable text | Every HUD text is drawn on an opaque panel or on its own dark plate, never straight on the scene. Each HUD colour has a contrast of at least 4.5:1 against the panel (WCAG 2.1, 1.4.3), over the darkest and over the brightest scene. | `client_ui` unit test (`test_contrast`): every colour of `hud_theme.c`, composited as the GPU does it |
+| Larger or smaller interface | The HUD scales from 0.5x to 4x in steps of 0.25: automatically from the monitor scale (HiDPI) and the height of the window, with `--ui-scale`, with `ui_scale` in `client.conf`, or while playing with Ctrl+= and Ctrl+-. Glyphs are snapped to device pixels at every scale. | `client_ui` unit test (`test_ui_scale`); client test `test_settings_file_and_keys` (scale 2 under the validation layer) |
+| Keyboard only | Everything is reachable from the keyboard: movement, the camera (Q, E, R, F, PageUp, PageDown), commands typed in the window with editing and history, the message log, the list of keys (F1). The mouse is never required. | client test `test_command_line_in_the_window` |
+| Other keys | Every action can be moved to another key, two keys per action, and any key can send a command (`client.conf`, written by `--print-config`). A line the client does not understand is reported with its number; the rest applies. | `client_ui` unit test (`test_key_names`, `test_config_file`); client test `test_settings_file_and_keys` |
+| Not colour alone | Hit points are a bar, a colour and the numbers; hunger and thirst, conditions, spell slots and equipment are words; a defeated boss has a star as well as a colour; messages keep their `[TAG]`; the compass uses letters. | review of `hud.c` (no test) |
+| Less motion | `reduce_motion = yes`: no particle effects, combat numbers stay where they appear, the water does not wave. Nothing in the client flashes. | the setting: `client_ui` unit test (`test_config_file`); its effect: review |
+| No window | The game can be played from the terminal that started the client: every message is printed there and commands can be typed there. A screen reader that reads the terminal reads the game. | client tests (they read the answers of the server from the terminal output) |
 
-## 2. Accessibility Objectives
+## Known limitations
 
-Where applicable to the project's technology and user interface, accessibility considerations may include:
+- The 3D scene itself is not described in text beyond what `look` and
+  `examine` answer; a blind player depends on those commands.
+- The HUD font is a 5x7 bitmap with ASCII only: it has no bold or
+  alternative typeface, and characters outside ASCII are shown as `?`.
+- The colours of the scene (tiles, monsters) are not checked for contrast
+  and there is no colour-blind palette for the minimap.
+- The client has no sound, so nothing is conveyed by sound alone, and
+  nothing can be.
+- No conformance with WCAG as a whole is claimed: the standard is written
+  for web content, and only the criteria named above were checked.
 
-- Providing clear and consistent navigation.
-- Supporting keyboard-based interaction.
-- Maintaining sufficient contrast between text and background elements.
-- Using meaningful labels and descriptions for interface controls.
-- Providing text alternatives for informative non-text content.
-- Presenting information in a clear and understandable structure.
-- Avoiding unnecessary reliance on color alone to communicate information.
-- Considering compatibility with assistive technologies.
+## Reporting a barrier
 
-The relevance and implementation of these measures depend on the project's actual features and supported platforms.
-
-## 3. Standards and Guidelines
-
-The project recognizes the importance of established accessibility standards, including the Web Content Accessibility Guidelines (WCAG), where applicable.
-
-Conformance with a particular standard or level should be claimed only when it has been appropriately assessed and verified.
-
-## 4. Known Limitations
-
-Accessibility limitations may exist in certain features, interfaces, dependencies, or supported environments.
-
-Where identified, such limitations may be documented and considered for improvement as part of the project's development process.
-
-This statement does not constitute a claim that every component or feature is fully accessible.
-
-## 5. Reporting Accessibility Issues
-
-Users are encouraged to report accessibility barriers or suggest improvements through the project's GitHub Issues section, if enabled.
-
-Please include, where possible:
-
-- A description of the accessibility barrier.
-- The affected feature or component.
-- The operating system, browser, or application version, as applicable.
-- The assistive technology or interaction method involved.
-- Steps to reproduce the issue.
-- Suggestions for improvement, if available.
-
-Please avoid including personal or sensitive information in public reports.
-
-## 6. Continuous Improvement
-
-Accessibility is an ongoing process. Feedback from users and contributors can help identify barriers, prioritize improvements, and support more inclusive software development.
-
-The project welcomes constructive suggestions that improve accessibility, usability, and the overall user experience.
-
-## 7. Contact and Feedback
-
-For accessibility-related questions or feedback, please use the project's documented communication channels or open an issue in the repository, where appropriate.
-
-Thank you for helping make this project more accessible and inclusive.
+Open an issue on GitHub with the feature concerned, what you expected,
+what happened, your operating system and the assistive technology or
+input method you use. Do not include personal or sensitive information in
+a public report.

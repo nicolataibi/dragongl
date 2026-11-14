@@ -25,6 +25,8 @@
  * while the GPU is still consuming previous frames. */
 #define MAX_FRAMES_IN_FLIGHT 3
 
+#include "client_config.h"
+
 #include <vulkan/vulkan.h>
 #include <GLFW/glfw3.h>
 #include <stdbool.h>
@@ -56,7 +58,7 @@ typedef struct {
 #define VKD_DYN_INST_MAX    2513u
 #define VKD_ORIENTED_MAX    8u
 #define VKD_VERTEX_CAPACITY 880000u
-#define VKD_HUD_VERTS       100000u
+#define VKD_HUD_VERTS       200000u
 #define VKD_CULL_RADIUS_MAX 55.0f
 #define VKD_WORKGROUP       256u
 /* GLSL GpdVertex stride (vec3 pos; vec4 color; vec3 normal -> 48 B).
@@ -254,6 +256,8 @@ bool vk_init(VkState *s);
 /* After a resize or OUT_OF_DATE/SUBOPTIMAL; waits for the device. */
 bool vk_recreate_swapchain(VkState *s, uint32_t width, uint32_t height);
 void vk_cleanup(VkState *s);
-void render_vk_start(void);
+/* The window and the render loop, until the window is closed, the session
+ * ends or max_frames (if not 0) are drawn. */
+void render_vk_start(const ClientConfig *cfg, unsigned long max_frames);
 
 #endif // RENDER_VK_H

@@ -40,6 +40,7 @@
 #include <unistd.h>
 
 #include "client_fct.h"
+#include "client_log.h"
 #include "client_state.h"
 #include "client_tls.h"
 /*Atomic: shared between the net thread (sets, under g_state_mutex) and
