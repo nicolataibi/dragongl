@@ -28,6 +28,9 @@ build-tests/
 build-tests-asan/
 build-integration/
 build-quality/
+# CMake presets (build-<preset>/) and tools/release.sh
+/build-*/
+/dist/
 
 # ignore
 npcs.dat

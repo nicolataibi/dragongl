@@ -74,6 +74,7 @@ set(DRAGONGL_SERVER_LIB_SRCS
     "${DRAGONGL_ROOT}/src/server/server_move.c"
     "${DRAGONGL_ROOT}/src/server/server_commands.c"
     "${DRAGONGL_ROOT}/src/server/cmd_character.c"
+    "${DRAGONGL_ROOT}/src/server/cmd_help.c"
     "${DRAGONGL_ROOT}/src/server/cmd_social.c"
     "${DRAGONGL_ROOT}/src/server/cmd_shop.c"
     "${DRAGONGL_ROOT}/src/server/cmd_items.c"
@@ -103,6 +104,14 @@ set(DRAGONGL_SERVER_SRCS "${DRAGONGL_ROOT}/src/server/main_server.c" ${DRAGONGL_
 # are the only ones (Fedora: _FORTIFY_SOURCE=3, which a forced =2 redefined).
 option(DRAGONGL_HARDENING "Add hardening flags (off for distribution builds)" ON)
 
+# DRAGONGL_REPRODUCIBLE (default ON): the same sources, compiler and options
+# give the same bytes wherever the tree is and whenever it is built. The
+# sources use neither __DATE__ nor __TIME__; what is left is the path of the
+# source tree in the debug information and in __FILE__, mapped to "." here
+# (not in Debug builds, where the debugger wants the real paths).
+# tools/quality.sh repro builds two copies of the tree and compares them.
+option(DRAGONGL_REPRODUCIBLE "Keep the path of the source tree out of the binaries" ON)
+
 macro(dragongl_compile_settings)
     set(CMAKE_C_STANDARD 11)
     set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -112,6 +121,9 @@ macro(dragongl_compile_settings)
     endif()
     add_compile_definitions(_DEFAULT_SOURCE)
     add_compile_options(-Wall -Wextra -Wpedantic -Wformat -Wformat-security -Wshadow -Wconversion)
+    if(DRAGONGL_REPRODUCIBLE)
+        add_compile_options($<$<NOT:$<CONFIG:Debug>>:-ffile-prefix-map=${DRAGONGL_ROOT}=.>)
+    endif()
     if(DRAGONGL_HARDENING)
         set(CMAKE_POSITION_INDEPENDENT_CODE ON)
         include(CheckPIESupported)

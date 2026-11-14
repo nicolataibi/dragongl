@@ -1,3 +1,51 @@
+* Sat Nov 14 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.14.04
+- GAMEPLAY: help is generated from one table of the commands. 'help'
+  lists the topics with their commands, 'help <topic>' the commands of
+  one with what they do, 'help <command>' one command with its other
+  names (aliases work: 'help q'), 'help all' everything. The DM commands
+  appear for the DM only. The old text was written by hand and had no
+  word about invite, join, leave, party and pickup.
+- FIX: rest outside the town said nothing; it now answers that one rests
+  only on floor 0.
+- FIX: 'lock' was accepted as a spelling of 'look', and 'look' ignored
+  whatever followed it; both are gone.
+- SERVER: dragongl_server --print-commands writes the reference of the
+  commands as Markdown. docs/COMMANDS.md is that output;
+  tools/quality.sh commands (and CI) fail when the file and the table
+  differ.
+- BUILD: reproducible builds. Outside Debug the path of the source tree
+  is mapped to '.' (-ffile-prefix-map; DRAGONGL_REPRODUCIBLE, default
+  ON); the sources never used __DATE__ or __TIME__. tools/quality.sh
+  repro builds two copies of the tree at different paths with debug
+  information and compares every installed file.
+- BUILD: CMakePresets.json: release, dev (Debug, ASan and UBSan,
+  -Werror), werror, gcc, server (no graphics stack) and package, each in
+  build-<preset>/. build.sh does not need them.
+- TOOLS: tools/release.sh writes dist/: the source tarball (git archive
+  of the commit: the same bytes every time), with --srpm the spec for a
+  plain rpmbuild and the source RPM, and SHA256SUMS. It refuses a tree
+  with uncommitted changes and a version whose tag is on another commit;
+  it never tags or pushes. check_release.py --notes prints the changelog
+  entry of a version.
+- CI: release.yml: a pushed version tag publishes a GitHub release with
+  the tarball, the source RPM, the RPMs built and linted on Fedora,
+  SHA256SUMS and the changelog entry as notes; a tag that is not the
+  version of the spec publishes nothing. .copr/Makefile builds the
+  source RPM for COPR's 'make srpm' method with the same script.
+- CI: new job for the command reference, the man pages (mandoc -T lint,
+  no warning), the reproducible build and the reproducible tarball. The
+  rpm job builds from the source RPM of tools/release.sh.
+- FIX: generate_pdf_map(1): three example lines began with './', which
+  roff reads as a macro: the examples were missing from the page.
+- TESTS: command_docs in the harness: every word the command tables
+  accept is the name or an alias of a documented command, every
+  documented word is a command, the usage shown for missing arguments is
+  the documented one, and help answers by topic, name and alias.
+- DOCS: docs/COMMANDS.md (generated), docs/RELEASING.md (steps, what can
+  be verified afterwards, what is not signed), BUILD.md (presets,
+  reproducible builds, packaging), README (short list of commands with a
+  link instead of two tables written by hand).
+
 * Sat Nov 14 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.14.03
 - CLIENT: commands are typed in the window. Enter or '/' opens a command
   line in the message panel: cursor, Left/Right, Home/End,

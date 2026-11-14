@@ -94,7 +94,7 @@ const CmdEntry *cmd_table_find_word(const CmdEntry *table, size_t n, const char 
 }
 
 static const CmdEntry COMMANDS[] = {
-    {"help|?", NULL, cmd_help, NULL},
+    {"help|?", "help |? ", cmd_help, NULL},
     {"train", "train ", cmd_train, "train <str|dex|con|int|wis|cha|random>"},
     {"top|leaderboard", NULL, cmd_top, NULL},
     {"event", NULL, cmd_event, NULL},
@@ -103,7 +103,7 @@ static const CmdEntry COMMANDS[] = {
     {"leave", NULL, cmd_leave, NULL},
     {"party", NULL, cmd_party, NULL},
     {NULL, "trade ", cmd_trade, "trade <player>"},
-    {NULL, "offer ", cmd_offer, "offer <gold> [backpack item n]"},
+    {NULL, "offer ", cmd_offer, "offer <gold> [n]"},
     {"accept", NULL, cmd_accept, NULL},
     {"cancel", NULL, cmd_cancel, NULL},
     {NULL, "msg |tell |whisper ", cmd_msg, "msg <player> <text>"},
@@ -116,7 +116,7 @@ static const CmdEntry COMMANDS[] = {
     {NULL, NULL, cmd_dm, NULL},
     {"retrieve", NULL, cmd_retrieve, NULL},
     {"list", NULL, cmd_list, NULL},
-    {"look|l|lock", "look |lock ", cmd_look, NULL},
+    {"look|l", NULL, cmd_look, NULL},
     {"fountain", NULL, cmd_fountain, NULL},
     {"statue|crystal", NULL, cmd_statue, NULL},
     {"status|stats", NULL, cmd_stats, NULL},
@@ -148,7 +148,7 @@ static const CmdEntry COMMANDS[] = {
     {"pickup", NULL, cmd_pickup, NULL},
     {"get|g", "get |g ", cmd_get, NULL},
     {NULL, "drop |d ", cmd_drop, "drop <n>"},
-    {NULL, "throw |v ", cmd_throw, "throw <n> [direction]"},
+    {NULL, "throw |v ", cmd_throw, "throw <n|item> [n|s|e|w]"},
     {"search|s", NULL, cmd_search, NULL},
     {"disarm|D", "disarm ", cmd_disarm, NULL},
     {"pray|p", NULL, cmd_pray, NULL},

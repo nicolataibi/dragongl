@@ -170,32 +170,58 @@ jobs:
       # glibc-langpack-en: the en_US.UTF-8 locale of the runner environment
       # (rpm's shells warn without it, and rpmlint spell-checks in en_US).
       - name: Install packaging tools
-        run: dnf -y install git rpm-build rpmlint glibc-langpack-en 'dnf-command(builddep)'
+        run: dnf -y install git rpm-build rpmlint python3 glibc-langpack-en 'dnf-command(builddep)'
 
       - uses: actions/checkout@v4
 
-      # %autorelease and %autochangelog are expanded by rpmautospec on
-      # COPR/Koji from the git history; here they are replaced by fixed
-      # values so the build exercises the spec and the real Fedora macros.
-      - name: Source tarball and spec
+      # The tarball, the spec and the source RPM of a release, made by the
+      # script that makes them for a release (tools/release.sh): %autorelease
+      # and %autochangelog, which rpmautospec expands on COPR and Koji, become
+      # release 1 and the entries of CHANGELOG.md.
+      - name: Source tarball, spec and source RPM
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          version=$(sed -n 's/^Version:[[:space:]]*//p' dragongl.spec)
-          mkdir -p ~/rpmbuild/SOURCES ~/rpmbuild/SPECS
-          git archive --format=tar.gz --prefix="dragongl-$version/" \
-            -o ~/rpmbuild/SOURCES/"dragongl-$version.tar.gz" HEAD
-          sed -e 's/^Release:.*/Release:        1%{?dist}/' \
-              -e "s/^%autochangelog\$/* $(LC_ALL=C date '+%a %b %d %Y') CI <ci@localhost> - $version-1\\n- CI build/" \
-              dragongl.spec > ~/rpmbuild/SPECS/dragongl.spec
+          tools/release.sh --srpm
 
       - name: Build dependencies
-        run: dnf -y builddep ~/rpmbuild/SPECS/dragongl.spec
+        run: dnf -y builddep dist/*.src.rpm
 
       - name: rpmbuild (includes %check)
-        run: rpmbuild -ba ~/rpmbuild/SPECS/dragongl.spec
+        run: rpmbuild --rebuild dist/*.src.rpm
 
       - name: rpmlint
-        run: rpmlint -r dragongl.rpmlintrc ~/rpmbuild/RPMS/*/*.rpm ~/rpmbuild/SRPMS/*.rpm
+        run: rpmlint -r dragongl.rpmlintrc ~/rpmbuild/RPMS/*/*.rpm dist/*.src.rpm
+
+  release-checks:
+    name: Command reference, man pages, reproducible build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang cmake ninja-build pkg-config mandoc \
+            libglfw3-dev libvulkan-dev glslc libsodium-dev libssl-dev
+
+      # docs/COMMANDS.md is generated from the command table of the server.
+      - name: Command reference
+        run: tools/quality.sh commands
+
+      - name: Man pages (mandoc -T lint)
+        run: tools/quality.sh man
+
+      # Two copies of the tree at different paths install identical files.
+      - name: Reproducible build
+        run: tools/quality.sh repro
+
+      # The tarball of a commit is the same bytes every time.
+      - name: Reproducible source tarball
+        run: |
+          tools/release.sh && cp dist/SHA256SUMS "$RUNNER_TEMP/first"
+          sleep 2
+          tools/release.sh && diff "$RUNNER_TEMP/first" dist/SHA256SUMS
 
   lint:
     name: Format, game data, spelling, metrics

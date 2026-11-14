@@ -110,6 +110,10 @@ of the state directory, and creates them at the first start (an ECDSA
 P-256 key and a self-signed certificate for the host name, valid 10
 years). A warning is printed if the key is readable by group or others.
 .TP
+.B \-\-print\-commands
+Write the reference of the game commands (Markdown, generated from the
+command table) to standard output and exit. It must be the only argument.
+.TP
 .BR \-h ", " \-\-help
 Show a short help message and exit.
 .TP

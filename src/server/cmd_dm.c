@@ -877,6 +877,11 @@ static const CmdEntry DM_COMMANDS[] = {
 
 /*Runs a dm_* command; false (not handled) for any other account or
  * command, so the player commands are tried next.*/
+const CmdEntry *cmd_dm_commands(size_t *n) {
+    *n = sizeof(DM_COMMANDS) / sizeof(DM_COMMANDS[0]);
+    return DM_COMMANDS;
+}
+
 const char *cmd_dm_usage(const char *cmd) {
     const CmdEntry *e =
         cmd_table_find_word(DM_COMMANDS, sizeof(DM_COMMANDS) / sizeof(DM_COMMANDS[0]), cmd);

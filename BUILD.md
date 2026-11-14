@@ -114,6 +114,25 @@ Warnings are always `-Wall -Wextra -Wpedantic -Wformat -Wformat-security -Wshado
 
 **Version:** the single source of the version is the `Version:` line of `dragongl.spec` (`YYYY.MM.DD.NN`). CMake reads it at configure time and generates `generated/dragongl_config.h` (`DRAGONGL_VERSION`, `DRAGONGL_PKGDATADIR`) and the man pages from `man/*.1.in`; editing the spec re-runs the configuration. Both binaries print it with `--version`. `tools/check_release.py` checks that the spec, the newest `CHANGELOG.md` entry and its date agree (run in CI and in the RPM `%check`).
 
+**Presets** (`CMakePresets.json`, CMake 3.21 or later): the configurations above by name, each in its own `build-<preset>/` directory.
+
+```bash
+cmake --list-presets
+cmake --preset release && cmake --build --preset release
+```
+
+| Preset | Configuration |
+| --- | --- |
+| `release` | Release, hardened, clang: what a player or a server host runs |
+| `dev` | Debug, AddressSanitizer and UBSan, `-Werror` |
+| `werror`, `gcc` | The two builds of CI: Release with `-Werror`, clang and gcc |
+| `server` | Server only: no Vulkan, GLFW or glslc needed |
+| `package` | As a packager builds it: RelWithDebInfo, prefix `/usr`, no hardening flags of its own |
+
+`build.sh` and the commands of this section do not need the presets.
+
+**Reproducible builds** (`DRAGONGL_REPRODUCIBLE`, default `ON`): the same sources, compiler and options give the same bytes wherever the tree is and whenever it is built. The sources use neither `__DATE__` nor `__TIME__`, and outside Debug builds the path of the source tree is mapped to `.` (`-ffile-prefix-map`) in the debug information. `tools/quality.sh repro` builds two copies of the tree at different paths with debug information, installs both and compares every file; CI runs it. The source tarball is `git archive` of the commit, the same bytes every time (`tools/release.sh`). What is not covered: two different compilers or library versions give different binaries, as they must.
+
 ### Step 2: Compile
 Build all executables and compile shaders in parallel:
 
@@ -185,12 +204,11 @@ Only a C compiler, CMake and Python 3 are required: no graphics stack. Tests tha
 The spec builds every package and runs `tools/check_release.py` plus the unit suite in `%check`. CI does the same in a Fedora container (job `rpm`). By hand, on Fedora:
 
 ```bash
-sudo dnf install -y rpm-build rpmlint dnf-plugins-core && sudo dnf builddep -y dragongl.spec
-mkdir -p ~/rpmbuild/SOURCES
-git archive --prefix=dragongl-$(rpmspec -q --qf '%{version}' --srpm dragongl.spec)/ \
-    -o ~/rpmbuild/SOURCES/dragongl-$(rpmspec -q --qf '%{version}' --srpm dragongl.spec).tar.gz HEAD
-rpmbuild -ba dragongl.spec
-rpmlint -r dragongl.rpmlintrc ~/rpmbuild/RPMS/*/dragongl*.rpm ~/rpmbuild/SRPMS/dragongl*.rpm
+sudo dnf install -y rpm-build rpmlint dnf-plugins-core
+tools/release.sh --srpm                 # dist/: tarball, spec, source RPM, SHA256SUMS
+sudo dnf builddep -y dist/*.src.rpm
+rpmbuild --rebuild dist/*.src.rpm
+rpmlint -r dragongl.rpmlintrc ~/rpmbuild/RPMS/*/dragongl*.rpm dist/*.src.rpm
 ```
 
-The spec uses `%autorelease` and `%autochangelog` (as COPR builds do from git); outside an rpmautospec setup, replace them with a plain `Release:` and `%changelog` as the CI job does. `.gitattributes` keeps `readme_assets/` and `.github/` out of `git archive`.
+The spec uses `%autorelease` and `%autochangelog` (rpmautospec, as COPR and Koji expand them from git); `tools/release.sh` writes a copy with release 1 and the entries of `CHANGELOG.md` for a plain `rpmbuild`. How a release is published is in [docs/RELEASING.md](docs/RELEASING.md). `.gitattributes` keeps `readme_assets/` and `.github/` out of `git archive`.

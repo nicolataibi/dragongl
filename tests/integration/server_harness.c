@@ -727,6 +727,92 @@ static int test_command_table(void) {
     return 0;
 }
 
+static bool answer_has(Client *c, const char *text, const char *needle);
+
+/* Every word a command table accepts is documented (the name or an alias
+ * of an entry of cmd_help.c), and every documented word is a command. */
+static int check_table_documented(const CmdEntry *t, size_t rows) {
+    for (size_t i = 0; i < rows; i++) {
+        const char *lists[2] = {t[i].names, t[i].prefixes};
+        for (int k = 0; k < 2; k++) {
+            for (const char *p = lists[k]; p;) {
+                const char *bar = strchr(p, '|');
+                size_t len = bar ? (size_t)(bar - p) : strlen(p);
+                char word[32];
+                CHECK(len > 0 && len < sizeof(word), "row %zu: word of %zu characters", i, len);
+                memcpy(word, p, len);
+                word[len] = '\0';
+                if (word[len - 1] == ' ') {
+                    word[len - 1] = '\0';
+                }
+                CHECK(cmd_doc_find(word) != NULL, "command '%s' is not in the table of cmd_help.c",
+                      word);
+                p = bar ? bar + 1 : NULL;
+            }
+        }
+    }
+    return 0;
+}
+
+static int test_command_docs(void) {
+    size_t rows = 0, dm_rows = 0, docs = 0;
+    const CmdEntry *t = cmd_commands(&rows);
+    const CmdEntry *dm = cmd_dm_commands(&dm_rows);
+    const CmdDoc *d = cmd_docs(&docs);
+    if (check_table_documented(t, rows) != 0 || check_table_documented(dm, dm_rows) != 0) {
+        return 1;
+    }
+    for (size_t i = 0; i < docs; i++) {
+        char words[256];
+        snprintf(words, sizeof(words), "%s%s%s", d[i].name, d[i].aliases ? "|" : "",
+                 d[i].aliases ? d[i].aliases : "");
+        bool is_dm = d[i].group == CMD_GROUP_DM;
+        const CmdEntry *table = is_dm ? dm : t;
+        size_t table_rows = is_dm ? dm_rows : rows;
+        char *save = NULL;
+        for (char *w = strtok_r(words, "|", &save); w; w = strtok_r(NULL, "|", &save)) {
+            CHECK(cmd_table_find_word(table, table_rows, w) != NULL,
+                  "'%s' is documented but is not a command", w);
+        }
+        size_t n = strlen(d[i].name);
+        CHECK(strncmp(d[i].synopsis, d[i].name, n) == 0 &&
+                  (d[i].synopsis[n] == '\0' || d[i].synopsis[n] == ' '),
+              "'%s': the synopsis '%s' starts with another word", d[i].name, d[i].synopsis);
+        CHECK(d[i].help[0] && d[i].help[strlen(d[i].help) - 1] == '.',
+              "'%s': the description is not a sentence", d[i].name);
+        /* The usage shown for missing arguments is the synopsis. */
+        const CmdEntry *e = cmd_table_find_word(table, table_rows, d[i].name);
+        CHECK(!e || !e->usage || strcmp(e->usage, d[i].synopsis) == 0,
+              "'%s': usage '%s' but synopsis '%s'", d[i].name, e ? e->usage : "", d[i].synopsis);
+    }
+
+    /* help: topics; a topic; a command by name or alias; the DM commands
+     * only for the DM. */
+    Client *c = fx_player(0, "reader");
+    CHECK(c != NULL, "socketpair failed");
+    CHECK(answer_has(c, "help", "[HELP] magic: spells cast study"), "'help': no topic line");
+    CHECK(!answer_has(c, "help", "dm_goto"), "'help' shows the DM commands to a player");
+    CHECK(answer_has(c, "help town", "buy <n|item> - Buy an item"), "'help town'");
+    CHECK(answer_has(c, "? cast", "cast <spell> [target] - "), "'? cast'");
+    CHECK(answer_has(c, "help q", "use <n|item> - "), "'help q' (an alias)");
+    CHECK(answer_has(c, "help q", "Also: quaff, q, read, r, eat, e, zap, z"), "aliases of use");
+    CHECK(answer_has(c, "help all", "--- Party and chat ---"), "'help all'");
+    CHECK(answer_has(c, "help xyzzy", "neither a command nor a topic"), "'help xyzzy'");
+    CHECK(answer_has(c, "help dm", "neither a command nor a topic"), "'help dm' for a player");
+    CHECK(answer_has(c, "help dm_goto", "neither a command"), "'help dm_goto' for a player");
+    CHECK(answer_has(c, "helpme", "Unrecognized command"), "'helpme' accepted");
+    c->is_dm = true;
+    CHECK(answer_has(c, "help", "[HELP] dm: dm_goto"), "'help' for the DM");
+    CHECK(answer_has(c, "help dm", "dm_goto <floor> <x> <y> - Teleport."), "'help dm'");
+    c->is_dm = false;
+    /* rest answers outside the town too. */
+    int floor_id = c->floor_id;
+    c->floor_id = 3;
+    CHECK(answer_has(c, "rest", "only in town"), "'rest' in the dungeon says nothing");
+    c->floor_id = floor_id;
+    return 0;
+}
+
 static bool answer_has(Client *c, const char *text, const char *needle) {
     static char buf[1 << 16];
     fx_drain(0);
@@ -1121,6 +1207,7 @@ static const TestCase k_tests[] = {
     {"login_worker_async", test_login_worker_async},
     {"command_table", test_command_table},
     {"command_words", test_command_words},
+    {"command_docs", test_command_docs},
     {"doors", test_doors},
     {"transit_cantrips_need_a_book", test_transit_cantrips_need_a_book},
     {"floor_walk_matches_scan", test_floor_walk_matches_scan},

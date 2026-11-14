@@ -227,35 +227,19 @@ Dragon GL features a classic NetHack/Angband-style command interface alongside r
 
 Every key can be changed in `client.conf`.
 
-### Essential Console Commands
+### Commands
 
-| Category | Commands | Description |
-| :--- | :--- | :--- |
-| **Inventory & Gear** | `i`, `inventory` | View backpack, belt, and equipped items |
-| | `w`, `wear <item>` | Equip weapon, armor, amulet, or ring |
-| | `takeoff <slot>` | Unequip item back into backpack |
-| | `use <item>`, `eat` | Consume potion, wand, or food rations |
-| | `get`, `drop <item>` | Pick up or drop ground items |
-| **Exploration & World**| `look`, `l` | Detailed 8-direction radial scan of entities and terrain |
-| | `examine`, `ex` | Geological scan for mineral and crystal veins |
-| | `tunnel <dir>` | Mine or dig (n, s, e, w, d) with pickaxe/shovel |
-| | `open <dir>`, `close <dir>` | Open or close adjacent doors |
-| | `disarm [salvage]` | Attempt to disarm adjacent traps (or harvest parts) |
-| **Survival & Magic** | `status`, `stats` | View character sheet, modifiers, conditions, AC |
-| | `rest`, `R` | Rest in safe zone (Floor 0) to recover HP and spell slots |
-| | `spells`, `cast <name>`| List and cast memorized spells (the book that holds the spell must be with you) |
-| | `study <n>`, `pray <n>`| Learn the spells of book `<n>` inside your class's Floor 0 temple (each class has its own ritual word) |
-| | `pray`, `p` | Sacrifice 100 XP to the gods to recover a quarter of your HP |
-| | `train <stat>` | Spend a level-up point: `str`, `dex`, `con`, `int`, `wis`, `cha` (or the full name), or `random` |
-| **Town & Services** | `talk`, `list` | Speak with merchant and browse goods |
-| | `buy <n>`, `sell <n>`| Purchase or sell wares |
-| | `haggle buy/sell <n>`| Negotiate item prices based on Charisma |
-| | `identify [n]` | Identify unidentified items at an alchemist (100 gp) |
-| | `repair` | Repair combat-worn equipment at the blacksmith |
-| **Social & Chat** | `say <text>` | Local floor chat (12-tile radius) |
-| | `msg <player> <text>`| Private whisper to a player |
-| | `who` | View list of online adventurers and their current floor |
-| | `block <player>` | Block messages and chat from a player |
+In the game, `help` lists the topics (exploring, character, items, magic, merchants, trade, party and chat), `help <topic>` the commands of one, and `help <command>` explains a command. The same reference, generated from the command table of the server, is [docs/COMMANDS.md](docs/COMMANDS.md). To start with:
+
+| Command | What it does |
+| :--- | :--- |
+| `look` (`l`) | What is around you and under your feet |
+| `inventory` (`i`), `wear <n>`, `use <n>` | The backpack; put an item on; drink, read, eat or zap one |
+| `get`, `drop <n>` | Pick up from the ground; drop |
+| `status`, `spells`, `cast <spell>` | The character sheet; the spells you know; cast one |
+| `talk`, `list`, `buy <n>`, `sell <n>` | Next to a merchant of the town |
+| `rest` | In town: recover hit points and spell slots |
+| `say <text>`, `msg <player> <text>`, `who` | Chat |
 
 Spells are learned only from books and cast only with their book at hand. That includes the class transit cantrips, which move you between the surface and the deepest floor you have reached: each class has its own travel tome (for example *Primer of Arcane Transit* for the Wizard), sold by the book shops of floor 0. A command typed without its arguments answers with its usage; anything else that is not a command is reported as unrecognized.
 
@@ -269,35 +253,7 @@ Dragon GL includes a dedicated administrative role for game masters and automate
 
 To authenticate as DM: connect with player name `dm` and the DM password configured at server startup (`--dm-password-file` or `DRAGONGL_DM_PASSWORD`; without it the DM account is disabled):
 
-- `dm_telemetry`: Real-time server telemetry: round and event-loop times (mean, p50, p99, maximum, over budget), writer queue, logins waiting, active clients, live NPCs, traps.
-- `dm_goto <floor> <x> <y>`: Instant teleportation across all 100 floors.
-- `dm_spawn <monster_id> <x> <y>`: Spawn creatures from the bestiary.
-- `dm_boss <floor>`: Retrieve location, statistics, and loot tables for floor bosses.
-- `dm_merchant <floor>`: Locate errant traders and inspect their restock state.
-- `dm_place <item_id> <x> <y>`: Spawn chests with specific items.
-- `dm_pdf <floor>`: Export a 2D color PDF map representation of any dungeon floor.
-
-### Game Balance Analysis Tool (`tools/analyze_balance.py`)
-
-All combat interactions are written in real-time to `combat_log.json` in the server state directory (`state/` in a development tree, `~/.local/state/dragongl/` for an installed server). Developers can evaluate combat balance using the bundled Python analyzer, which finds that file by itself:
-
-```bash
-python3 tools/analyze_balance.py                          # state directory of this tree
-python3 tools/analyze_balance.py /path/to/combat_log.json # any other log
-```
-
-The tool produces statistical breakdowns for:
-1. **Attack Report:** Overall accuracy, critical strike frequency, damage per hit, and top-damage units.
-2. **Saving Throw Report:** Pass/fail rates by effect type and DC difficulty distribution.
-3. **Spell Report:** Output efficiency and resist rates for all cast spells.
-4. **Lethality Report:** Floor-by-floor death distribution ASCII graph and top killer rankings.
-
-### Web Data Studio (`tools/web/`)
-
-Interactive HTML5/JavaScript editors for inspecting and modifying game datasets:
-- Bestiary manager: `tools/web/bestiary.html`
-- Items database: `tools/web/items.html`
-- Spells & Prayers: `tools/web/spells.html`
+The DM has commands of its own (`dm_goto`, `dm_spawn`, `dm_boss`, `dm_merchant`, `dm_place`, `dm_gold`, `dm_level`, `dm_pdf`, `dm_telemetry`, ...): `help dm` in the game, or the last section of [docs/COMMANDS.md](docs/COMMANDS.md).
 
 ---
 
@@ -305,6 +261,8 @@ Interactive HTML5/JavaScript editors for inspecting and modifying game datasets:
 
 - [HOWTO.md](HOWTO.md) — Quick-start guide and basic invocation commands
 - [LORE.md](LORE.md) — Comprehensive narrative, dungeon chronicle, and chapter lore
+- [docs/COMMANDS.md](docs/COMMANDS.md) — Every command of the game (generated from the server)
+- [docs/RELEASING.md](docs/RELEASING.md) — How a release is made and published
 - [PROTOCOL.md](PROTOCOL.md) — Network wire protocol and packet specification
 - [SECURITY.md](SECURITY.md) — Security policy and vulnerability reporting
 - [LICENSE.txt](LICENSE.txt) — GNU General Public License v3.0 text

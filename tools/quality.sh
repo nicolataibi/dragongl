@@ -63,8 +63,15 @@ Checks
   load [SECONDS]  tools/loadtest.py (Release server): 64 TLS clients play for
                   SECONDS (default 60), then a shutdown under load and a
                   restart, against the "load" limits of the same file
-  all             format protocol deps tidy data spelling coverage metrics tsan, then
-                  fuzz 30
+  commands        docs/COMMANDS.md is what `dragongl_server --print-commands`
+                  writes from the table of src/server/cmd_help.c
+  commands-fix    write docs/COMMANDS.md again
+  man             the man pages, as installed, through `mandoc -T lint`: no
+                  warning
+  repro           two copies of the tree at different paths, built with
+                  debug information and installed: every file identical
+  all             format protocol deps tidy data spelling commands man coverage
+                  metrics tsan repro, then fuzz 30
 
 Options
   -j N            parallel jobs (default: number of CPUs)
@@ -320,6 +327,64 @@ check_fuzz() {
     done
 }
 
+# docs/COMMANDS.md against the command table of the server.
+check_commands() {
+    section "command reference ($([[ ${1:-} == fix ]] && echo write || echo check))"
+    local d="$OUT/commands"
+    configure "$d" "$ROOT" -DCMAKE_BUILD_TYPE=Release -DDRAGONGL_BUILD_CLIENT=OFF
+    if [[ ${1:-} == fix ]]; then
+        "$d/dragongl_server" --print-commands >"$ROOT/docs/COMMANDS.md"
+        ok "docs/COMMANDS.md written"
+    else
+        "$d/dragongl_server" --print-commands | diff -u "$ROOT/docs/COMMANDS.md" - ||
+            die "docs/COMMANDS.md is not what the server prints: tools/quality.sh commands-fix"
+        ok "docs/COMMANDS.md matches the command table"
+    fi
+}
+
+# The man pages after the substitution of @VARIABLES@, as they are installed.
+check_man() {
+    section "man pages (mandoc -T lint)"
+    need mandoc
+    local d="$OUT/man" page bad=0 n=0
+    rm -rf "$d"
+    cmake -S "$ROOT" -B "$d" -DCMAKE_C_COMPILER="${CC:-clang}" >/dev/null
+    for page in "$d"/man/*.1; do
+        n=$((n + 1))
+        mandoc -T lint -W warning "$page" || bad=1
+    done
+    ((n > 0)) || die "no man page was generated"
+    ((bad == 0)) || die "mandoc reports the lines above"
+    ok "$n man pages without a warning"
+}
+
+# The same sources at two paths give the same installed files. With debug
+# information, where the path of the tree would show first.
+check_repro() {
+    section "reproducible build"
+    local d="$OUT/repro" copy
+    rm -rf "$d"
+    mkdir -p "$d/a/src" "$d/b/another/place/src"
+    for copy in "$d/a/src" "$d/b/another/place/src"; do
+        (cd "$ROOT" && git ls-files -z --cached --others --exclude-standard \
+            ':!readme_assets' | while IFS= read -r -d '' f; do
+            [ -e "$f" ] && printf '%s\0' "$f"
+        done | tar --null -T - -cf -) | tar -xf - -C "$copy"
+        cmake -S "$copy" -B "$copy/out" -DCMAKE_C_COMPILER="${CC:-clang}" \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_INSTALL_PREFIX=/usr >/dev/null
+        cmake --build "$copy/out" --parallel "$JOBS" >/dev/null
+        DESTDIR="$copy/stage" cmake --install "$copy/out" >/dev/null
+        (cd "$copy/stage" && find . -type f -print0 | sort -z | xargs -0 sha256sum) >"$copy.sha256"
+    done
+    diff "$d/a/src.sha256" "$d/b/another/place/src.sha256" ||
+        die "the files above differ between two builds of the same sources"
+    if grep -rlF "$d" "$d/a/src/stage" >/dev/null 2>&1; then
+        grep -rlF "$d" "$d/a/src/stage" >&2
+        die "the files above contain the path of the build"
+    fi
+    ok "$(wc -l <"$d/a/src.sha256") installed files identical, none names its build directory"
+}
+
 # --- Main -----------------------------------------------------------------------------------
 main() {
     local -a checks=()
@@ -334,8 +399,9 @@ main() {
         load)
             if [[ ${2:-} =~ ^[0-9]+$ ]]; then checks+=("load:$2"); shift; else checks+=(load:60); fi
             ;;
-        all) checks+=(format protocol deps tidy data spelling coverage metrics tsan fuzz:30) ;;
-        format | format-fix | tidy | data | deps | spelling | metrics | protocol | coverage | tsan | bench)
+        all) checks+=(format protocol deps tidy data spelling commands man coverage metrics tsan repro fuzz:30) ;;
+        format | format-fix | tidy | data | deps | spelling | metrics | protocol | coverage | tsan | bench | \
+            commands | commands-fix | man | repro)
             checks+=("$1")
             ;;
         *) usage >&2; die "unknown check '$1'" ;;
@@ -359,6 +425,10 @@ main() {
         coverage) check_coverage ;;
         tsan) check_tsan ;;
         bench) check_bench ;;
+        commands) check_commands ;;
+        commands-fix) check_commands fix ;;
+        man) check_man ;;
+        repro) check_repro ;;
         load:*) check_load "${c#load:}" ;;
         fuzz:*) check_fuzz "${c#fuzz:}" ;;
         esac

@@ -430,6 +430,10 @@ int main(int argc, char **argv) {
     static Game s_game;
     Game *game = &s_game;
     setvbuf(stdout, NULL, _IONBF, 0); /*live log files*/
+    if (argc == 2 && strcmp(argv[1], "--print-commands") == 0) {
+        cmd_help_markdown(stdout); /*docs/COMMANDS.md*/
+        return 0;
+    }
     ServerOptions opt = {.port = 8080};
     int status = parse_options(argc, argv, &opt);
     if (status >= 0) {

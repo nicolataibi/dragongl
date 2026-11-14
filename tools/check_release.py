@@ -14,6 +14,12 @@ reads it from there). This script checks that the rest agrees with it:
   - entries are in reverse chronological order and versions never repeat.
 
 Exit status 0 when everything is consistent, 1 otherwise.
+
+  check_release.py --notes [VERSION]
+
+prints the CHANGELOG.md entry of VERSION (default: the version of
+dragongl.spec) as Markdown, for the notes of the release; exit status 1
+if there is none.
 """
 
 import datetime
@@ -34,7 +40,32 @@ def spec_version(path):
     return None
 
 
+def notes(version):
+    """The entry of `version`, as a Markdown list."""
+    out, inside = [], False
+    with open(os.path.join(ROOT, "CHANGELOG.md"), encoding="utf-8") as f:
+        for line in f:
+            m = HEADER.match(line.rstrip("\n"))
+            if m:
+                if inside:
+                    break
+                inside = m.group(7) == version
+                continue
+            if inside:
+                out.append(line.rstrip("\n"))
+    while out and not out[-1]:
+        out.pop()
+    if not out:
+        print("CHANGELOG.md: no entry for %s" % version, file=sys.stderr)
+        return 1
+    print("\n".join(out))
+    return 0
+
+
 def main():
+    if len(sys.argv) >= 2 and sys.argv[1] == "--notes":
+        version = sys.argv[2] if len(sys.argv) >= 3 else spec_version(os.path.join(ROOT, "dragongl.spec"))
+        return notes(version)
     errors = []
     version = spec_version(os.path.join(ROOT, "dragongl.spec"))
     if not version:

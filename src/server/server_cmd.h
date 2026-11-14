@@ -58,8 +58,38 @@ const CmdEntry *cmd_table_find_word(const CmdEntry *table, size_t n, const char 
 /*The player command table (server_commands.c), for the tests.*/
 const CmdEntry *cmd_commands(size_t *n);
 
+/*The DM command table (cmd_dm.c), for the tests.*/
+const CmdEntry *cmd_dm_commands(size_t *n);
+
 /*The usage line of a dm_* command (cmd_dm.c), or NULL.*/
 const char *cmd_dm_usage(const char *cmd);
+
+/*The topics of `help` and of docs/COMMANDS.md, in their order.*/
+typedef enum {
+    CMD_GROUP_WORLD,
+    CMD_GROUP_CHARACTER,
+    CMD_GROUP_ITEMS,
+    CMD_GROUP_MAGIC,
+    CMD_GROUP_TOWN,
+    CMD_GROUP_TRADE,
+    CMD_GROUP_SOCIAL,
+    CMD_GROUP_DM, /*shown to the dm account only*/
+    CMD_GROUP_COUNT
+} CmdGroup;
+
+/*What a command is for (cmd_help.c). Every word the command tables accept
+ * is the name or an alias of one entry: the tests check it.*/
+typedef struct {
+    const char *name;    /*the word to remember*/
+    const char *aliases; /*"a|b": the other words that do the same, or NULL*/
+    CmdGroup group;
+    const char *synopsis; /*the name with its arguments*/
+    const char *help;     /*one sentence*/
+} CmdDoc;
+
+const CmdDoc *cmd_docs(size_t *n);
+const CmdDoc *cmd_doc_find(const char *word);
+const char *cmd_group_topic(CmdGroup group);
 
 /*Temples of the class rituals (cmd_world.c): look names them, use checks
  * that a ritual is performed inside the temple of the class.*/
@@ -72,8 +102,10 @@ typedef struct {
 extern const TempleInfo TEMPLES[];
 extern const int TEMPLE_COUNT;
 
-/* cmd_character.c */
+/* cmd_help.c */
 bool cmd_help(Client *c, const char *cmd, Game *game);
+
+/* cmd_character.c */
 bool cmd_train(Client *c, const char *cmd, Game *game);
 bool cmd_stats(Client *c, const char *cmd, Game *game);
 bool cmd_rest(Client *c, const char *cmd, Game *game);

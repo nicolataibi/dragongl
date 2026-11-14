@@ -1,0 +1,70 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": { "major": 3, "minor": 21, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "binaryDir": "${sourceDir}/build-${presetName}",
+      "cacheVariables": { "CMAKE_EXPORT_COMPILE_COMMANDS": "ON" }
+    },
+    {
+      "name": "release",
+      "displayName": "Release",
+      "description": "What a player or a server host runs: optimized, hardened, clang",
+      "inherits": "base",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+    },
+    {
+      "name": "dev",
+      "displayName": "Development",
+      "description": "Debug, AddressSanitizer and UBSan, warnings are errors",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_C_FLAGS": "-Werror -fsanitize=address,undefined -fno-omit-frame-pointer",
+        "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=address,undefined"
+      }
+    },
+    {
+      "name": "werror",
+      "displayName": "Release, warnings are errors",
+      "description": "The build of CI (clang)",
+      "inherits": "release",
+      "cacheVariables": { "CMAKE_C_FLAGS": "-Werror" }
+    },
+    {
+      "name": "gcc",
+      "displayName": "Release with gcc, warnings are errors",
+      "description": "The second compiler of CI",
+      "inherits": "werror",
+      "cacheVariables": { "CMAKE_C_COMPILER": "gcc" }
+    },
+    {
+      "name": "server",
+      "displayName": "Server only",
+      "description": "For a host without a graphics stack: no Vulkan, GLFW or glslc needed",
+      "inherits": "release",
+      "cacheVariables": { "DRAGONGL_BUILD_CLIENT": "OFF" }
+    },
+    {
+      "name": "package",
+      "displayName": "Distribution build",
+      "description": "As a packager builds it: debug information, the flags of the distribution only, /usr",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_INSTALL_PREFIX": "/usr",
+        "DRAGONGL_HARDENING": "OFF"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "release", "configurePreset": "release" },
+    { "name": "dev", "configurePreset": "dev" },
+    { "name": "werror", "configurePreset": "werror" },
+    { "name": "gcc", "configurePreset": "gcc" },
+    { "name": "server", "configurePreset": "server" },
+    { "name": "package", "configurePreset": "package" }
+  ]
+}

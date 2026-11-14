@@ -36,6 +36,8 @@ static void print_server_usage(const char *argv0) {
            "      --tls-key <file>       private key. Default: <state>/tls/server.crt\n"
            "                             and server.key, created at the first start\n"
            "                             (self-signed; clients pin its fingerprint)\n"
+           "      --print-commands       Write the reference of the game commands\n"
+           "                             (Markdown: docs/COMMANDS.md) and exit\n"
            "  -h, --help                 Show this help\n"
            "  -V, --version              Show the version\n"
            "\n"

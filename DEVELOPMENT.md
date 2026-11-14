@@ -250,6 +250,9 @@ Every quality gate of CI runs locally with one command; build trees go to `build
 | `fuzz [S]` | the libFuzzer targets of `tests/fuzz` (wire decoders, save-file readers, text commands), S seconds each (default 60), with seeds written by the targets themselves | a crash, leak or timeout; the input goes to `build-quality/fuzz/artifacts/` |
 | `bench` | `tests/integration/tick_bench` in a Release build: 600 rounds with 64 characters in a full world (one per floor, then all on one floor) and the autosave | a p99, or the longest autosave round, over `tests/bench_limits.json` |
 | `load [S]` | `tools/loadtest.py` with a Release server: 64 TLS clients walk to the dungeon and play for S seconds (default 60), the server is stopped under load and started again | a lost connection, round p99 or command p99 over the limits, a slow or failed shutdown, a character not saved |
+| `commands` / `commands-fix` | `dragongl_server --print-commands` against `docs/COMMANDS.md` | the file is not what the command table (`src/server/cmd_help.c`) gives (`commands-fix` writes it) |
+| `man` | the man pages as installed, through `mandoc -T lint -W warning` | any warning |
+| `repro` | two copies of the tree at different paths, RelWithDebInfo, installed | a file that differs, or one that names its build directory |
 | `all` | all of the above but `bench` and `load`, fuzzing 30 s per target | |
 
 ```bash
@@ -274,9 +277,10 @@ A fuzz crash is replayed with the target binary: `build-quality/fuzz/build/fuzz_
 * static analysis: cppcheck and `tools/check_release.py`; clang-tidy; format, game data, spelling, dependencies and metrics;
 * coverage (report uploaded as an artifact and summarized on the run page), ThreadSanitizer, fuzzing 60 s per target;
 * the same build and the integration tests in a Fedora container with gcc;
+* release checks: the command reference against the command table, the man pages through mandoc, the reproducible build and the reproducible source tarball;
 * performance: the benchmark of the round and a one-minute load test with 64 clients, against `tests/bench_limits.json`.
 
-`.github/workflows/fuzz-nightly.yml` fuzzes each target for 20 minutes every night on a corpus kept between runs; `.github/workflows/load-nightly.yml` keeps 64 clients playing for 30 minutes every night; `.github/workflows/codeql.yml` runs GitHub code scanning (security-and-quality) on `main` and weekly.
+`.github/workflows/release.yml` publishes a GitHub release when a version tag is pushed ([docs/RELEASING.md](docs/RELEASING.md)). `.github/workflows/fuzz-nightly.yml` fuzzes each target for 20 minutes every night on a corpus kept between runs; `.github/workflows/load-nightly.yml` keeps 64 clients playing for 30 minutes every night; `.github/workflows/codeql.yml` runs GitHub code scanning (security-and-quality) on `main` and weekly.
 
 False positives are suppressed where they occur, with the reason: `// cppcheck-suppress <id>` and `// NOLINT(<check>)` / `// NOLINTNEXTLINE(<check>)`. A clang-tidy check that does not fit the code base is disabled in `.clang-tidy`, with a comment that says why.
 

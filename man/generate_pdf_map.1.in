@@ -201,19 +201,19 @@ the PDF cannot be generated or written.
 Create a PDF and infer the floor number from the dump filename:
 .PP
 .nf
-./generate_pdf_map.py map_dump_floor_7.txt floor_7.pdf
+\&./generate_pdf_map.py map_dump_floor_7.txt floor_7.pdf
 .fi
 .PP
 Explicitly specify the floor number:
 .PP
 .nf
-./generate_pdf_map.py map_dump_floor_7.txt floor_7.pdf 7
+\&./generate_pdf_map.py map_dump_floor_7.txt floor_7.pdf 7
 .fi
 .PP
 Use a smaller tile size and fewer legend columns:
 .PP
 .nf
-./generate_pdf_map.py map_dump_floor_7.txt floor_7.pdf 7 \-\-cell 3 \-\-cols 6
+\&./generate_pdf_map.py map_dump_floor_7.txt floor_7.pdf 7 \-\-cell 3 \-\-cols 6
 .fi
 .SH FILES
 .TP
