@@ -1,3 +1,5 @@
+# Dragon GL - Copyright (C) 2026 Nicola Taibi
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Dragon GL game server, as a system service.
 #
 #   1. Set the passwords in @DRAGONGL_SYSCONFDIR@/dragongl/dragongl-server.conf

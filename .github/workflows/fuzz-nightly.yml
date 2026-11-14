@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install dependencies
         run: |
@@ -35,7 +35,7 @@ jobs:
       # The corpus grows across nights; a new key every run, restored from
       # the most recent one.
       - name: Corpus
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: build-quality/fuzz/corpus
           key: fuzz-corpus-${{ github.run_id }}
@@ -46,7 +46,7 @@ jobs:
 
       - name: Crash inputs
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: fuzz-artifacts
           path: |

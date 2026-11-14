@@ -1,3 +1,5 @@
+# Dragon GL - Copyright (C) 2026 Nicola Taibi
+# SPDX-License-Identifier: GPL-3.0-or-later
 # =========================================================================
 # DragonGL - standalone unit-test project (tests/)
 #
@@ -49,7 +51,7 @@ add_test(NAME rules COMMAND test_rules)
 # --- resolution of an effect against one target (forced d20)
 add_executable(test_spell_rules test_spell_rules.c ${DG_SRCS}/shared/spell_rules.c
     ${DG_SRCS}/shared/spell_effect.c ${DG_SRCS}/shared/rules.c ${DRAGONGL_CJSON_SRCS})
-target_link_libraries(test_spell_rules m)
+target_link_libraries(test_spell_rules m ${DRAGONGL_CJSON_LIBS})
 add_test(NAME spell_rules COMMAND test_spell_rules)
 
 # --- spell balance: every damage spell of data/spells.json simulated with
@@ -58,7 +60,7 @@ add_executable(spell_balance spell_balance.c ${DG_SRCS}/shared/data_loader.c
     ${DG_SRCS}/shared/data_items.c
     ${DG_SRCS}/shared/spell_rules.c ${DG_SRCS}/shared/spell_effect.c ${DG_SRCS}/shared/rules.c
     ${DRAGONGL_CJSON_SRCS} ${DG_SRCS}/shared/strnum.c ${DG_SRCS}/shared/binio.c)
-target_link_libraries(spell_balance m)
+target_link_libraries(spell_balance m ${DRAGONGL_CJSON_LIBS})
 add_test(NAME spell_balance
          COMMAND spell_balance ${DG_ROOT}/data ${CMAKE_CURRENT_SOURCE_DIR}/spell_balance.json)
 

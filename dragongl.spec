@@ -8,7 +8,7 @@
 %global app_id io.github.nicolataibi.dragongl
 
 Name:           dragongl
-Version:        2026.11.14.10
+Version:        2026.11.14.11
 Release:        %autorelease
 Summary:        Multi-user 3D dungeon RPG: Vulkan client
 
@@ -46,7 +46,7 @@ Recommends:     mesa-vulkan-drivers
 Dragon GL is a multi-user client-server dungeon exploration RPG with a
 d20-style rules engine, 100 randomly generated floors and a real-time
 3D client. This package contains the client, rendered with Vulkan 1.3
-(GPU-driven: culling and mesh generation run in compute shaders).
+(GPU-driven: culling and mesh generation run on the GPU).
 The game server is in the %{name}-server package.
 
 
@@ -95,7 +95,7 @@ BuildArch:      noarch
 
 %description doc
 User manual, quick start, build and installation guides, protocol and
-security documentation, game lore and the changelog of Dragon GL.
+security documentation, game lore and the release notes of Dragon GL.
 
 
 %prep
@@ -105,13 +105,15 @@ rm -r third_party/cjson
 
 
 %build
-# The distribution's flags are the only hardening flags.
+# The distribution's flags are the only compiler flags: build type None
+# adds no optimization of its own (an empty build type would default to
+# Release, -O3), and the hardening flags of the project are off.
 # DRAGONGL_REPRODUCIBLE=OFF: rpm maps the build directory itself (to
 # /usr/src/debug) and collects the sources of the debugsource package
 # from the paths in the debug information; with the project's own
 # -ffile-prefix-map it finds none and the build fails (empty
 # debugsourcefiles.list).
-%cmake -DDRAGONGL_HARDENING=OFF -DDRAGONGL_REPRODUCIBLE=OFF \
+%cmake -DCMAKE_BUILD_TYPE=None -DDRAGONGL_HARDENING=OFF -DDRAGONGL_REPRODUCIBLE=OFF \
        -DDRAGONGL_SYSTEM_CJSON=ON -DDRAGONGL_SYSTEMD_UNITDIR=%{_unitdir}
 %cmake_build
 
@@ -126,7 +128,7 @@ appstream-util validate-relax --nonet %{buildroot}%{_metainfodir}/%{app_id}.meta
 python3 tools/check_release.py
 python3 tools/check_data.py
 # Unit tests (the Vulkan compute test skips itself without a Vulkan driver).
-cmake -S tests -B %{_vpath_builddir}-tests -DCMAKE_BUILD_TYPE=Release \
+cmake -S tests -B %{_vpath_builddir}-tests -DCMAKE_BUILD_TYPE=None \
       -DDRAGONGL_HARDENING=OFF -DDRAGONGL_SYSTEM_CJSON=ON \
       -DCMAKE_C_FLAGS="%{optflags}" \
       -DDRAGONGL_TEST_SHADER_DIR="$PWD/%{_vpath_builddir}/shaders"

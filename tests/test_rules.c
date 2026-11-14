@@ -1,4 +1,8 @@
 /*
+ * Dragon GL - Copyright (C) 2026 Nicola Taibi
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+/*
  * DRAGON GL - Unit tests: dice, modifiers, damage, condition table
  *
  * Pure rules-engine tests (rules.c only — no server, no world).

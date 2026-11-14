@@ -1,4 +1,6 @@
 #version 450
+// Dragon GL - Copyright (C) 2026 Nicola Taibi
+// SPDX-License-Identifier: GPL-3.0-or-later
 /*
  * DRAGON GL - GPD compute pass 2c: MESH ALLOCATION/EXPANSION for
  * ORIENTED boxes (the floating tome of the book merchant).

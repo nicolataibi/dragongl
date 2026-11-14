@@ -1,4 +1,8 @@
 /*
+ * Dragon GL - Copyright (C) 2026 Nicola Taibi
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+/*
  * DRAGON GL - Unit tests: wire protocol v5 (include/wire.h)
  *
  * Hand-written checks, independent of the message table: the conformance

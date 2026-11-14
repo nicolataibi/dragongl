@@ -300,6 +300,9 @@ class ClientSmokeTest(unittest.TestCase):
         self.press("BackSpace", "Return")
         self.assertTrue(wait_for(lambda: self.count(log, "[WHO]") == 1, 10),
                         "the command typed in the window got no answer:\n" + self.read(log)[-800:])
+        # Output to a file: the messages as they are, no prompt, no escapes.
+        self.assertNotIn("\x1b[", self.read(log))
+        self.assertNotIn("\n> ", self.read(log))
         # History: Up brings "who" back; edited at the start with Home.
         self.press("Return", "Up", "Return")
         self.assertTrue(wait_for(lambda: self.count(log, "[WHO]") == 2, 10),

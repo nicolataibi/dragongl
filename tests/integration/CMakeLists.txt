@@ -39,7 +39,7 @@ set(DGL_INCLUDES ${DGL_ROOT}/include ${DGL_ROOT}/src/server ${DGL_ROOT}/src/clie
 # --- The real server, built with the flags of this project (sanitizers) ---
 add_executable(dragongl_server_it ${DGL_SERVER_SRCS})
 target_include_directories(dragongl_server_it PRIVATE ${DGL_INCLUDES})
-target_link_libraries(dragongl_server_it PRIVATE Threads::Threads m PkgConfig::SODIUM OpenSSL::SSL OpenSSL::Crypto)
+target_link_libraries(dragongl_server_it PRIVATE Threads::Threads m PkgConfig::SODIUM OpenSSL::SSL OpenSSL::Crypto ${DRAGONGL_CJSON_LIBS})
 
 # --- In-process harness: every server module but main_server.c ---
 add_executable(server_harness server_harness.c harness_spells.c harness_commands.c fixture.c
@@ -48,7 +48,7 @@ target_include_directories(server_harness PRIVATE ${DGL_INCLUDES})
 # DRAGONGL_FAULT_INJECTION: the crash points of binfile_write_atomic().
 target_compile_definitions(server_harness PRIVATE DGL_TEST_DATA_DIR="${DGL_ROOT}/data"
     DRAGONGL_FAULT_INJECTION)
-target_link_libraries(server_harness PRIVATE Threads::Threads m PkgConfig::SODIUM OpenSSL::SSL OpenSSL::Crypto)
+target_link_libraries(server_harness PRIVATE Threads::Threads m PkgConfig::SODIUM OpenSSL::SSL OpenSSL::Crypto ${DRAGONGL_CJSON_LIBS})
 
 # Benchmark of the round (tools/quality.sh bench): not a CTest entry, its
 # numbers mean something in a Release build on a quiet machine only.
@@ -56,7 +56,7 @@ add_executable(tick_bench tick_bench.c fixture.c
     ${DRAGONGL_SERVER_LIB_SRCS} ${DRAGONGL_SHARED_SRCS})
 target_include_directories(tick_bench PRIVATE ${DGL_INCLUDES})
 target_compile_definitions(tick_bench PRIVATE DGL_TEST_DATA_DIR="${DGL_ROOT}/data")
-target_link_libraries(tick_bench PRIVATE Threads::Threads m PkgConfig::SODIUM OpenSSL::SSL OpenSSL::Crypto)
+target_link_libraries(tick_bench PRIVATE Threads::Threads m PkgConfig::SODIUM OpenSSL::SSL OpenSSL::Crypto ${DRAGONGL_CJSON_LIBS})
 
 enable_testing()
 

@@ -28,7 +28,7 @@ jobs:
       matrix:
         cc: [clang, gcc]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install dependencies
         run: |
@@ -49,7 +49,7 @@ jobs:
     name: Unit tests (Release + ASan/UBSan)
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install dependencies
         run: |
@@ -84,7 +84,7 @@ jobs:
     name: Server integration tests (ASan/UBSan)
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # The server needs no graphics stack: compiler, CMake and Python only.
       - name: Install dependencies
@@ -111,7 +111,7 @@ jobs:
     name: Client smoke test (Xvfb + lavapipe + validation, ASan/UBSan)
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # The real client renders on a virtual display with Mesa's software
       # Vulkan driver; any validation message fails the test.
@@ -142,7 +142,7 @@ jobs:
     name: Server-only build (no graphics stack)
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # A headless server host: no Vulkan, GLFW or glslc installed.
       - name: Install dependencies
@@ -172,7 +172,7 @@ jobs:
       - name: Install packaging tools
         run: dnf -y install git rpm-build rpmlint python3 glibc-langpack-en 'dnf-command(builddep)'
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # The tarball, the spec and the source RPM of a release, made by the
       # script that makes them for a release (tools/release.sh): %autorelease
@@ -196,7 +196,7 @@ jobs:
     name: Command reference, man pages, reproducible build
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install dependencies
         run: |
@@ -227,7 +227,7 @@ jobs:
     name: Format, game data, spelling, metrics
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install tools
         run: |
@@ -271,7 +271,7 @@ jobs:
     name: Static analysis (clang-tidy)
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # The four trees are configured for their compile_commands.json, so
       # the dependencies of every target are needed.
@@ -289,7 +289,7 @@ jobs:
     name: Coverage (llvm-cov)
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install dependencies
         run: |
@@ -315,7 +315,7 @@ jobs:
 
       - name: Report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: coverage-report
           path: |
@@ -329,7 +329,7 @@ jobs:
     name: Server integration tests (ThreadSanitizer)
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install dependencies
         run: |
@@ -349,7 +349,7 @@ jobs:
     name: Fuzzing (libFuzzer, 60 s per target)
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install dependencies
         run: |
@@ -362,7 +362,7 @@ jobs:
 
       - name: Crash inputs
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: fuzz-artifacts
           path: |
@@ -383,7 +383,7 @@ jobs:
             'pkgconfig(glfw3)' 'pkgconfig(vulkan)' 'pkgconfig(libsodium)' \
             'pkgconfig(openssl)'
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Build (Release, warnings are errors)
         run: |
@@ -418,7 +418,7 @@ jobs:
     name: Benchmark and load test (64 clients)
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install dependencies
         run: |
@@ -434,7 +434,7 @@ jobs:
 
       - name: Measurements
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: performance
           path: |
@@ -446,7 +446,7 @@ jobs:
     name: Static analysis (cppcheck)
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install cppcheck
         run: |

@@ -1,3 +1,5 @@
+// Dragon GL - Copyright (C) 2026 Nicola Taibi
+// SPDX-License-Identifier: GPL-3.0-or-later
 /*
  * The expand/accumulate functions use the GLOBAL vertex and counter
  * blocks, which each entry shader declares (GLSL 450 has no pointers or

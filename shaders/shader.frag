@@ -1,4 +1,6 @@
 #version 450
+// Dragon GL - Copyright (C) 2026 Nicola Taibi
+// SPDX-License-Identifier: GPL-3.0-or-later
 
 layout(location = 0) in vec4 fragColor;
 layout(location = 1) in vec3 fragWorldPos;

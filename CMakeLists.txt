@@ -1,3 +1,5 @@
+# Dragon GL - Copyright (C) 2026 Nicola Taibi
+# SPDX-License-Identifier: GPL-3.0-or-later
 cmake_minimum_required(VERSION 3.16)
 # --- C compiler selection (L4) ----------------------------------------
 # The compiler is a CHOICE, not a force: the old `set(CMAKE_C_COMPILER
@@ -103,7 +105,7 @@ set(COMMON_LIBS Threads::Threads m OpenSSL::SSL OpenSSL::Crypto)
 
 if(DRAGONGL_BUILD_SERVER)
     add_executable(dragongl_server ${DRAGONGL_SERVER_SRCS} ${DRAGONGL_SHARED_SRCS})
-    target_link_libraries(dragongl_server ${COMMON_LIBS} PkgConfig::SODIUM)
+    target_link_libraries(dragongl_server ${COMMON_LIBS} PkgConfig::SODIUM ${DRAGONGL_CJSON_LIBS})
 endif()
 
 if(DRAGONGL_BUILD_CLIENT)
@@ -135,7 +137,7 @@ if(DRAGONGL_BUILD_CLIENT)
         src/client/vk_frame.c
         src/client/client_tls.c
         src/client/known_servers.c
-        ${DRAGONGL_SHARED_SRCS}
+        ${DRAGONGL_CLIENT_SHARED_SRCS}
     )
     target_include_directories(dragongl_client PRIVATE src/client)
     target_link_libraries(dragongl_client ${COMMON_LIBS} Vulkan::Vulkan PkgConfig::GLFW)

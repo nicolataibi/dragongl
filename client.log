@@ -1,158 +1,0 @@
-###############################################################################
-#                                                                             #
-#                      Dragon GL - Arcane Game Engine                         #
-#                              CLIENT MODULE                                  #
-#                                                                             #
-###############################################################################
-
---- Dragon GL Client ---
-Server host: 127.0.0.1 (from command line)
-Server Password: 
-Player Name: Personal Password: 
-New character? (1=Yes, 0=No):Connecting to server 127.0.0.1 port 8080...
-[NET] Known server (/home/nicola/.config/dragongl/known_servers).
-> 
-[NET] Authentication completed!
-[STAT] HP: 19/19 | Gold: 1000
->[K[SYSTEM] Welcome back, dm! (Floor 0, HP 19/19, Gold 1000 gp)
-> [VK] Enabling 1 layer(s)
-[VK] GPU 0: Intel(R) Arc(tm) A770 Graphics (DG2) (discrete)
-[VK] GPU 1: llvmpipe (LLVM 23.1.2, 256 bits) (software)
-[VK] Using Intel(R) Arc(tm) A770 Graphics (DG2) (Vulkan 1.4, queue family 0)
-[VK] Vulkan initialization complete (3072x1728).
-[K[DANGER] The ground is slippery! You fell to the ground!
-> [K[DANGER] The ground is slippery! You fell to the ground!
-> [K[GLOBAL EVENT] Invasion on floor 1! Kill 5 Skeletons! Time: 5 minutes.
-> [K[The Arcane Library] Welcome! Use 'buy <n>', 'sell <n>', 'haggle buy <n>', 'identify' or 'cure'.
-> [K.--------------------------------------------------------------------------.
-> [K|                        === The Arcane Library ===                        |
-> [K|--------------------------------------------------------------------------|
-> [K| ID | ITEM                     | TYPE       | STATISTICS      | COST      |
-> [K|----|--------------------------|------------|-----------------|-----------|
-> [K|  1 | Blood of the Dragons     | Misc       | -               |   1000 gp |
-> [K|  2 | Infernal Contract        | Misc       | -               |   1000 gp |
-> [K|  3 | Initiate's Pact          | Misc       | -               |    100 gp |
-> [K|  4 | Apprentice's Grimoire    | Misc       | -               |    250 gp |
-> [K|  5 | Symphony of the Cosmos   | Misc       | -               |   5000 gp |
-> [K|  6 | Words of the Old God     | Misc       | -               |   2500 gp |
-> [K|  7 | Grimoire of the Bloodlin | Misc       | -               |     20 gp |
-> [K|  8 | Songbook of the Last Ref | Misc       | -               |     20 gp |
-> [K|  9 | Archmage's Legacy        | Misc       | -               |   5000 gp |
-> [K| 10 | Melodies of Power        | Misc       | -               |    250 gp |
-> [K| 11 | Sonatas of Inspiration   | Misc       | -               |    500 gp |
-> [K| 12 | Patron's Secrets         | Misc       | -               |    500 gp |
-> [K| 13 | Book of the Arcane Novic | Misc       | -               |    100 gp |
-> [K| 14 | Apotheosis of the Lineag | Misc       | -               |   5000 gp |
-> [K| 15 | Scholar's Tome           | Misc       | -               |    500 gp |
-> [K| 16 | Arcanist's Codex         | Misc       | -               |   1000 gp |
-> [K| 17 | Awakening of the Arcane  | Misc       | -               |    100 gp |
-> [K| 18 | Truth of the Entity      | Misc       | -               |   5000 gp |
-> [K| 19 | Arcane Ancestry          | Misc       | -               |   2500 gp |
-> [K| 20 | Chants of Creation       | Misc       | -               |   2500 gp |
-> [K| 21 | Seals of the Pact        | Misc       | -               |    250 gp |
-> [K| 22 | Harmonies of the Arcane  | Misc       | -               |   1000 gp |
-> [K| 23 | Manifestation of the Lin | Misc       | -               |    500 gp |
-> [K| 24 | Pact of Passage          | Misc       | -               |     20 gp |
-> [K| 25 | Ballads of the Caster    | Misc       | -               |    100 gp |
-> [K| 26 | Primer of Arcane Transit | Misc       | -               |     20 gp |
-> [K| 27 | Lineage of Power         | Misc       | -               |    250 gp |
-> [K| 28 | Master's Manuscript      | Misc       | -               |   2500 gp |
-> [K'--------------------------------------------------------------------------'
-> [K[TIP] Use 'browse <n>' for info, 'buy <n>' to purchase.
-> [K[Master Malchor's Reagents] Welcome! Use 'buy <n>', 'sell <n>', 'haggle buy <n>', 'identify' or 'cure'.
-> [K.--------------------------------------------------------------------------.
-> [K|                    === Master Malchor's Reagents ===                     |
-> [K|--------------------------------------------------------------------------|
-> [K| ID | ITEM                     | TYPE       | STATISTICS      | COST      |
-> [K|----|--------------------------|------------|-----------------|-----------|
-> [K|  1 | Potion of Mind Reading   | Consum.    | -               |    180 gp |
-> [K|  2 | Potion of Animal Friends | Consum.    | -               |    200 gp |
-> [K|  3 | Potion of Water Breathin | Consum.    | -               |    180 gp |
-> [K|  4 | Oil (flask)              | Fuel       | 8000 turns      |      1 gp |
-> [K|  5 | Oil of Etherealness      | Fuel       | 8000 turns      |   1920 gp |
-> [K|  6 | Potion of Supreme Healin | Consum.    | Heal 120 HP     |   1350 gp |
-> [K|  7 | Potion of Growth         | Consum.    | -               |    270 gp |
-> [K|  8 | Potion of Clairvoyance   | Consum.    | -               |    960 gp |
-> [K|  9 | Oil of Sharpness         | Fuel       | 8000 turns      |   3200 gp |
-> [K| 10 | Potion of Gaseous Form   | Consum.    | -               |    300 gp |
-> [K| 11 | Potion of Diminution     | Consum.    | -               |    270 gp |
-> [K| 12 | Potion of Poison         | Consum.    | -               |    100 gp |
-> [K| 13 | Potion of Invisibility   | Consum.    | -               |    180 gp |
-> [K| 14 | Potion of Greater Healin | Consum.    | Heal 40 HP      |    150 gp |
-> [K| 15 | Potion of Superior Heali | Consum.    | Heal 80 HP      |    450 gp |
-> [K| 16 | Potion of Resistance     | Consum.    | -               |    300 gp |
-> [K| 17 | Potion of Climbing       | Consum.    | -               |    180 gp |
-> [K| 18 | Potion of Healing        | Consum.    | Heal 20 HP      |     50 gp |
-> [K| 19 | Oil of Slipperiness      | Fuel       | 8000 turns      |    480 gp |
-> [K| 20 | Potion of Heroism        | Consum.    | -               |    180 gp |
-> [K| 21 | Potion of Flying         | Consum.    | -               |    500 gp |
-> [K| 22 | Potion of Speed          | Consum.    | Magic           |    400 gp |
-> [K| 23 | Potion of Vitality       | Consum.    | -               |    960 gp |
-> [K'--------------------------------------------------------------------------'
-> [K[TIP] Use 'browse <n>' for info, 'buy <n>' to purchase.
-> [K[Master Malchor's Reagents] Welcome! Use 'buy <n>', 'sell <n>', 'haggle buy <n>', 'identify' or 'cure'.
-> [K.--------------------------------------------------------------------------.
-> [K|                    === Master Malchor's Reagents ===                     |
-> [K|--------------------------------------------------------------------------|
-> [K| ID | ITEM                     | TYPE       | STATISTICS      | COST      |
-> [K|----|--------------------------|------------|-----------------|-----------|
-> [K|  1 | Potion of Mind Reading   | Consum.    | -               |    180 gp |
-> [K|  2 | Potion of Animal Friends | Consum.    | -               |    200 gp |
-> [K|  3 | Potion of Water Breathin | Consum.    | -               |    180 gp |
-> [K|  4 | Oil (flask)              | Fuel       | 8000 turns      |      1 gp |
-> [K|  5 | Oil of Etherealness      | Fuel       | 8000 turns      |   1920 gp |
-> [K|  6 | Potion of Supreme Healin | Consum.    | Heal 120 HP     |   1350 gp |
-> [K|  7 | Potion of Growth         | Consum.    | -               |    270 gp |
-> [K|  8 | Potion of Clairvoyance   | Consum.    | -               |    960 gp |
-> [K|  9 | Oil of Sharpness         | Fuel       | 8000 turns      |   3200 gp |
-> [K| 10 | Potion of Gaseous Form   | Consum.    | -               |    300 gp |
-> [K| 11 | Potion of Diminution     | Consum.    | -               |    270 gp |
-> [K| 12 | Potion of Poison         | Consum.    | -               |    100 gp |
-> [K| 13 | Potion of Invisibility   | Consum.    | -               |    180 gp |
-> [K| 14 | Potion of Greater Healin | Consum.    | Heal 40 HP      |    150 gp |
-> [K| 15 | Potion of Superior Heali | Consum.    | Heal 80 HP      |    450 gp |
-> [K| 16 | Potion of Resistance     | Consum.    | -               |    300 gp |
-> [K| 17 | Potion of Climbing       | Consum.    | -               |    180 gp |
-> [K| 18 | Potion of Healing        | Consum.    | Heal 20 HP      |     50 gp |
-> [K| 19 | Oil of Slipperiness      | Fuel       | 8000 turns      |    480 gp |
-> [K| 20 | Potion of Heroism        | Consum.    | -               |    180 gp |
-> [K| 21 | Potion of Flying         | Consum.    | -               |    500 gp |
-> [K| 22 | Potion of Speed          | Consum.    | Magic           |    400 gp |
-> [K| 23 | Potion of Vitality       | Consum.    | -               |    960 gp |
-> [K'--------------------------------------------------------------------------'
-> [K[TIP] Use 'browse <n>' for info, 'buy <n>' to purchase.
-> [K[Master Malchor's Reagents] Welcome! Use 'buy <n>', 'sell <n>', 'haggle buy <n>', 'identify' or 'cure'.
-> [K.--------------------------------------------------------------------------.
-> [K|                    === Master Malchor's Reagents ===                     |
-> [K|--------------------------------------------------------------------------|
-> [K| ID | ITEM                     | TYPE       | STATISTICS      | COST      |
-> [K|----|--------------------------|------------|-----------------|-----------|
-> [K|  1 | Potion of Mind Reading   | Consum.    | -               |    180 gp |
-> [K|  2 | Potion of Animal Friends | Consum.    | -               |    200 gp |
-> [K|  3 | Potion of Water Breathin | Consum.    | -               |    180 gp |
-> [K|  4 | Oil (flask)              | Fuel       | 8000 turns      |      1 gp |
-> [K|  5 | Oil of Etherealness      | Fuel       | 8000 turns      |   1920 gp |
-> [K|  6 | Potion of Supreme Healin | Consum.    | Heal 120 HP     |   1350 gp |
-> [K|  7 | Potion of Growth         | Consum.    | -               |    270 gp |
-> [K|  8 | Potion of Clairvoyance   | Consum.    | -               |    960 gp |
-> [K|  9 | Oil of Sharpness         | Fuel       | 8000 turns      |   3200 gp |
-> [K| 10 | Potion of Gaseous Form   | Consum.    | -               |    300 gp |
-> [K| 11 | Potion of Diminution     | Consum.    | -               |    270 gp |
-> [K| 12 | Potion of Poison         | Consum.    | -               |    100 gp |
-> [K| 13 | Potion of Invisibility   | Consum.    | -               |    180 gp |
-> [K| 14 | Potion of Greater Healin | Consum.    | Heal 40 HP      |    150 gp |
-> [K| 15 | Potion of Superior Heali | Consum.    | Heal 80 HP      |    450 gp |
-> [K| 16 | Potion of Resistance     | Consum.    | -               |    300 gp |
-> [K| 17 | Potion of Climbing       | Consum.    | -               |    180 gp |
-> [K| 18 | Potion of Healing        | Consum.    | Heal 20 HP      |     50 gp |
-> [K| 19 | Oil of Slipperiness      | Fuel       | 8000 turns      |    480 gp |
-> [K| 20 | Potion of Heroism        | Consum.    | -               |    180 gp |
-> [K| 21 | Potion of Flying         | Consum.    | -               |    500 gp |
-> [K| 22 | Potion of Speed          | Consum.    | Magic           |    400 gp |
-> [K| 23 | Potion of Vitality       | Consum.    | -               |    960 gp |
-> [K'--------------------------------------------------------------------------'
-> [K[TIP] Use 'browse <n>' for info, 'buy <n>' to purchase.
-> [K[DANGER] The ground is slippery! You fell to the ground!
-> [K[DANGER] The ground is slippery! You fell to the ground!
-> [K[GLOBAL EVENT] Time is up, the monsters retreat into the shadows...
-> [VK] Frames: 21162, frame time p50 16.75 p99 35.00 max 5910.82 ms

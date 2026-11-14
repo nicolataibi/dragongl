@@ -1,4 +1,8 @@
 /*
+ * Dragon GL - Copyright (C) 2026 Nicola Taibi
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+/*
  * DRAGON GL - Unit tests: floating tome animation (client_tome.c)
  *
  * Verifies the random flight of the Archive of a Thousand Battles tome:
