@@ -1,4 +1,6 @@
 #version 450
+// Dragon GL - Copyright (C) 2026 Nicola Taibi
+// SPDX-License-Identifier: GPL-3.0-or-later
 /*
  * DRAGON GL - GPD compute pass 1b: GPU CULLING of dynamic instances
  * (entities, player, particles). (GPL-3.0-or-later, see gpd_mesh.glsl)

@@ -1,3 +1,38 @@
+* Sat Nov 14 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.14.11
+- PACKAGING: answers to the fedora-review of 2026.11.14.10 (no failed
+  item). The client was linked to libcjson without using it (rpmlint
+  unused-direct-shlib-dependency): it compiles now only the shared code
+  it needs (protocol, TLS fingerprints, histogram, ability rolls) and
+  reads no JSON; the server, the tests and the fuzzers link cJSON where
+  they use it.
+- PACKAGING: the spec builds with CMAKE_BUILD_TYPE=None, so that the
+  flags of the distribution are the only ones: an empty build type
+  defaults to Release in CMakeLists.txt and would add -O3 after them.
+  The unit tests of the check section build the same way.
+- PACKAGING: the descriptions no longer use 'shaders' and 'changelog',
+  which rpmlint takes for spelling errors; the rpmlint filter keeps the
+  names it cannot know.
+- LICENSE: the source files without a license notice (shaders, five unit
+  tests, the Data Studio and its generator, the man pages, the packaging
+  files, the CMake files) carry a copyright and an
+  SPDX-License-Identifier line; the AppStream metadata is CC0-1.0, as it
+  declares.
+- FIX: on a terminal the client draws its prompt '> ' and erases it
+  before each message; with the output redirected to a file (the
+  client.log of docs/GPU_TESTING.md) it wrote the prompt and the escape
+  sequence ESC[K into the file. Now it writes the messages only; a
+  client test checks it.
+- FIX: client.log, the log of a manual test run, was committed with
+  2026.11.14.10: removed, and *.log in the top directory is ignored.
+- CI: actions updated to the versions that run on Node.js 24 (Node.js 20
+  is deprecated on GitHub's runners): checkout v5, upload-artifact v6,
+  cache v5, codeql-action v4.
+- DOCS: PACKAGING.md: the outcome of fedora-review, point by point, and
+  how to build the source RPM of a review request from the downloaded
+  Source0. SECURITY.md: the rule for accepting a cpp/path-injection
+  finding, without alert numbers (a change near a finding reopens it
+  under a new number).
+
 * Sat Nov 14 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.14.10
 - SECURITY: the combat log and the map dumps of dm_pdf were created with
   fopen(), mode 0666 less the umask: a server started by hand with the

@@ -138,19 +138,17 @@ Dragon GL enforces Fedora-standard compiler security flags across all builds:
 ### G. Code Scanning
 CodeQL analyses the server and the client on every push (`.github/workflows/codeql.yml`, suite `security-and-quality`), built against the cJSON of the system so that the copy in `third_party/` is not analysed. Every finding is either fixed or listed here with the reason it stays; an open finding that is in neither state is a defect.
 
-**Accepted by design — `cpp/path-injection`** (17 findings of 2026-11-14: alerts 5, 7–10, 13, 52–55, 60–65, 76). Every flagged path starts from a directory chosen by the person who runs the program: the state directory (`--state-dir`, `$DRAGONGL_STATE_DIR`, `$XDG_STATE_HOME`, `$HOME`), the data and shader directories, the TLS files (`--tls-cert`, `--tls-key`), the client's configuration and known servers (`$XDG_CONFIG_HOME`). Those are not a trust boundary: whoever sets them can already read and write those files as the same user. What comes from the network never chooses a path:
+**Accepted by design — `cpp/path-injection`**, when the path starts from a directory chosen by the person who runs the program: the state directory (`--state-dir`, `$DRAGONGL_STATE_DIR`, `$XDG_STATE_HOME`, `$HOME`), the data and shader directories, the TLS files (`--tls-cert`, `--tls-key`), the client's configuration and known servers (`$XDG_CONFIG_HOME`). Those are not a trust boundary: whoever sets them can already read and write those files as the same user. What comes from the network never chooses a path:
 - a character name is checked at login against `[A-Za-z0-9_]{1,16}` before it becomes `saves/<name>.save` or part of a tombstone name (`valid_username()` in `src/server/server_login.c`);
 - the floor of `dm_pdf` is a number checked against the dungeon (`maps/map_floor_<n>.pdf`);
 - the files the server lists (`saves/`, tombstones) are names read from its own directory, opened as `<dir>/<name>`, never followed outside it.
 
-A new `cpp/path-injection` finding is reviewed against these three rules before it is dismissed; one that reaches a path from the network is a vulnerability.
-
-The accepted findings are dismissed in the Security tab, with the reason, by the owner of the repository:
+A `cpp/path-injection` finding is reviewed against these three rules before it is dismissed; one that reaches a path from the network is a vulnerability. CodeQL identifies a finding by the code around it, so a change near an accepted one reopens it under a new number: it is reviewed again, not dismissed by habit. The owner of the repository dismisses an accepted finding in the Security tab, or with:
 
 ```bash
-for n in 5 7 8 9 10 13 52 53 54 55 60 61 62 63 64 65 76; do
-  gh api -X PATCH "repos/nicolataibi/dragongl/code-scanning/alerts/$n" \
-    -f state=dismissed -f dismissed_reason="won't fix" \
-    -f dismissed_comment="Path chosen by the user who runs the program; see SECURITY.md, section G."
-done
+gh api -X PATCH "repos/nicolataibi/dragongl/code-scanning/alerts/<number>" \
+  -f state=dismissed -f dismissed_reason="won't fix" \
+  -f dismissed_comment="Path chosen by the user who runs the program; see SECURITY.md, section G."
 ```
+
+On 2026-11-14 seventeen findings were accepted this way and no finding was left open.

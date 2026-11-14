@@ -30,6 +30,8 @@ build-integration/
 build-quality/
 # CMake presets (build-<preset>/) and tools/release.sh
 /build-*/
+# Logs of manual runs (docs/GPU_TESTING.md writes client.log)
+/*.log
 /dist/
 
 # ignore

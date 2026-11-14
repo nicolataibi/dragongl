@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Dragon GL - Copyright (C) 2026 Nicola Taibi
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Test client: logs in, walks the character around, optionally descends
 stairs to a target floor (default: 100 = deepest, to test the STAIRS_DOWN
 boundary at MAX_FLOORS-1).

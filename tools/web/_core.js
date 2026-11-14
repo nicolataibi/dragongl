@@ -1,3 +1,5 @@
+/* Dragon GL - Copyright (C) 2026 Nicola Taibi
+   SPDX-License-Identifier: GPL-3.0-or-later */
 /* ============================================================
    DRAGONGL · DATA STUDIO — core CRUD engine
    Shared by bestiary.html / items.html / spells.html

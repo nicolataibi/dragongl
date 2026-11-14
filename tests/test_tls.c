@@ -1,4 +1,8 @@
 /*
+ * Dragon GL - Copyright (C) 2026 Nicola Taibi
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+/*
  * DRAGON GL - Unit tests: TLS helpers and the known_servers file
  * (include/tls_common.h, src/client/known_servers.h).
  *

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Dragon GL - Copyright (C) 2026 Nicola Taibi -->
+<!-- Dragon GL - Copyright (C) 2026 Nicola Taibi
+     SPDX-License-Identifier: CC0-1.0 (as metadata_license below) -->
 <component type="desktop-application">
   <id>io.github.nicolataibi.dragongl</id>
   <metadata_license>CC0-1.0</metadata_license>

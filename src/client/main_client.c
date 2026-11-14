@@ -26,6 +26,7 @@
 #include "strnum.h"
 #include "client_config.h"
 #include "client_login.h"
+#include "cli_thread.h"
 #include "client_state.h"
 #include "net.h"
 #include "client_tls.h"
@@ -99,7 +100,6 @@ void frame_snapshot_acquire(FrameSnapshot *snap) {
 }
 
 extern void *net_thread_loop(void *arg);
-extern void *cli_thread_loop(void *arg);
 
 /*Send one encoded frame. A failed send means the connection is gone:
  * the session ends (the network thread may not notice a dead peer until

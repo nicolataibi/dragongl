@@ -1,4 +1,8 @@
 /*
+ * Dragon GL - Copyright (C) 2026 Nicola Taibi
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+/*
  * DRAGON GL - Unit tests: A* pathfinding (pathfinding.c)
  *
  * Fixed hand-built maps (10x10 room in the corner of the 300x300

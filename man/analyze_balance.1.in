@@ -1,3 +1,5 @@
+.\" Dragon GL - Copyright (C) 2026 Nicola Taibi
+.\" SPDX-License-Identifier: GPL-3.0-or-later
 .TH ANALYZE_BALANCE 1 "@DRAGONGL_RELEASE_DATE@" "Dragon GL @DRAGONGL_VERSION@" "User Commands"
 .SH NAME
 analyze_balance.py \- Dragon GL Combat Log Analyzer

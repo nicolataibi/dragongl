@@ -40,10 +40,11 @@ if(DRAGONGL_SYSTEM_CJSON)
         message(FATAL_ERROR "DRAGONGL_SYSTEM_CJSON: libcjson found, but not its cJSON.h")
     endif()
     set(DRAGONGL_CJSON_SRCS "")
-    link_libraries(PkgConfig::CJSON)
+    set(DRAGONGL_CJSON_LIBS PkgConfig::CJSON)
 else()
     set(DRAGONGL_CJSON_INCLUDE_DIR "${DRAGONGL_ROOT}/third_party/cjson")
     set(DRAGONGL_CJSON_SRCS "${DRAGONGL_ROOT}/third_party/cjson/cJSON.c")
+    set(DRAGONGL_CJSON_LIBS "")
     # Third-party code: built without the warnings of the project.
     set_source_files_properties("${DRAGONGL_CJSON_SRCS}" PROPERTIES COMPILE_OPTIONS "-w")
 endif()
@@ -62,6 +63,19 @@ set(DRAGONGL_SHARED_SRCS
     ${DRAGONGL_CJSON_SRCS}
     "${DRAGONGL_ROOT}/src/shared/data_loader.c"
     "${DRAGONGL_ROOT}/src/shared/data_items.c"
+    "${DRAGONGL_ROOT}/src/shared/binio.c"
+    "${DRAGONGL_ROOT}/src/shared/histogram.c"
+    "${DRAGONGL_ROOT}/src/shared/wire.c"
+    "${DRAGONGL_ROOT}/src/shared/strnum.c"
+    "${DRAGONGL_ROOT}/src/shared/tls_common.c"
+)
+# The part of the shared code the client uses: the protocol, the TLS
+# fingerprints, the frame-time histogram, the ability rolls of character
+# creation. Not the data loaders or the map generator: the client reads no
+# JSON, so it does not link cJSON.
+set(DRAGONGL_CLIENT_SHARED_SRCS
+    "${DRAGONGL_ROOT}/src/shared/net.c"
+    "${DRAGONGL_ROOT}/src/shared/rules.c"
     "${DRAGONGL_ROOT}/src/shared/binio.c"
     "${DRAGONGL_ROOT}/src/shared/histogram.c"
     "${DRAGONGL_ROOT}/src/shared/wire.c"

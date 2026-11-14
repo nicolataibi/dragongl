@@ -1,4 +1,6 @@
 #version 450
+// Dragon GL - Copyright (C) 2026 Nicola Taibi
+// SPDX-License-Identifier: GPL-3.0-or-later
 /*
  * DRAGON GL - GPD scene vertex shader (GPU-driven path).
  * (GPL-3.0-or-later)

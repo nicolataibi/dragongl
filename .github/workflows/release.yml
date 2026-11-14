@@ -31,7 +31,7 @@ jobs:
       - name: Install packaging tools
         run: dnf -y install git gh rpm-build rpmlint python3 glibc-langpack-en 'dnf-command(builddep)'
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # The tag must be the version of dragongl.spec and of the newest
       # CHANGELOG.md entry: a tag on the wrong commit publishes nothing.

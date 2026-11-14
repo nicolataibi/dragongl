@@ -41,6 +41,7 @@
 
 #include "client_fct.h"
 #include "client_log.h"
+#include "cli_thread.h"
 #include "client_state.h"
 #include "client_tls.h"
 /*Atomic: shared between the net thread (sets, under g_state_mutex) and
@@ -77,9 +78,10 @@ static void on_welcome(const MsgWelcome *w) {
     g_class_id = w->class_id;
     g_alignment = w->alignment;
     pthread_mutex_unlock(&g_state_mutex);
-    printf("\n[NET] Authentication completed!\n[STAT] HP: %d/%d | Gold: %lu\n>", w->hp, w->max_hp,
-           (unsigned long)w->gold);
-    fflush(stdout);
+    char line[96];
+    snprintf(line, sizeof(line), "[NET] Authentication completed!\n[STAT] HP: %d/%d | Gold: %lu",
+             w->hp, w->max_hp, (unsigned long)w->gold);
+    console_print_line(line);
 }
 
 static void set_entity(Entity *e, const MsgState *s) {
@@ -305,8 +307,7 @@ static bool handle_frame(MsgType type, const uint8_t *p, size_t n) {
             return false;
         }
         client_log_add(t.text);
-        printf("\r\033[K%s\n> ", t.text);
-        fflush(stdout);
+        console_print_line(t.text);
         return true;
     }
     case MSG_COMBAT_EVENT: {

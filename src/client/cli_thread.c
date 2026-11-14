@@ -22,6 +22,32 @@
 #include <unistd.h>
 #include <poll.h>
 #include "client_state.h"
+#include "cli_thread.h"
+
+/*The prompt and its escape sequences only on a terminal.*/
+static bool console_is_terminal(void) {
+    static int tty = -1;
+    if (tty < 0) {
+        tty = isatty(STDOUT_FILENO) && isatty(STDIN_FILENO);
+    }
+    return tty != 0;
+}
+
+static void console_prompt(void) {
+    if (console_is_terminal()) {
+        printf("> ");
+        fflush(stdout);
+    }
+}
+
+void console_print_line(const char *text) {
+    if (console_is_terminal()) {
+        printf("\r\033[K%s\n> ", text);
+    } else {
+        printf("%s\n", text);
+    }
+    fflush(stdout);
+}
 
 void *cli_thread_loop(void *arg) {
     char buf[256];
@@ -31,8 +57,7 @@ void *cli_thread_loop(void *arg) {
 
     (void)arg;
 
-    printf("> ");
-    fflush(stdout);
+    console_prompt();
 
     pfd.fd = STDIN_FILENO;
     pfd.events = POLLIN;
@@ -73,8 +98,7 @@ void *cli_thread_loop(void *arg) {
                 }
 
                 if (g_running) {
-                    printf("> ");
-                    fflush(stdout);
+                    console_prompt();
                 }
             }
         }
