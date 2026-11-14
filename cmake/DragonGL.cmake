@@ -25,6 +25,30 @@ string(REGEX REPLACE "^  \"version\": *([0-9]+).*$" "\\1" DRAGONGL_PROTOCOL_VERS
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${DRAGONGL_ROOT}/protocol/messages.json")
 
 # --- Source lists ----------------------------------------------------------------
+# cJSON, the JSON parser of the game data. A copy (MIT) is in
+# third_party/cjson and is compiled in by default, so that a build needs
+# nothing more. DRAGONGL_SYSTEM_CJSON=ON links the library of the system
+# instead (libcjson, 1.7.17 or later): distributions do not ship bundled
+# libraries, and dragongl.spec deletes the copy before it builds.
+option(DRAGONGL_SYSTEM_CJSON "Link the cJSON of the system instead of third_party/cjson" OFF)
+if(DRAGONGL_SYSTEM_CJSON)
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(CJSON REQUIRED IMPORTED_TARGET libcjson>=1.7.17)
+    # The sources include "cJSON.h"; the library installs <cjson/cJSON.h>.
+    find_path(DRAGONGL_CJSON_INCLUDE_DIR cJSON.h HINTS ${CJSON_INCLUDE_DIRS} PATH_SUFFIXES cjson)
+    if(NOT DRAGONGL_CJSON_INCLUDE_DIR)
+        message(FATAL_ERROR "DRAGONGL_SYSTEM_CJSON: libcjson found, but not its cJSON.h")
+    endif()
+    set(DRAGONGL_CJSON_SRCS "")
+    link_libraries(PkgConfig::CJSON)
+else()
+    set(DRAGONGL_CJSON_INCLUDE_DIR "${DRAGONGL_ROOT}/third_party/cjson")
+    set(DRAGONGL_CJSON_SRCS "${DRAGONGL_ROOT}/third_party/cjson/cJSON.c")
+    # Third-party code: built without the warnings of the project.
+    set_source_files_properties("${DRAGONGL_CJSON_SRCS}" PROPERTIES COMPILE_OPTIONS "-w")
+endif()
+include_directories(SYSTEM "${DRAGONGL_CJSON_INCLUDE_DIR}")
+
 # One list each, used by the main project, the integration tests and the fuzz
 # targets, so a new translation unit is added in one place.
 set(DRAGONGL_SHARED_SRCS
@@ -35,7 +59,7 @@ set(DRAGONGL_SHARED_SRCS
     "${DRAGONGL_ROOT}/src/shared/rules.c"
     "${DRAGONGL_ROOT}/src/shared/spell_effect.c"
     "${DRAGONGL_ROOT}/src/shared/spell_rules.c"
-    "${DRAGONGL_ROOT}/src/shared/cJSON.c"
+    ${DRAGONGL_CJSON_SRCS}
     "${DRAGONGL_ROOT}/src/shared/data_loader.c"
     "${DRAGONGL_ROOT}/src/shared/data_items.c"
     "${DRAGONGL_ROOT}/src/shared/binio.c"

@@ -100,7 +100,6 @@ endif()
 set(COMMON_LIBS Threads::Threads m OpenSSL::SSL OpenSSL::Crypto)
 
 # Source lists: cmake/DragonGL.cmake
-set_source_files_properties("${DRAGONGL_ROOT}/src/shared/cJSON.c" PROPERTIES COMPILE_OPTIONS "-Wno-keyword-macro")
 
 if(DRAGONGL_BUILD_SERVER)
     add_executable(dragongl_server ${DRAGONGL_SERVER_SRCS} ${DRAGONGL_SHARED_SRCS})
@@ -157,7 +156,7 @@ endfunction()
 
 # --- Installation -------------------------------------------------------------------
 # Every installed file has one owner in dragongl.spec:
-#   dragongl         client, its launcher, man pages and shaders
+#   dragongl         client, its launcher, man pages, shaders, menu entry and icon
 #   dragongl-server  server, launchers, man pages, systemd unit and config
 #   dragongl-data    game data (JSON)
 #   dragongl-tools   DM and balance tools, Data Studio
@@ -214,6 +213,19 @@ if(DRAGONGL_BUILD_CLIENT)
     install(TARGETS dragongl_client RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
     install(PROGRAMS dragongl-client DESTINATION ${CMAKE_INSTALL_BINDIR})
     install(FILES ${SHADER_SPV_FILES} DESTINATION ${CMAKE_INSTALL_DATADIR}/dragongl/shaders)
+
+    # Desktop integration (freedesktop.org): menu entry, icon and AppStream
+    # metadata, all named by the application id. The release in the
+    # metadata is the version of dragongl.spec.
+    set(DRAGONGL_APP_ID io.github.nicolataibi.dragongl)
+    install(FILES packaging/${DRAGONGL_APP_ID}.desktop
+            DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+    install(FILES packaging/${DRAGONGL_APP_ID}.svg
+            DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps)
+    configure_file(packaging/${DRAGONGL_APP_ID}.metainfo.xml.in
+                   "${CMAKE_BINARY_DIR}/packaging/${DRAGONGL_APP_ID}.metainfo.xml" @ONLY)
+    install(FILES "${CMAKE_BINARY_DIR}/packaging/${DRAGONGL_APP_ID}.metainfo.xml"
+            DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo)
     dragongl_man_page(dragongl_client.1)
     dragongl_man_page(dragongl-client.1)
 endif()

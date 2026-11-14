@@ -41,5 +41,5 @@ Checks: >
   -cert-msc50-cpp,
   -cert-msc51-cpp
 WarningsAsErrors: '*'
-# Project headers, without the vendored include/cJSON.h.
-HeaderFilterRegex: '.*/(src/(server|client)/[^/]+|include/([abd-z][^/]*|classes\.h))$'
+# Project headers (third_party/cjson/cJSON.h is not under include/).
+HeaderFilterRegex: '.*/(src/(server|client)/[^/]+|include/[^/]+)$'

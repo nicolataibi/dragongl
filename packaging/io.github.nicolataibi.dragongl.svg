@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Dragon GL - Copyright (C) 2026 Nicola Taibi - License: GPL-3.0-or-later
+     Application icon: a twenty-sided die seen from a vertex, lit like a
+     torch in the dark. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <rect x="8" y="8" width="240" height="240" rx="44" fill="#12151c"/>
+  <rect x="8" y="8" width="240" height="240" rx="44" fill="none" stroke="#2c3442" stroke-width="4"/>
+  <!-- outline of the die -->
+  <polygon points="128,34 209,81 209,175 128,222 47,175 47,81" fill="#b3471d"/>
+  <!-- faces -->
+  <polygon points="128,34 209,81 174,101 82,101 47,81" fill="#e8843a"/>
+  <polygon points="82,101 174,101 128,181" fill="#ffb454"/>
+  <polygon points="47,81 82,101 128,181 47,175" fill="#c95a22"/>
+  <polygon points="209,81 174,101 128,181 209,175" fill="#93391a"/>
+  <polygon points="47,175 128,181 209,175 128,222" fill="#6f2a14"/>
+  <!-- edges -->
+  <g fill="none" stroke="#12151c" stroke-width="5" stroke-linejoin="round">
+    <polygon points="128,34 209,81 209,175 128,222 47,175 47,81"/>
+    <polyline points="47,81 82,101 174,101 209,81"/>
+    <polyline points="82,101 128,181 174,101"/>
+    <polyline points="47,175 128,181 209,175"/>
+    <line x1="128" y1="34" x2="82" y2="101"/>
+    <line x1="128" y1="34" x2="174" y2="101"/>
+    <line x1="128" y1="181" x2="128" y2="222"/>
+  </g>
+  <!-- the 20, drawn: an icon must not depend on a font -->
+  <g fill="none" stroke="#12151c" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M104,119 q10,-9 19,0 q6,8 -4,17 l-15,14 h23"/>
+    <rect x="135" y="114" width="19" height="36" rx="9.5"/>
+  </g>
+</svg>

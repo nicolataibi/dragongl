@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Dragon GL - Copyright (C) 2026 Nicola Taibi -->
+<component type="desktop-application">
+  <id>io.github.nicolataibi.dragongl</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <name>Dragon GL</name>
+  <summary>Multi-user 3D dungeon RPG</summary>
+  <description>
+    <p>
+      Dragon GL is a multi-user dungeon exploration game with d20-style rules:
+      twelve classes, a town with its merchants and temples, and a hundred
+      randomly generated floors of monsters, traps, bosses and treasure.
+    </p>
+    <p>
+      The client shows the dungeon in real-time 3D with Vulkan 1.3 and takes
+      its commands in the window, as a classic roguelike does. It connects to
+      a Dragon GL server over TLS; the server is a separate package and can
+      run on the same machine.
+    </p>
+  </description>
+  <launchable type="desktop-id">io.github.nicolataibi.dragongl.desktop</launchable>
+  <url type="homepage">https://github.com/nicolataibi/dragongl</url>
+  <url type="bugtracker">https://github.com/nicolataibi/dragongl/issues</url>
+  <url type="help">https://github.com/nicolataibi/dragongl/blob/main/docs/COMMANDS.md</url>
+  <developer id="io.github.nicolataibi">
+    <name>Nicola Taibi</name>
+  </developer>
+  <screenshots>
+    <screenshot type="default">
+      <caption>The dungeon and the panels of the HUD</caption>
+      <image>https://raw.githubusercontent.com/nicolataibi/dragongl/main/readme_assets/screenshot/scr0.png</image>
+    </screenshot>
+  </screenshots>
+  <content_rating type="oars-1.1">
+    <content_attribute id="violence-fantasy">moderate</content_attribute>
+    <content_attribute id="social-chat">intense</content_attribute>
+  </content_rating>
+  <supports>
+    <control>keyboard</control>
+    <control>pointing</control>
+  </supports>
+  <releases>
+    <release version="@DRAGONGL_VERSION@" date="@DRAGONGL_RELEASE_DATE@"/>
+  </releases>
+</component>

@@ -116,7 +116,7 @@ existing() {
 
 c_sources() {
     git -C "$ROOT" ls-files --cached --others --exclude-standard '*.c' '*.h' |
-        grep -v '^src/shared/cJSON\.' | existing
+        grep -v '^third_party/' | existing
 }
 
 # configure <dir> <source dir> [cmake args...]
@@ -163,7 +163,7 @@ check_tidy() {
     # One clang-tidy process per file (run-clang-tidy): the static analyzer
     # keeps state across the files of a single process.
     local -a tidy=("$rct" -quiet -j "$JOBS" -clang-tidy-binary "$(llvm_tool clang-tidy)")
-    "${tidy[@]}" -p "$d/main" "$ROOT/src/(server|client|shared)/(?!cJSON).*\.c$"
+    "${tidy[@]}" -p "$d/main" "$ROOT/src/(server|client|shared)/.*\.c$"
     "${tidy[@]}" -p "$d/unit" "$ROOT/tests/[^/]*\.c$"
     "${tidy[@]}" -p "$d/integration" "$ROOT/tests/integration/.*\.c$"
     "${tidy[@]}" -p "$d/fuzz" "$ROOT/tests/fuzz/.*\.c$"
@@ -181,7 +181,7 @@ spelling_files() {
     git -C "$ROOT" ls-files --cached --others --exclude-standard 'data/*.json' '*.md' \
         'man/*' 'src/*.c' 'src/*.h' 'include/*.h' 'tests/*.c' 'tests/*.h' 'tests/*.py' \
         'tools/*.py' 'tools/*.sh' 'protocol/*' 'dragongl.spec' |
-        grep -v -e '^LORE\.md$' -e '^src/shared/cJSON\.' -e '_gen\.' | existing
+        grep -v -e '^LORE\.md$' -e '_gen\.' | existing
 }
 
 check_spelling() {
@@ -235,7 +235,7 @@ check_coverage() {
     done
     # Measured: the server and the shared code (the client is covered by
     # the smoke test, which runs on a GPU-less runner without llvm-cov).
-    local -a filter=(-ignore-filename-regex='(cJSON|/tests/|/generated/|/src/client/|/include/)')
+    local -a filter=(-ignore-filename-regex='(/third_party/|/tests/|/generated/|/src/client/|/include/)')
     "$cov" report "${objects[@]}" -instr-profile="$d/all.profdata" "${filter[@]}" \
         >"$d/report.txt"
     "$cov" show "${objects[@]}" -instr-profile="$d/all.profdata" "${filter[@]}" \

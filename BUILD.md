@@ -107,6 +107,8 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release
 | `DRAGONGL_BUILD_SERVER` | `ON` | Build the server, the world generator and the launchers; needs libsodium. |
 | `DRAGONGL_BUILD_CLIENT` | `ON` | Build the Vulkan client and its shaders; needs Vulkan, GLFW and glslc. |
 | `DRAGONGL_HARDENING` | `ON` | PIE, `-fstack-protector-strong`, `-D_FORTIFY_SOURCE=2` (not in Debug, nor when the flags already set it) and full RELRO. Distribution builds turn it off: their own flags do the same. |
+| `DRAGONGL_SYSTEM_CJSON` | `OFF` | Link the cJSON of the system (`libcjson` 1.7.17 or later) instead of compiling the copy in `third_party/cjson`. Distribution builds turn it on. |
+| `DRAGONGL_REPRODUCIBLE` | `ON` | Map the path of the source tree to `.` in the binaries (see *Reproducible builds*). Distribution builds turn it off. |
 | `DRAGONGL_INSTALL_SYSTEMD_UNIT` | `ON` | Install `dragongl-server.service` (server builds only). |
 | `DRAGONGL_SYSTEMD_UNITDIR` | `lib/systemd/system` | Unit directory, relative to the prefix or absolute. |
 

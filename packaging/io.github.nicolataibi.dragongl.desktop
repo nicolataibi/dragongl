@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Dragon GL
+GenericName=Dungeon RPG
+Comment=Explore a 100-floor dungeon with other players
+# The launcher asks for the server, the name and the password in a
+# terminal before it opens the window.
+Exec=dragongl-client
+Terminal=true
+Icon=io.github.nicolataibi.dragongl
+Categories=Game;RolePlaying;
+Keywords=dungeon;rpg;roguelike;multiplayer;d20;

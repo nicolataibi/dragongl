@@ -48,7 +48,7 @@ add_test(NAME rules COMMAND test_rules)
 # --- spell effects: the parser of data/spells.json "effect" and the
 # --- resolution of an effect against one target (forced d20)
 add_executable(test_spell_rules test_spell_rules.c ${DG_SRCS}/shared/spell_rules.c
-    ${DG_SRCS}/shared/spell_effect.c ${DG_SRCS}/shared/rules.c ${DG_SRCS}/shared/cJSON.c)
+    ${DG_SRCS}/shared/spell_effect.c ${DG_SRCS}/shared/rules.c ${DRAGONGL_CJSON_SRCS})
 target_link_libraries(test_spell_rules m)
 add_test(NAME spell_rules COMMAND test_spell_rules)
 
@@ -57,7 +57,7 @@ add_test(NAME spell_rules COMMAND test_spell_rules)
 add_executable(spell_balance spell_balance.c ${DG_SRCS}/shared/data_loader.c
     ${DG_SRCS}/shared/data_items.c
     ${DG_SRCS}/shared/spell_rules.c ${DG_SRCS}/shared/spell_effect.c ${DG_SRCS}/shared/rules.c
-    ${DG_SRCS}/shared/cJSON.c ${DG_SRCS}/shared/strnum.c ${DG_SRCS}/shared/binio.c)
+    ${DRAGONGL_CJSON_SRCS} ${DG_SRCS}/shared/strnum.c ${DG_SRCS}/shared/binio.c)
 target_link_libraries(spell_balance m)
 add_test(NAME spell_balance
          COMMAND spell_balance ${DG_ROOT}/data ${CMAKE_CURRENT_SOURCE_DIR}/spell_balance.json)

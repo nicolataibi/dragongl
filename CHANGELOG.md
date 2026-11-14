@@ -1,3 +1,30 @@
+* Sat Nov 14 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.14.09
+- PACKAGING: no bundled library in the packages. cJSON, the only
+  third-party code, moved from include/ and src/shared/ to
+  third_party/cjson; DRAGONGL_SYSTEM_CJSON=ON links the libcjson of the
+  system (1.7.17 or later) instead. The spec deletes the copy in the
+  prep section and builds, tests included, against pkgconfig(libcjson).
+  The default build still compiles the copy and needs nothing new.
+- PACKAGING: the client is a desktop application: menu entry
+  io.github.nicolataibi.dragongl.desktop (it runs in a terminal, where
+  the launcher asks for server, name and password), a scalable icon and
+  AppStream metadata whose release is the version of the spec. The check
+  section validates them with desktop-file-validate and appstream-util.
+- PACKAGING: the spec says why it builds with clang and requires
+  hicolor-icon-theme for the icon directories.
+- CI: the release workflow attests the tarball, the RPMs and SHA256SUMS
+  (GitHub artifact attestations, signed through Sigstore with the
+  identity of the workflow run: no key to keep). 'gh attestation verify
+  <file> --repo nicolataibi/dragongl' verifies a download.
+- TOOLS: clang-tidy looks at every header of include/ (the filter left
+  out those whose name starts with 'c' to skip cJSON.h): no new finding.
+- DOCS: docs/PACKAGING.md: the packages, the Fedora packaging guidelines
+  point by point with what checks each, the three rpmlint filters and
+  why, how to run rpmlint and fedora-review, which COPR chroots to
+  enable, and the known gaps (fedora-review and architectures other than
+  x86_64 were not run). BUILD.md lists the two new options;
+  docs/RELEASING.md how to verify a download.
+
 * Sat Nov 14 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.14.08
 - TOOLS: tools/check_links.py checks the links of the Markdown
   documentation: the file or directory of every link and image exists,

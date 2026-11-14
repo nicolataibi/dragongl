@@ -457,7 +457,7 @@ jobs:
       - name: Release consistency
         run: python3 tools/check_release.py
 
-      # cJSON is vendored third-party code and is not analysed. False
+      # third_party/ (cJSON) is not analysed. False
       # positives are suppressed inline (// cppcheck-suppress) with a
       # comment that explains why. The tree is not configured, so the
       # macros of the generated dragongl_config.h are given here.
@@ -468,5 +468,4 @@ jobs:
             --suppress=missingIncludeSystem \
             -D_DEFAULT_SOURCE -DDRAGONGL_VERSION='"0"' \
             -DDRAGONGL_PKGDATADIR='"/usr/share/dragongl"' \
-            -Iinclude -Isrc/server -Isrc/client \
-            -i src/shared/cJSON.c src
+            -Iinclude -Isrc/server -Isrc/client -Ithird_party/cjson src

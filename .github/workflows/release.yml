@@ -2,15 +2,20 @@ name: Release
 
 # A tag named as a version (YYYY.MM.DD.NN) publishes a GitHub release:
 # the source tarball, the source RPM, the RPMs built on Fedora and their
-# SHA-256 sums, with the CHANGELOG.md entry of the version as notes.
+# SHA-256 sums, with the CHANGELOG.md entry of the version as notes; the
+# files carry a signed attestation of where they were built.
 # COPR builds its own packages from the same tag (docs/RELEASING.md).
 on:
   push:
     tags:
       - "[0-9][0-9][0-9][0-9].[0-9][0-9].[0-9][0-9].[0-9][0-9]"
 
+# contents: the release and its files. id-token and attestations: the
+# signed provenance of those files (Sigstore, through GitHub).
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 concurrency:
   group: release-${{ github.ref }}
@@ -60,6 +65,18 @@ jobs:
           sha256sum * > SHA256SUMS
           cat SHA256SUMS
           python3 ../tools/check_release.py --notes "$GITHUB_REF_NAME" > ../notes.md
+
+      # Signs, with the identity of this workflow run, the statement that
+      # these files were built here from this commit. There is no key to
+      # keep: anyone verifies a download with
+      #   gh attestation verify <file> --repo nicolataibi/dragongl
+      - name: Attest the files of the release
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            dist/*.tar.gz
+            dist/*.rpm
+            dist/SHA256SUMS
 
       # A release that already exists for the tag (the job was run again)
       # gets its files replaced.

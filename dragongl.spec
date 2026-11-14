@@ -1,10 +1,14 @@
 # License: GPL-3.0-or-later
 %global rpkg_srpm_build_method rpmautospec
+# One documentation directory for all the subpackages.
 %global _docdir_fmt %{name}
+# Upstream develops and tests with clang first (CMake picks it by default);
+# gcc builds too and CI keeps it so.
 %global toolchain clang
+%global app_id io.github.nicolataibi.dragongl
 
 Name:           dragongl
-Version:        2026.11.14.08
+Version:        2026.11.14.09
 Release:        %autorelease
 Summary:        Multi-user 3D dungeon RPG: Vulkan client
 
@@ -20,12 +24,20 @@ BuildRequires:  glslc
 BuildRequires:  pkgconfig(glfw3)
 BuildRequires:  pkgconfig(vulkan)
 BuildRequires:  pkgconfig(libsodium)
+# The JSON parser: the copy in third_party/ is deleted in the prep section.
+BuildRequires:  pkgconfig(libcjson) >= 1.7.17
 # TLS 1.3 between client and server
 BuildRequires:  pkgconfig(openssl)
 BuildRequires:  python3
 # Needed by tools/check_data.py (check section): data/*.json against data/schema.
 BuildRequires:  python3-jsonschema
 BuildRequires:  systemd-rpm-macros
+# Menu entry and AppStream metadata of the client, validated in the check section.
+BuildRequires:  desktop-file-utils
+BuildRequires:  libappstream-glib
+
+# Owns the icon directories.
+Requires:       hicolor-icon-theme
 
 # The client renders with Vulkan 1.3: it needs a Vulkan driver.
 Recommends:     mesa-vulkan-drivers
@@ -88,6 +100,8 @@ security documentation, game lore and the changelog of Dragon GL.
 
 %prep
 %autosetup -p1
+# No bundled library: cJSON comes from the system (DRAGONGL_SYSTEM_CJSON).
+rm -r third_party/cjson
 
 
 %build
@@ -98,7 +112,7 @@ security documentation, game lore and the changelog of Dragon GL.
 # -ffile-prefix-map it finds none and the build fails (empty
 # debugsourcefiles.list).
 %cmake -DDRAGONGL_HARDENING=OFF -DDRAGONGL_REPRODUCIBLE=OFF \
-       -DDRAGONGL_SYSTEMD_UNITDIR=%{_unitdir}
+       -DDRAGONGL_SYSTEM_CJSON=ON -DDRAGONGL_SYSTEMD_UNITDIR=%{_unitdir}
 %cmake_build
 
 
@@ -107,11 +121,14 @@ security documentation, game lore and the changelog of Dragon GL.
 
 
 %check
+desktop-file-validate %{buildroot}%{_datadir}/applications/%{app_id}.desktop
+appstream-util validate-relax --nonet %{buildroot}%{_metainfodir}/%{app_id}.metainfo.xml
 python3 tools/check_release.py
 python3 tools/check_data.py
 # Unit tests (the Vulkan compute test skips itself without a Vulkan driver).
 cmake -S tests -B %{_vpath_builddir}-tests -DCMAKE_BUILD_TYPE=Release \
-      -DDRAGONGL_HARDENING=OFF -DCMAKE_C_FLAGS="%{optflags}" \
+      -DDRAGONGL_HARDENING=OFF -DDRAGONGL_SYSTEM_CJSON=ON \
+      -DCMAKE_C_FLAGS="%{optflags}" \
       -DDRAGONGL_TEST_SHADER_DIR="$PWD/%{_vpath_builddir}/shaders"
 cmake --build %{_vpath_builddir}-tests %{?_smp_mflags}
 ctest --test-dir %{_vpath_builddir}-tests --output-on-failure
@@ -135,6 +152,9 @@ ctest --test-dir %{_vpath_builddir}-tests --output-on-failure
 %{_mandir}/man1/dragongl-client.1*
 %dir %{_datadir}/%{name}
 %{_datadir}/%{name}/shaders/
+%{_datadir}/applications/%{app_id}.desktop
+%{_datadir}/icons/hicolor/scalable/apps/%{app_id}.svg
+%{_metainfodir}/%{app_id}.metainfo.xml
 
 
 %files server

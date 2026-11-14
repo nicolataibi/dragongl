@@ -7,7 +7,7 @@
     tools/metrics.py --json FILE     also write them as JSON (CI artifact)
     tools/metrics.py --top N         list the N longest functions (default 10)
 
-Measured on the C sources of src/ (vendored cJSON excluded):
+Measured on the C sources of src/ (third_party/ is not ours):
   * function length: lines from the first line of the signature to the
     closing brace, for every function definition (clang-format style: the
     body opens at the end of the signature, the closing brace is in
@@ -29,7 +29,7 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LIMITS = os.path.join(ROOT, "tools", "quality_limits.json")
 COVERAGE = os.path.join(ROOT, "build-quality", "coverage", "summary.json")
-VENDORED = re.compile(r"^src/shared/cJSON\.[ch]$")
+VENDORED = re.compile(r"^third_party/")
 
 # A definition starts in column 0 with a type or a qualifier and opens its
 # body at the end of the signature, which may wrap over several lines.

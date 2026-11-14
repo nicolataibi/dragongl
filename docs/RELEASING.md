@@ -45,8 +45,8 @@ entries; CI runs it on every push, the spec runs it in `%check`.
 4. The tag starts `.github/workflows/release.yml`: it checks that the tag
    is the version of the spec, builds the tarball and the source RPM with
    `tools/release.sh`, builds and lints the RPMs in a Fedora container
-   (with `%check`), and publishes a GitHub release with those files,
-   `SHA256SUMS` and the changelog entry as its notes. A tag on a commit
+   (with `%check`), attests the files, and publishes a GitHub release
+   with them, `SHA256SUMS` and the changelog entry as its notes. A tag on a commit
    with another version publishes nothing.
 
 5. COPR builds the packages of the repository
@@ -65,10 +65,24 @@ entries; CI runs it on every push, the spec runs it in `%check`.
   libraries and options, they are identical (`tools/quality.sh repro`,
   see BUILD.md). The RPMs of the release are built by Fedora's toolchain
   of that day: rebuilding them identically needs the same package set.
-- The files are not signed. `SHA256SUMS` protects against a damaged
+- Where the files come from: the release job attests them (GitHub
+  artifact attestations, signed through Sigstore with the identity of
+  the workflow run; there is no private key to keep or to lose).
+
+  ```bash
+  gh attestation verify dragongl-2026.11.14.09.tar.gz --repo nicolataibi/dragongl
+  ```
+
+  succeeds only for a file that `.github/workflows/release.yml` of this
+  repository built. `SHA256SUMS` alone protects against a damaged
   download, not against someone who can replace the files of the
-  release; COPR signs the packages it builds with the key of the project
-  there.
+  release; the attestation does. COPR signs the packages it builds with
+  the key of the project there.
+
+## Packaging for Fedora
+
+How the spec meets the Fedora packaging guidelines, point by point, and
+how to run the review tools, is in [PACKAGING.md](PACKAGING.md).
 
 ## If something goes wrong
 

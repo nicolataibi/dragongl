@@ -14,11 +14,12 @@ dragongl-dev/
 ├── src/
 │   ├── client/        # Vulkan renderer, input handling, HUD, VFX, network thread
 │   ├── server/        # Event loop, game tick, movement, command table + handlers, AI, persistence
-│   └── shared/        # d20 rules, cJSON parser, dataset loaders, map primitives
+│   └── shared/        # d20 rules, dataset loaders, map primitives
 ├── shaders/           # GLSL vertex, fragment, and GPD compute shaders
 ├── data/              # Read-only JSON datasets (bestiary.json, items.json, spells.json)
 ├── tests/             # Standalone C & Python unit test suite
 ├── tools/             # Balance analysis (Python) and Web Data Studio (HTML/JS)
+├── third_party/       # cJSON (MIT), the JSON parser; a distribution links its own (DRAGONGL_SYSTEM_CJSON)
 └── readme_assets/     # Screenshots, portraits, and graphical assets
 ```
 
@@ -238,7 +239,7 @@ Every quality gate of CI runs locally with one command; build trees go to `build
 
 | Check | What it does | Fails when |
 | --- | --- | --- |
-| `format` / `format-fix` | clang-format 18 with `.clang-format` on every C file except vendored cJSON | a file is not in the style (`format-fix` rewrites them) |
+| `format` / `format-fix` | clang-format 18 with `.clang-format` on every C file of the project (not `third_party/`) | a file is not in the style (`format-fix` rewrites them) |
 | `tidy` | clang-tidy 18 with `.clang-tidy` on the main project, the unit and integration tests and the fuzz targets, one process per file | any finding (`WarningsAsErrors: '*'`) |
 | `protocol` | `tools/gen_protocol.py --check`: the files generated from `protocol/messages.json` (`include/protocol_gen.h`, `include/wire.h`, `src/shared/wire.c`, `tests/test_protocol_conformance.c`, `tests/protocol_vectors.json`, sections 2-3 of `PROTOCOL.md`) are up to date | a generated file differs from what the table gives |
 | `data` | `tools/check_data.py`: `data/schema/*.schema.json` (JSON Schema 2020-12), references resolved by name (book spells, `cast_spell`), unique names, class consistency of books, canonical form (2-space indent, UTF-8) | any error (`tools/check_data.py --fix` rewrites the form) |
