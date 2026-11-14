@@ -9,7 +9,7 @@
 # Writes into dist/:
 #   dragongl-<version>.tar.gz   `git archive` of the commit (default HEAD):
 #                               the same commit always gives the same bytes
-#   dragongl-<version>.spec     the spec for a plain rpmbuild (--srpm)
+#   dragongl.spec               the spec for a plain rpmbuild (--srpm)
 #   dragongl-<version>-1.src.rpm                               (--srpm)
 #   SHA256SUMS                  of the files above
 #
@@ -67,11 +67,14 @@ if ((SRPM)); then
     command -v rpmbuild >/dev/null || die "--srpm needs rpmbuild"
     # %autorelease and %autochangelog are for rpmautospec (COPR, Koji). A
     # plain rpmbuild gets release 1 and the changelog of CHANGELOG.md.
-    SPEC="$OUT/dragongl-$VERSION.spec"
+    # Named as the package: a source RPM carries its spec by name, and
+    # rpmlint refuses any other (invalid-spec-name).
+    SPEC="$OUT/dragongl.spec"
     {
         git show "$COMMIT:dragongl.spec" |
             sed -e 's/^Release:.*/Release:        1%{?dist}/' -e '/^%autochangelog$/d'
-        git show "$COMMIT:CHANGELOG.md" | sed -e '/^\* /s/$/-1/'
+        # A '%' of the text is a macro to rpm: written twice, it is a '%'.
+        git show "$COMMIT:CHANGELOG.md" | sed -e '/^\* /s/$/-1/' -e '/^\* /!s/%/%%/g'
     } >"$SPEC"
     # A fixed name: rpm writes the path of its build directory into the
     # package, so a random one would make every source RPM different.
@@ -88,7 +91,7 @@ if ((SRPM)); then
         --define "dist %{nil}" --define "_buildhost localhost" \
         --define "use_source_date_epoch_as_buildtime 1" \
         --define "clamp_mtime_to_source_date_epoch 1" "$SPEC" >/dev/null
-    FILES+=("dragongl-$VERSION.spec" "dragongl-$VERSION-1.src.rpm")
+    FILES+=("dragongl.spec" "dragongl-$VERSION-1.src.rpm")
     [[ -f $OUT/dragongl-$VERSION-1.src.rpm ]] || die "rpmbuild did not write the source RPM"
 fi
 

@@ -1,3 +1,13 @@
+* Sat Nov 14 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.14.07
+- FIX: the rpm job of CI failed in rpmlint with 'invalid-spec-name':
+  tools/release.sh named the spec of the source RPM
+  dragongl-<version>.spec, and a source RPM must carry dragongl.spec.
+  The file in dist/ is now dragongl.spec.
+- FIX: a percent sign in CHANGELOG.md went into the changelog of that
+  spec as it was, where rpm reads it as a macro (six rpmlint warnings,
+  macro-in-changelog). tools/release.sh doubles it; the changelog of the
+  package shows it once.
+
 * Sat Nov 14 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.14.06
 - TESTS: the tome test failed about one run in a hundred (in the check
   phase of the RPM build of 2026.11.14.05): the flight of the floating
