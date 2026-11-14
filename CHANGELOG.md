@@ -1,3 +1,20 @@
+* Sat Nov 14 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.14.08
+- TOOLS: tools/check_links.py checks the links of the Markdown
+  documentation: the file or directory of every link and image exists,
+  every #anchor is a heading of its file (GitHub's rule for anchors),
+  and every file of the tree named in backticks exists (a glob must
+  match). CHANGELOG.md and LORE.md may name files that are gone; their
+  links are checked. --external also fetches the http(s) links.
+  tools/quality.sh links runs the checker after its own tests
+  (tools/test_check_links.py: one broken link of each kind, a local HTTP
+  server).
+- CI: the lint job checks the links on every push; links-nightly.yml
+  fetches the 15 external ones every night, since they break without a
+  commit.
+- DOCS: found by the check: DEVELOPMENT.md named shaders/*.spv, which is
+  in the build directory. The version badge of the README said
+  2026.11.09.02: it now shows the newest tag by itself.
+
 * Sat Nov 14 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.14.07
 - FIX: the rpm job of CI failed in rpmlint with 'invalid-spec-name':
   tools/release.sh named the spec of the source RPM

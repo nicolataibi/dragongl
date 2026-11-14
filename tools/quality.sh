@@ -63,6 +63,9 @@ Checks
   load [SECONDS]  tools/loadtest.py (Release server): 64 TLS clients play for
                   SECONDS (default 60), then a shutdown under load and a
                   restart, against the "load" limits of the same file
+  links           tools/check_links.py: links between the Markdown files, their
+                  #anchors, and the files of the tree they name in backticks
+  links-external  the same, and every http(s) link must answer (network)
   commands        docs/COMMANDS.md is what `dragongl_server --print-commands`
                   writes from the table of src/server/cmd_help.c
   commands-fix    write docs/COMMANDS.md again
@@ -70,7 +73,7 @@ Checks
                   warning
   repro           two copies of the tree at different paths, built with
                   debug information and installed: every file identical
-  all             format protocol deps tidy data spelling commands man coverage
+  all             format protocol deps tidy data spelling links commands man coverage
                   metrics tsan repro, then fuzz 30
 
 Options
@@ -327,6 +330,14 @@ check_fuzz() {
     done
 }
 
+# Links of the documentation; the checker is tested first.
+check_links() {
+    section "links of the documentation${1:+ (with the external ones)}"
+    python3 "$ROOT/tools/test_check_links.py" >/dev/null 2>&1 ||
+        { python3 "$ROOT/tools/test_check_links.py"; die "check_links.py fails its own tests"; }
+    python3 "$ROOT/tools/check_links.py" ${1:+"$1"}
+}
+
 # docs/COMMANDS.md against the command table of the server.
 check_commands() {
     section "command reference ($([[ ${1:-} == fix ]] && echo write || echo check))"
@@ -399,9 +410,9 @@ main() {
         load)
             if [[ ${2:-} =~ ^[0-9]+$ ]]; then checks+=("load:$2"); shift; else checks+=(load:60); fi
             ;;
-        all) checks+=(format protocol deps tidy data spelling commands man coverage metrics tsan repro fuzz:30) ;;
+        all) checks+=(format protocol deps tidy data spelling links commands man coverage metrics tsan repro fuzz:30) ;;
         format | format-fix | tidy | data | deps | spelling | metrics | protocol | coverage | tsan | bench | \
-            commands | commands-fix | man | repro)
+            commands | commands-fix | man | repro | links | links-external)
             checks+=("$1")
             ;;
         *) usage >&2; die "unknown check '$1'" ;;
@@ -425,6 +436,8 @@ main() {
         coverage) check_coverage ;;
         tsan) check_tsan ;;
         bench) check_bench ;;
+        links) check_links ;;
+        links-external) check_links --external ;;
         commands) check_commands ;;
         commands-fix) check_commands fix ;;
         man) check_man ;;

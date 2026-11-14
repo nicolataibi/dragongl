@@ -1,0 +1,27 @@
+name: Links (nightly)
+
+# CI checks the links inside the repository on every push. The links to
+# other sites break without a commit, so they are fetched here every
+# night: a page that is gone fails the run and GitHub notifies the owner.
+on:
+  schedule:
+    - cron: "23 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: links-nightly
+  cancel-in-progress: true
+
+jobs:
+  links:
+    name: External links of the documentation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Links
+        run: tools/quality.sh links-external
