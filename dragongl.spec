@@ -4,7 +4,7 @@
 %global toolchain clang
 
 Name:           dragongl
-Version:        2026.11.14.04
+Version:        2026.11.14.05
 Release:        %autorelease
 Summary:        Multi-user 3D dungeon RPG: Vulkan client
 
@@ -92,7 +92,13 @@ security documentation, game lore and the changelog of Dragon GL.
 
 %build
 # The distribution's flags are the only hardening flags.
-%cmake -DDRAGONGL_HARDENING=OFF -DDRAGONGL_SYSTEMD_UNITDIR=%{_unitdir}
+# DRAGONGL_REPRODUCIBLE=OFF: rpm maps the build directory itself (to
+# /usr/src/debug) and collects the sources of the debugsource package
+# from the paths in the debug information; with the project's own
+# -ffile-prefix-map it finds none and the build fails (empty
+# debugsourcefiles.list).
+%cmake -DDRAGONGL_HARDENING=OFF -DDRAGONGL_REPRODUCIBLE=OFF \
+       -DDRAGONGL_SYSTEMD_UNITDIR=%{_unitdir}
 %cmake_build
 
 

@@ -368,13 +368,13 @@ jobs:
   # The same build and tests on Fedora (gcc, OpenSSL and libsodium of the
   # distribution the package targets); Ubuntu runs them with clang above.
   fedora:
-    name: Build and tests (Fedora, gcc)
+    name: Build and tests (Fedora, gcc and clang)
     runs-on: ubuntu-24.04
     container: fedora:latest
     steps:
       - name: Install dependencies
         run: |
-          dnf -y install git gcc cmake ninja-build python3 glslc \
+          dnf -y install git gcc clang cmake ninja-build python3 glslc \
             'pkgconfig(glfw3)' 'pkgconfig(vulkan)' 'pkgconfig(libsodium)' \
             'pkgconfig(openssl)'
 
@@ -385,6 +385,18 @@ jobs:
           cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS=-Werror \
             -DCMAKE_C_COMPILER=gcc
           cmake --build build
+
+      # The clang of Fedora is newer than the one pinned on Ubuntu (18) and
+      # has warnings that one lacks: the project and the tests must build
+      # without any.
+      - name: Build with the current clang (warnings are errors)
+        run: |
+          for src in . tests tests/integration; do
+            dir="build-clang/$src"
+            cmake -S "$src" -B "$dir" -G Ninja -DCMAKE_BUILD_TYPE=Release \
+              -DCMAKE_C_FLAGS=-Werror -DCMAKE_C_COMPILER=clang
+            cmake --build "$dir"
+          done
 
       - name: Server integration tests
         run: |

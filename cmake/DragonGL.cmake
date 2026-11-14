@@ -110,6 +110,8 @@ option(DRAGONGL_HARDENING "Add hardening flags (off for distribution builds)" ON
 # source tree in the debug information and in __FILE__, mapped to "." here
 # (not in Debug builds, where the debugger wants the real paths).
 # tools/quality.sh repro builds two copies of the tree and compares them.
+# Distribution builds turn it off: rpm and dpkg map the build directory
+# themselves, and need the real paths to collect the debug sources.
 option(DRAGONGL_REPRODUCIBLE "Keep the path of the source tree out of the binaries" ON)
 
 macro(dragongl_compile_settings)

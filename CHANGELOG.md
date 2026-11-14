@@ -1,3 +1,19 @@
+* Sat Nov 14 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.14.05
+- FIX: the RPM build of 2026.11.14.04 failed with 'Empty files file
+  debugsourcefiles.list': the -ffile-prefix-map of the reproducible
+  build hid from rpm the paths it collects the debugsource package from.
+  The spec and the 'package' preset build with
+  DRAGONGL_REPRODUCIBLE=OFF: rpm does its own mapping.
+- FIX: clang 19 and later warned three times in hud.c
+  (-Wenum-float-conversion: an enumeration constant multiplied by a
+  float); clang 18, the one of CI, does not have the warning for C. The
+  constants are converted where they are used. The project, the unit and
+  integration tests and the fuzz targets build with clang 20 and
+  -Werror.
+- CI: the Fedora job also builds the project and the tests with the
+  clang of Fedora and -Werror, so that the warnings of a compiler newer
+  than the pinned one fail the build.
+
 * Sat Nov 14 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.14.04
 - GAMEPLAY: help is generated from one table of the commands. 'help'
   lists the topics with their commands, 'help <topic>' the commands of

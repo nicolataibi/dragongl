@@ -50,12 +50,13 @@
     {
       "name": "package",
       "displayName": "Distribution build",
-      "description": "As a packager builds it: debug information, the flags of the distribution only, /usr",
+      "description": "As a packager builds it: debug information, the flags and the path mapping of the distribution only, /usr",
       "inherits": "base",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
         "CMAKE_INSTALL_PREFIX": "/usr",
-        "DRAGONGL_HARDENING": "OFF"
+        "DRAGONGL_HARDENING": "OFF",
+        "DRAGONGL_REPRODUCIBLE": "OFF"
       }
     }
   ],

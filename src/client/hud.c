@@ -416,7 +416,7 @@ static void help_panel(Hud *h, const ClientConfig *cfg) {
         "Mouse: drag to turn the camera, wheel to zoom.",
     };
     int rows = 1 + ACT_COUNT + cfg->macro_count + 1 + (int)(sizeof(typing) / sizeof(typing[0]));
-    float w = COLS * h->cell_w + 2.0f * pad(h);
+    float w = (float)COLS * h->cell_w + 2.0f * pad(h);
     float ht = (float)rows * h->line_h + 2.0f * pad(h);
     float x = (h->w - w) * 0.5f, y = (h->h - ht) * 0.5f;
     if (y < MARGIN) {
@@ -442,14 +442,14 @@ static void help_panel(Hud *h, const ClientConfig *cfg) {
         }
         keys[KEY_COLS - 1] = '\0';
         row_text(h, x, y, r, keys, HUD_WARN);
-        hud_text(h, x + KEY_COLS * h->cell_w, y + (float)r++ * h->line_h,
+        hud_text(h, x + (float)KEY_COLS * h->cell_w, y + (float)r++ * h->line_h,
                  client_action_label((ClientAction)act), hud_color(HUD_TEXT), 1);
     }
     for (int i = 0; i < cfg->macro_count; i++) {
         key_chord_format(cfg->macros[i].chord, a, sizeof(a));
         row_text(h, x, y, r, a, HUD_WARN);
         snprintf(keys, sizeof(keys), "> %.24s", cfg->macros[i].command);
-        hud_text(h, x + KEY_COLS * h->cell_w, y + (float)r++ * h->line_h, keys,
+        hud_text(h, x + (float)KEY_COLS * h->cell_w, y + (float)r++ * h->line_h, keys,
                  hud_color(HUD_MAGIC), 1);
     }
     r++;

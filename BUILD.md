@@ -127,11 +127,11 @@ cmake --preset release && cmake --build --preset release
 | `dev` | Debug, AddressSanitizer and UBSan, `-Werror` |
 | `werror`, `gcc` | The two builds of CI: Release with `-Werror`, clang and gcc |
 | `server` | Server only: no Vulkan, GLFW or glslc needed |
-| `package` | As a packager builds it: RelWithDebInfo, prefix `/usr`, no hardening flags of its own |
+| `package` | As a packager builds it: RelWithDebInfo, prefix `/usr`, no hardening flags and no path mapping of its own |
 
 `build.sh` and the commands of this section do not need the presets.
 
-**Reproducible builds** (`DRAGONGL_REPRODUCIBLE`, default `ON`): the same sources, compiler and options give the same bytes wherever the tree is and whenever it is built. The sources use neither `__DATE__` nor `__TIME__`, and outside Debug builds the path of the source tree is mapped to `.` (`-ffile-prefix-map`) in the debug information. `tools/quality.sh repro` builds two copies of the tree at different paths with debug information, installs both and compares every file; CI runs it. The source tarball is `git archive` of the commit, the same bytes every time (`tools/release.sh`). What is not covered: two different compilers or library versions give different binaries, as they must.
+**Reproducible builds** (`DRAGONGL_REPRODUCIBLE`, default `ON`): the same sources, compiler and options give the same bytes wherever the tree is and whenever it is built. The sources use neither `__DATE__` nor `__TIME__`, and outside Debug builds the path of the source tree is mapped to `.` (`-ffile-prefix-map`) in the debug information. `tools/quality.sh repro` builds two copies of the tree at different paths with debug information, installs both and compares every file; CI runs it. The source tarball is `git archive` of the commit, the same bytes every time (`tools/release.sh`). Distribution builds turn the option off (`dragongl.spec`, the `package` preset): rpm maps the build directory itself and collects the sources of the debugsource package from the paths in the debug information, which the mapping to `.` would hide. What is not covered: two different compilers or library versions give different binaries, as they must.
 
 ### Step 2: Compile
 Build all executables and compile shaders in parallel:
