@@ -251,23 +251,28 @@ static void get_items(BinReader *r, ItemInstance *items, int n) {
  * were. Keeps npcs.dat at a few MB instead of ~120 MB. */
 static bool item_is_zero(const ItemInstance *it) {
     static const ItemInstance zero;
-    return item_instance_equal(it, &zero);
+    /*Nearly every slot is all-zero bytes (the table starts zeroed): one
+     * memcmp settles those. Bytes that differ may be padding only, so the
+     * fields decide: equal bytes are a zero item whatever the padding.*/
+    // NOLINTNEXTLINE(bugprone-suspicious-memory-comparison,cert-exp42-c,cert-flp37-c)
+    return memcmp(it, &zero, sizeof(zero)) == 0 || item_instance_equal(it, &zero);
 }
 
+_Static_assert(GHOST_LOOT_MAX <= 64, "put_sparse_items() lists at most 64 slots");
+
 static void put_sparse_items(BinWriter *w, const ItemInstance *items, int n) {
-    uint32_t used = 0;
-    for (int i = 0; i < n; i++) {
+    int used[64];
+    uint32_t count = 0;
+    for (int i = 0; i < n && count < sizeof(used) / sizeof(used[0]); i++) {
         if (!item_is_zero(&items[i])) {
-            used++;
+            used[count++] = i;
         }
     }
     bw_u32(w, (uint32_t)n);
-    bw_u32(w, used);
-    for (int i = 0; i < n; i++) {
-        if (!item_is_zero(&items[i])) {
-            bw_u32(w, (uint32_t)i);
-            put_item(w, &items[i]);
-        }
+    bw_u32(w, count);
+    for (uint32_t k = 0; k < count; k++) {
+        bw_u32(w, (uint32_t)used[k]);
+        put_item(w, &items[used[k]]);
     }
 }
 
@@ -479,6 +484,7 @@ BinFileStatus persist_read_player(const char *path, SaveData *sd, char *why, siz
 bool persist_write_world(const char *path, const World *wd) {
     BinWriter w;
     bw_init(&w);
+    bw_reserve(&w, sizeof(wd->floors[0].map.data) * MAX_FLOORS + (size_t)MAX_FLOORS * 4096);
     bw_u32(&w, MAX_FLOORS);
     bw_u32(&w, MAP_WIDTH);
     bw_u32(&w, MAP_HEIGHT);
@@ -589,6 +595,11 @@ static bool npc_is_persistent(const NPC *n) {
     return n->active || n->template != NULL;
 }
 
+/*Size of an ordinary NPC record (no shop, no loot), to reserve the buffer
+ * of the NPC table in one allocation; larger records still fit, the buffer
+ * grows.*/
+#define NPC_RECORD_BYTES 192
+
 static void put_npc(BinWriter *w, uint32_t slot, const NPC *n) {
     bw_u32(w, slot);
     bw_i32(w, n->entity_id);
@@ -613,7 +624,10 @@ static void put_npc(BinWriter *w, uint32_t slot, const NPC *n) {
     bw_i32(w, n->ai_ctx.state_timer);
     bw_i32(w, n->ai_ctx.legendary_actions_spent);
     bw_i32(w, (int32_t)n->ai_ctx.behavior);
-    const MerchantData *m = &n->merchant;
+    /*Only a merchant has a shop: the others are written with an empty
+     * one, without reading theirs.*/
+    static const MerchantData no_shop;
+    const MerchantData *m = n->archetype == ARCH_MERCHANT ? &n->merchant : &no_shop;
     int items = m->item_count;
     if (items < 0) {
         items = 0;
@@ -632,7 +646,16 @@ static void put_npc(BinWriter *w, uint32_t slot, const NPC *n) {
     bw_i32(w, (int32_t)m->spec);
     bw_bool(w, n->is_ghost);
     bw_str(w, n->custom_name, sizeof(n->custom_name));
-    put_sparse_items(w, n->ghost_loot, GHOST_LOOT_MAX);
+    /*Only the remains of a character and an item on the ground carry
+     * loot: for every other NPC the 30 slots are not even looked at (the
+     * table is 50,000 NPCs, saved once a minute on the game thread), and
+     * what a previous tenant of the slot left there is not kept.*/
+    if (n->is_ghost || n->archetype == ARCH_TREASURE || n->archetype == ARCH_GOLD) {
+        put_sparse_items(w, n->ghost_loot, GHOST_LOOT_MAX);
+    } else {
+        bw_u32(w, GHOST_LOOT_MAX);
+        bw_u32(w, 0);
+    }
     bw_i32(w, n->spawn_x);
     bw_i32(w, n->spawn_y);
     bw_i32(w, n->respawn_timer);
@@ -696,6 +719,7 @@ bool persist_write_npcs(const char *path, const NPC *npcs, int max_npcs, int nex
     }
     BinWriter w;
     bw_init(&w);
+    bw_reserve(&w, (size_t)count * NPC_RECORD_BYTES + 64);
     bw_u32(&w, (uint32_t)max_npcs);
     bw_u32(&w, bestiary_fingerprint());
     bw_i32(&w, next_id);

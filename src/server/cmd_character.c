@@ -137,7 +137,8 @@ bool cmd_help(Client *c, const char *cmd, Game *game) {
                             "dm_place <item_id> <x> <y> : Place a treasure chest holding the item");
         send_text_to_client(c->sock, "dm_gold <amt> : Add/remove gold coins");
         send_text_to_client(c->sock, "dm_level <lvl> : Increase level up to lvl (max 20)");
-        send_text_to_client(c->sock, "  dm_telemetry          : Show server metrics (RAM/CPU)");
+        send_text_to_client(c->sock,
+                            "  dm_telemetry          : Round and event-loop times, queues, counts");
         send_text_to_client(c->sock,
                             "dm_boss <floor> : Locate bosses on the indicated floor (stats+loot)");
     }

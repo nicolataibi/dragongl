@@ -46,11 +46,12 @@ typedef struct {
 } WorldEvent;
 
 struct Game {
-    World *world;    /*Every floor of the dungeon and the town*/
-    Client *clients; /*MAX_CLIENTS slots*/
-    NPC *npcs;       /*MAX_NPCS slots*/
-    int total_turns; /*Rounds played since the world was created*/
-    int next_id;     /*Next entity id to hand out*/
+    World *world;       /*Every floor of the dungeon and the town*/
+    Client *clients;    /*MAX_CLIENTS slots*/
+    NPC *npcs;          /*MAX_NPCS slots*/
+    int total_turns;    /*Rounds played since the world was created*/
+    int next_id;        /*Next entity id to hand out*/
+    int npc_alloc_hint; /*Where npc_alloc() resumes its search*/
     WorldEvent event;
     Tombstone tombstones[MAX_TOMBSTONES];
     PersistentCloud clouds[MAX_CLOUDS];

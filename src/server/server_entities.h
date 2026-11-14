@@ -121,6 +121,10 @@ typedef struct {
     AiBehavior behavior;
 } AIContext;
 
+/*A monster, a merchant, the remains of a character or an item on the
+ * ground. The fields every round reads come first; the shop and the loot
+ * (4.4 of the 5.2 KB) come last, so that walking the table of MAX_NPCS
+ * entries does not pull them through the cache.*/
 typedef struct {
     int entity_id, x, y, floor_id, hp, max_hp;
     bool active;
@@ -131,20 +135,6 @@ typedef struct {
     // Dynamic Stats
     int ac, attack_bonus, damage_dice, damage_sides, xp_reward, gold_drop, morale;
 
-    // Systems
-    ActiveEffect effects[MAX_EFFECTS_PER_ENTITY];
-    int effect_count;
-    int spell_slots[MAX_SPELL_LEVEL + 1];
-    int spell_slots_max[MAX_SPELL_LEVEL + 1];
-    AIContext ai_ctx;
-
-    MerchantData merchant;
-
-    // Bones / Ghost system
-    bool is_ghost;
-    char custom_name[64];
-    ItemInstance ghost_loot[30];
-
     //Respawn
     int spawn_x, spawn_y, respawn_timer;
 
@@ -153,6 +143,20 @@ typedef struct {
     //Each tick receives energy equal to (template->speed or 2 if not defined).
     //speed=1: slow (acts every 2 ticks), speed=2: normal, speed=3: fast (acts 2x per tick)
     int energy;
+
+    // Bones / Ghost system
+    bool is_ghost;
+
+    // Systems
+    AIContext ai_ctx;
+    int effect_count;
+    ActiveEffect effects[MAX_EFFECTS_PER_ENTITY];
+    int spell_slots[MAX_SPELL_LEVEL + 1];
+    int spell_slots_max[MAX_SPELL_LEVEL + 1];
+
+    char custom_name[64];
+    MerchantData merchant;       /*ARCH_MERCHANT only*/
+    ItemInstance ghost_loot[30]; /*remains (is_ghost) and items on the ground only*/
 } EntityInstance;
 
 typedef EntityInstance NPC; // Temporary alias for backward compatibility
@@ -215,7 +219,9 @@ typedef struct {
      * Used by the 12 class transit cantrips (surface <-> deepest explored). */
     int max_floor_explored;
     /* --- Phase 4: Advanced Speed/Tick System --- */
-    long long last_action_ms; //Timestamp (ms) for throttling (anti-spam)
+    long long last_action_ms; /*Last accepted step (ms): at most one per 200 ms*/
+    long long cmd_window_ms;  /*Start of the current second of text commands*/
+    int cmd_in_window;        /*Text commands accepted in it*/
     /*--- Phase 5: Grimoire - spells learned ---
 * Compact bitfield: bit N = 1 → magic index N in spell_database known.
      * Test: (known_spells[N/64] >> (N%64)) & 1

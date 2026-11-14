@@ -246,7 +246,7 @@ Dragon GL includes a dedicated administrative role for game masters and automate
 
 To authenticate as DM: connect with player name `dm` and the DM password configured at server startup (`--dm-password-file` or `DRAGONGL_DM_PASSWORD`; without it the DM account is disabled):
 
-- `dm_telemetry`: Real-time server telemetry (tick timing, active clients, live NPCs, traps).
+- `dm_telemetry`: Real-time server telemetry: round and event-loop times (mean, p50, p99, maximum, over budget), writer queue, logins waiting, active clients, live NPCs, traps.
 - `dm_goto <floor> <x> <y>`: Instant teleportation across all 100 floors.
 - `dm_spawn <monster_id> <x> <y>`: Spawn creatures from the bestiary.
 - `dm_boss <floor>`: Retrieve location, statistics, and loot tables for floor bosses.

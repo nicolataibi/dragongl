@@ -66,6 +66,19 @@ void bw_reset(BinWriter *w) {
     w->failed = false;
 }
 
+void bw_reserve(BinWriter *w, size_t n) {
+    if (w->failed || w->len + n <= w->cap) {
+        return;
+    }
+    uint8_t *grown = realloc(w->data, w->len + n);
+    if (!grown) {
+        w->failed = true;
+        return;
+    }
+    w->data = grown;
+    w->cap = w->len + n;
+}
+
 void bw_bytes(BinWriter *w, const void *p, size_t n) {
     if (w->failed || n == 0) {
         return;
@@ -96,7 +109,7 @@ void bw_u16(BinWriter *w, uint16_t v) {
     bw_bytes(w, b, sizeof(b));
 }
 
-void bw_u32(BinWriter *w, uint32_t v) {
+void bw_u32_grow(BinWriter *w, uint32_t v) {
     uint8_t b[4];
     for (int i = 0; i < 4; i++) {
         b[i] = (uint8_t)(v >> (8 * i));
@@ -110,10 +123,6 @@ void bw_u64(BinWriter *w, uint64_t v) {
         b[i] = (uint8_t)(v >> (8 * i));
     }
     bw_bytes(w, b, sizeof(b));
-}
-
-void bw_i32(BinWriter *w, int32_t v) {
-    bw_u32(w, (uint32_t)v);
 }
 
 void bw_i64(BinWriter *w, int64_t v) {

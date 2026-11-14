@@ -1,0 +1,45 @@
+name: Load (nightly)
+
+# The CI job plays 64 clients for a minute on every push; this one keeps
+# them playing for 30 minutes every night, then stops the server under
+# load and starts it again (tools/loadtest.py).
+on:
+  schedule:
+    - cron: "47 3 * * *"
+  workflow_dispatch:
+    inputs:
+      seconds:
+        description: "Seconds of play"
+        default: "1800"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: load-nightly
+  cancel-in-progress: false
+
+jobs:
+  load:
+    name: 64 clients (${{ inputs.seconds || '1800' }} s)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang cmake ninja-build pkg-config libsodium-dev libssl-dev python3
+
+      - name: Load test
+        run: tools/quality.sh load "${{ inputs.seconds || '1800' }}"
+
+      - name: Measurements
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: load
+          path: build-quality/release/load.json
+          if-no-files-found: ignore

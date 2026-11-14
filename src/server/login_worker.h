@@ -81,6 +81,8 @@ int login_worker_eventfd(void);
 
 /* Takes ownership of job (heap-allocated with calloc). */
 void login_worker_submit(LoginJob *job);
+/* Logins submitted whose password has not been verified yet. */
+unsigned login_worker_backlog(void);
 
 /* Next finished job, or NULL. Resets the eventfd when the queue is empty.
  * The caller frees it with login_job_free(). */

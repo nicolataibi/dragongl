@@ -28,7 +28,7 @@ LAYERS = ["shared", "model", "infra", "game", "commands", "main"]
 MODEL = {"auth", "server", "server_entities"}
 INFRA = {
     "combat_log", "login_worker", "pathfinding", "persist", "server_conn",
-    "server_log", "server_tls", "writer",
+    "server_log", "server_metrics", "server_tls", "writer",
 }
 MAIN = {"main_server", "server_login", "server_options", "server_startup"}
 INCLUDE = re.compile(r'^\s*#\s*include\s+"([^"]+)"', re.M)

@@ -26,9 +26,19 @@
 /*Hour and minute of the game day (1 round = 1 game minute).*/
 void get_game_time(Game *game, int *h, int *m);
 
+/*One round of the game: the players, every NPC, the world event, the
+ * clouds. The main loop calls it on its fixed-step clock (TICK_MS).*/
 void update_world(Client *clients, Game *game);
 /*Save world.dat + npcs.dat to the state directory (false on failure).*/
 bool save_world_state(Game *game);
+
+/*The autosave, cut into AUTOSAVE_STEPS parts that run in consecutive
+ * rounds so that no round carries all of it: step 0 the characters and
+ * the world, step 1 the NPC table. Each part is serialized on the game
+ * thread and written by the writer thread. world.dat and npcs.dat are
+ * then one round apart, as they already were two separate writes.*/
+#define AUTOSAVE_STEPS 2
+bool autosave_step(Client *clients, Game *game, int step);
 
 /* Floor Stats Cache — incremental O(1) updates */
 void floor_stats_rebuild(Game *game);
@@ -85,7 +95,9 @@ FloorIter floor_iter(Game *game, int floor_id);
 int floor_iter_next(FloorIter *it);
 
 /* The active NPC with this entity id, or NULL. O(1) through a map rebuilt
- * with the floor index; an NPC spawned since then is found by one scan. */
+ * with the floor index, to which npc_set_active() adds an NPC when it
+ * activates it: an NPC made active in any other way is found from the next
+ * floor_index_rebuild() on. */
 NPC *npc_by_entity_id(Game *game, int entity_id);
 
 #endif // SERVER_WORLD_H

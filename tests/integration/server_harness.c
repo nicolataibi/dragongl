@@ -314,9 +314,21 @@ static int test_npcs_roundtrip(void) {
     a->merchant.spec = BOOKS_MARTIAL;
     a->respawn_timer = -1;
     a->energy = 3;
-    a->ghost_loot[29].template_idx = 1;
+    a->ghost_loot[29].template_idx = 1; /* a merchant carries no loot: not kept */
     a->ghost_loot[29].stack_count = 2;
     a->effect_count = 1; /* transient: must not survive */
+    /* The remains of a character: the loot is kept, a shop is not. */
+    NPC *g = &g_game.npcs[7];
+    g->entity_id = 44;
+    g->active = true;
+    g->is_ghost = true;
+    g->respawn_timer = -1;
+    snprintf(g->custom_name, sizeof(g->custom_name), "Ghost of Aldric");
+    g->ghost_loot[0].template_idx = 5;
+    g->ghost_loot[0].stack_count = 1;
+    g->ghost_loot[29].template_idx = 1;
+    g->ghost_loot[29].stack_count = 2;
+    g->merchant.item_count = 3;
     NPC *b = &g_game.npcs[MAX_NPCS - 1];
     b->entity_id = 43;
     b->floor_id = 100;
@@ -338,7 +350,7 @@ static int test_npcs_roundtrip(void) {
     if (st != BINFILE_OK) {
         fprintf(stderr, "FAIL read: %s\n", why);
         rc = 1;
-    } else if (count != 2 || next != 1234 || turns != 5678) {
+    } else if (count != 3 || next != 1234 || turns != 5678) {
         fprintf(stderr, "FAIL header\n");
         rc = 1;
     } else {
@@ -347,9 +359,18 @@ static int test_npcs_roundtrip(void) {
             la->archetype != ARCH_MERCHANT || la->ai_ctx.behavior != AI_BEHAVIOR_MAGE ||
             la->merchant.item_count != 2 || la->merchant.item_stock[1] != 5 ||
             strcmp(la->merchant.shop_name, "The Iron Anvil") != 0 ||
-            la->merchant.spec != BOOKS_MARTIAL || la->ghost_loot[29].stack_count != 2 ||
+            la->merchant.spec != BOOKS_MARTIAL || la->ghost_loot[29].stack_count != 0 ||
             la->effect_count != 0 || la->template != NULL) {
             fprintf(stderr, "FAIL npc 3 fields\n");
+            rc = 1;
+        }
+        const NPC *lg = &loaded[7];
+        if (lg->entity_id != 44 || !lg->is_ghost ||
+            strcmp(lg->custom_name, "Ghost of Aldric") != 0 ||
+            lg->ghost_loot[0].template_idx != 5 || lg->ghost_loot[0].stack_count != 1 ||
+            lg->ghost_loot[29].stack_count != 2 || lg->ghost_loot[1].stack_count != 0 ||
+            lg->merchant.item_count != 0) {
+            fprintf(stderr, "FAIL ghost fields\n");
             rc = 1;
         }
         if (lb->entity_id != 43 || lb->active || lb->respawn_timer != 50 || lb->floor_id != 100) {
@@ -1122,6 +1143,10 @@ static const TestCase k_tests[] = {
     {"dm_spawn_and_place", test_dm_spawn_and_place},
     {"numeric_arguments", test_numeric_arguments},
     {"tunnel_keeps_the_border", test_tunnel_keeps_the_border},
+    {"floors_without_characters_sleep", test_floors_without_characters_sleep},
+    {"swarm_splits_into_free_slots", test_swarm_splits_into_free_slots},
+    {"autosave_in_steps", test_autosave_in_steps},
+    {"metrics_and_telemetry", test_metrics_and_telemetry},
 };
 
 int main(int argc, char **argv) {

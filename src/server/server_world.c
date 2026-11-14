@@ -107,26 +107,29 @@ static void broadcast_game_time(Game *game, Client *clients) {
  * or write them synchronously when it is not running (startup, shutdown).
  * Returns false if either could not be written (the writer logs why); the
  * previous file is kept in that case.*/
-bool save_world_state(Game *game) {
-    char world_path[STATE_DIR_MAX + 32], npcs_path[STATE_DIR_MAX + 32];
-    if (!state_path(world_path, sizeof(world_path), "world.dat") ||
-        !state_path(npcs_path, sizeof(npcs_path), "npcs.dat")) {
+/*Paths of the two files of the world; false if the state directory path
+ * is too long.*/
+static bool world_paths(char *world, char *npcs, size_t n) {
+    if (!state_path(world, n, "world.dat") || !state_path(npcs, n, "npcs.dat")) {
         server_log("SAVE", "State directory path too long.");
         return false;
     }
-    return persist_write_world(world_path, game->world) &&
+    return true;
+}
+
+bool save_world_state(Game *game) {
+    char world_path[STATE_DIR_MAX + 32], npcs_path[STATE_DIR_MAX + 32];
+    return world_paths(world_path, npcs_path, sizeof(world_path)) &&
+           persist_write_world(world_path, game->world) &&
            persist_write_npcs(npcs_path, game->npcs, MAX_NPCS, game->next_id, game->total_turns);
 }
 
-/*Every character, the world and the NPCs, once a minute.*/
-static void autosave_if_due(Client *clients, Game *game) {
-    static time_t last_autosave = 0;
-    time_t now = time(NULL);
-    if (last_autosave == 0) {
-        last_autosave = now;
+bool autosave_step(Client *clients, Game *game, int step) {
+    char world_path[STATE_DIR_MAX + 32], npcs_path[STATE_DIR_MAX + 32];
+    if (!world_paths(world_path, npcs_path, sizeof(world_path))) {
+        return false;
     }
-    if (now - last_autosave >= 60) {
-        last_autosave = now;
+    if (step == 0) {
         int saved_count = 0;
         for (int i = 0; i < MAX_CLIENTS; i++) {
             if (clients[i].active && clients[i].authenticated) {
@@ -134,12 +137,30 @@ static void autosave_if_due(Client *clients, Game *game) {
                 saved_count++;
             }
         }
-
-        if (game->world) {
-            if (save_world_state(game)) {
-                server_log("SYS", "Auto-save: %d players, world and NPCs.", saved_count);
-            }
+        bool ok = persist_write_world(world_path, game->world);
+        if (ok) {
+            server_log("SYS", "Auto-save: %d players and the world.", saved_count);
         }
+        return ok;
+    }
+    return persist_write_npcs(npcs_path, game->npcs, MAX_NPCS, game->next_id, game->total_turns);
+}
+
+/*Once a minute, over AUTOSAVE_STEPS consecutive rounds (autosave_step).*/
+static void autosave_if_due(Client *clients, Game *game) {
+    static time_t last_autosave = 0;
+    static int step = -1; /*-1: no autosave in progress*/
+    time_t now = time(NULL);
+    if (last_autosave == 0) {
+        last_autosave = now;
+    }
+    if (step < 0 && now - last_autosave >= 60) {
+        last_autosave = now;
+        step = 0;
+    }
+    if (step >= 0) {
+        (void)autosave_step(clients, game, step);
+        step = step + 1 < AUTOSAVE_STEPS ? step + 1 : -1;
     }
 }
 
@@ -414,12 +435,16 @@ static void respawn_traps_and_crystals(Game *game) {
 }
 
 NPC *npc_alloc(Game *game) {
+    /*The search starts where the last one ended: a table that fills up is
+     * not walked from the top at every spawn.*/
     NPC *dead = NULL;
-    for (int i = 0; i < MAX_NPCS; i++) {
+    for (int k = 0; k < MAX_NPCS; k++) {
+        int i = (game->npc_alloc_hint + k) % MAX_NPCS;
         if (game->npcs[i].active) {
             continue;
         }
         if (game->npcs[i].template == NULL || game->npcs[i].respawn_timer < 0) {
+            game->npc_alloc_hint = (i + 1) % MAX_NPCS;
             return &game->npcs[i];
         }
         if (!dead) {
@@ -542,8 +567,8 @@ static void npc_condition_saves(NPC *n) {
 
 /*A dead monster counts down and comes back at its spawn point (5 rounds
  * later if the tile is taken).*/
-static void npc_respawn_round(Game *game, NPC *n, bool new_round) {
-    if (new_round && n->respawn_timer > 0) {
+static void npc_respawn_round(Game *game, NPC *n) {
+    if (n->respawn_timer > 0) {
         n->respawn_timer--;
     }
     if (n->respawn_timer != 0) {
@@ -572,12 +597,26 @@ static void npc_respawn_round(Game *game, NPC *n, bool new_round) {
                n->y);
 }
 
-/*One tick of an NPC: on a new round its periodic damage, morale and
- * saving throws, then as many AI cycles as its energy allows; a dead
- * monster counts down to its respawn instead. Merchants only restock.*/
-static void npc_round(Client *clients, Game *game, NPC *n, bool new_round) {
+/*The floors with at least one character on them. Only there the monsters
+ * live their round: with nobody to see them the others sleep (their dead
+ * still count down to the respawn, their merchants still restock).*/
+static void awake_floors(const Client *clients, bool awake[MAX_FLOORS]) {
+    memset(awake, 0, sizeof(bool) * MAX_FLOORS);
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        const Client *c = &clients[i];
+        if (c->active && c->authenticated && c->floor_id >= 0 && c->floor_id < MAX_FLOORS) {
+            awake[c->floor_id] = true;
+        }
+    }
+}
+
+/*One round of an NPC: its periodic damage, morale and saving throws, then
+ * as many AI cycles as its energy allows; a dead monster counts down to
+ * its respawn instead. Merchants only restock. On a floor that is not
+ * awake a living NPC does nothing at all.*/
+static void npc_round(Client *clients, Game *game, NPC *n, const bool awake[MAX_FLOORS]) {
     if (n->respawn_timer < 0) {
-        if (new_round && n->active && n->archetype == ARCH_MERCHANT) {
+        if (n->active && n->archetype == ARCH_MERCHANT) {
             merchant_round(n);
         }
         return;
@@ -585,35 +624,34 @@ static void npc_round(Client *clients, Game *game, NPC *n, bool new_round) {
     if (!n->active) {
         if (n->template != NULL && !n->is_ghost && n->archetype != ARCH_TREASURE &&
             n->archetype != ARCH_GOLD) {
-            npc_respawn_round(game, n, new_round);
+            npc_respawn_round(game, n);
         }
         return;
     }
-    if (new_round) {
-        if (!npc_periodic_damage(game, n)) {
-            return;
-        }
-        npc_morale(n);
-        npc_condition_saves(n);
+    if (n->floor_id < 0 || n->floor_id >= MAX_FLOORS || !awake[n->floor_id]) {
+        return;
     }
+    if (!npc_periodic_damage(game, n)) {
+        return;
+    }
+    npc_morale(n);
+    npc_condition_saves(n);
     /*Debilitating conditions take the turn; the effects then age by one
      * round, so an effect of N rounds costs the NPC N turns.*/
     if (!npc_cannot_act(n)) {
         /*The NPC gains energy equal to its speed every tick (1 slow, 2
          * normal, 3 fast) and acts when it reaches ENERGY_THRESHOLD. At most
          * one action (attack, cast) per round: the first energy cycle of
-         * the round runs with new_round, the extra cycles only move.*/
+         * the round may act, the extra cycles only move.*/
         n->energy += (n->template && n->template->speed > 0) ? n->template->speed : 2;
         bool first_cycle = true;
         while (n->energy >= ENERGY_THRESHOLD) {
             n->energy -= ENERGY_THRESHOLD;
-            ai_update_npc(game, n, clients, MAX_CLIENTS, new_round && first_cycle);
+            ai_update_npc(game, n, clients, MAX_CLIENTS, first_cycle);
             first_cycle = false;
         }
     }
-    if (new_round) {
-        rules_update_effects(n->effects, &n->effect_count);
-    }
+    rules_update_effects(n->effects, &n->effect_count);
 }
 
 /*A floor whose living NPCs fall under DENSITY_MIN_PCT gets one of its dead
@@ -676,50 +714,35 @@ static void rebalance_floor_density(Game *game) {
 }
 
 void update_world(Client *clients, Game *game) {
-    static long long last_tick_ms = 0;
-    long long now_ms = get_time_ms();
-
     autosave_if_due(clients, game);
 
-    /*The main loop calls this on the fixed-step clock, so a round passes on
-   * (almost) every call; this gate stays the definition of a round.*/
-    if (last_tick_ms == 0) {
-        last_tick_ms = now_ms;
+    game->total_turns++;
+    if (game->total_turns % 5 == 0) {
+        broadcast_game_time(game, clients);
     }
-    bool new_round = (now_ms - last_tick_ms >= TICK_MS);
-    if (new_round) {
-        last_tick_ms = now_ms;
-        game->total_turns++;
-        if (game->total_turns % 5 == 0) {
-            broadcast_game_time(game, clients);
-        }
-        update_global_event(game, clients);
-        for (int i = 0; i < MAX_CLIENTS; i++) {
-            player_round(game, clients, i);
-        }
-        respawn_traps_and_crystals(game);
+    update_global_event(game, clients);
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        player_round(game, clients, i);
     }
+    respawn_traps_and_crystals(game);
 
-    /*Every NPC sees the same round flag: each one decays its effects and
-   * acts once per round (first_cycle in npc_round), and every dead one
-   * counts down.*/
+    /*Each NPC decays its effects and acts once per round (first_cycle in
+     * npc_round); every dead one counts down.*/
+    bool awake[MAX_FLOORS];
+    awake_floors(clients, awake);
     for (int i = 0; i < MAX_NPCS; i++) {
-        npc_round(clients, game, &game->npcs[i], new_round);
+        npc_round(clients, game, &game->npcs[i], awake);
     }
 
-    /*Spawns, deaths and splits of this tick.*/
+    /*Spawns, deaths and splits of this round.*/
     floor_index_rebuild(game);
     /*The AI moved the monsters: realign the entity grid, or players would
-   * walk through them.*/
-    if (new_round) {
-        sync_entity_grid(game);
-    }
-    if (new_round && (game->total_turns % DENSITY_CHECK == 0)) {
+     * walk through them.*/
+    sync_entity_grid(game);
+    if (game->total_turns % DENSITY_CHECK == 0) {
         rebalance_floor_density(game);
     }
-    if (new_round) {
-        aoe_update_clouds(game, clients, MAX_CLIENTS);
-    }
+    aoe_update_clouds(game, clients, MAX_CLIENTS);
 }
 
 /*pickup_tombstone_items has been replaced by tombstone_pickup() in tombstone.c*/

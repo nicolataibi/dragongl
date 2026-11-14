@@ -76,7 +76,7 @@ Dragon GL is a multi-user client-server game: one server process, reachable over
 
 - **Trust on first use:** a player who connects for the first time through an attacker and does not compare the fingerprint trusts the attacker. Use `--fingerprint`, or a certificate signed by a public or private authority.
 - **Self-signed certificate lifetime:** the generated certificate is valid for 10 years and is not revoked if the key leaks: replace both files (clients then need the new fingerprint).
-- **Authenticated players are trusted with the server's CPU:** the rate limits (5 moves and 5 commands per second) bound, but do not remove, the load one player can cause.
+- **Authenticated players are trusted with the server's CPU:** the rate limits (5 steps and 10 text commands per second) bound, but do not remove, the load one player can cause.
 - **No end-to-end protection between players:** private messages are readable by the server owner, as everything else in the game.
 
 ### A. Dual-Key Authentication & DM Separation

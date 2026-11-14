@@ -363,6 +363,46 @@ class ServerTest(unittest.TestCase):
         again = self.player("walker")
         self.assertEqual(again.position, here)
 
+    def test_shutdown_logs_the_round_times(self):
+        """The [PERF] line of the shutdown: rounds played and their p50,
+        p99 and maximum, as dm_telemetry shows them while running."""
+        p = self.player("timed")
+        time.sleep(1.2)  # a few rounds
+        self.restart_server()
+        self.assertRegex(self.server_log_text(),
+                         r"\[PERF\s*\] total: \d+ rounds, round p50 [\d.]+ p99 [\d.]+ "
+                         r"max [\d.]+ ms \(\d+ over 50 ms\)")
+        del p
+
+    def test_command_while_walking_is_answered(self):
+        """A command sent right after a step is not lost: steps and
+        commands have separate rate limits."""
+        p = self.player("walker")
+        for _ in range(5):
+            p.move(1, 0)
+            del p.texts[:]
+            p.command("who")
+            self.assertIsNotNone(p.wait_for_text("[WHO]", 3.0),
+                                 "no answer to a command sent right after a step")
+            p.pump(0.25)
+
+    def test_command_flood_is_refused_with_a_notice(self):
+        """More than 10 commands in a second: the rest is dropped and the
+        client is told, once; a second later commands work again."""
+        p = self.player("flooder")
+        del p.texts[:]
+        for _ in range(60):
+            p.command("who")
+        self.assertIsNotNone(p.wait_for_text("Too many commands", 3.0))
+        p.pump(0.3)
+        self.assertEqual(sum("[WHO]" in t for t in p.texts), 10)
+        self.assertEqual(sum("Too many commands" in t for t in p.texts), 1)
+        time.sleep(1.1)
+        del p.texts[:]
+        p.command("who")
+        self.assertIsNotNone(p.wait_for_text("[WHO]", 3.0))
+        self.assert_server_alive()
+
     def test_killed_server_recovers(self):
         """SIGKILL while the saves of the characters that just left are
         being written: the next start finds a readable world and readable

@@ -37,6 +37,7 @@ static bool g_stopping;
 static int g_efd = -1;
 static LoginJob *g_todo_head, *g_todo_tail;
 static LoginJob *g_done_head, *g_done_tail;
+static unsigned g_backlog; /* jobs submitted and not verified yet */
 
 static void push(LoginJob **head, LoginJob **tail, LoginJob *j) {
     j->next = NULL;
@@ -116,6 +117,7 @@ static void *worker_main(void *arg) {
         login_job_run(j);
 
         pthread_mutex_lock(&g_lock);
+        g_backlog--;
         push(&g_done_head, &g_done_tail, j);
         signal_done();
     }
@@ -155,6 +157,7 @@ void login_worker_stop(void) {
     while ((j = pop(&g_todo_head, &g_todo_tail)) != NULL) {
         login_job_free(j);
     }
+    g_backlog = 0;
     while ((j = pop(&g_done_head, &g_done_tail)) != NULL) {
         login_job_free(j);
     }
@@ -169,8 +172,16 @@ int login_worker_eventfd(void) {
 void login_worker_submit(LoginJob *job) {
     pthread_mutex_lock(&g_lock);
     push(&g_todo_head, &g_todo_tail, job);
+    g_backlog++;
     pthread_cond_signal(&g_work);
     pthread_mutex_unlock(&g_lock);
+}
+
+unsigned login_worker_backlog(void) {
+    pthread_mutex_lock(&g_lock);
+    unsigned n = g_backlog;
+    pthread_mutex_unlock(&g_lock);
+    return n;
 }
 
 LoginJob *login_worker_take(void) {

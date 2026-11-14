@@ -83,7 +83,7 @@ Sanitizer builds (`-d`) with clang need compiler-rt (Fedora: `compiler-rt`, Debi
 
 Build directories: `build/` (used by `./dragongl-server` and `./dragongl-client`), `build-tests/` (`build-tests-asan/` with `-d`), `build-integration/`, and `build-quality/` for `tools/quality.sh` (removed by `-c` too).
 
-The quality gates of CI (clang-format, clang-tidy, game data, metrics, coverage, ThreadSanitizer, fuzzing) are in `tools/quality.sh`, described in `DEVELOPMENT.md`; they need clang 18 and its tools (Fedora: `clang-tools-extra llvm compiler-rt python3-jsonschema`; Debian/Ubuntu: `clang-format-18 clang-tidy-18 llvm-18 libclang-rt-18-dev python3-jsonschema`).
+The quality gates of CI (clang-format, clang-tidy, game data, metrics, coverage, ThreadSanitizer, fuzzing, the benchmark of the round and the load test) are in `tools/quality.sh`, described in `DEVELOPMENT.md`; they need clang 18 and its tools (Fedora: `clang-tools-extra llvm compiler-rt python3-jsonschema`; Debian/Ubuntu: `clang-format-18 clang-tidy-18 llvm-18 libclang-rt-18-dev python3-jsonschema`).
 
 The sections below describe the same steps done by hand.
 

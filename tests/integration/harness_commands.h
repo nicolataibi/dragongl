@@ -18,5 +18,9 @@ int test_boss_floor_is_playable(void);
 int test_dm_spawn_and_place(void);
 int test_numeric_arguments(void);
 int test_tunnel_keeps_the_border(void);
+int test_floors_without_characters_sleep(void);
+int test_swarm_splits_into_free_slots(void);
+int test_autosave_in_steps(void);
+int test_metrics_and_telemetry(void);
 
 #endif

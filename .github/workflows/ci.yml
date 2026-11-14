@@ -339,6 +339,66 @@ jobs:
             build-quality/fuzz/logs
           if-no-files-found: ignore
 
+  # The same build and tests on Fedora (gcc, OpenSSL and libsodium of the
+  # distribution the package targets); Ubuntu runs them with clang above.
+  fedora:
+    name: Build and tests (Fedora, gcc)
+    runs-on: ubuntu-24.04
+    container: fedora:latest
+    steps:
+      - name: Install dependencies
+        run: |
+          dnf -y install git gcc cmake ninja-build python3 glslc \
+            'pkgconfig(glfw3)' 'pkgconfig(vulkan)' 'pkgconfig(libsodium)' \
+            'pkgconfig(openssl)'
+
+      - uses: actions/checkout@v4
+
+      - name: Build (Release, warnings are errors)
+        run: |
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS=-Werror \
+            -DCMAKE_C_COMPILER=gcc
+          cmake --build build
+
+      - name: Server integration tests
+        run: |
+          cmake -B build-integration -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER=gcc tests/integration
+          cmake --build build-integration
+          ctest --test-dir build-integration --output-on-failure
+
+  # The round with 64 characters in a full world, the autosave, then 64
+  # TLS clients on a real server for a minute and a shutdown under load:
+  # all against tests/bench_limits.json. The 30-minute run is nightly
+  # (load-nightly.yml).
+  performance:
+    name: Benchmark and load test (64 clients)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang cmake ninja-build pkg-config libsodium-dev libssl-dev python3
+
+      - name: Benchmark of the round
+        run: tools/quality.sh bench
+
+      - name: Load test
+        run: tools/quality.sh load 60
+
+      - name: Measurements
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance
+          path: |
+            build-quality/release/bench.json
+            build-quality/release/load.json
+          if-no-files-found: ignore
+
   static-analysis:
     name: Static analysis (cppcheck)
     runs-on: ubuntu-24.04

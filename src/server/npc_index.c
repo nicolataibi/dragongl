@@ -107,6 +107,8 @@ void floor_stats_npc_spawned(int floor_id) {
  * already set (template, floor_id, archetype), not before.*/
 static void floor_index_add(Game *game, const NPC *n);
 
+static void entity_map_put(int id, int slot, bool replace);
+
 void npc_set_active(Game *game, NPC *n, bool active) {
     if (!n || n->active == active) {
         return;
@@ -114,6 +116,11 @@ void npc_set_active(Game *game, NPC *n, bool active) {
     n->active = active;
     if (active) {
         floor_index_add(game, n);
+        /*Findable by id at once (npc_by_entity_id): the caller set every
+         * field before activating.*/
+        if (n->entity_id > 0) {
+            entity_map_put(n->entity_id, (int)(n - game->npcs), true);
+        }
     }
     if (n->archetype == ARCH_MERCHANT) {
         return; /*excluded from the cache, like in floor_stats_rebuild*/
@@ -263,13 +270,9 @@ NPC *npc_by_entity_id(Game *game, int entity_id) {
     if (slot >= 0 && game->npcs[slot].active && game->npcs[slot].entity_id == entity_id) {
         return &game->npcs[slot];
     }
-    /*Spawned since the last rebuild: scan once and remember it.*/
-    for (int i = 0; i < MAX_NPCS; i++) {
-        if (game->npcs[i].active && game->npcs[i].entity_id == entity_id) {
-            entity_map_put(entity_id, i, true);
-            return &game->npcs[i];
-        }
-    }
+    /*Not an NPC (the id of a character, of a tombstone), or dead. An NPC is
+     * in the map from its activation (npc_set_active) or from the rebuild
+     * of the round, so a miss never walks the table.*/
     return NULL;
 }
 

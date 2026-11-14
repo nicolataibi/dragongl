@@ -332,21 +332,25 @@ static void default_ai_update(Game *game, NPC *npc, Client *clients, int num_cli
     }
 }
 
+/*Living NPCs on a floor over which its swarms stop splitting.*/
+#define SWARM_SPLIT_FLOOR_CAP 500
+
 AINodeStatus ai_swarm_behavior(Game *game, NPC *npc, Client *clients, int num_clients,
                                bool new_round) {
     if (new_round && npc->hp > 1) {
-        // Count adjacent swarms (per-floor index instead of a 50k scan;
-        // the stale-entry filters below also cover an index up to one
-        // tick old).
+        /*Adjacent swarms, through the entity grid: 8 lookups instead of a
+         * walk of the whole floor for every swarm.*/
         int counter = 0;
-        FloorIter walk = floor_iter(game, npc->floor_id);
-        for (int i; (i = floor_iter_next(&walk)) >= 0;) {
-            if (game->npcs[i].archetype == ARCH_SWARM) {
-                int dx = abs(game->npcs[i].x - npc->x);
-                int dy = abs(game->npcs[i].y - npc->y);
-                if (dx <= 1 && dy <= 1 && (dx > 0 || dy > 0)) {
-                    counter++;
+        const Floor *fl = &game->world->floors[npc->floor_id];
+        for (int dy = -1; dy <= 1; dy++) {
+            for (int dx = -1; dx <= 1; dx++) {
+                int ax = npc->x + dx, ay = npc->y + dy;
+                if ((dx == 0 && dy == 0) || ax < 0 || ax >= MAP_WIDTH || ay < 0 ||
+                    ay >= MAP_HEIGHT || fl->entity_grid[ay][ax] == 0) {
+                    continue;
                 }
+                const NPC *near = npc_by_entity_id(game, fl->entity_grid[ay][ax]);
+                counter += near && near->active && near->archetype == ARCH_SWARM;
             }
         }
 
@@ -369,19 +373,15 @@ AINodeStatus ai_swarm_behavior(Game *game, NPC *npc, Client *clients, int num_cl
                     // Check if occupied by another npc or a player
                     bool occupied = cell_occupied(game, nx, ny, npc, clients, num_clients);
                     if (!occupied) {
-                        //Find empty slots
-                        int slot = -1;
-                        for (int i = 0; i < MAX_NPCS; i++) {
-                            if (!game->npcs[i].active) {
-                                slot = i;
-                                break;
-                            }
-                        }
-                        if (slot != -1) {
+                        /*A floor already crowded gets no more swarms: they
+                         * would end up owning the whole NPC table.*/
+                        int total = 0, alive = 0;
+                        floor_stats_get(game, npc->floor_id, &total, &alive);
+                        NPC *clone = alive < SWARM_SPLIT_FLOOR_CAP ? npc_alloc(game) : NULL;
+                        if (clone) {
                             // Split!
                             npc->hp = (npc->hp / 2) > 0 ? (npc->hp / 2) : 1;
 
-                            NPC *clone = &game->npcs[slot];
                             *clone = *npc; //copy all stats
                             /*The copy also copied active=true: undo it so
                              * the activation below goes through

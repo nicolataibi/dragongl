@@ -1,0 +1,15 @@
+{
+  "tick_p99_ms": {
+    "spread": 50.0,
+    "crowd": 50.0
+  },
+  "autosave_ms": {
+    "max": 50.0
+  },
+  "load": {
+    "round_p99_ms": 50.0,
+    "command_p99_ms": 250.0,
+    "shutdown_seconds": 30,
+    "rounds_over_budget_pct": 0.5
+  }
+}

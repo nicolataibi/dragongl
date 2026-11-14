@@ -51,6 +51,7 @@ set(DRAGONGL_SERVER_LIB_SRCS
     "${DRAGONGL_ROOT}/src/server/server_startup.c"
     "${DRAGONGL_ROOT}/src/server/server_login.c"
     "${DRAGONGL_ROOT}/src/server/server_log.c"
+    "${DRAGONGL_ROOT}/src/server/server_metrics.c"
     "${DRAGONGL_ROOT}/src/server/server_tiles.c"
     "${DRAGONGL_ROOT}/src/server/server_traps.c"
     "${DRAGONGL_ROOT}/src/server/server_loot.c"

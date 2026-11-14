@@ -48,6 +48,8 @@ static bool g_stopping;
 static WriterJob *g_head, *g_tail;
 static char g_busy_path[WRITER_PATH_MAX]; /* job in progress, "" if none */
 static unsigned g_failures;
+static unsigned g_depth;     /* jobs queued, the one in progress excluded */
+static unsigned g_depth_max; /* highest g_depth since the start */
 
 static void job_free(WriterJob *j) {
     if (!j) {
@@ -92,6 +94,7 @@ static void *writer_main(void *arg) {
         if (!g_head) {
             g_tail = NULL;
         }
+        g_depth--;
         copy_str(g_busy_path, j->path, sizeof(g_busy_path));
         pthread_mutex_unlock(&g_lock);
 
@@ -175,6 +178,9 @@ static void enqueue_locked(WriterJob *j) {
         g_head = j;
     }
     g_tail = j;
+    if (++g_depth > g_depth_max) {
+        g_depth_max = g_depth;
+    }
     pthread_cond_signal(&g_work);
 }
 
@@ -249,6 +255,13 @@ void writer_wait_for(const char *path) {
     while (pending_locked(path)) {
         pthread_cond_wait(&g_done, &g_lock);
     }
+    pthread_mutex_unlock(&g_lock);
+}
+
+void writer_queue_depth(unsigned *now, unsigned *highest) {
+    pthread_mutex_lock(&g_lock);
+    *now = g_depth;
+    *highest = g_depth_max;
     pthread_mutex_unlock(&g_lock);
 }
 

@@ -68,7 +68,7 @@ NPC lifecycle events (`floor_stats_npc_died()`, `floor_stats_npc_spawned()`) upd
 ### NPC lifecycle, floor walks and entity lookups
 - **`npc_set_active()`** (`npc_index.c`) is the only place where an NPC becomes alive or dead: it keeps the floor counters and the per-floor index in step. Set the final fields (floor, template, archetype) first, then activate; never write `n->active` by hand.
 - **Floor walk:** `FloorIter it = floor_iter(game, f); for (int i; (i = floor_iter_next(&it)) >= 0;)` visits the active NPCs of floor `f`, in slot order, exactly like a scan of all `MAX_NPCS` slots would (NPCs spawned during the walk included), in O(NPCs on the floor). Use it for every per-floor query instead of a full scan.
-- **Entity id → NPC:** `npc_by_entity_id()` answers in O(1) from a map rebuilt every tick (an NPC spawned since then is found by one scan). Entity ids are unique: `game->next_id` only grows and is saved with the NPCs.
+- **Entity id → NPC:** `npc_by_entity_id()` answers in O(1) from a map rebuilt every round, to which `npc_set_active()` adds an NPC the moment it is activated; an id that is not a living NPC (a character, a tombstone) is a miss, never a walk of the table. Entity ids are unique: `game->next_id` only grows and is saved with the NPCs.
 - **New NPCs:** `npc_alloc()` hands out a slot (one that never held a creature first, a dead monster last) and `npc_spawn_item()` puts an item on the ground; never look for a free slot by hand, the leftovers of its previous tenant (loot, name, timers) would come along.
 
 ### The game state: `Game`
@@ -81,7 +81,7 @@ The sources are layered, and `tools/check_deps.py` (`tools/quality.sh deps`, CI)
 | --- | --- | --- |
 | shared | `include/`, `src/shared/` | rules, data, map, protocol; nothing of the server or the client |
 | model | `server.h`, `server_entities.h`, `auth.h` | the types of the server |
-| infra | `server_log`, `combat_log`, `persist`, `writer`, `login_worker`, `server_conn`, `server_tls`, `pathfinding` | files, sockets, threads; not the game being played |
+| infra | `server_log`, `server_metrics`, `combat_log`, `persist`, `writer`, `login_worker`, `server_conn`, `server_tls`, `pathfinding` | files, sockets, threads; not the game being played |
 | game | everything else | the simulation |
 | commands | `cmd_*.c`, `server_commands.c` | the text commands of the players |
 | main | `main_server.c`, `server_startup.c`, `server_login.c`, `server_options.c` | the composition of the program |
@@ -94,7 +94,7 @@ The client (`src/client/`) is a separate program and includes `shared` only.
 - `server_world.c`: the game tick (`update_world`: autosave, global event, player rounds, NPC rounds, density monitor), `npc_alloc()`. `npc_index.c`: `npc_set_active()`, the floor counters, the per-floor index and the entity map.
 - `server_combat.c` attacks and kills, `server_loot.c` what a monster drops and the artifacts, `server_spawn.c` the population of the city and of the dungeon, `tombstone.c` the remains of a dead character.
 - `player_stats.c` what is computed from a character (totals, armor class, weight, level), `player_store.c` its save file, `inventory.c` finding and removing what it carries.
-- Connections: `server_conn.c` owns every socket: TLS handshake, receive buffer, send queue, deferred removal and the refusal slots; `server_tls.c` the certificate and the TLS context; `server_net.c` encodes the messages for a client. The codec itself (`src/shared/wire.c`) is generated from `protocol/messages.json`, and `src/shared/tls_common.c` holds what client and server share (TLS 1.3 context, ALPN, fingerprints). On the client, `client_tls.c` runs the session and the trust decision, `known_servers.c` the trust-on-first-use store.
+- Connections: `server_conn.c` owns every socket: TLS handshake, receive buffer, send queue, deferred removal and the refusal slots; `server_tls.c` the certificate and the TLS context; `server_metrics.c` the duration histograms; `server_net.c` encodes the messages for a client. The codec itself (`src/shared/wire.c`) is generated from `protocol/messages.json`, and `src/shared/tls_common.c` holds what client and server share (TLS 1.3 context, ALPN, fingerprints). On the client, `client_tls.c` runs the session and the trust decision, `known_servers.c` the trust-on-first-use store.
 - Text commands: `server_commands.c` holds the command table and `handle_text_cmd()`; the handlers live in one file per group: `cmd_character.c` (help, train, stats, rest, save), `cmd_social.c` (party, trade, chat, block list, leaderboard), `cmd_shop.c` (merchants), `cmd_items.c` (inventory, lore, study, use), `cmd_equip.c` (wear, remove, belt), `cmd_ground.c` (pickup, get, drop, throw), `cmd_magic.c` (spells, cast), `cmd_world.c` (look, search, disarm, examine, doors), `cmd_mine.c` (tunnel) and `cmd_dm.c` (the `dm_*` commands and their own table).
 - Shared code: `map.c` generates a dungeon floor, `map_city.c` the city, `map_traps.c` the traps; `data_loader.c` reads the bestiary and the spells, `data_items.c` the items.
 
@@ -126,6 +126,28 @@ The server runs the game on one thread (the `epoll` main loop, fixed 200 ms tick
 - **Login worker** (`src/server/login_worker.c`): DM password check, save read and Argon2id verify/hash. `login_begin()` submits a job and marks the slot `login_pending`; the worker signals an `eventfd` and `login_finish()` applies the result on the main loop.
 - **Child processes:** the DM PDF generator is spawned and reaped with `waitpid(WNOHANG)` once per loop pass (`pdf_jobs_poll()`).
 - **Leaderboard:** `top` scans the saves at most once a minute and takes the characters online from memory.
+
+### The round and its budget
+The main loop runs `update_world()` on a fixed-step clock: one round every 200 ms (`TICK_MS`), at most five in a row after a stall, never more. One call is one round. A round has a budget of 50 ms; the pass of the event loop around it (messages, round, flush) half a round.
+
+- **Floors without characters sleep.** A living NPC acts, saves against its conditions and ages its effects only on a floor where at least one character stands. On the other floors the dead still count down to their respawn and the merchants restock; nothing else moves. Of some 36,000 NPCs alive in a new world, a round visits those of at most 64 floors.
+- **The autosave is split.** Once a minute `autosave_step()` runs in two consecutive rounds: the characters and the world, then the NPC table. Each part is encoded on the game thread and written by the writer thread. The record of an NPC carries a shop only for a merchant and loot only for the remains of a character or an item on the ground.
+- **Swarms** count their neighbours through the entity grid and split into slots from `npc_alloc()`, up to 500 living NPCs on the floor.
+- **Rate limits.** A client gets one step per 200 ms and, separately, ten text commands per second; over that the commands are dropped and the client is told once per second.
+
+`server_metrics.c` keeps a histogram of the duration of every round and of every loop pass (250 µs buckets). `dm_telemetry` shows mean, p50, p99 and maximum, the rounds over budget, the depth of the writer queue and the logins waiting; the server logs a `[PERF]` line every 5 minutes and one for its whole life at shutdown.
+
+Measured on the 2-core machine the project is developed on (Release, clang), 64 characters in a new world:
+
+| Measure | Before | Now | Limit |
+| --- | --- | --- | --- |
+| Round, one character per floor (`tick_bench` spread), p99 | 66 ms | 13–17 ms | 50 ms |
+| Round, 64 characters on one floor (`tick_bench` crowd), p99 | 59 ms | 9 ms | 50 ms |
+| Autosave on the game thread, longest round | 58 ms | about 20 ms | 50 ms |
+| Round on a real server, 64 TLS clients (`loadtest.py`, 500 s), p99 / maximum | — | 18 / 32 ms | 50 ms |
+| Answer to a command, 64 TLS clients, p50 / p99 | — | 0.5 / 44 ms | 250 ms |
+
+The NPC record is 5.2 KB (4.4 KB of shop and loot that a monster never uses), so the table of 50,000 takes 259 MB; moving shop and loot to side tables is the next step for memory, not needed for the budget above.
 
 In the client, rendering and networking execute on separate POSIX threads:
 - **Network Thread:** Manages TCP socket communication, parses incoming binary packets (`MSG_STATE`, `MSG_MAP_CHUNK`, `MSG_SPELL_VFX`), and updates the master state under `g_state_mutex`.
@@ -159,7 +181,7 @@ The `tools/web/` directory contains self-contained HTML/JS workbenches for datas
 
 ### 3. Dungeon Master (DM) Runtime Telemetry
 Administrators logged in with DM credentials can monitor engine performance directly from the in-game console:
-- `dm_telemetry`: Inspect active client count, live NPC population, and tick latency.
+- `dm_telemetry`: rounds played, clients, NPCs and traps; duration of the round and of the event-loop pass (mean, p50, p99, maximum, how many over budget); writer queue and logins waiting.
 - `dm_boss <floor>`: Query the boss status and loot on a specific floor.
 - `dm_mapfloor` / `dm_pdf <floor>`: Dump color-coded 2D layout PDFs of dungeon levels. The generator runs in the background (at most two at a time, one per floor); the DM is told when the PDF is ready.
 
@@ -202,13 +224,16 @@ Every quality gate of CI runs locally with one command; build trees go to `build
 | `coverage` | unit + integration suites built with `-fprofile-instr-generate -fcoverage-mapping`, every process (servers spawned by the network tests included) writes its profile; `llvm-cov` report of `src/server` + `src/shared` in `build-quality/coverage/` (`report.txt`, `html/`) | line coverage under `coverage_line_percent` |
 | `tsan` | the integration suite under ThreadSanitizer: the in-process harness and the network tests with a TSan server | any report |
 | `fuzz [S]` | the libFuzzer targets of `tests/fuzz` (wire decoders, save-file readers, text commands), S seconds each (default 60), with seeds written by the targets themselves | a crash, leak or timeout; the input goes to `build-quality/fuzz/artifacts/` |
-| `all` | all of the above, fuzzing 30 s per target | |
+| `bench` | `tests/integration/tick_bench` in a Release build: 600 rounds with 64 characters in a full world (one per floor, then all on one floor) and the autosave | a p99, or the longest autosave round, over `tests/bench_limits.json` |
+| `load [S]` | `tools/loadtest.py` with a Release server: 64 TLS clients walk to the dungeon and play for S seconds (default 60), the server is stopped under load and started again | a lost connection, round p99 or command p99 over the limits, a slow or failed shutdown, a character not saved |
+| `all` | all of the above but `bench` and `load`, fuzzing 30 s per target | |
 
 ```bash
 tools/quality.sh format-fix         # before a commit that touches C code
 tools/quality.sh format tidy data   # the static checks
 tools/quality.sh coverage metrics   # numbers next to their limits
 tools/quality.sh fuzz 300           # a longer fuzzing session
+tools/quality.sh bench load 300     # performance, on a quiet machine
 ```
 
 `tools/quality_limits.json` is a ratchet: a change may tighten a limit (more coverage, shorter functions), never loosen it. A sanitizer report in a server started by `test_server.py` fails the test that started it (the server log is scanned), so the ASan/UBSan and TSan runs of the network tests are real gates.
@@ -223,9 +248,11 @@ A fuzz crash is replayed with the target binary: `build-quality/fuzz/build/fuzz_
 * the unit tests (Release and ASan/UBSan), the server integration tests under ASan/UBSan, the client smoke test under ASan/UBSan (Xvfb, lavapipe, Vulkan validation layer);
 * a server-only build without any graphics package, the RPM build with rpmlint in a Fedora container;
 * static analysis: cppcheck and `tools/check_release.py`; clang-tidy; format, game data, spelling, dependencies and metrics;
-* coverage (report uploaded as an artifact and summarized on the run page), ThreadSanitizer, fuzzing 60 s per target.
+* coverage (report uploaded as an artifact and summarized on the run page), ThreadSanitizer, fuzzing 60 s per target;
+* the same build and the integration tests in a Fedora container with gcc;
+* performance: the benchmark of the round and a one-minute load test with 64 clients, against `tests/bench_limits.json`.
 
-`.github/workflows/fuzz-nightly.yml` fuzzes each target for 20 minutes every night on a corpus kept between runs; `.github/workflows/codeql.yml` runs GitHub code scanning (security-and-quality) on `main` and weekly.
+`.github/workflows/fuzz-nightly.yml` fuzzes each target for 20 minutes every night on a corpus kept between runs; `.github/workflows/load-nightly.yml` keeps 64 clients playing for 30 minutes every night; `.github/workflows/codeql.yml` runs GitHub code scanning (security-and-quality) on `main` and weekly.
 
 False positives are suppressed where they occur, with the reason: `// cppcheck-suppress <id>` and `// NOLINT(<check>)` / `// NOLINTNEXTLINE(<check>)`. A clang-tidy check that does not fit the code base is disabled in `.clang-tidy`, with a comment that says why.
 

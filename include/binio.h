@@ -64,12 +64,31 @@ void bw_init(BinWriter *w);
 void bw_free(BinWriter *w);
 /* Empty the buffer but keep its memory (a writer reused for every send). */
 void bw_reset(BinWriter *w);
+/* Room for n more bytes in one allocation, when the size of what follows
+ * is known: a large payload is then not copied at every doubling. */
+void bw_reserve(BinWriter *w, size_t n);
 void bw_bytes(BinWriter *w, const void *p, size_t n);
 void bw_u8(BinWriter *w, uint8_t v);
 void bw_u16(BinWriter *w, uint16_t v);
-void bw_u32(BinWriter *w, uint32_t v);
+void bw_u32_grow(BinWriter *w, uint32_t v);
+/* The field most records are made of (the NPC table writes 1.6 million of
+ * them at every autosave): written in place when the buffer has room. */
+static inline void bw_u32(BinWriter *w, uint32_t v) {
+    if (w->failed || w->len + 4 > w->cap) {
+        bw_u32_grow(w, v);
+        return;
+    }
+    uint8_t *p = w->data + w->len;
+    p[0] = (uint8_t)v;
+    p[1] = (uint8_t)(v >> 8);
+    p[2] = (uint8_t)(v >> 16);
+    p[3] = (uint8_t)(v >> 24);
+    w->len += 4;
+}
+static inline void bw_i32(BinWriter *w, int32_t v) {
+    bw_u32(w, (uint32_t)v);
+}
 void bw_u64(BinWriter *w, uint64_t v);
-void bw_i32(BinWriter *w, int32_t v);
 void bw_i64(BinWriter *w, int64_t v);
 void bw_bool(BinWriter *w, bool v);
 /* A fixed-size text field of `field` bytes: the string (truncated so that a

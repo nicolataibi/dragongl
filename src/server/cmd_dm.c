@@ -30,6 +30,9 @@
 #include "server_cmd.h"
 #include "dragongl_config.h"
 #include "persist.h"
+#include "login_worker.h"
+#include "server_metrics.h"
+#include "writer.h"
 #include "server_internal.h"
 #include "server_spawn.h"
 #include "ai.h"
@@ -378,6 +381,21 @@ static bool cmd_dm_telemetry(Client *c, const char *cmd, Game *game) {
     }
     send_text_to_client(c->sock, "[DM] Telemetry: Turns:%d, Clients:%d, NPCs:%d/%d, Traps:%d/%d",
                         game->total_turns, active_c, active_n, MAX_NPCS, active_t, total_t);
+    MetricSummary tick, loop;
+    metrics_summary(METRIC_TICK, true, &tick);
+    metrics_summary(METRIC_LOOP, true, &loop);
+    unsigned queued = 0, queued_max = 0;
+    writer_queue_depth(&queued, &queued_max);
+    send_text_to_client(c->sock,
+                        "[DM] Round (ms): mean %.2f, p50 %.2f, p99 %.2f, max %.2f; %llu of %llu "
+                        "over budget",
+                        tick.mean_ms, tick.p50_ms, tick.p99_ms, tick.max_ms,
+                        (unsigned long long)tick.over_budget, (unsigned long long)tick.count);
+    send_text_to_client(
+        c->sock, "[DM] Event loop (ms): p50 %.2f, p99 %.2f, max %.2f; %llu over budget",
+        loop.p50_ms, loop.p99_ms, loop.max_ms, (unsigned long long)loop.over_budget);
+    send_text_to_client(c->sock, "[DM] Writer queue: %u (max %u); logins waiting: %u", queued,
+                        queued_max, login_worker_backlog());
     return true;
 }
 

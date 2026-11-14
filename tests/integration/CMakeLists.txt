@@ -50,6 +50,14 @@ target_compile_definitions(server_harness PRIVATE DGL_TEST_DATA_DIR="${DGL_ROOT}
     DRAGONGL_FAULT_INJECTION)
 target_link_libraries(server_harness PRIVATE Threads::Threads m PkgConfig::SODIUM OpenSSL::SSL OpenSSL::Crypto)
 
+# Benchmark of the round (tools/quality.sh bench): not a CTest entry, its
+# numbers mean something in a Release build on a quiet machine only.
+add_executable(tick_bench tick_bench.c fixture.c
+    ${DRAGONGL_SERVER_LIB_SRCS} ${DRAGONGL_SHARED_SRCS})
+target_include_directories(tick_bench PRIVATE ${DGL_INCLUDES})
+target_compile_definitions(tick_bench PRIVATE DGL_TEST_DATA_DIR="${DGL_ROOT}/data")
+target_link_libraries(tick_bench PRIVATE Threads::Threads m PkgConfig::SODIUM OpenSSL::SSL OpenSSL::Crypto)
+
 enable_testing()
 
 # The harness writes saves/ into its working directory: give it its own.
@@ -73,7 +81,8 @@ foreach(t trade_offer_revalidated_on_accept trade_moves_item_and_gold
           spell_cloud spell_special_and_terrain spell_refusals spell_every_effect
           shop_no_arbitrage shop_needs_a_merchant wear_cursed_stays merchant_restocks
           boss_floor_is_playable dm_spawn_and_place numeric_arguments
-          tunnel_keeps_the_border)
+          tunnel_keeps_the_border floors_without_characters_sleep
+          swarm_splits_into_free_slots autosave_in_steps metrics_and_telemetry)
     add_test(NAME ${t} COMMAND server_harness ${t} WORKING_DIRECTORY "${DGL_WORK}")
 endforeach()
 

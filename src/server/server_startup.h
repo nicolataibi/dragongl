@@ -36,6 +36,9 @@ void resolve_data_dir(Game *game);
 /*Loads the JSON datasets. 0, or the exit status: 2 without game data, 1
  * for unreadable data.*/
 int load_game_data(Game *game);
+/*A new world in place of whatever the game held: the city, every floor
+ * of the dungeon and their population. Nothing is saved.*/
+void generate_world(Game *game);
 /*world.dat and npcs.dat are a pair: both load, or a new world is generated
  * and saved. False if the new world cannot be saved.*/
 bool load_or_generate_world(Game *game);

@@ -57,6 +57,12 @@ Checks
   fuzz [SECONDS]  build the libFuzzer targets of tests/fuzz, write their seeds
                   and run each for SECONDS (default 60); crashes are saved
                   in build-quality/fuzz/artifacts/
+  bench           tests/integration/tick_bench (Release): the round with 64
+                  characters in a full world, and the autosave, against
+                  tests/bench_limits.json
+  load [SECONDS]  tools/loadtest.py (Release server): 64 TLS clients play for
+                  SECONDS (default 60), then a shutdown under load and a
+                  restart, against the "load" limits of the same file
   all             format protocol deps tidy data spelling coverage metrics tsan, then
                   fuzz 30
 
@@ -261,6 +267,34 @@ check_tsan() {
     ok "no data race reported"
 }
 
+# Release build of the integration tree: the benchmark and the load test
+# measure what a packaged server would do.
+build_release() {
+    configure "$OUT/release" "$ROOT/tests/integration" -DCMAKE_BUILD_TYPE=Release
+}
+
+check_bench() {
+    section "benchmark of the round"
+    build_release
+    local run="$OUT/release/bench-run"
+    rm -rf "$run"
+    mkdir -p "$run"
+    (cd "$run" && "$OUT/release/tick_bench" "$ROOT/tests/bench_limits.json" 600 \
+        "$OUT/release/bench.json" 2>&1 | grep -v '^\[') ||
+        die "the round is over the limits of tests/bench_limits.json"
+    ok "within tests/bench_limits.json (numbers in ${OUT#"$ROOT"/}/release/bench.json)"
+}
+
+check_load() {
+    local seconds=${1:-60}
+    section "load test (64 clients, ${seconds}s)"
+    build_release
+    python3 "$ROOT/tools/loadtest.py" --server "$OUT/release/dragongl_server_it" \
+        --seconds "$seconds" --json "$OUT/release/load.json" ||
+        die "the load test failed"
+    ok "within tests/bench_limits.json (numbers in ${OUT#"$ROOT"/}/release/load.json)"
+}
+
 check_fuzz() {
     local seconds=${1:-60}
     section "fuzzing (libFuzzer, ${seconds}s per target)"
@@ -297,8 +331,11 @@ main() {
         fuzz)
             if [[ ${2:-} =~ ^[0-9]+$ ]]; then checks+=("fuzz:$2"); shift; else checks+=(fuzz:60); fi
             ;;
+        load)
+            if [[ ${2:-} =~ ^[0-9]+$ ]]; then checks+=("load:$2"); shift; else checks+=(load:60); fi
+            ;;
         all) checks+=(format protocol deps tidy data spelling coverage metrics tsan fuzz:30) ;;
-        format | format-fix | tidy | data | deps | spelling | metrics | protocol | coverage | tsan)
+        format | format-fix | tidy | data | deps | spelling | metrics | protocol | coverage | tsan | bench)
             checks+=("$1")
             ;;
         *) usage >&2; die "unknown check '$1'" ;;
@@ -321,6 +358,8 @@ main() {
         protocol) check_protocol ;;
         coverage) check_coverage ;;
         tsan) check_tsan ;;
+        bench) check_bench ;;
+        load:*) check_load "${c#load:}" ;;
         fuzz:*) check_fuzz "${c#fuzz:}" ;;
         esac
     done

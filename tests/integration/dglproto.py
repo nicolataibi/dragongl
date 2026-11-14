@@ -104,6 +104,8 @@ class Client:
         self.welcomed = False
         self.entity_id = None
         self.position = None  # (x, y) from MSG_WELCOME / own MSG_STATE
+        self.floor_id = None  # from the own MSG_STATE
+        self.is_new = None    # MSG_WELCOME: the character was just created
         self.closed_by_peer = False
         self.combat_events = []  # (kind, entity_id, amount)
 
@@ -196,9 +198,11 @@ class Client:
                 self.welcomed = True
                 self.entity_id = m["entity_id"]
                 self.position = (m["x"], m["y"])
+                self.is_new = bool(m["is_new"])
             elif msg_type == MSG_STATE:
                 if m["entity_id"] == self.entity_id:
                     self.position = (m["x"], m["y"])
+                    self.floor_id = m["floor_id"]
             elif msg_type == MSG_TEXT:
                 self.texts.append(m["text"])
             elif msg_type == MSG_AUTH_FAIL:

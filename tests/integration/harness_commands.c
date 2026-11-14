@@ -14,7 +14,10 @@
 #include "map.h"
 #include "server_commands.h"
 #include "server_entities.h"
+#include "ai.h"
+#include "persist.h"
 #include "server_internal.h"
+#include "server_metrics.h"
 #include "server_spawn.h"
 #include "server_tiles.h"
 #include "server_world.h"
@@ -221,7 +224,6 @@ int test_merchant_restocks(void) {
     CHECK(said("sold out") && c->backpack_count == 0, "bought an item that was sold out");
     for (int tick = 0; tick < 8 && m->merchant.item_stock[0] == 0; tick++) {
         update_world(g_game.clients, &g_game);
-        usleep(210 * 1000); /* one round */
     }
     CHECK(m->merchant.item_stock[0] == 5, "stock %d after the restock time",
           m->merchant.item_stock[0]);
@@ -450,5 +452,206 @@ int test_numeric_arguments(void) {
     CHECK(said("floors 1 to"), "dm_boss: no refusal of floor -10");
     run(c, "dm_spawn_boss 100000");
     CHECK(said("floor 1-"), "dm_spawn_boss: no refusal of floor 100000");
+    return 0;
+}
+
+/* --- The round: sleeping floors, swarms, autosave, metrics ------------------------------ */
+
+static NPC *monster_at(int slot, int floor_id, int x, int y) {
+    NPC *n = &g_game.npcs[slot];
+    memset(n, 0, sizeof(*n));
+    n->entity_id = 8000 + slot;
+    n->floor_id = floor_id;
+    n->x = n->spawn_x = x;
+    n->y = n->spawn_y = y;
+    n->template_idx = 0;
+    n->template = &bestiary_data[0];
+    n->hp = n->max_hp = 500;
+    n->ac = 10;
+    n->damage_dice = 1;
+    n->damage_sides = 2;
+    n->archetype = ARCH_MELEE;
+    ai_attach_behavior(n);
+    npc_set_active(&g_game, n, true);
+    g_game.world->floors[floor_id].entity_grid[y][x] = n->entity_id;
+    return n;
+}
+
+/* Monsters live their round only where a character is; elsewhere the
+ * living sleep, the dead still come back and the merchants restock. */
+int test_floors_without_characters_sleep(void) {
+    enum { OTHER = 2 };
+    Client *c = adventurer();
+    CHECK(c != NULL, "no player");
+    c->hp = c->max_hp = 100000;
+    Floor *other = &g_game.world->floors[OTHER];
+    for (int y = 0; y < MAP_HEIGHT; y++) {
+        for (int x = 0; x < MAP_WIDTH; x++) {
+            bool edge = x == 0 || y == 0 || x == MAP_WIDTH - 1 || y == MAP_HEIGHT - 1;
+            other->map.data[0][y][x] = edge ? VOXEL_ROCK : VOXEL_FLOOR;
+            other->entity_grid[y][x] = 0;
+        }
+    }
+    NPC *near = monster_at(10, FLOOR, CX + 3, CY);
+    NPC *asleep = monster_at(11, OTHER, CX + 3, CY);
+    NPC *dead = monster_at(12, OTHER, CX + 9, CY);
+    npc_set_active(&g_game, dead, false);
+    other->entity_grid[CY][CX + 9] = 0;
+    dead->respawn_timer = 3;
+    NPC *shop = merchant_at(CX + 20, CY, item_of(ITEM_WEAPON, 50), 5);
+    shop->floor_id = OTHER;
+    shop->merchant.item_stock[0] = 0;
+    shop->merchant.restock_timer = 2;
+    floor_index_rebuild(&g_game);
+
+    NPC before_near = *near, before_asleep = *asleep;
+    for (int round = 0; round < 12; round++) {
+        update_world(g_game.clients, &g_game);
+    }
+    CHECK(near->x != before_near.x || near->y != before_near.y ||
+              near->energy != before_near.energy ||
+              near->ai_ctx.state_timer != before_near.ai_ctx.state_timer,
+          "the monster next to the character did nothing in 12 rounds");
+    CHECK(asleep->x == before_asleep.x && asleep->y == before_asleep.y &&
+              asleep->energy == before_asleep.energy && asleep->hp == before_asleep.hp &&
+              asleep->ai_ctx.state_timer == before_asleep.ai_ctx.state_timer,
+          "a monster moved on a floor with no character");
+    CHECK(dead->active && dead->hp == dead->max_hp,
+          "a dead monster of a sleeping floor is not back");
+    CHECK(shop->merchant.item_stock[0] == 5, "the merchant of a sleeping floor did not restock");
+
+    /* The floor wakes up with the first character on it. */
+    g_game.world->floors[FLOOR].entity_grid[c->y][c->x] = 0;
+    c->floor_id = OTHER;
+    c->x = CX;
+    c->y = CY;
+    before_asleep = *asleep;
+    for (int round = 0; round < 12; round++) {
+        c->hp = c->max_hp;
+        update_world(g_game.clients, &g_game);
+    }
+    CHECK(asleep->x != before_asleep.x || asleep->y != before_asleep.y ||
+              asleep->energy != before_asleep.energy ||
+              asleep->ai_ctx.state_timer != before_asleep.ai_ctx.state_timer,
+          "the floor did not wake up when a character arrived");
+    return 0;
+}
+
+/* Swarms split into free slots only, never over a monster that is waiting
+ * to respawn, and not on a floor that is already crowded. */
+int test_swarm_splits_into_free_slots(void) {
+    Client *c = adventurer();
+    CHECK(c != NULL, "no player");
+    c->hp = c->max_hp = 100000;
+    /* Slot 0: a dead monster waiting to respawn, far from everything. */
+    NPC *waiting = monster_at(0, FLOOR, 5, 5);
+    npc_set_active(&g_game, waiting, false);
+    g_game.world->floors[FLOOR].entity_grid[5][5] = 0;
+    waiting->respawn_timer = 100000;
+    int waiting_id = waiting->entity_id;
+    NPC *swarm = monster_at(1, FLOOR, CX + 40, CY + 40);
+    swarm->archetype = ARCH_SWARM;
+    ai_attach_behavior(swarm);
+    swarm->hp = swarm->max_hp = 4096;
+    floor_index_rebuild(&g_game);
+    srand(5);
+    for (int round = 0; round < 400; round++) {
+        c->hp = c->max_hp;
+        update_world(g_game.clients, &g_game);
+    }
+    int swarms = 0;
+    for (int i = 0; i < MAX_NPCS; i++) {
+        const NPC *n = &g_game.npcs[i];
+        if (!n->active || n->archetype != ARCH_SWARM) {
+            continue;
+        }
+        swarms++;
+        CHECK(n->entity_id != waiting_id, "a clone took the entity id of another NPC");
+        CHECK(npc_by_entity_id(&g_game, n->entity_id) == n, "swarm %d is not in the entity map", i);
+    }
+    CHECK(swarms >= 2, "the swarm never split in 400 rounds");
+    CHECK(swarms <= 500, "%d swarms on one floor: the cap does not hold", swarms);
+    CHECK(!waiting->active && waiting->entity_id == waiting_id && waiting->respawn_timer > 0 &&
+              waiting->archetype == ARCH_MELEE,
+          "a clone took the slot of a monster waiting to respawn");
+    return 0;
+}
+
+/* The autosave runs in two rounds: the characters and the world, then the
+ * NPC table; together they are a complete save. */
+int test_autosave_in_steps(void) {
+    Client *c = adventurer();
+    CHECK(c != NULL, "no player");
+    monster_at(3, FLOOR, CX + 5, CY);
+    char world[512], npcs[512], save[512], why[96];
+    CHECK(state_path(world, sizeof(world), "world.dat") &&
+              state_path(npcs, sizeof(npcs), "npcs.dat") &&
+              state_path(save, sizeof(save), "saves/%s.save", c->username),
+          "state paths");
+    remove(world);
+    remove(npcs);
+    remove(save);
+    g_game.next_id = 4321;
+    CHECK(autosave_step(g_game.clients, &g_game, 0), "step 0 failed");
+    CHECK(access(world, F_OK) == 0 && access(save, F_OK) == 0, "step 0: world or character");
+    CHECK(access(npcs, F_OK) != 0, "step 0 already wrote the NPC table");
+    CHECK(autosave_step(g_game.clients, &g_game, 1), "step 1 failed");
+    NPC *loaded = calloc(MAX_NPCS, sizeof(NPC));
+    CHECK(loaded != NULL, "out of memory");
+    int next = 0, turns = 0, count = 0;
+    BinFileStatus st =
+        persist_read_npcs(npcs, loaded, MAX_NPCS, &next, &turns, &count, why, sizeof(why));
+    bool ok = st == BINFILE_OK && next == 4321 && loaded[3].active && loaded[3].x == CX + 5;
+    free(loaded);
+    CHECK(ok, "the NPC table of step 1 does not read back");
+    CHECK(persist_read_world(world, g_game.world, why, sizeof(why)) == BINFILE_OK,
+          "the world of step 0 does not read back: %s", why);
+    return 0;
+}
+
+/* Percentiles of the duration histogram, and what dm_telemetry shows. */
+int test_metrics_and_telemetry(void) {
+    static MetricHistogram h;
+    memset(&h, 0, sizeof(h));
+    MetricSummary s;
+    histogram_summary(&h, &s);
+    CHECK(s.count == 0 && s.p99_ms == 0.0 && s.max_ms == 0.0, "an empty histogram has values");
+    /* 99 rounds of 2 ms and one of 80 ms, budget 50 ms. */
+    for (int i = 0; i < 99; i++) {
+        histogram_add(&h, 2000, 50000);
+    }
+    histogram_add(&h, 80000, 50000);
+    histogram_summary(&h, &s);
+    CHECK(s.count == 100 && s.over_budget == 1, "count %llu, over budget %llu",
+          (unsigned long long)s.count, (unsigned long long)s.over_budget);
+    CHECK(s.p50_ms >= 2.0 && s.p50_ms <= 2.25, "p50 %.3f", s.p50_ms);
+    CHECK(s.p99_ms >= 2.0 && s.p99_ms <= 2.25, "p99 %.3f: the 99th of 100 is a 2 ms round",
+          s.p99_ms);
+    CHECK(s.max_ms == 80.0, "max %.3f", s.max_ms);
+    CHECK(histogram_percentile_ms(&h, 100.0) == 80.0, "p100 is the maximum");
+    CHECK(s.mean_ms > 2.7 && s.mean_ms < 2.8, "mean %.3f", s.mean_ms);
+    /* Beyond the last bucket the percentile is the maximum itself. */
+    memset(&h, 0, sizeof(h));
+    histogram_add(&h, 3000000, 0);
+    CHECK(histogram_percentile_ms(&h, 99.0) == 3000.0, "a 3 s round reads %.1f ms",
+          histogram_percentile_ms(&h, 99.0));
+
+    Client *c = adventurer();
+    CHECK(c != NULL, "no player");
+    c->is_dm = true;
+    metrics_init(50000, 100000);
+    for (int i = 0; i < 10; i++) {
+        metrics_record(METRIC_TICK, 4000);
+        metrics_record(METRIC_LOOP, 6000);
+    }
+    metrics_record(METRIC_TICK, 60000);
+    run(c, "dm_telemetry");
+    CHECK(said("Round (ms)") && said("1 of 11 over budget"), "round line: %s", g_out);
+    CHECK(said("Event loop (ms)") && said("Writer queue: 0"), "loop or queue line");
+    metrics_window_reset();
+    metrics_summary(METRIC_TICK, false, &s);
+    CHECK(s.count == 0, "the window was not emptied");
+    metrics_summary(METRIC_TICK, true, &s);
+    CHECK(s.count == 11 && s.max_ms == 60.0, "the lifetime histogram was emptied too");
     return 0;
 }

@@ -39,6 +39,7 @@ _Static_assert(BOOKS_MARTIAL == SHOP_SPEC_BOOKS_MARTIAL,
 #include "player.h"
 #include "server_log.h"
 #include "server_login.h"
+#include "server_metrics.h"
 #include "server_loot.h"
 #include "server_startup.h"
 #include "server_tiles.h"
@@ -140,6 +141,27 @@ static void install_signal_handlers(void) {
     signal(SIGPIPE, SIG_IGN);
 }
 
+/*Text commands have their own budget, apart from the steps (a command
+ * typed while walking must not be lost): CMD_PER_SECOND in any second. A
+ * client over it is told once per second, and the command is dropped.*/
+#define CMD_PER_SECOND 10
+
+static bool command_allowed(Client *c, long long now_ms) {
+    if (now_ms - c->cmd_window_ms >= 1000) {
+        c->cmd_window_ms = now_ms;
+        c->cmd_in_window = 0;
+    }
+    if (c->cmd_in_window < CMD_PER_SECOND) {
+        c->cmd_in_window++;
+        return true;
+    }
+    if (c->cmd_in_window == CMD_PER_SECOND) {
+        c->cmd_in_window++; /*one notice per window*/
+        send_text_to_client(c->sock, "[SYSTEM] Too many commands: wait a moment.");
+    }
+    return false;
+}
+
 static void handle_text_message(Client *clients, int i, const void *payload, uint32_t len,
                                 Game *game) {
     Client *c = &clients[i];
@@ -148,13 +170,9 @@ static void handle_text_message(Client *clients, int i, const void *payload, uin
         conn_mark_drop(i, "malformed MSG_TEXT_CMD");
         return;
     }
-    /*Same rate limit as MSG_MOVE: a client spamming commands must not
-   * saturate the server.*/
-    long long now_ms = get_time_ms();
-    if (now_ms - c->last_action_ms < 200) {
-        return; /*at most 5 text commands per second*/
+    if (!command_allowed(c, get_time_ms())) {
+        return;
     }
-    c->last_action_ms = now_ms;
     /*No control characters reach the game: they would travel verbatim to
    * other players' terminals (ANSI escapes, \r overwriting lines) through
    * chat and private messages.*/
@@ -255,6 +273,34 @@ static void take_finished_logins(Client *clients, Game *game, int *resume, int *
  * never follows the CPU load. A pass runs at most MAX_TICK_CATCHUP_MS of
  * simulation; a stalled system drops the excess instead of fast-forwarding.
  * epoll waits half a tick, so input is served within half a round.*/
+/*Budgets of the two measured durations (server_metrics.h): a round over
+ * TICK_BUDGET_MS, or a pass of the loop over half a round, is counted and
+ * reported. PERF_LOG_ROUNDS: one [PERF] line every 5 minutes.*/
+#define TICK_BUDGET_MS  50
+#define LOOP_BUDGET_MS  (TICK_MS / 2)
+#define PERF_LOG_ROUNDS 1500
+
+/*One [PERF] line for the window that just ended (or, at shutdown, for the
+ * life of the process).*/
+static void log_performance(bool lifetime) {
+    MetricSummary tick, loop;
+    metrics_summary(METRIC_TICK, lifetime, &tick);
+    metrics_summary(METRIC_LOOP, lifetime, &loop);
+    if (tick.count == 0) {
+        return;
+    }
+    unsigned queued = 0, queued_max = 0;
+    writer_queue_depth(&queued, &queued_max);
+    server_log("PERF",
+               "%s: %llu rounds, round p50 %.2f p99 %.2f max %.2f ms (%llu over %d ms); "
+               "loop p99 %.2f max %.2f ms (%llu over %d ms); writer queue %u (max %u), "
+               "logins waiting %u",
+               lifetime ? "total" : "last 5 min", (unsigned long long)tick.count, tick.p50_ms,
+               tick.p99_ms, tick.max_ms, (unsigned long long)tick.over_budget, TICK_BUDGET_MS,
+               loop.p99_ms, loop.max_ms, (unsigned long long)loop.over_budget, (int)LOOP_BUDGET_MS,
+               queued, queued_max, login_worker_backlog());
+}
+
 static void run_server(int s_sock, int epoll_fd, Client *clients, Game *game) {
     struct epoll_event ep_events[MAX_CLIENTS + 2 + CONN_REFUSAL_SLOTS];
     long long last_iter_ms = 0;
@@ -263,6 +309,7 @@ static void run_server(int s_sock, int epoll_fd, Client *clients, Game *game) {
         int n_events =
             epoll_wait(epoll_fd, ep_events, (int)(sizeof(ep_events) / sizeof(ep_events[0])),
                        (int)(TICK_MS / 2));
+        uint64_t pass_start_us = metrics_now_us();
         int resume[MAX_CLIENTS];
         int n_resume = 0;
         if (n_events < 0) {
@@ -295,8 +342,14 @@ static void run_server(int s_sock, int epoll_fd, Client *clients, Game *game) {
             tick_acc_ms = MAX_TICK_CATCHUP_MS; /*drop the excess, never fast-forward*/
         }
         while (tick_acc_ms >= TICK_MS) {
+            uint64_t round_start_us = metrics_now_us();
             update_world(clients, game);
+            metrics_record(METRIC_TICK, metrics_now_us() - round_start_us);
             tick_acc_ms -= TICK_MS;
+            if (game->total_turns % PERF_LOG_ROUNDS == 0) {
+                log_performance(false);
+                metrics_window_reset();
+            }
         }
         /*Write what the kernel accepts, remove the clients marked for removal
      * (their "left floor" notices are queued for the others), write again,
@@ -306,6 +359,7 @@ static void run_server(int s_sock, int epoll_fd, Client *clients, Game *game) {
         flush_all_clients(clients);
         update_interest(epoll_fd, clients);
         pdf_jobs_poll(game);
+        metrics_record(METRIC_LOOP, metrics_now_us() - pass_start_us);
     }
 }
 
@@ -313,6 +367,7 @@ static void run_server(int s_sock, int epoll_fd, Client *clients, Game *game) {
  * writes reach the disk, then every character, the world and the artifacts
  * are written synchronously (the autosave runs once a minute).*/
 static void shutdown_server(Client *clients, Game *game) {
+    log_performance(true);
     login_worker_stop();
     if (!writer_stop()) {
         server_log("SYS", "WARNING: some queued saves failed (see above).");
@@ -455,6 +510,7 @@ int main(int argc, char **argv) {
     floor_index_rebuild(game);
     aoe_init_clouds(game);
     spell_router_init();
+    metrics_init((uint64_t)TICK_BUDGET_MS * 1000u, (uint64_t)LOOP_BUDGET_MS * 1000u);
     if (!start_workers(epoll_fd)) {
         clog_close();
         return 1;

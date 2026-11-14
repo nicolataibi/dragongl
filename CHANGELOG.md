@@ -1,3 +1,72 @@
+* Sat Nov 14 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.14.02
+- SERVER: floors without characters sleep. A living NPC acts, saves
+  against its conditions and ages its effects only on a floor where at
+  least one character stands; elsewhere the dead still count down to
+  their respawn and the merchants restock. A round used to run the AI of
+  every living NPC of the world (36,000 in a new one), swarms included,
+  which went on splitting on floors nobody had ever visited.
+- SERVER: update_world() is one round. The time gate it kept inside (a
+  second clock next to the fixed-step one of the main loop) made the
+  rounds owed after a stall run as "half rounds": NPCs moved, nothing
+  else aged. The main loop decides when a round is due.
+- SERVER: the autosave runs in two consecutive rounds (characters and
+  world, then the NPC table) instead of one; the NPC record is written
+  with a shop only for a merchant and with loot only for the remains of
+  a character or an item on the ground, without reading the 4.4 KB the
+  other NPCs do not use; bw_u32() writes in place when the buffer has
+  room. Longest autosave round on the game thread: from 58 ms to about
+  20 ms.
+- SERVER: server_metrics.c: a histogram of the duration of every round
+  and of every pass of the event loop. dm_telemetry shows mean, p50,
+  p99, maximum and the rounds over the 50 ms budget, the writer queue
+  (now and at most) and the logins waiting; a [PERF] line goes to the
+  log every 5 minutes and, for the whole run, at shutdown.
+- SERVER: swarms count their neighbours through the entity grid (8
+  lookups instead of a walk of the floor per swarm per round) and stop
+  splitting at 500 living NPCs on the floor. npc_alloc() resumes its
+  search where the last one ended. npc_by_entity_id() never walks the
+  table: npc_set_active() registers a new NPC at once, and the id of a
+  character or of a tombstone is a miss (it was a scan of 50,000 slots
+  at every lookup). The fields a round reads are at the head of the NPC
+  record, shop and loot at its end. bw_reserve() sizes the save buffers
+  in one allocation.
+- TESTS: tests/integration/tick_bench (tools/quality.sh bench): 600
+  rounds with 64 characters in a full world, one per floor and all on
+  one floor, and the autosave, against tests/bench_limits.json. On the
+  development machine (2 cores) the p99 of the round goes from 66 ms to
+  13-17 ms (one character per floor) and from 59 ms to 9 ms (all on one
+  floor); the limit is 50 ms.
+- TESTS: tools/loadtest.py (tools/quality.sh load [seconds]): a real
+  server, 64 TLS clients on the real protocol that walk to the dungeon,
+  wander in it, look around and ask who is online; then SIGTERM under
+  load, a restart on the same state and every character logged in again.
+  Checked: no lost connection, round p99 and rounds over budget as the
+  server measured them, 5 rounds a second, command answered within 250
+  ms at p99, shutdown within 30 s with status 0, no character created
+  anew. One minute in CI on every push, 30 minutes every night
+  (load-nightly.yml). 500 s on the development machine: 2,520 rounds,
+  p99 18 ms, longest 32 ms, none over budget; command p99 44 ms.
+- TESTS: harness: sleeping floors (and their waking), swarm splits,
+  the two steps of the autosave, histogram percentiles and dm_telemetry
+  (41 tests); network: a command sent while walking, a flood of
+  commands, the [PERF] line of the shutdown.
+- CI: jobs "Build and tests (Fedora, gcc)" in a Fedora container and
+  "Benchmark and load test (64 clients)"; nightly load workflow.
+- FIX: a text command sent within 200 ms of a step was dropped without a
+  word (steps and commands shared one rate limit): a command typed while
+  walking was lost. Commands have their own limit, 10 per second; over
+  it the client is told, once per second.
+- FIX: a swarm that split took the first inactive slot of the table,
+  which could be a monster waiting to respawn (it never came back), and
+  walked the 50,000 slots to find it.
+- FIX: the loot left in the slot of an NPC by a previous tenant was
+  written to npcs.dat and loaded again with the world.
+- GAMEPLAY: poison, fire and the other effects on a monster stop while
+  its floor has no character on it and resume when one arrives.
+- DOCS: DEVELOPMENT.md: the round and its budget, measured numbers, the
+  bench and load checks; README.md and SECURITY.md: dm_telemetry, rate
+  limits.
+
 * Sat Nov 14 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.14.01
 - SERVER: no global game state. struct Game (src/server/game.h) holds the
   world, the client and NPC tables, the round counter, the next entity

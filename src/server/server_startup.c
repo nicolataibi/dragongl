@@ -108,6 +108,20 @@ int load_game_data(Game *game) {
     return 0;
 }
 
+void generate_world(Game *game) {
+    memset(game->npcs, 0, sizeof(NPC) * MAX_NPCS);
+    for (int i = 0; i < MAX_NPCS; i++) {
+        game->npcs[i].respawn_timer = -1;
+    }
+    game->next_id = 1;
+    game->total_turns = 0;
+    world_init(game->world);
+    spawn_city_merchants(game);
+    spawn_magic_shops(game);
+    spawn_martial_archive(game);
+    populate_dungeons(game);
+}
+
 /*world.dat and npcs.dat are a pair: both load, or a new world is generated
  * and saved (never a partial one). False if the new world cannot be saved.*/
 bool load_or_generate_world(Game *game) {
@@ -159,19 +173,8 @@ bool load_or_generate_world(Game *game) {
         }
         return true;
     }
-    /*Start from a clean slate: a half-read npcs.dat may have filled slots.*/
-    memset(game->npcs, 0, sizeof(NPC) * MAX_NPCS);
-    for (int i = 0; i < MAX_NPCS; i++) {
-        game->npcs[i].respawn_timer = -1;
-    }
-    game->next_id = 1;
-    game->total_turns = 0;
     server_log("SYS", "Generating a new world in %s ...", persist_state_dir());
-    world_init(game->world);
-    spawn_city_merchants(game);
-    spawn_magic_shops(game);
-    spawn_martial_archive(game);
-    populate_dungeons(game);
+    generate_world(game);
     if (!save_world_state(game)) {
         server_log("SYS", "ERROR: the new world could not be saved in %s.", persist_state_dir());
         return false;

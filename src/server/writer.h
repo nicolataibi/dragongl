@@ -66,6 +66,9 @@ bool writer_submit_unlink(const char *path);
 /* Block until no job for path is queued or in progress. */
 void writer_wait_for(const char *path);
 
+/* Jobs waiting in the queue now, and the most that ever waited. */
+void writer_queue_depth(unsigned *now, unsigned *highest);
+
 /* Failed jobs since start (for tests and the shutdown report). */
 unsigned writer_failures(void);
 
