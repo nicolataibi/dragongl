@@ -79,7 +79,7 @@ static void collect(Game *game, Client *c, NPC *n) {
         n->respawn_timer = 0;
     } else {
         send_text_to_client(c->sock, "[SYSTEM] Open the chest and find something...");
-        drop_loot_from_monster(c, n);
+        drop_loot_from_monster(game, c, n);
         npc_set_active(game, n, false);
         n->respawn_timer = 100;
     }
@@ -314,6 +314,60 @@ bool cmd_throw(Client *c, const char *cmd, Game *game) {
         carried->stack_count--;
     } else {
         remove_carried(c, found_idx, in_belt);
+    }
+    send_detailed_state(game, c);
+    return true;
+}
+
+/*shoot [n|s|e|w]: the ranged weapon in the hands (a bow, a crossbow, a
+ * sling, a blowgun) shoots the first creature in that direction within its
+ * range and the player's sight, or the nearest one in a straight line
+ * without a direction. A creature next to the player is shot point-blank,
+ * with disadvantage; no ammunition is spent when nothing is in range.*/
+bool cmd_shoot(Client *c, const char *cmd, Game *game) {
+    const ItemInstance *weapon =
+        (c->slot_hand_r.template_idx != -1) ? &c->slot_hand_r : &c->slot_hand_l;
+    const ItemTemplate *w =
+        weapon->template_idx != -1 ? &item_database[weapon->template_idx] : NULL;
+    if (!w || w->category != ITEM_WEAPON || w->ammo == AMMO_NONE) {
+        send_text_to_client(c->sock, "[ERROR] You hold no ranged weapon (a bow, a crossbow, a "
+                                     "sling or a blowgun).");
+        return true;
+    }
+    int range = w->range;
+    int sight = get_vision_radius(c);
+    if (sight < range) {
+        range = sight;
+    }
+    if (range < 1) {
+        send_text_to_client(c->sock, "[ERROR] You cannot see where to shoot.");
+        return true;
+    }
+    int dx = 0, dy = 0;
+    const char *arg = strchr(cmd, ' ');
+    if (arg && arg[strspn(arg, " ")] != '\0') {
+        if (!parse_direction4(arg + strspn(arg, " "), &dx, &dy)) {
+            send_text_to_client(c->sock, "[SYSTEM] Usage: shoot [n|s|e|w]");
+            return true;
+        }
+    } else if (!throw_auto_aim(c, game, range, &dx, &dy)) {
+        send_text_to_client(c->sock,
+                            "[SYSTEM] No creature in a straight line within %d tiles: give a "
+                            "direction (e.g. shoot n).",
+                            range);
+        return true;
+    }
+    int lx, ly;
+    NPC *target = throw_flight(c, game, dx, dy, range, &lx, &ly);
+    if (!target) {
+        send_text_to_client(c->sock, "[SYSTEM] No creature that way within %d tiles.", range);
+        return true;
+    }
+    broadcast_spell_vfx(game, c->x, c->y, target->x, target->y, 0, 1.0f, 0.9f, 0.6f, c->floor_id);
+    if (abs(target->x - c->x) <= 1 && abs(target->y - c->y) <= 1) {
+        perform_attack(c, target, game); /*point-blank: disadvantage*/
+    } else {
+        perform_ranged_attack(c, target, game);
     }
     send_detailed_state(game, c);
     return true;

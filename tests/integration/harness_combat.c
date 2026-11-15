@@ -113,7 +113,7 @@ int test_weapons_and_arrows(void) {
     rules_force_d20(20);
     perform_attack(c, m, &g_game);
     heard(c);
-    CHECK(said("No arrows on belt") && m->hp == 1000, "a shot without arrows");
+    CHECK(said("No arrows on your belt") && m->hp == 1000, "a shot without arrows");
 
     c->belt[0].template_idx = ammo;
     c->belt[0].stack_count = 2;
@@ -121,14 +121,14 @@ int test_weapons_and_arrows(void) {
     perform_attack(c, m, &g_game);
     heard(c);
     rules_force_d20(0);
-    CHECK(m->hp < 1000 && said("launch an attack"), "the bow did not shoot");
+    CHECK(m->hp < 1000 && said("point-blank"), "the bow did not shoot");
     CHECK(c->belt[0].template_idx == -1, "the last arrow is still on the belt");
     return 0;
 }
 
-/* Monsters hit back: a hit costs hit points and wears the armour, a
- * natural 1 misses, a charmed monster does not attack, and each archetype
- * has its own line. */
+/* Monsters hit back: a hit costs hit points and wears the armour 3 times
+ * in 100 (an artifact never), a natural 1 misses, a charmed monster does
+ * not attack, and each archetype has its own line. */
 int test_monster_attacks(void) {
     hx_reset_world();
     Client *c = hero(0, "target", FLOOR, CX, CY);
@@ -145,7 +145,23 @@ int test_monster_attacks(void) {
     heard(c);
     CHECK(c->hp <= 58 && c->hp >= 48, "a critical 2d6 left %d of 60 HP", c->hp);
     CHECK(said("You take") && said("[CRITICAL!]"), "the hit is not told");
-    CHECK(c->slot_body.durability == durability - 1, "the armour did not wear");
+    /* LORE.md, Combat Wear: a hit received wears the armour 3% of the time. */
+    for (int k = 0; k < 400; k++) {
+        c->hp = 60;
+        perform_attack_npc(m, c, &g_game);
+    }
+    int worn = durability - c->slot_body.durability;
+    CHECK(worn > 0 && worn < 40, "400 hits wore the armour %d points", worn);
+    c->slot_body.is_artifact = true;
+    durability = c->slot_body.durability;
+    for (int k = 0; k < 400; k++) {
+        c->hp = 60;
+        perform_attack_npc(m, c, &g_game);
+    }
+    CHECK(c->slot_body.durability == durability, "an artifact wore out");
+    c->slot_body.is_artifact = false;
+    c->hp = 60;
+    hush(c);
 
     rules_force_d20(1);
     int hp = c->hp;
@@ -190,7 +206,7 @@ int test_loot(void) {
         NPC *m = monster(10, NULL, 2 + (k % 3) * 20, CX + 1, CY);
         hush(c);
         int before = c->backpack_count;
-        drop_loot_from_monster(c, m);
+        drop_loot_from_monster(&g_game, c, m);
         heard(c);
         if (said("[LOOT]")) {
             drops++;
@@ -211,7 +227,7 @@ int test_loot(void) {
     bool lost = false;
     for (int k = 0; k < 20 && !lost; k++) {
         hush(c);
-        drop_loot_from_monster(c, m);
+        drop_loot_from_monster(&g_game, c, m);
         heard(c);
         lost = said("Backpack full");
     }

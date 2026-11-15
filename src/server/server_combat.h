@@ -42,6 +42,18 @@ void perform_attack(Client *c, NPC *t, Game *game);
  * condition ends (told to the character).*/
 void client_reveal(Client *c);
 
+/*A shot of the ranged weapon in the player's hands at a creature in range
+ * (the 'shoot' command): the attack of perform_attack, without the
+ * disadvantage of a shot at a neighbour.*/
+void perform_ranged_attack(Client *c, NPC *t, Game *game);
+
+/*True if the player is charmed by that creature: he cannot attack it.*/
+bool client_charmed_by(const Client *c, const NPC *n);
+
+/*Rusty -1, Normal 0, Fine +1, Masterwork +2: to hit and to damage for a
+ * weapon, to the armour class for armour and shields.*/
+int item_quality_bonus(const ItemInstance *it);
+
 /*False (after telling the player) when a condition takes his actions:
  * paralyzed, stunned, unconscious, petrified, frozen, incapacitated.*/
 bool client_can_act(Client *c);

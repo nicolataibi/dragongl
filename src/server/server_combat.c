@@ -18,6 +18,7 @@
  */
 
 #include "server_combat.h"
+#include "inventory.h"
 #include "server_internal.h"
 #include "server_world.h"
 #include "server.h"
@@ -133,28 +134,11 @@ int npc_killed(Game *game, Client *c, NPC *t, const char *by) {
                             game->event.progress, game->event.goal);
     }
     clog_death(npc_name(t), c->username, t->floor_id);
-    drop_loot_from_monster(c, t);
+    drop_loot_from_monster(game, c, t);
     if (t->archetype == ARCH_BOSS) {
         handle_boss_death(game, c, t);
     }
     return xp_gained;
-}
-
-/*A bow shot spends an arrow of the belt; false after the message when
- * there is none.*/
-static bool spend_arrow(Client *c) {
-    for (int i = 0; i < MAX_BELT; i++) {
-        if (c->belt[i].template_idx != -1 &&
-            item_database[c->belt[i].template_idx].category == ITEM_AMMO) {
-            c->belt[i].stack_count--;
-            if (c->belt[i].stack_count <= 0) {
-                c->belt[i].template_idx = -1;
-            }
-            return true;
-        }
-    }
-    send_text_to_client(c->sock, "[ERROR] No arrows on belt!");
-    return false;
 }
 
 /*Aggro group: the NPCs within 5 steps of the target that have no target
@@ -188,21 +172,118 @@ static void wear_item(Client *c, ItemInstance *it, int chance_pct, const char *w
     }
 }
 
-/*Damage of a melee hit: the weapon's dice (1d4 unarmed, doubled on a
- * critical) + STR + the weapon's and the effects' bonuses + 1d6 for an
- * elemental weapon, at least 1; a frozen target takes double, a petrified
- * one half. Tells the player and returns the damage dealt.*/
-static int melee_damage(Client *c, NPC *t, const ItemInstance *weapon, const ItemTemplate *w,
-                        int str_score, bool is_crit) {
+/*What the conditions of the attacker and of the target do to an attack
+ * (LORE.md, status conditions): a blinded or frightened attacker has
+ * disadvantage, an invisible one advantage; an invisible target imposes
+ * disadvantage; a hit on a paralyzed, stunned or unconscious target is a
+ * critical; a petrified creature has +10 AC (a character's AC counts it
+ * already, see get_player_ac).*/
+typedef struct {
+    bool adv, dis, auto_crit;
+    int ac_bonus;
+} AttackSituation;
+
+static void attack_situation(ActiveEffect *att, int n_att, ActiveEffect *tgt, int n_tgt,
+                             bool target_is_npc, AttackSituation *s) {
+    memset(s, 0, sizeof(*s));
+    s->dis = rules_has_condition_t(att, n_att, COND_BLINDED) ||
+             rules_has_condition_t(att, n_att, COND_FRIGHTENED) ||
+             rules_has_condition_t(tgt, n_tgt, COND_INVISIBLE);
+    s->adv = rules_has_condition_t(att, n_att, COND_INVISIBLE);
+    s->auto_crit = rules_has_condition_t(tgt, n_tgt, COND_PARALYZED) ||
+                   rules_has_condition_t(tgt, n_tgt, COND_STUNNED) ||
+                   rules_has_condition_t(tgt, n_tgt, COND_UNCONSCIOUS);
+    if (target_is_npc && rules_has_condition_t(tgt, n_tgt, COND_PETRIFIED)) {
+        s->ac_bonus = 10;
+    }
+}
+
+int item_quality_bonus(const ItemInstance *it) {
+    if (it->template_idx < 0) {
+        return 0;
+    }
+    switch (it->quality) {
+    case QUALITY_RUSTY:
+        return -1;
+    case QUALITY_FINE:
+        return 1;
+    case QUALITY_MASTERWORK:
+        return 2;
+    default:
+        return 0;
+    }
+}
+
+/*A shot spends one unit of the weapon's ammunition from the belt; false
+ * after the message when there is none.*/
+static bool spend_ammo(Client *c, const ItemTemplate *w) {
+    static const char *const k_names[] = {"ammunition", "arrows", "bolts", "sling bullets",
+                                          "blowgun needles"};
+    for (int i = 0; i < MAX_BELT; i++) {
+        ItemInstance *it = &c->belt[i];
+        if (it->template_idx != -1 && it->stack_count > 0 &&
+            item_database[it->template_idx].category == ITEM_AMMO &&
+            item_database[it->template_idx].ammo == w->ammo) {
+            if (--it->stack_count <= 0) {
+                it->template_idx = -1;
+                it->stack_count = 0;
+            }
+            return true;
+        }
+    }
+    send_text_to_client(c->sock, "[ERROR] No %s on your belt for the %s!", k_names[w->ammo],
+                        w->name);
+    return false;
+}
+
+/*The item the player strikes or shoots with: the right hand, else the
+ * left one (never NULL; its template_idx is -1 bare-handed).*/
+static ItemInstance *wielded(Client *c) {
+    return (c->slot_hand_r.template_idx != -1) ? &c->slot_hand_r : &c->slot_hand_l;
+}
+
+/*The to-hit or to-damage bonus of what is worn besides the weapon: the
+ * artifacts (gloves, rings, a cloak...) carry one.*/
+static int worn_bonus(Client *c, bool damage) {
+    int bonus = 0;
+    for (int i = 0; i < EQUIP_SLOT_COUNT + 10; i++) {
+        const ItemInstance *s =
+            i < EQUIP_SLOT_COUNT ? equip_slot(c, i) : &c->slot_rings[i - EQUIP_SLOT_COUNT];
+        if (s->template_idx == -1 || s == &c->slot_hand_r || s == &c->slot_hand_l) {
+            continue;
+        }
+        bonus += damage ? s->to_dam_bonus : s->to_hit_bonus;
+    }
+    return bonus;
+}
+
+/*The ability of an attack: DEX for a ranged weapon, the better of STR and
+ * DEX for a finesse one, STR otherwise (bare hands too).*/
+static int attack_ability(const ItemTemplate *w, int str_score, int dex_score) {
+    if (w && w->ammo != AMMO_NONE) {
+        return dex_score;
+    }
+    if (w && w->finesse && dex_score > str_score) {
+        return dex_score;
+    }
+    return str_score;
+}
+
+/*Damage of a hit: the weapon's dice (1d4 unarmed, doubled on a critical)
+ * + the ability + the weapon's enchantment and quality + the worn bonuses
+ * and the effects + 1d6 for an elemental weapon, at least 1; a frozen
+ * target takes double, a petrified one half. Tells the player and returns
+ * the damage dealt.*/
+static int strike_damage(Client *c, NPC *t, const ItemInstance *weapon, const ItemTemplate *w,
+                         int ability_score, bool is_crit) {
     bool armed = weapon->template_idx != -1;
     int dc = (w ? w->damage_dice_count : 1) * (is_crit ? 2 : 1);
     int ds = w ? w->damage_dice_sides : 4;
     int roll_d = rules_roll_dice(dc, ds);
-    int mod_d = rules_get_modifier(str_score) + (armed ? weapon->to_dam_bonus : 0) +
+    int mod_d = rules_get_modifier(ability_score) +
+                (armed ? weapon->to_dam_bonus + item_quality_bonus(weapon) : 0) +
+                worn_bonus(c, true) +
                 rules_event_bonus(c->effects, c->effect_count, EVENT_ON_DAMAGE);
-    if (armed && weapon->is_artifact) {
-        mod_d += weapon->artifact_str_bonus;
-    }
     int element_d = (armed && weapon->element != ELEM_NONE) ? rules_roll_dice(1, 6) : 0;
     int d = roll_d + mod_d + element_d;
     if (d < 1) {
@@ -224,12 +305,14 @@ static int melee_damage(Client *c, NPC *t, const ItemInstance *weapon, const Ite
     return d;
 }
 
-static void announce_attack(Client *c, const NPC *t, const ItemTemplate *w) {
-    if (w && w->category == ITEM_WEAPON && w->damage_dice_sides <= 6) {
-        send_text_to_client(c->sock, "[ACTION] Quickly dash and launch an attack against %s!",
+static void announce_attack(Client *c, const NPC *t, const ItemTemplate *w, bool shot) {
+    if (shot && w) {
+        send_text_to_client(c->sock, "[ACTION] You shoot your %s at %s!", w->name, npc_name(t));
+    } else if (w && w->category == ITEM_WEAPON && w->ammo != AMMO_NONE) {
+        send_text_to_client(c->sock, "[ACTION] You shoot %s point-blank (disadvantage)!",
                             npc_name(t));
     } else if (w && w->category == ITEM_WEAPON) {
-        send_text_to_client(c->sock, "[ACTION] You load the shot and lower your weapon on %s!",
+        send_text_to_client(c->sock, "[ACTION] Quickly dash and launch an attack against %s!",
                             npc_name(t));
     } else {
         send_text_to_client(c->sock, "[ACTION] You attack %s with your bare hands!", npc_name(t));
@@ -251,51 +334,74 @@ void client_reveal(Client *c) {
     }
 }
 
-/*A melee attack of a player: d20 + weapon + ability (DEX for weapons up
- * to d6, else STR) + half the level against AC. A hit on a paralyzed,
- * stunned or unconscious target is a critical; a blinded attacker has
- * disadvantage.*/
-void perform_attack(Client *c, NPC *t, Game *game) {
+bool client_charmed_by(const Client *c, const NPC *n) {
+    for (int i = 0; i < c->effect_count; i++) {
+        if (condition_from_name(c->effects[i].name) == COND_CHARMED &&
+            c->effects[i].value == n->entity_id) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/*An attack of a player with what he wields: d20 + the ability + half the
+ * level + the weapon's enchantment and quality + the worn bonuses against
+ * AC, with the advantage and disadvantage of the conditions. A ranged
+ * weapon spends its ammunition and uses DEX; shot at a neighbour (shot ==
+ * false) it has disadvantage.*/
+static void player_strike(Client *c, NPC *t, Game *game, bool shot) {
     if (!c || !t || !client_can_act(c)) {
         return;
     }
+    if (client_charmed_by(c, t)) {
+        send_text_to_client(c->sock, "[MAGIC] You are charmed: you cannot raise a hand against %s.",
+                            npc_name(t));
+        return;
+    }
+    ItemInstance *weapon = wielded(c);
+    const ItemTemplate *w =
+        (weapon->template_idx != -1) ? &item_database[weapon->template_idx] : NULL;
+    bool ranged = w && w->category == ITEM_WEAPON && w->ammo != AMMO_NONE;
+    if (ranged && !spend_ammo(c, w)) {
+        return;
+    }
+    /*The situation before the attack reveals an invisible attacker.*/
+    AttackSituation sit;
+    attack_situation(c->effects, c->effect_count, t->effects, t->effect_count, true, &sit);
     client_reveal(c);
     int ts, td, tc, ti, tw, th;
     get_total_stats(c, &ts, &td, &tc, &ti, &tw, &th);
-    /*Never NULL: one of the two hand slots is always selected.*/
-    ItemInstance *weapon = (c->slot_hand_r.template_idx != -1) ? &c->slot_hand_r : &c->slot_hand_l;
-    const ItemTemplate *w =
-        (weapon->template_idx != -1) ? &item_database[weapon->template_idx] : NULL;
-    if (w && strcmp(w->name, "Shortbow") == 0 && !spend_arrow(c)) {
-        return;
-    }
-    int a_mod = (w && w->damage_dice_sides <= 6) ? rules_get_modifier(td) : rules_get_modifier(ts);
+    int ability = attack_ability(w, ts, td);
     RuleContext ctx;
     memset(&ctx, 0, sizeof(ctx));
     ctx.type = EVENT_ON_ATTACK;
-    ctx.base_value = (w ? w->attack_bonus + weapon->to_hit_bonus : 0) + a_mod + (c->level / 2);
+    ctx.base_value = (w ? w->attack_bonus + weapon->to_hit_bonus + item_quality_bonus(weapon) : 0) +
+                     worn_bonus(c, false) + rules_get_modifier(ability) + (c->level / 2);
     ctx.source_id = c->entity_id;
     ctx.target_id = t->entity_id;
     rules_apply_modifiers(&ctx, c->effects, c->effect_count);
-    if (rules_has_condition_t(c->effects, c->effect_count, COND_BLINDED)) {
-        ctx.has_disadvantage = true;
-    }
+    bool adv = ctx.has_advantage || sit.adv;
+    bool dis = ctx.has_disadvantage || sit.dis || (ranged && !shot);
+    int ac = t->ac + sit.ac_bonus;
     bool is_crit = false;
     int roll_v = 0;
-    bool hit = rules_roll_attack_detailed(ctx.final_value, t->ac, ctx.has_advantage,
-                                          ctx.has_disadvantage, &is_crit, &roll_v);
-    if (hit && (rules_has_condition_t(t->effects, t->effect_count, COND_PARALYZED) ||
-                rules_has_condition_t(t->effects, t->effect_count, COND_STUNNED) ||
-                rules_has_condition_t(t->effects, t->effect_count, COND_UNCONSCIOUS))) {
+    bool hit = rules_roll_attack_detailed(ctx.final_value, ac, adv, dis, &is_crit, &roll_v);
+    if (hit && sit.auto_crit) {
         is_crit = true;
     }
-    announce_attack(c, t, w);
-    send_text_to_client(c->sock, "> Attack Roll: 1d20 [%d] %+d = %d (VS AC %d)%s", roll_v,
-                        ctx.final_value, roll_v + ctx.final_value, t->ac,
+    announce_attack(c, t, w, shot);
+    const char *roll_kind = "";
+    if (adv && !dis) {
+        roll_kind = " [ADVANTAGE]";
+    } else if (dis && !adv) {
+        roll_kind = " [DISADVANTAGE]";
+    }
+    send_text_to_client(c->sock, "> Attack Roll: 1d20 [%d] %+d = %d (VS AC %d)%s%s", roll_v,
+                        ctx.final_value, roll_v + ctx.final_value, ac, roll_kind,
                         is_crit ? " [CRITICAL!]" : "");
     alert_neighbours(c, t, game);
     if (!hit) {
-        clog_attack(c->username, npc_name(t), roll_v, ctx.final_value, t->ac, false, false, 0);
+        clog_attack(c->username, npc_name(t), roll_v, ctx.final_value, ac, false, false, 0);
         send_text_to_client(c->sock,
                             "> Missed... the attack bounces off the armor of"
                             " %s, leaving not even a scratch.",
@@ -303,16 +409,23 @@ void perform_attack(Client *c, NPC *t, Game *game) {
         send_combat_event(c->sock, COMBAT_EV_MISS_DEALT, t->entity_id, 0);
         return;
     }
-    int d = melee_damage(c, t, weapon, w, ts, is_crit);
+    int d = strike_damage(c, t, weapon, w, ability, is_crit);
     send_combat_event(c->sock, is_crit ? COMBAT_EV_CRITICAL : COMBAT_EV_DAMAGE_DEALT, t->entity_id,
                       d);
-    clog_attack(c->username, npc_name(t), roll_v, ctx.final_value, t->ac, true, is_crit, d);
-    /*Wear: 5% of the hits cost the weapon a point of durability, 3% the armor.*/
+    clog_attack(c->username, npc_name(t), roll_v, ctx.final_value, ac, true, is_crit, d);
+    /*Wear: 5% of the hits cost the weapon a point of durability.*/
     wear_item(c, weapon, 5, "weapon");
-    wear_item(c, &c->slot_body, 3, "armor");
     if (t->hp <= 0) {
         npc_killed(game, c, t, NULL);
     }
+}
+
+void perform_attack(Client *c, NPC *t, Game *game) {
+    player_strike(c, t, game, false);
+}
+
+void perform_ranged_attack(Client *c, NPC *t, Game *game) {
+    player_strike(c, t, game, true);
 }
 
 void perform_attack_npc(NPC *n, Client *c, Game *game) {
@@ -325,20 +438,18 @@ void perform_attack_npc(NPC *n, Client *c, Game *game) {
     int n_bonus = n->attack_bonus;
     int roll_v = 0;
 
-    //--- ATTACKER NPC CONDITIONS ---
-    bool adv = false, dis = false;
-    if (rules_has_condition_t(n->effects, n->effect_count, COND_FRIGHTENED)) {
-        dis = true; //Disadvantage if scared
-    }
-    if (rules_has_condition_t(c->effects, c->effect_count, COND_INVISIBLE)) {
-        dis = true; // Disadvantage if the target is invisible
-    }
+    /*A charmed NPC does not attack; the conditions of both sides give
+     * advantage, disadvantage and the automatic critical.*/
     if (rules_has_condition_t(n->effects, n->effect_count, COND_CHARMED)) {
-        // If the NPC is charmed by the player, it does not attack
         return;
     }
+    AttackSituation sit;
+    attack_situation(n->effects, n->effect_count, c->effects, c->effect_count, false, &sit);
 
-    bool hit = rules_roll_attack_detailed(n_bonus, p_ac, adv, dis, &is_crit, &roll_v);
+    bool hit = rules_roll_attack_detailed(n_bonus, p_ac, sit.adv, sit.dis, &is_crit, &roll_v);
+    if (hit && sit.auto_crit) {
+        is_crit = true;
+    }
 
     //Attack text contextual to the archetype
     if (n->archetype == ARCH_ASSASSIN) {
@@ -395,9 +506,8 @@ void perform_attack_npc(NPC *n, Client *c, Game *game) {
         send_text_to_client(c->sock, "[COMBAT] You take %d damage!", d);
         send_combat_event(c->sock, COMBAT_EV_DAMAGE_TAKEN, c->entity_id, d);
         clog_attack(npc_name(n), c->username, roll_v, n_bonus, p_ac, true, is_crit, d);
-        if (c->slot_body.template_idx != -1) {
-            damage_item(&c->slot_body, 1);
-        }
+        /*Wear: 3% of the hits received cost the armour a point.*/
+        wear_item(c, &c->slot_body, 3, "armor");
         if (c->hp <= 0) {
             clog_death(c->username, npc_name(n), c->floor_id);
             save_bones(game, c);

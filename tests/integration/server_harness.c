@@ -19,6 +19,7 @@
 #include "harness_magic.h"
 #include "harness_spec.h"
 #include "harness_worldgen.h"
+#include "harness_interact.h"
 #include "harness_rounds.h"
 #include "harness_spells.h"
 #include "harness_world.h"
@@ -1384,6 +1385,16 @@ static const TestCase k_tests[] = {
     {"world_generation", test_world_generation},
     {"monsters_walk_every_biome", test_monsters_walk_every_biome},
     {"dm_spawn_full_stats", test_dm_spawn_full_stats},
+    {"interact_conditions", test_interact_conditions},
+    {"interact_charm", test_interact_charm},
+    {"interact_reach", test_interact_reach},
+    {"interact_ranged", test_interact_ranged},
+    {"interact_ability_and_quality", test_interact_ability_and_quality},
+    {"interact_worn_bonuses", test_interact_worn_bonuses},
+    {"interact_artifacts", test_interact_artifacts},
+    {"interact_loot_full_backpack", test_interact_loot_full_backpack},
+    {"interact_ghosts", test_interact_ghosts},
+    {"interact_light", test_interact_light},
 };
 
 int main(int argc, char **argv) {

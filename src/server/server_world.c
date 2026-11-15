@@ -241,20 +241,38 @@ static bool player_drop_condition(Client *c, ConditionType cond) {
     return false;
 }
 
-/*Light sources in the hands and on the belt burn one round.*/
+/*The light that shows the way burns one round: the brightest lit source in
+ * the hands or on the belt (the spare ones burned too). When a unit of a
+ * stack of torches is spent, the next one is lit.*/
 static void player_light_round(Client *c) {
     ItemInstance *ls[] = {&c->slot_hand_r, &c->slot_hand_l, &c->belt[0],
                           &c->belt[1],     &c->belt[2],     &c->belt[3]};
+    ItemInstance *lit = NULL;
     for (int j = 0; j < 6; j++) {
         if (ls[j]->template_idx == -1 ||
             item_database[ls[j]->template_idx].category != ITEM_LIGHT_SOURCE ||
             ls[j]->durability <= 0) {
             continue;
         }
-        ls[j]->durability--;
-        if (ls[j]->durability == 0) {
-            send_text_to_client(c->sock, "[SYSTEM] Your light source has gone out!");
+        if (!lit || item_database[ls[j]->template_idx].light_radius >
+                        item_database[lit->template_idx].light_radius) {
+            lit = ls[j];
         }
+    }
+    if (!lit) {
+        return;
+    }
+    if (--lit->durability > 0) {
+        return;
+    }
+    const ItemTemplate *t = &item_database[lit->template_idx];
+    if (lit->stack_count > 1) {
+        lit->stack_count--;
+        lit->durability = t->max_durability;
+        send_text_to_client(c->sock, "[SYSTEM] Your %s burns out: you light another (%d left).",
+                            t->name, lit->stack_count);
+    } else {
+        send_text_to_client(c->sock, "[SYSTEM] Your light source has gone out!");
     }
 }
 

@@ -190,8 +190,9 @@ static NPC *nearest_target(const Client *c, Game *game, int reach, const char *n
     FloorIter walk = floor_iter(game, c->floor_id);
     for (int i; (i = floor_iter_next(&walk)) >= 0;) {
         NPC *n = &game->npcs[i];
+        /*A charmed caster spares its charmer (LORE.md, Charmed).*/
         if (n->floor_id != c->floor_id || !spell_can_affect_npc(n) ||
-            (name && !strcasestr(npc_name(n), name))) {
+            (name && !strcasestr(npc_name(n), name)) || client_charmed_by(c, n)) {
             continue;
         }
         int d = cells_between(c->x, c->y, n->x, n->y);

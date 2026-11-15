@@ -62,6 +62,10 @@ bool tombstone_pickup(Game *game, Client *c);
 /*'retrieve': what the player's own tombstone on his floor holds, wherever
  * it lies; false (and nothing said) if he has none there.*/
 bool tombstone_recover_own(Game *game, Client *c);
+/*cmd_items.c: the player's own ghost (by its name), and laying it to rest
+ * with what the tombstone holds ('retrieve', or a step into it).*/
+bool ghost_is_of(const NPC *n, const Client *c);
+void ghost_retrieve(Game *game, Client *c, NPC *ghost);
 void tombstone_save(const Tombstone *t);
 void tombstone_load_all(Game *game);
 

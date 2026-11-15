@@ -47,12 +47,12 @@ typedef struct {
 
 static ArtifactDef artifact_registry[MAX_ARTIFACTS] = {
     {"The Void Blade", -1, 5, 8, 0, ELEM_SHOCKING, BLESS_BLESSED, 2, 0, 0, false},
-    {"The Shield of Aegis", -1, 0, 0, 7, ELEM_NONE, BLESS_BLESSED, 0, 1, 3, false},
-    {"The Staff of Dawn", -1, 3, 5, 0, ELEM_FLAMING, BLESS_BLESSED, 0, 0, 1, false},
-    {"The Shadow Robe", -1, 0, 0, 5, ELEM_NONE, BLESS_NORMAL, 0, 3, 0, false},
+    {"The Aegis Shield", -1, 0, 0, 7, ELEM_NONE, BLESS_BLESSED, 0, 1, 3, false},
+    {"The Staff of Aurora", -1, 3, 5, 0, ELEM_FLAMING, BLESS_BLESSED, 0, 0, 1, false},
+    {"The Shadow Tunic", -1, 0, 0, 5, ELEM_NONE, BLESS_NORMAL, 0, 3, 0, false},
     {"The Poisoned Dagger", -1, 4, 3, 0, ELEM_POISONOUS, BLESS_NORMAL, 0, 2, 0, false},
     {"The Frost Gauntlet", -1, 2, 6, 2, ELEM_FROST, BLESS_NORMAL, 0, 0, 0, false},
-    {"Leviathan's Armor", -1, 0, 0, 10, ELEM_NONE, BLESS_BLESSED, 1, 0, 4, false},
+    {"The Leviathan Armor", -1, 0, 0, 10, ELEM_NONE, BLESS_BLESSED, 1, 0, 4, false},
     {"The Bow of Destiny", -1, 6, 4, 0, ELEM_SHOCKING, BLESS_BLESSED, 0, 3, 0, false},
     {"Giant's Cleaver", -1, 2, 9, 0, ELEM_NONE, BLESS_NORMAL, 4, 0, 0, false},
     {"Sage's Ring", -1, 0, 0, 0, ELEM_NONE, BLESS_BLESSED, 0, 0, 1, false},
@@ -293,22 +293,90 @@ static ItemInstance loot_instance(int idx, int tier, bool identified) {
     return drop;
 }
 
-/*The base item of an artifact: the first weapon, armor or shield worth
- * 100000 gp or more; fallback when there is none.*/
-static int artifact_base_template(int fallback) {
-    for (int ti = 0; ti < item_database_size; ti++) {
-        if (item_database[ti].cost >= 100000 && (item_database[ti].category == ITEM_WEAPON ||
-                                                 item_database[ti].category == ITEM_ARMOR ||
-                                                 item_database[ti].category == ITEM_SHIELD)) {
-            return ti;
+/*What an artifact is, from its name: the category of its base item and a
+ * word of that item's name (NULL: any of the category).*/
+static void artifact_kind(const char *name, ItemCategory *cat, const char **base) {
+    static const struct {
+        const char *word;
+        ItemCategory cat;
+        const char *base;
+    } k_kinds[] = {
+        {"Arrows", ITEM_AMMO, "Arrows"},
+        {"Wooden Bow", ITEM_WEAPON, "Shortbow"},
+        {"Bow", ITEM_WEAPON, "Longbow"},
+        {"Dagger", ITEM_WEAPON, "Dagger"},
+        {"Cleaver", ITEM_WEAPON, "Greataxe"},
+        {"Battleaxe", ITEM_WEAPON, "Battleaxe"},
+        {"Hammer", ITEM_WEAPON, "Warhammer"},
+        {"Spear", ITEM_WEAPON, "Spear"},
+        {"Staff", ITEM_WEAPON, "Quarterstaff"},
+        {"Gauntlet", ITEM_WEAPON, "Light Hammer"}, /*LORE.md: a weapon*/
+        {"Sword", ITEM_WEAPON, "Longsword"},
+        {"Blade", ITEM_WEAPON, "Longsword"},
+        {"Shield", ITEM_SHIELD, "Shield"},
+        {"Leviathan", ITEM_ARMOR, "Plate"},
+        {"Breastplate", ITEM_ARMOR, "Breastplate"},
+        {"Tunic", ITEM_ARMOR, "Padded"},
+        {"Armor", ITEM_ARMOR, "Chain Mail"},
+        {"Helm", ITEM_HEAD, NULL},
+        {"Crown", ITEM_HEAD, NULL},
+        {"Boots", ITEM_FEET, NULL},
+        {"Cloak", ITEM_BACK, NULL},
+        {"Belt", ITEM_BACK, NULL},
+        {"Ring", ITEM_RING, NULL},
+        {"Amulet", ITEM_NECK, NULL},
+        {"Medallion", ITEM_NECK, NULL},
+        {"Necklace", ITEM_NECK, NULL},
+        {"Talisman", ITEM_NECK, NULL},
+        {"Gloves", ITEM_HANDS, NULL},
+        {"Bracers", ITEM_BRACELET, NULL},
+        {"Bracelets", ITEM_BRACELET, NULL},
+        {"Book", ITEM_BOOK, NULL},
+    };
+    for (size_t i = 0; i < sizeof(k_kinds) / sizeof(k_kinds[0]); i++) {
+        if (strcasestr(name, k_kinds[i].word)) {
+            *cat = k_kinds[i].cat;
+            *base = k_kinds[i].base;
+            return;
         }
     }
-    return fallback;
+    *cat = ITEM_WEAPON;
+    *base = "Longsword";
 }
 
-/*The next unique artifact that never dropped goes to the player; false
- * when every one already has.*/
-static bool loot_artifact(Client *c, const NPC *killer, int fallback_idx) {
+/*The base item of an artifact: an item of its kind (its word in the name
+ * if there is one), the plainest first: no bonus of its own, then the
+ * cheapest. fallback when the data has none. (Every artifact had the same
+ * base: the first weapon, armour or shield worth 100000 gp.)*/
+static int artifact_base_template(const char *artifact_name, int fallback) {
+    ItemCategory cat;
+    const char *base;
+    artifact_kind(artifact_name, &cat, &base);
+    int best = -1;
+    for (int pass = 0; pass < 2 && best < 0; pass++) {
+        for (int ti = 0; ti < item_database_size; ti++) {
+            const ItemTemplate *t = &item_database[ti];
+            if (t->category != cat || (pass == 0 && base && !strcasestr(t->name, base))) {
+                continue;
+            }
+            bool plain = t->str_bonus == 0 && t->dex_bonus == 0 && t->con_bonus == 0 &&
+                         t->int_bonus == 0 && t->wis_bonus == 0 && t->cha_bonus == 0 &&
+                         t->ac_bonus == 0 && t->cast_spell_idx < 0;
+            const ItemTemplate *b = best >= 0 ? &item_database[best] : NULL;
+            bool b_plain = b && b->str_bonus == 0 && b->dex_bonus == 0 && b->con_bonus == 0 &&
+                           b->int_bonus == 0 && b->wis_bonus == 0 && b->cha_bonus == 0 &&
+                           b->ac_bonus == 0 && b->cast_spell_idx < 0;
+            if (!b || (plain && !b_plain) || (plain == b_plain && t->cost < b->cost)) {
+                best = ti;
+            }
+        }
+    }
+    return best >= 0 ? best : fallback;
+}
+
+/*The next unique artifact that never dropped, in *art; false when every
+ * one already has.*/
+static bool loot_artifact(Client *c, const NPC *killer, int fallback_idx, ItemInstance *out) {
     ArtifactDef *def = NULL;
     for (int ai = 0; ai < artifact_count && !def; ai++) {
         if (!artifact_registry[ai].already_dropped) {
@@ -318,7 +386,7 @@ static bool loot_artifact(Client *c, const NPC *killer, int fallback_idx) {
     if (!def) {
         return false;
     }
-    int base_idx = artifact_base_template(fallback_idx);
+    int base_idx = artifact_base_template(def->name, fallback_idx);
     ItemInstance art;
     memset(&art, 0, sizeof(ItemInstance));
     art.template_idx = base_idx;
@@ -340,7 +408,7 @@ static bool loot_artifact(Client *c, const NPC *killer, int fallback_idx) {
     //Mark as dropped and save immediately (it's a global event!)
     def->already_dropped = true;
     artifacts_save();
-    c->backpack[c->backpack_count++] = art;
+    *out = art;
     char abuf[160];
     get_full_item_name(&art, abuf, sizeof(abuf));
     send_text_to_client(c->sock,
@@ -350,16 +418,25 @@ static bool loot_artifact(Client *c, const NPC *killer, int fallback_idx) {
     return true;
 }
 
-void drop_loot_from_monster(Client *c, NPC *killer) {
+/*The drop goes to the backpack; when it is full, to the ground where the
+ * creature fell (it was lost).*/
+static void loot_deliver(Game *game, Client *c, const NPC *killer, const ItemInstance *drop) {
+    if (c->backpack_count < MAX_BACKPACK) {
+        c->backpack[c->backpack_count++] = *drop;
+        return;
+    }
+    if (npc_spawn_item(game, killer->floor_id, killer->x, killer->y, drop)) {
+        send_text_to_client(c->sock, "[LOOT] Backpack full! The item lies on the ground.");
+    } else {
+        send_text_to_client(c->sock, "[LOOT] Backpack full, and no room on the ground: lost.");
+    }
+}
+
+void drop_loot_from_monster(Game *game, Client *c, NPC *killer) {
     if (!c || !killer) {
         return;
     }
     if ((rand() % 100) >= LOOT_DROP_CHANCE) {
-        return;
-    }
-    if (c->backpack_count >= MAX_BACKPACK) {
-        send_text_to_client(c->sock, "[LOOT] Backpack full! Lose %s loot.",
-                            killer->template ? killer->template->name : "treasure");
         return;
     }
     int tier = loot_rarity_tier(killer->floor_id);
@@ -368,15 +445,16 @@ void drop_loot_from_monster(Client *c, NPC *killer) {
     if (loot_stack(c, killer, chosen_idx, identified)) {
         return;
     }
-    ItemInstance drop = loot_instance(chosen_idx, tier, identified);
-
     /*LEGENDARY and above: one time in four a unique artifact instead.*/
-    if (tier >= 5 && rand() % 100 < 25 && loot_artifact(c, killer, chosen_idx)) {
+    ItemInstance art;
+    if (tier >= 5 && rand() % 100 < 25 && loot_artifact(c, killer, chosen_idx, &art)) {
+        loot_deliver(game, c, killer, &art);
         return;
     }
-    c->backpack[c->backpack_count++] = drop;
+    ItemInstance drop = loot_instance(chosen_idx, tier, identified);
     char buf[128];
     get_full_item_name(&drop, buf, sizeof(buf));
     send_text_to_client(c->sock, "[LOOT] %s dropped: %s [%s]", npc_name(killer), buf,
                         k_rarity_name[tier]);
+    loot_deliver(game, c, killer, &drop);
 }

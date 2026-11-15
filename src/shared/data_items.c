@@ -70,6 +70,24 @@ typedef struct {
     cJSON *item, *name, *desc, *category, *classification, *ac, *damage, *properties, *cost;
 } ItemJson;
 
+/*The ammunition of a ranged weapon (crossbows shoot bolts, bows arrows,
+ * slings bullets, blowguns needles), or what an ammunition item is.*/
+static AmmoKind item_ammo_kind(const char *name, bool is_ammo) {
+    if (data_strcasestr(name, is_ammo ? "bolt" : "crossbow")) {
+        return AMMO_BOLT;
+    }
+    if (data_strcasestr(name, is_ammo ? "arrow" : "bow")) {
+        return AMMO_ARROW;
+    }
+    if (data_strcasestr(name, is_ammo ? "bullet" : "sling")) {
+        return AMMO_BULLET;
+    }
+    if (data_strcasestr(name, is_ammo ? "needle" : "blowgun")) {
+        return AMMO_NEEDLE;
+    }
+    return AMMO_NONE;
+}
+
 /*Weapons and ammunition: damage dice and the weapon properties.*/
 static void item_weapon(ItemTemplate *t, const ItemJson *j) {
     bool is_ammo = false;
@@ -89,16 +107,25 @@ static void item_weapon(ItemTemplate *t, const ItemJson *j) {
             }
         }
     }
+    const char *name = (j->name && cJSON_IsString(j->name)) ? j->name->valuestring : "";
     if (is_ammo) {
         t->category = ITEM_AMMO;
         t->max_stack = 20;
         t->weight = 0.05f;
+        t->ammo = item_ammo_kind(name, true);
     } else {
         t->category = ITEM_WEAPON;
         t->max_durability = 100;
         t->weight = 3.0f;
         if (j->properties) {
             if (cJSON_IsString(j->properties)) {
+                const char *props = j->properties->valuestring;
+                const char *ammo = data_strcasestr(props, "ammunition (range ");
+                if (ammo) {
+                    t->ammo = item_ammo_kind(name, false);
+                    t->range = str_to_int(ammo + strlen("ammunition (range ")) / 5;
+                }
+                t->finesse = data_strcasestr(props, "finesse") != NULL;
                 if (data_strcasestr(j->properties->valuestring, "heavy")) {
                     t->weight = 6.0f;
                 }
