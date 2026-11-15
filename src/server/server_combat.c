@@ -236,19 +236,25 @@ static void announce_attack(Client *c, const NPC *t, const ItemTemplate *w) {
     }
 }
 
-/*A melee attack of a player: d20 + weapon + ability (DEX for weapons up
- * to d6, else STR) + half the level against AC. A hit on a paralyzed,
- * stunned or unconscious target is a critical; a blinded attacker has
- * disadvantage.*/
+/*An attack ends invisibility. Swap-remove: the last effect takes the
+ * freed slot and is checked next, so the index advances only past an
+ * effect that stays.*/
 void client_reveal(Client *c) {
-    for (int i = 0; i < c->effect_count; i++) {
+    int i = 0;
+    while (i < c->effect_count) {
         if (condition_from_name(c->effects[i].name) == COND_INVISIBLE) {
-            c->effects[i--] = c->effects[--c->effect_count];
+            c->effects[i] = c->effects[--c->effect_count];
             send_text_to_client(c->sock, "[MAGIC] You strike: you are visible again.");
+        } else {
+            i++;
         }
     }
 }
 
+/*A melee attack of a player: d20 + weapon + ability (DEX for weapons up
+ * to d6, else STR) + half the level against AC. A hit on a paralyzed,
+ * stunned or unconscious target is a critical; a blinded attacker has
+ * disadvantage.*/
 void perform_attack(Client *c, NPC *t, Game *game) {
     if (!c || !t || !client_can_act(c)) {
         return;

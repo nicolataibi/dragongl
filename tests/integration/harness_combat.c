@@ -61,6 +61,20 @@ int test_melee_attack(void) {
     CHECK(m->hp == hp && said("cannot act"), "a paralyzed character attacked");
     c->effect_count = 0;
 
+    /* An attack ends every Invisible effect and keeps the others; the
+     * effect moved into a freed slot is checked again. */
+    const ActiveEffect invisible = {"Invisible", EVENT_ON_TURN_START, MOD_ADDITIVE, 0, 2, false};
+    c->effects[c->effect_count++] =
+        (ActiveEffect){"Poisoned", EVENT_ON_TURN_START, MOD_ADDITIVE, 0, 2, false};
+    c->effects[c->effect_count++] = invisible;
+    c->effects[c->effect_count++] = invisible;
+    client_reveal(c);
+    heard(c);
+    CHECK(c->effect_count == 1 && strcmp(c->effects[0].name, "Poisoned") == 0 &&
+              said("visible again"),
+          "reveal left %d effects", c->effect_count);
+    c->effect_count = 0;
+
     /* A hit on a paralyzed target is a critical. */
     m->effects[m->effect_count++] =
         (ActiveEffect){"Paralyzed", EVENT_ON_TURN_START, MOD_ADDITIVE, 0, 2, false};
