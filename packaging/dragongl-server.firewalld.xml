@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Dragon GL - Copyright (C) 2026 Nicola Taibi -->
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<service>
+  <short>Dragon GL</short>
+  <description>Dragon GL game server: TLS 1.3 connections of the game clients on the default port. A server started with another --port needs that port opened instead.</description>
+  <port protocol="tcp" port="8080"/>
+</service>

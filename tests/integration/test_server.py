@@ -468,6 +468,31 @@ class ServerTest(unittest.TestCase):
         c.login("filed", "pw", "from-a-file-123")
         self.assertTrue(c.wait_for_login(), c.auth_fail)
 
+    def test_empty_password_files_mean_not_set(self):
+        # The systemd unit passes both files always: a password file the
+        # administrator did not create reaches the server as an empty
+        # credential (a lone newline).
+        empty = os.path.join(self.workdir, "empty.pw")
+        with open(empty, "w") as f:
+            f.write("\n")
+        os.chmod(empty, 0o400)
+        status, out = self.run_server_expecting_exit(
+            server_env(gate=None, dm=None), ("--password-file", empty))
+        self.assertEqual(status, 2, out)
+        self.assertIn("No server password", out)
+        self.assertIn("is empty", out)
+        gate = os.path.join(self.workdir, "gate.pw")
+        with open(gate, "w") as f:
+            f.write("from-a-file-123\n")
+        os.chmod(gate, 0o600)
+        self.restart_server(env=server_env(gate=None, dm=None),
+                            extra_args=("--password-file", gate,
+                                        "--dm-password-file", empty))
+        dm = self.connect()
+        dm.login("dm", DM_PASS, "from-a-file-123")
+        self.assertFalse(dm.wait_for_login())
+        self.assertTrue(any("disabled" in r for r in dm.auth_fail), dm.auth_fail)
+
     def test_dm_account_is_disabled_without_a_dm_password(self):
         self.restart_server(env=server_env(dm=None))
         c = self.connect()

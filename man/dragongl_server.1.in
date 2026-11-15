@@ -198,14 +198,26 @@ which runs the server under a transient unprivileged user
 .RB ( DynamicUser= )
 with the state directory
 .I /var/lib/dragongl
-and a strict sandbox. Its environment file
-.I @DRAGONGL_SYSCONFDIR@/dragongl/dragongl-server.conf
-(mode 0600) sets
-.BR DRAGONGL_SERVER_PASSWORD ,
-.B DRAGONGL_DM_PASSWORD
+and a strict sandbox. It reads the passwords as systemd credentials
+.RB ( LoadCredential= )
+from two root-only files:
+.I @DRAGONGL_SYSCONFDIR@/dragongl/server-password
+(required: without it the service exits with status 2) and
+.I @DRAGONGL_SYSCONFDIR@/dragongl/dm-password
+(optional: without it the dm account is disabled). systemd hands the
+service a private copy of each, passed with
+.B \-\-password\-file
 and
+.BR \-\-dm\-password\-file ;
+an empty file counts as no password. Its environment file
+.I @DRAGONGL_SYSCONFDIR@/dragongl/dragongl-server.conf
+sets
 .B DRAGONGL_SERVER_ARGS
-(extra options). The TLS identity is created in
+(extra options). The firewalld service
+.B dragongl-server
+opens the default port (8080/tcp):
+.BR "firewall\-cmd \-\-permanent \-\-add\-service=dragongl\-server" .
+The TLS identity is created in
 .IR /var/lib/dragongl/tls .
 A certificate of your own goes in through systemd credentials, since the
 dynamic user cannot read files of other users: a drop-in with
@@ -223,7 +235,9 @@ stop it before running
 .SH SEE ALSO
 .BR dragongl_client (1),
 .BR dragongl-server (1),
-.BR dragongl-reset-world (1)
+.BR dragongl-reset-world (1),
+.BR dragongl-generate-pdf-map (1),
+.BR systemd.exec (5)
 .SH AUTHOR
 Nicola Taibi <nicola.taibi.1967@gmail.com>
 .SH LICENSE

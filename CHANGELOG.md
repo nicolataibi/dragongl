@@ -1,3 +1,36 @@
+* Sun Nov 15 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.15.05
+- SECURITY: the systemd unit reads the passwords as systemd credentials:
+  /etc/dragongl/server-password and /etc/dragongl/dm-password, root-only
+  files the administrator creates, reach the dynamic user as private
+  copies (LoadCredential=) passed with --password-file and
+  --dm-password-file. They no longer go through the environment, and
+  dragongl-server.conf holds only DRAGONGL_SERVER_ARGS (mode 0644; the
+  rpmlint filter for the 0600 file is gone). A missing file is no error
+  for systemd (SetCredential= gives an empty default).
+- SERVER: an empty password file means "not set": no server password
+  ends the start with status 2 and names the empty file; no DM password
+  disables the dm account.
+- PACKAGING: the spec builds with gcc, the distribution's compiler
+  (-DDRAGONGL_USE_CLANG=OFF; the clang toolchain is gone). The obsolete
+  %{?systemd_requires} and the rpkg macro are removed. License is
+  GPL-3.0-or-later AND CC0-1.0 for the client (its AppStream metadata),
+  GPL-3.0-or-later on every subpackage. dragongl-tools requires
+  python3-reportlab, used by the PDF map generator.
+- PACKAGING: firewalld service dragongl-server (8080/tcp) in
+  /usr/lib/firewalld/services, with firewalld-filesystem and
+  %firewalld_reload; the package opens no port by itself.
+- PACKAGING: the check section also runs the server integration suite
+  (77 tests: harness, protocol vectors, a real server over TLS on the
+  loopback interface), with gcc and the distribution's flags.
+- TOOLS: the commands dragongl-analyze-balance and
+  dragongl-generate-pdf-map in /usr/bin (symlinks to the scripts in
+  /usr/share/dragongl/tools); their man pages take the command names.
+- TESTS: test_empty_password_files_mean_not_set (server_network) runs
+  the server the way the unit does with missing password files.
+- DOCS: INSTALL, README, SECURITY, BUILD and dragongl_server(1) describe
+  the credentials and the firewalld service; docs/PACKAGING.md answers
+  the questions a reviewer may ask.
+
 * Sun Nov 15 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.15.04
 - DOCS: docs/GPU_TESTING.md: the checklist on Intel Arc A770 is done.
   Rows 3 and 4: the window resized by dragging, maximized, minimized and

@@ -152,7 +152,7 @@ During the build:
 DESTDIR=/tmp/stage cmake --install build   # or: sudo cmake --install build
 ```
 
-The layout is `bin/`, `share/dragongl/{data,shaders,tools}`, `share/man/man1`, the unit in `DRAGONGL_SYSTEMD_UNITDIR` and `/etc/dragongl/dragongl-server.conf` (mode 0600; under `<prefix>/etc` for a prefix other than `/usr`). The installed binaries look for their data and shaders under `<prefix>/share/dragongl`.
+The layout is `bin/`, `share/dragongl/{data,shaders,tools}`, `share/man/man1`, the unit in `DRAGONGL_SYSTEMD_UNITDIR` and `/etc/dragongl/dragongl-server.conf` (options only, no secret; under `<prefix>/etc` for a prefix other than `/usr`). `-DDRAGONGL_FIREWALLD_SERVICEDIR=/usr/lib/firewalld/services` also installs the firewalld service of the server (off by default). The tools get two commands in `bin/`, `dragongl-analyze-balance` and `dragongl-generate-pdf-map`: symlinks to the scripts in `share/dragongl/tools`. The installed binaries look for their data and shaders under `<prefix>/share/dragongl`.
 
 ---
 

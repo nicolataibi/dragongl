@@ -89,9 +89,9 @@ The Fedora packaging divides Dragon GL into modular subpackages conforming to th
 | Package | Architecture | Contents |
 | :--- | :--- | :--- |
 | **`dragongl`** | Arch-dependent | Vulkan client (`dragongl-client`), its SPIR-V shaders (`/usr/share/dragongl/shaders/`) and man pages. |
-| **`dragongl-server`** | Arch-dependent | Server (`dragongl-server`), world reset utility (`dragongl-reset-world`), world generator, systemd unit `dragongl-server.service` and `/etc/dragongl/dragongl-server.conf`. |
+| **`dragongl-server`** | Arch-dependent | Server (`dragongl-server`), world reset utility (`dragongl-reset-world`), world generator, systemd unit `dragongl-server.service`, `/etc/dragongl/dragongl-server.conf` and the firewalld service `dragongl-server`. |
 | **`dragongl-data`** | `noarch` | Game datasets (`bestiary.json`, `items.json`, `spells.json`) in `/usr/share/dragongl/data/`. |
-| **`dragongl-tools`** | `noarch` | DM and developer tools: balance analyzer (`analyze_balance.py`), map PDF generator (`generate_pdf_map.py`), and the HTML Data Studio suite. |
+| **`dragongl-tools`** | `noarch` | DM and developer tools: balance analyzer (`dragongl-analyze-balance`), map PDF generator (`dragongl-generate-pdf-map`), and the HTML Data Studio suite. |
 | **`dragongl-doc`** | `noarch` | User manuals and technical documents (`/usr/share/doc/dragongl/`). |
 
 The artwork in `readme_assets/` (CC BY 4.0, see `readme_assets/LICENSE.md`) stays in the repository: it is not part of the release tarball nor of any package. Service setup: [INSTALL.md](INSTALL.md).

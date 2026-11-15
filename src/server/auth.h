@@ -75,7 +75,8 @@ const char *auth_secret_problem(const char *pwd);
  * environment variable `env_name`. The variable's value is wiped in place
  * and removed, so it no longer shows in /proc/<pid>/environ. Returns:
  *   1  secret read into out (NUL-terminated);
- *   0  not configured (no file given and the variable is unset/empty);
+ *   0  not configured: no file given and the variable unset or empty, or
+ *      the file empty (err then says so);
  *  -1  error (message in err).
  * A file readable by group or others is accepted with a warning in err
  * (return value 1, err non-empty). */

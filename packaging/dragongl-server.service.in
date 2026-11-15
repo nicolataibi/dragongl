@@ -2,7 +2,9 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Dragon GL game server, as a system service.
 #
-#   1. Set the passwords in @DRAGONGL_SYSCONFDIR@/dragongl/dragongl-server.conf
+#   1. Put the server password in @DRAGONGL_SYSCONFDIR@/dragongl/server-password
+#      (and the DM password, if any, in @DRAGONGL_SYSCONFDIR@/dragongl/dm-password),
+#      root-only files: see @DRAGONGL_SYSCONFDIR@/dragongl/dragongl-server.conf
 #   2. systemctl enable --now dragongl-server
 #
 # The server runs as a transient unprivileged user (DynamicUser) and keeps
@@ -18,10 +20,20 @@ Wants=network-online.target
 
 [Service]
 Type=exec
-# Passwords and extra options (root-only file). Its values reach the server
-# through the environment, which the server wipes at start-up.
+# Extra options of the server.
 EnvironmentFile=@DRAGONGL_SYSCONFDIR@/dragongl/dragongl-server.conf
-ExecStart=@DRAGONGL_BINDIR@/dragongl_server --state-dir ${STATE_DIRECTORY} --data-dir @DRAGONGL_PKGDATADIR@/data $DRAGONGL_SERVER_ARGS
+# The passwords are systemd credentials: systemd reads the root-only files
+# and hands the dynamic user a private copy in %d, never in the environment.
+# A file that does not exist is not an error: the SetCredential= of the
+# same name is the default of LoadCredential=, here an empty line (systemd
+# wants a value, \n is a newline), which the server reads as "not set":
+# without the server password it exits and says what is missing, without
+# the DM password the dm account stays disabled.
+LoadCredential=server-password:@DRAGONGL_SYSCONFDIR@/dragongl/server-password
+SetCredential=server-password:\n
+LoadCredential=dm-password:@DRAGONGL_SYSCONFDIR@/dragongl/dm-password
+SetCredential=dm-password:\n
+ExecStart=@DRAGONGL_BINDIR@/dragongl_server --state-dir ${STATE_DIRECTORY} --data-dir @DRAGONGL_PKGDATADIR@/data --password-file %d/server-password --dm-password-file %d/dm-password $DRAGONGL_SERVER_ARGS
 DynamicUser=yes
 StateDirectory=dragongl
 StateDirectoryMode=0700

@@ -23,6 +23,11 @@ option(DRAGONGL_BUILD_CLIENT "Build the Vulkan client (dragongl_client) and its 
 option(DRAGONGL_INSTALL_SYSTEMD_UNIT "Install the systemd unit of the server" ON)
 set(DRAGONGL_SYSTEMD_UNITDIR "lib/systemd/system" CACHE PATH
     "Where the systemd unit goes (relative to the prefix, or absolute)")
+# The firewalld service of the server (port 8080/tcp): installed only when
+# a directory is given, since firewalld reads /usr/lib/firewalld/services
+# only (the spec passes %{_prefix}/lib/firewalld/services).
+set(DRAGONGL_FIREWALLD_SERVICEDIR "" CACHE PATH
+    "Where the firewalld service of the server goes (empty: not installed)")
 if(NOT DRAGONGL_BUILD_SERVER AND NOT DRAGONGL_BUILD_CLIENT)
     message(FATAL_ERROR "DRAGONGL_BUILD_SERVER and DRAGONGL_BUILD_CLIENT are both OFF: nothing to build")
 endif()
@@ -177,8 +182,21 @@ if(DRAGONGL_BUILD_SERVER)
     # DM and balance tools (dm_pdf runs generate_pdf_map.py from here).
     install(PROGRAMS tools/analyze_balance.py tools/generate_pdf_map.py
             DESTINATION ${CMAKE_INSTALL_DATADIR}/dragongl/tools)
-    dragongl_man_page(analyze_balance.1)
-    dragongl_man_page(generate_pdf_map.1)
+    # The two tools are commands too: dragongl-analyze-balance and
+    # dragongl-generate-pdf-map, relative symbolic links to the scripts,
+    # each with its man page.
+    file(RELATIVE_PATH DRAGONGL_TOOLS_FROM_BINDIR "${CMAKE_INSTALL_FULL_BINDIR}"
+         "${CMAKE_INSTALL_FULL_DATADIR}/dragongl/tools")
+    foreach(pair "dragongl-analyze-balance:analyze_balance.py"
+                 "dragongl-generate-pdf-map:generate_pdf_map.py")
+        string(REPLACE ":" ";" pair "${pair}")
+        list(GET pair 0 cmd)
+        list(GET pair 1 script)
+        install(CODE "file(MAKE_DIRECTORY \"\$ENV{DESTDIR}${CMAKE_INSTALL_FULL_BINDIR}\")
+            file(CREATE_LINK \"${DRAGONGL_TOOLS_FROM_BINDIR}/${script}\"
+                 \"\$ENV{DESTDIR}${CMAKE_INSTALL_FULL_BINDIR}/${cmd}\" SYMBOLIC)")
+        dragongl_man_page(${cmd}.1)
+    endforeach()
     # Data Studio (self-contained HTML workbenches): the pages load the
     # datasets through ../../data/*.json, i.e. <datadir>/dragongl/data.
     install(PROGRAMS tools/web/build.py
@@ -203,11 +221,16 @@ if(DRAGONGL_BUILD_SERVER)
                        "${CMAKE_BINARY_DIR}/packaging/dragongl-server.service" @ONLY)
         install(FILES "${CMAKE_BINARY_DIR}/packaging/dragongl-server.service"
                 DESTINATION ${DRAGONGL_SYSTEMD_UNITDIR})
-        # Passwords and options of the service: root-only, never replaced
-        # by an update (the spec marks it %config(noreplace)).
+        # Options of the service, never replaced by an update (the spec marks
+        # it %config(noreplace)). It holds no secret: the passwords are
+        # credentials of the unit, files the administrator creates.
         install(FILES packaging/dragongl-server.conf
-                DESTINATION ${CMAKE_INSTALL_FULL_SYSCONFDIR}/dragongl
-                PERMISSIONS OWNER_READ OWNER_WRITE)
+                DESTINATION ${CMAKE_INSTALL_FULL_SYSCONFDIR}/dragongl)
+    endif()
+    if(DRAGONGL_FIREWALLD_SERVICEDIR)
+        install(FILES packaging/dragongl-server.firewalld.xml
+                DESTINATION ${DRAGONGL_FIREWALLD_SERVICEDIR}
+                RENAME dragongl-server.xml)
     endif()
 endif()
 
