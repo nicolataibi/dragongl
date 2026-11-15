@@ -1,3 +1,47 @@
+* Sun Nov 15 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.15.08
+- FIX: monsters found no path on the floors of most levels. Their A*
+  walked on stone floor, sand and grass only, while the rooms of floors
+  1-25 and 41-100 are wood, mud, ash, ice or marble: there the monsters
+  used the direct fallback step, which ignored the map and took them
+  through walls and rock. One rule of movement now serves characters and
+  creatures (voxel_passable in map.h: only walls and rock stop a step),
+  and the fallback step obeys it.
+- FIX: the creatures of a new world are placed on open ground
+  (voxel_is_ground: the ground of every biome, no door, stairs, water,
+  lava or mineral), on a free tile (107 creatures shared a tile in a
+  world), and only where at least 20 tiles join the spot in the four
+  directions monsters walk (room walls drawn on the diagonal enclose
+  cells that only a diagonal touches).
+- FIX: the boss of a floor knew its template by pointer only: its
+  template_idx stayed 0, so a restart or its respawn turned it into the
+  first creature of the bestiary. spawn_floor_boss() sets both, and the
+  DM's dm_spawn_boss uses it.
+- FIX: the 257 creatures the bestiary calls bosses were drawn on every
+  floor and became bosses there (2829 in a world, 4 on floor 1, each worth
+  ten times its experience plus 500 a floor). They now guard the boss
+  floors only, which draw their boss from them (from any creature of the
+  range when none is a boss); the other floors draw from the rest.
+- FIX: the wandering merchants of floors 5, 15, ... 95 looked for stone
+  floor only, which most biomes do not have: none came. They stand on
+  open ground.
+- FIX: tile_walkable() (teleports, falling floors, the landing of a boss,
+  dm_spawn and dm_place) knew no mud, ash or ice: on floors 11-25, 56-75
+  and 91-100 almost no tile was walkable, so a boss could stand on a
+  crystal or a door and dm_spawn refused every tile.
+- FIX: a monster made by dm_spawn had hit points only (AC 0, no damage,
+  no experience, no gold); it gets every statistic of its template.
+  dm_spawn_boss leaves a dead guardian of that floor dead, instead of a
+  second boss at its respawn.
+- FIX: swarms split, summons, Teleport and Blink looked for stone floor
+  only: on most floors they found no room. They take any open ground.
+- DOCS: LORE.md says where the guardians come from.
+- TESTS: world_generation generates a whole world as the server does and
+  checks every NPC of every floor (ground, one per tile, template and its
+  index, floor range, statistics, not walled in, a guardian alone on each
+  boss floor and no boss elsewhere, the counts, the merchants; another
+  world with DGL_WORLD_SEED). monsters_walk_every_biome: a path on every
+  ground, no step through a wall; dm_spawn_full_stats.
+
 * Sun Nov 15 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.15.07
 - COMMANDS: every command checked against docs/COMMANDS.md; where the two
   differed, the server now does what the reference says.

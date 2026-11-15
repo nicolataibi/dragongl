@@ -212,7 +212,7 @@ bool spell_find_spawn_cell(Game *game, Client *c, int *out_x, int *out_y) {
             continue;
         }
 
-        if (floor->map.data[0][ny][nx] == VOXEL_FLOOR && floor->entity_grid[ny][nx] == 0) {
+        if (voxel_is_ground(floor->map.data[0][ny][nx]) && floor->entity_grid[ny][nx] == 0) {
             *out_x = nx;
             *out_y = ny;
             return true;
@@ -233,7 +233,7 @@ bool spell_find_spawn_cell(Game *game, Client *c, int *out_x, int *out_y) {
                 continue;
             }
 
-            if (floor->map.data[0][ny][nx] == VOXEL_FLOOR && floor->entity_grid[ny][nx] == 0) {
+            if (voxel_is_ground(floor->map.data[0][ny][nx]) && floor->entity_grid[ny][nx] == 0) {
                 *out_x = nx;
                 *out_y = ny;
                 return true;
@@ -513,7 +513,7 @@ static bool handle_teleport(SpellContext *ctx) {
     /*Sparse sampling for performance (checks 1/16 of cells)*/
     for (int y = 2; y < MAP_HEIGHT - 2 && free_count < 256; y += 4) {
         for (int x = 2; x < MAP_WIDTH - 2 && free_count < 256; x += 4) {
-            if (floor->map.data[0][y][x] == VOXEL_FLOOR && floor->entity_grid[y][x] == 0) {
+            if (voxel_is_ground(floor->map.data[0][y][x]) && floor->entity_grid[y][x] == 0) {
                 free_xs[free_count] = x;
                 free_ys[free_count] = y;
                 free_count++;
@@ -618,7 +618,7 @@ static bool handle_blink(SpellContext *ctx) {
             continue;
         }
 
-        if (floor->map.data[0][ny][nx] == VOXEL_FLOOR && floor->entity_grid[ny][nx] == 0) {
+        if (voxel_is_ground(floor->map.data[0][ny][nx]) && floor->entity_grid[ny][nx] == 0) {
             landed_x = nx;
             landed_y = ny;
         }

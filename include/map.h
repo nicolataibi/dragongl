@@ -77,6 +77,31 @@ typedef uint8_t VoxelType;
 
 _Static_assert(VOXEL_COUNT <= 256, "VoxelId values must fit in a uint8_t (VoxelType)");
 
+/*The one rule of movement, for characters and creatures alike: only walls
+ * and rock stop a step.*/
+static inline bool voxel_passable(VoxelType v) {
+    return v != VOXEL_WALL && v != VOXEL_ROCK;
+}
+
+/*Open ground, where a creature, a chest or a merchant may be placed: not
+ * a wall, a door, the stairs, a trap, water, lava or a mineral.*/
+static inline bool voxel_is_ground(VoxelType v) {
+    switch (v) {
+    case VOXEL_FLOOR:
+    case VOXEL_GRASS:
+    case VOXEL_WOOD:
+    case VOXEL_COBBLE:
+    case VOXEL_ICE:
+    case VOXEL_SAND:
+    case VOXEL_ASH:
+    case VOXEL_MUD:
+    case VOXEL_MARBLE:
+        return true;
+    default:
+        return false;
+    }
+}
+
 typedef VoxelType TileType;
 #define TILE_EMPTY VOXEL_FLOOR
 #define TILE_WALL  VOXEL_WALL

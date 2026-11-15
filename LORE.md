@@ -1216,7 +1216,7 @@ The dungeon is populated by dynamically drawing creatures from a vast bestiary o
 - 🔴 **Tier 4 (Floors 56 - 100)**: *~480 monsters.* The final abyss. Home only to legends, ancestral creatures, and apocalyptic horrors (ancient dragons, titans, krakens, archdevils).
 
 ### Floor Bosses (Multiples of 10)
-Every tenth floor (10, 20, 30... 100) is designed as a massive "Boss Arena". During world generation, the engine **randomly selects a monster** suitable for that floor's tier and promotes it to **ARCH_BOSS**.
+Every tenth floor (10, 20, 30... 100) is designed as a massive "Boss Arena". During world generation, the engine **randomly selects one of the creatures the bestiary marks as bosses** for that floor's tier and promotes it to **ARCH_BOSS**. Those creatures guard the boss floors only: the other floors never draw them.
 The chosen monster will have its Health Points heavily multiplied, receive direct bonuses to damage, and yield massive Gold and Experience rewards that scale dynamically based on the floor's depth. No lesser minions spawn on these floors: the duel is meant to be a lethal one-on-one at the center of the map.
 
 ---

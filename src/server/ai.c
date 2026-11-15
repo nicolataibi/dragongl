@@ -323,7 +323,8 @@ static void default_ai_update(Game *game, NPC *npc, Client *clients, int num_cli
         }
     } else if (steps == 0) {
         /* A* found no path: direct fallback (e.g. target is adjacent).
-         * One axis per step (4-way) and never onto an occupied cell. */
+         * One axis per step (4-way), never onto an occupied cell nor
+         * through a wall or rock (it walked through them). */
         int nx = npc->x, ny = npc->y;
         if (npc->x < target->x) {
             nx++;
@@ -334,7 +335,8 @@ static void default_ai_update(Game *game, NPC *npc, Client *clients, int num_cli
         } else if (npc->y > target->y) {
             ny--;
         }
-        if (!cell_occupied(game, nx, ny, npc, clients, num_clients)) {
+        if (voxel_passable(map->data[0][ny][nx]) &&
+            !cell_occupied(game, nx, ny, npc, clients, num_clients)) {
             npc_set_cell(game, npc, nx, ny);
         }
     }
@@ -377,7 +379,7 @@ AINodeStatus ai_swarm_behavior(Game *game, NPC *npc, Client *clients, int num_cl
                 // Check if map tile is empty
                 Map *m = &game->world->floors[npc->floor_id].map;
                 if (nx > 0 && nx < MAP_WIDTH - 1 && ny > 0 && ny < MAP_HEIGHT - 1 &&
-                    m->data[0][ny][nx] == VOXEL_FLOOR) {
+                    voxel_is_ground(m->data[0][ny][nx])) {
                     // Check if occupied by another npc or a player
                     bool occupied = cell_occupied(game, nx, ny, npc, clients, num_clients);
                     if (!occupied) {
@@ -513,8 +515,7 @@ static void ally_step_towards(Game *game, NPC *npc, int tx, int ty, Client *clie
     int nx = npc->x + (tx > npc->x) - (tx < npc->x);
     int ny = npc->y + (ty > npc->y) - (ty < npc->y);
     const Map *map = &game->world->floors[npc->floor_id].map;
-    VoxelType v = map->data[0][ny][nx];
-    if (v != VOXEL_WALL && v != VOXEL_ROCK &&
+    if (voxel_passable(map->data[0][ny][nx]) &&
         !cell_occupied(game, nx, ny, npc, clients, num_clients)) {
         npc_set_cell(game, npc, nx, ny);
     }

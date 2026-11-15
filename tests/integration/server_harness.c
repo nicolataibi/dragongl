@@ -18,6 +18,7 @@
 #include "harness_items.h"
 #include "harness_magic.h"
 #include "harness_spec.h"
+#include "harness_worldgen.h"
 #include "harness_rounds.h"
 #include "harness_spells.h"
 #include "harness_world.h"
@@ -1380,6 +1381,9 @@ static const TestCase k_tests[] = {
     {"spec_trade", test_spec_trade},
     {"spec_retrieve", test_spec_retrieve},
     {"spec_dm_commands", test_spec_dm_commands},
+    {"world_generation", test_world_generation},
+    {"monsters_walk_every_biome", test_monsters_walk_every_biome},
+    {"dm_spawn_full_stats", test_dm_spawn_full_stats},
 };
 
 int main(int argc, char **argv) {

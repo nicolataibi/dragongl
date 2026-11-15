@@ -216,7 +216,7 @@ static bool bump_into(Client *c, Floor *fl, int ent_id, int nx, int ny, Client *
 static void step_onto(Client *c, int nx, int ny, int old_x, int old_y, Game *game) {
     Floor *fl = &game->world->floors[c->floor_id];
     VoxelType vt = fl->map.data[0][ny][nx];
-    bool can_pass = (vt != VOXEL_WALL && vt != VOXEL_ROCK);
+    bool can_pass = voxel_passable(vt);
     if (!can_pass && vt == VOXEL_WALL && c->floor_id == 0 && is_shop_door(nx, ny) &&
         is_inside_shop(old_x, old_y)) {
         can_pass = true;

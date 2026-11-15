@@ -366,7 +366,8 @@ int test_dm_spawn_and_place(void) {
     CHECK(said("Spawned") && active_npcs_at(CX + 2, CY) == 1, "no monster spawned: %s", g_out);
     NPC *n = npc_by_entity_id(&g_game, fl->entity_grid[CY][CX + 2]);
     CHECK(n && n->template == &bestiary_data[0] && n->hp > 0, "the monster is not on the grid");
-    CHECK(n->gold_drop == 0 && !n->is_ghost && n->custom_name[0] == '\0' &&
+    /* The gold of its template (ai_init_npc), not the 500 of the tenant. */
+    CHECK(n->gold_drop == bestiary_data[0].gold && !n->is_ghost && n->custom_name[0] == '\0' &&
               npc_loot(&g_game.pools, n) == NULL,
           "the monster inherited the previous tenant of its slot");
     run(c, line);
