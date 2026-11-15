@@ -678,10 +678,13 @@ static void rebalance_floor_density(Game *game) {
             if (n->active) {
                 continue;
             }
-            if (n->template == NULL) {
+            /*The NPCs that never respawn (npc_round): a ghost brought back
+             * here was a second reward for the same bones.*/
+            if (n->template == NULL || n->is_ghost) {
                 continue;
             }
-            if (n->archetype == ARCH_MERCHANT) {
+            if (n->archetype == ARCH_MERCHANT || n->archetype == ARCH_TREASURE ||
+                n->archetype == ARCH_GOLD) {
                 continue;
             }
             if (n->floor_id != f) {

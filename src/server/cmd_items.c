@@ -312,7 +312,7 @@ static void study_spell(Client *c, const char *spell_name, StudyTally *tally) {
     const SpellTemplate *sp = &spell_database[si];
     int required_level = (sp->level > 0) ? (sp->level * 2) : 1;
     if (c->level < required_level) {
-        send_text_to_client(c->sock, "  [-] %-30s  (requires PC Lv %d — LOCKED)", sp->name,
+        send_text_to_client(c->sock, "  [-] %-30s  (requires PC Lv %d - LOCKED)", sp->name,
                             required_level);
         tally->locked++;
     } else if (spell_known_get(c, si)) {

@@ -413,7 +413,9 @@ void perform_attack_npc(NPC *n, Client *c, Game *game) {
  * game mode, scale the reward to the contributor here.*/
 void handle_boss_death(Game *game, Client *c, NPC *boss) {
     (void)c;
-    if (!boss || boss->archetype != ARCH_BOSS) {
+    /*A ghost (save_bones) fights as a boss but is not the boss of its
+     * floor: killing it opens nothing and pays nothing.*/
+    if (!boss || boss->archetype != ARCH_BOSS || boss->is_ghost) {
         return;
     }
     if (boss->floor_id > 0 && boss->floor_id % 10 == 0) {

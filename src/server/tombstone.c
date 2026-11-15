@@ -273,11 +273,11 @@ void tombstone_list(Game *game, Client *c) {
             strftime(timestr, sizeof(timestr), "%d/%m/%Y %H:%M", &tm_info);
         }
 
-        send_text_to_client(c->sock, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        send_text_to_client(c->sock, "⚰  TOMBSTONE — %s", t->owner);
+        send_text_to_client(c->sock, "------------------------------------------------");
+        send_text_to_client(c->sock, "TOMBSTONE - %s", t->owner);
         send_text_to_client(c->sock, "Floor %d | Position (%d,%d) | Died on: %s", t->floor_id, t->x,
                             t->y, timestr);
-        send_text_to_client(c->sock, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        send_text_to_client(c->sock, "------------------------------------------------");
 
         if (t->gold > 0) {
             send_text_to_client(c->sock, "[GOLD] %lu gp", (unsigned long)t->gold);
@@ -341,7 +341,7 @@ void tombstone_list(Game *game, Client *c) {
             send_text_to_client(c->sock, "   [SLOT %d] %s", j + 1, name);
         }
 
-        send_text_to_client(c->sock, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        send_text_to_client(c->sock, "------------------------------------------------");
         if (strcmp(c->username, t->owner) == 0) {
             send_text_to_client(c->sock, "Type 'pickup' to recover your items.");
         } else {
@@ -501,13 +501,13 @@ bool tombstone_pickup(Game *game, Client *c) {
          * map for everyone.*/
         tombstone_save(t);
         send_text_to_client(c->sock,
-                            "[WARNING] You cannot carry everything — only PART of "
+                            "[WARNING] You cannot carry everything - only PART of "
                             "your belongings could be recovered (gold: %lu gp). The "
                             "rest still waits in the tombstone: come back with free "
                             "space (backpack, belt or empty equipment slots).",
                             (unsigned long)gold_recovered);
         server_log("TOMB",
-                   "%s partially recovered their tombstone on floor %d (%d,%d) — items left behind",
+                   "%s partially recovered their tombstone on floor %d (%d,%d) - items left behind",
                    c->username, t->floor_id, t->x, t->y);
         return true;
     }

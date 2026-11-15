@@ -32,6 +32,14 @@ VK_INSTANCE_LAYERS=VK_LAYER_KHRONOS_validation ./dragongl-client 127.0.0.1 2>&1 
 Report a failure with the first lines of the log (GPU, driver), the row
 of the table, and the validation messages if any.
 
-The budgets of row 11 are targets, not measurements: no frame time has
-been measured on a real GPU yet. Write what you measure in the issue or
-in `DEVELOPMENT.md`, section 2.
+Write what you measure in the table below (or in an issue).
+
+## Results
+
+| Release | GPU | Rows | Outcome |
+| :-- | :-- | :-- | :-- |
+| 2026.11.14.11 | Intel Arc A770 (discrete) | 11 | `DRAGONGL_VSYNC=0 --frames 2000`: 1999 frames, p50 0.50 ms, p99 1.25 ms, max 35.47 ms (the first frames); HUD clear and readable |
+| 2026.11.14.11 | Intel Arc A770 (discrete) | 10 | `DRAGONGL_TEST_DEVICE_LOST=300`: device lost at frame 300, `Renderer restarted.`, the game went on (6512 frames) |
+
+Still to be checked on this GPU: rows 3 and 4 (resize and minimize).
+No result yet on AMD or NVIDIA.

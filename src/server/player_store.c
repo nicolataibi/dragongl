@@ -375,7 +375,7 @@ void apply_player_save(Client *c, const SaveData *sd) {
     corrupted = restore_effects(c, sd) || corrupted;
     restore_counters(c, sd);
     if (corrupted) {
-        server_log("SAVE", "Corrupted/tampered fields in %s.save — state sanitized on load.",
+        server_log("SAVE", "Corrupted/tampered fields in %s.save - state sanitized on load.",
                    c->username);
     }
     server_log("SAVE", "Loaded: %s (floor %d, HP %d/%d, gold %lu, effects %d)", c->username,
@@ -484,6 +484,11 @@ void save_bones(Game *game, Client *c) {
          * but the player is standing right here: do it now).*/
         floor_index_rebuild(game);
         ai_init_npc(g, g->custom_name, g->floor_id);
+        /*The ghost fights like a boss but pays nothing: the gold is in the
+         * tombstone, and killing one's own ghost must not be a source of
+         * gold or experience (dying would pay).*/
+        g->gold_drop = 0;
+        g->xp_reward = 0;
         server_log("BONES", "Ghost of %s spawned on floor %d (%d,%d)", c->username, c->floor_id,
                    c->x, c->y);
     }

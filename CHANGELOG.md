@@ -1,3 +1,60 @@
+* Sun Nov 15 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.15.01
+- TESTS: line coverage of the server and shared code from 62.8% to
+  81.2%; the ratchet of tools/quality_limits.json goes to 80%. 28 new
+  cases of the in-process harness, grouped by subject in new files:
+  harness_combat.c (melee and ranged attacks, monster attacks, loot,
+  party experience, boss and event kills, death and tombstones, ghosts,
+  the combat log), harness_world.c (every trap type with its condition
+  and world effect, search and disarm, look and examine, fountain,
+  statue, rest, prayer, mining, what a step meets), harness_items.c
+  (consumables, fuel, books and lore, equipment, level up and train,
+  merchants' services, party, chat, messages, block list, who, top,
+  event) and harness_rounds.c (the rounds of a character and of the
+  monsters, respawns, the global event, the monsters' AI, the DM
+  reports, the starting gear of every class); harness_util.c gives them
+  a fresh world, characters and monsters.
+- GAMEPLAY: a ghost (the bones of a dead character) no longer pays gold
+  or experience, and killing it on a boss floor no longer counts as
+  defeating the boss: dying on floor 10 and killing one's own ghost
+  gave the reward of the boss.
+- FIX: the swap and body-swap traps took any NPC within ten tiles,
+  gold piles and chests included: the body swap with a gold pile (no
+  hit points) killed the player, and a pile without a template crashed
+  the server. They take a living monster now.
+- FIX: 'search' looked for wall traps with a wrong type number and used
+  rand() instead of the d20 of the rules; a trap it finds is drawn on
+  the map. 'disarm' works only on a trap that was found, and no longer
+  marks it as found itself.
+- FIX: 'tunnel' refused in town (floor 0): the statues and the walls of
+  the town could be mined.
+- FIX: 'cure' needs a merchant nearby (it cured anywhere, in the middle
+  of a fight) and removes the conditions only: the effects of potions
+  and spells stay, and a character with nothing to cure pays nothing.
+- FIX: 'identify <name>' took the last unidentified item when the name
+  matched none; it takes the unidentified item whose name contains the
+  text.
+- FIX: the charm and the mucus of the boss gave effects named 'Enslave'
+  and 'Mucous Cloud', which no rule knows: they give the Charmed and
+  Poisoned conditions they announce.
+- FIX: the density check of the floors could bring a ghost, a chest or
+  a gold pile back to life; it skips them, as the respawn does.
+- FIX: the HUD font draws ASCII only, so the messages and the data with
+  dashes, quotes, boxes or emoji showed question marks: every string of
+  the server and every text of the game data is ASCII. Four monsters
+  change name ('Wyrm Neutral - Amber', 'Wyrm Neutral - Moonstone',
+  'Dream Spawn Greater - Ennui', 'Dream Spawn Lesser - Morph'): the
+  fingerprint of the bestiary changes and the NPCs of an existing world
+  are generated again.
+- FIX: messages with words glued together or garbled (traps, identify,
+  repair, uncurse, level up, the DM reports of bosses and merchants).
+- TOOLS: tools/check_ascii.py, 'tools/quality.sh ascii' and a CI step
+  refuse a character outside ASCII in the string literals of the C
+  sources and in the game data.
+- DOCS: DEVELOPMENT.md lists the harness files and the ascii check;
+  docs/GPU_TESTING.md has a results table, with the first measurements
+  on a real GPU (Intel Arc A770: frame time p99 1.25 ms, the renderer
+  restarts after a device loss).
+
 * Sat Nov 14 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.14.11
 - PACKAGING: answers to the fedora-review of 2026.11.14.10 (no failed
   item). The client was linked to libcjson without using it (rpmlint

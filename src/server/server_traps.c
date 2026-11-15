@@ -93,8 +93,8 @@ static void trap_dart_wall(Game *game, Client *c, Trap *t) {
             }
             if (c->hp <= 0) {
                 c->hp = 0;
-                send_text_to_client(c->sock, "[DEATH] The poison reaches your heart. You fell...");
-                clog_death(c->username, "Dardo Avvelenato", c->floor_id);
+                send_text_to_client(c->sock, "[DEATH] The poison reaches your heart. You fall...");
+                clog_death(c->username, "Poisoned dart", c->floor_id);
                 save_bones(game, c);
                 /*player_respawn_town() also tells the floor the player left
          * and re-syncs the client.*/
@@ -260,8 +260,7 @@ static void trap_world_effect(Client *c, Trap *t, Game *game) {
             broadcast_player_state(game, c);
         }
     } else if (t->type == TRAP_FLOOD) {
-        send_text_to_client(c->sock, "[DANGER] Water starts gushing out"
-                                     "rivers from hidden valves!");
+        send_text_to_client(c->sock, "[DANGER] Water gushes out of hidden valves!");
         Floor *fl = &game->world->floors[c->floor_id];
         for (int dy = -3; dy <= 3; dy++) {
             for (int dx = -3; dx <= 3; dx++) {
@@ -289,8 +288,8 @@ static void trap_world_effect(Client *c, Trap *t, Game *game) {
             }
         }
     } else if (t->type == TRAP_STONE_TOMB) {
-        send_text_to_client(c->sock, "[DANGER] Thick stone walls yes"
-                                     "they rise from the ground, trapping you!");
+        send_text_to_client(c->sock,
+                            "[DANGER] Thick stone walls rise from the ground, trapping you!");
         Floor *fl = &game->world->floors[c->floor_id];
         for (int dy = -1; dy <= 1; dy++) {
             for (int dx = -1; dx <= 1; dx++) {
@@ -309,16 +308,22 @@ static void trap_world_effect(Client *c, Trap *t, Game *game) {
         NPC *target_npc = NULL;
         FloorIter walk = floor_iter(game, c->floor_id);
         for (int n; (n = floor_iter_next(&walk)) >= 0;) {
-            if (abs(game->npcs[n].x - c->x) <= 10 && abs(game->npcs[n].y - c->y) <= 10) {
+            /*A monster: not a gold pile, a chest, a merchant or a ghost
+             * (swapping hit points with a gold pile, which has none, killed
+             * the player).*/
+            const NPC *cand = &game->npcs[n];
+            bool monster = cand->template && cand->hp > 0 && !cand->is_ghost &&
+                           cand->archetype != ARCH_GOLD && cand->archetype != ARCH_TREASURE &&
+                           cand->archetype != ARCH_MERCHANT;
+            if (monster && abs(cand->x - c->x) <= 10 && abs(cand->y - c->y) <= 10) {
                 target_npc = &game->npcs[n];
                 break;
             }
         }
         if (target_npc) {
             if (t->type == TRAP_SWAP_TELEPORT) {
-                send_text_to_client(c->sock,
-                                    "[MAGIC] A flash of light! You trade places with a %s!",
-                                    target_npc->template->name);
+                send_text_to_client(c->sock, "[MAGIC] A flash of light! You trade places with %s!",
+                                    npc_name(target_npc));
                 int tx = c->x;
                 int ty = c->y;
                 /*Keep entity_grid consistent with the swap: collisions read it
@@ -338,16 +343,16 @@ static void trap_world_effect(Client *c, Trap *t, Game *game) {
                 sfl->entity_grid[target_npc->y][target_npc->x] = target_npc->entity_id;
             } else {
                 send_text_to_client(c->sock,
-                                    "[MAGIC] A dark force envelops you! Exchanges"
-                                    "your vitality with a %s!",
-                                    target_npc->template->name);
+                                    "[MAGIC] A dark force envelops you! It exchanges"
+                                    " your vitality with %s!",
+                                    npc_name(target_npc));
                 int thp = c->hp;
                 c->hp = target_npc->hp;
                 target_npc->hp = thp;
             }
         } else {
-            send_text_to_client(c->sock, "[MAGIC] The trap activates but does not find"
-                                         "valid targets nearby.");
+            send_text_to_client(c->sock, "[MAGIC] The trap activates but finds"
+                                         " no target nearby.");
         }
     }
 }
@@ -384,7 +389,7 @@ static void trap_after_firing(Game *game, Client *c, Trap *t, Floor *f) {
 static void trap_fire(Client *c, Trap *t, Floor *f, Game *game) {
     send_text_to_client(c->sock, "[DANGER] You have activated a trap!");
     if (trap_saving_throw(c, t)) {
-        send_text_to_client(c->sock, "[SYSTEM] Can you avoid the worst!");
+        send_text_to_client(c->sock, "[SYSTEM] You avoid the worst!");
     } else {
         trap_damage(game, c, t);
         trap_world_effect(c, t, game);

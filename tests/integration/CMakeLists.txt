@@ -43,6 +43,8 @@ target_link_libraries(dragongl_server_it PRIVATE Threads::Threads m PkgConfig::S
 
 # --- In-process harness: every server module but main_server.c ---
 add_executable(server_harness server_harness.c harness_spells.c harness_commands.c fixture.c
+    harness_util.c harness_combat.c harness_world.c harness_items.c
+    harness_rounds.c
     ${DRAGONGL_SERVER_LIB_SRCS} ${DRAGONGL_SHARED_SRCS})
 target_include_directories(server_harness PRIVATE ${DGL_INCLUDES})
 # DRAGONGL_FAULT_INJECTION: the crash points of binfile_write_atomic().
@@ -83,6 +85,24 @@ foreach(t trade_offer_revalidated_on_accept trade_moves_item_and_gold
           boss_floor_is_playable dm_spawn_and_place numeric_arguments
           tunnel_keeps_the_border floors_without_characters_sleep
           swarm_splits_into_free_slots autosave_in_steps metrics_and_telemetry)
+    add_test(NAME ${t} COMMAND server_harness ${t} WORKING_DIRECTORY "${DGL_WORK}")
+endforeach()
+# Combat, loot, death and tombstones (harness_combat.c).
+foreach(t melee_attack weapons_and_arrows monster_attacks loot party_shares_xp
+          boss_and_event_kills death_and_tombstone ghost_is_not_a_boss tombstone_expires
+          combat_log)
+    add_test(NAME ${t} COMMAND server_harness ${t} WORKING_DIRECTORY "${DGL_WORK}")
+endforeach()
+# Traps, search, look, town services, mining, steps (harness_world.c).
+foreach(t every_trap search_and_disarm look_and_examine town_services mining steps)
+    add_test(NAME ${t} COMMAND server_harness ${t} WORKING_DIRECTORY "${DGL_WORK}")
+endforeach()
+# Items, merchants' services, character, social (harness_items.c).
+foreach(t use_items books_and_lore equipment level_up_and_train merchant_services social)
+    add_test(NAME ${t} COMMAND server_harness ${t} WORKING_DIRECTORY "${DGL_WORK}")
+endforeach()
+# Rounds of the world, monsters' minds, DM reports, gear (harness_rounds.c).
+foreach(t player_rounds global_event world_respawns monster_minds dm_reports starting_gear)
     add_test(NAME ${t} COMMAND server_harness ${t} WORKING_DIRECTORY "${DGL_WORK}")
 endforeach()
 

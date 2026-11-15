@@ -318,7 +318,7 @@ bool cmd_event(Client *c, const char *cmd, Game *game) {
         int mins_left = (game->event.time_left * 200) / 60000;
         int secs_left = ((game->event.time_left * 200) % 60000) / 1000;
         send_text_to_client(c->sock, "[GLOBAL EVENT] Invasion of Plane %d!", game->event.floor_id);
-        send_text_to_client(c->sock, "  Goal: kill %d Skeletons — Progress: %d/%d",
+        send_text_to_client(c->sock, "  Goal: kill %d Skeletons - Progress: %d/%d",
                             game->event.goal, game->event.progress, game->event.goal);
         send_text_to_client(c->sock, "  Time left: %d min %d sec", mins_left, secs_left);
     }
@@ -651,7 +651,7 @@ bool cmd_msg(Client *c, const char *cmd, Game *game) {
         }
 
         if (nlen == 0 || text[0] == '\0') {
-            send_text_to_client(c->sock, "[MSG] Usage: msg <name> <text> — e.g. 'msg Bob hello'");
+            send_text_to_client(c->sock, "[MSG] Usage: msg <name> <text> - e.g. 'msg Bob hello'");
             return true;
         }
         if (strcasecmp(target_name, c->username) == 0) {
@@ -697,7 +697,7 @@ bool cmd_say(Client *c, const char *cmd, Game *game) {
         text[sizeof(text) - 1] = '\0';
         char *ttext = trim_spaces(text);
         if (ttext[0] == '\0') {
-            send_text_to_client(c->sock, "[CHAT] Usage: say <text> — e.g. 'say anyone here?'");
+            send_text_to_client(c->sock, "[CHAT] Usage: say <text> - e.g. 'say anyone here?'");
             return true;
         }
         if (!msg_rate_ok(c)) {

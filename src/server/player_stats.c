@@ -380,7 +380,7 @@ void check_level_up(Client *c) {
         send_text_to_client(c->sock, "[LEVEL] *** YOU HAVE RISEN TO LEVEL %d! ***", c->level);
         send_combat_event(c->sock, COMBAT_EV_LEVEL_UP, c->entity_id, c->level);
         send_text_to_client(c->sock,
-                            "[LEVEL] Maximum HP increased by %d (Total: %d)."
+                            "[LEVEL] Maximum HP increased by %d (Total: %d). "
                             "Health and mana restored.",
                             hp_gain, c->max_hp);
         send_text_to_client(

@@ -63,6 +63,8 @@ Checks
   load [SECONDS]  tools/loadtest.py (Release server): 64 TLS clients play for
                   SECONDS (default 60), then a shutdown under load and a
                   restart, against the "load" limits of the same file
+  ascii           tools/check_ascii.py: the string literals of the sources and
+                  the game data are ASCII (the HUD font draws nothing else)
   links           tools/check_links.py: links between the Markdown files, their
                   #anchors, and the files of the tree they name in backticks
   links-external  the same, and every http(s) link must answer (network)
@@ -73,7 +75,7 @@ Checks
                   warning
   repro           two copies of the tree at different paths, built with
                   debug information and installed: every file identical
-  all             format protocol deps tidy data spelling links commands man coverage
+  all             format protocol deps tidy data spelling ascii links commands man coverage
                   metrics tsan repro, then fuzz 30
 
 Options
@@ -410,9 +412,9 @@ main() {
         load)
             if [[ ${2:-} =~ ^[0-9]+$ ]]; then checks+=("load:$2"); shift; else checks+=(load:60); fi
             ;;
-        all) checks+=(format protocol deps tidy data spelling links commands man coverage metrics tsan repro fuzz:30) ;;
+        all) checks+=(format protocol deps tidy data spelling ascii links commands man coverage metrics tsan repro fuzz:30) ;;
         format | format-fix | tidy | data | deps | spelling | metrics | protocol | coverage | tsan | bench | \
-            commands | commands-fix | man | repro | links | links-external)
+            commands | commands-fix | man | repro | links | links-external | ascii)
             checks+=("$1")
             ;;
         *) usage >&2; die "unknown check '$1'" ;;
@@ -437,6 +439,7 @@ main() {
         tsan) check_tsan ;;
         bench) check_bench ;;
         links) check_links ;;
+        ascii) section "ASCII text" && python3 "$ROOT/tools/check_ascii.py" ;;
         links-external) check_links --external ;;
         commands) check_commands ;;
         commands-fix) check_commands fix ;;
