@@ -26,6 +26,7 @@
  * which handler sees which command.
  */
 
+#include "inventory.h"
 #include "strnum.h"
 #include "server_cmd.h"
 #include "dragongl_config.h"
@@ -404,10 +405,22 @@ static bool cmd_dm_spawn_boss(Client *c, const char *cmd, Game *game) {
     int target_floor = 0;
     /*%d skips the leading space after the command word*/
     if (!parse_int(cmd + 13, &target_floor, NULL) || target_floor <= 0 ||
-        target_floor >= MAX_FLOORS) {
-        send_text_to_client(c->sock, "[DM] Use: dm_spawn_boss <floor 1-%d> (ex: dm_spawn_boss 10)",
-                            MAX_FLOORS - 1);
+        target_floor >= MAX_FLOORS || target_floor % 10 != 0) {
+        send_text_to_client(c->sock,
+                            "[DM] Use: dm_spawn_boss <boss floor: 10, 20, ... %d> (ex: "
+                            "dm_spawn_boss 10)",
+                            ((MAX_FLOORS - 1) / 10) * 10);
         return true;
+    }
+    /*"Again": only when the floor's boss is gone.*/
+    FloorIter walk = floor_iter(game, target_floor);
+    for (int i; (i = floor_iter_next(&walk)) >= 0;) {
+        const NPC *n = &game->npcs[i];
+        if (n->archetype == ARCH_BOSS && !n->is_ghost) {
+            send_text_to_client(c->sock, "[DM] %s still lives on floor %d (%d,%d).", npc_name(n),
+                                target_floor, n->x, n->y);
+            return true;
+        }
     }
 
     NPC *b = npc_alloc(game);
@@ -442,10 +455,11 @@ static bool cmd_dm_spawn_boss(Client *c, const char *cmd, Game *game) {
     b->archetype = ARCH_BOSS;
     b->entity_id = game->next_id++;
     b->floor_id = target_floor;
-    b->x = MAP_CENTER_X;
-    b->y = MAP_CENTER_Y;
-    b->spawn_x = MAP_CENTER_X;
-    b->spawn_y = MAP_CENTER_Y;
+    /*Where a new world puts it: the walkable tile nearest the centre.*/
+    find_walkable_near(&game->world->floors[target_floor], MAP_CENTER_X, MAP_CENTER_Y, &b->x,
+                       &b->y);
+    b->spawn_x = b->x;
+    b->spawn_y = b->y;
     b->respawn_timer = 0;
     b->template = &bestiary_data[boss_id];
     b->hp = b->template->hp_avg * 5 + (target_floor * 50);
@@ -847,11 +861,7 @@ static bool cmd_dm_place(Client *c, const char *cmd, Game *game) {
     }
     const ItemTemplate *it = &item_database[iid];
     ItemInstance item;
-    memset(&item, 0, sizeof(item));
-    item.template_idx = iid;
-    item.durability = it->max_durability > 0 ? it->max_durability : 100;
-    item.stack_count = 1;
-    item.is_identified = true;
+    item_instance_new(&item, iid);
     if (!npc_spawn_item(game, c->floor_id, tx, ty, &item)) {
         send_text_to_client(c->sock, "[DM] ERROR: No free NPC slots.");
         return true;

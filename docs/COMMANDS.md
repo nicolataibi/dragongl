@@ -32,7 +32,7 @@ backpack, the goods of a merchant, the things on the ground); where
 | `retrieve` |  | Recover your soul and equipment from your ghost, next to it. |
 | `fountain` |  | Drink from the sacred fountain of the town (floor 0) to heal your wounds. |
 | `statue` | `crystal` | Meditate at a crystal statue of the town: no fatigue, no hunger, spell slots restored. |
-| `rest` | `R` | In town (floor 0): recover all hit points and spell slots. |
+| `rest` | `R` | In town (floor 0): recover all hit points, spell slots and the charges of your wands. |
 | `pray` | `p` | Sacrifice 100 XP to the gods to recover a quarter of your hit points. |
 
 ## Character
@@ -55,9 +55,9 @@ backpack, the goods of a merchant, the things on the ground); where
 | `remove <slot\|item>` | `unequip`, `takeoff` | Take off an equipped or belted item. |
 | `belt <n>` |  | Move an item from the backpack to the belt, where it is at hand. |
 | `unbelt [n\|item]` |  | Move an item from the belt back to the backpack. |
-| `use <n\|item>` | `quaff`, `q`, `read`, `r`, `eat`, `e`, `zap`, `z` | Use an item: drink a potion, read a scroll, eat, zap a wand. |
+| `use <n\|item>` | `quaff`, `q`, `read`, `r`, `eat`, `e`, `zap`, `z` | Use an item: drink a potion, read a scroll (its spell, once), eat, zap a wand (one charge). |
 | `drop <n>` | `d` | Drop an item of the backpack on the ground. |
-| `throw <n\|item> [n\|s\|e\|w]` | `v` | Throw an item: 5 tiles, 8 for ammunition. It lands where its flight ends. |
+| `throw <n\|item> [n\|s\|e\|w]` | `v` | Throw one item: 5 tiles, 8 for ammunition; without a direction, at the nearest creature in a straight line. It lands where its flight ends. |
 | `fill <lantern>` |  | Refill a lantern with a flask of oil. |
 | `lore <n\|item>` |  | What is known about an identified item of the backpack; for a book, its spells. |
 
@@ -66,7 +66,7 @@ backpack, the goods of a merchant, the things on the ground); where
 | Command | Also | What it does |
 | :--- | :--- | :--- |
 | `spells` |  | The spells you know. |
-| `cast <spell> [target]` | `c` | Cast a spell you know; the book that holds it must be with you. |
+| `cast <spell> [target]` | `c` | Cast a spell you know at the nearest creature, or at the one whose name contains target; the book that holds it must be with you. |
 | `study <n\|book>` | `awaken`, `invoke`, `intone`, `celebrate`, `pronounce`, `practice`, `drill`, `rage`, `sneak`, `meditate` | Learn the spells of a book, inside the temple of your class in town, with the word of your class: study (Wizard), pray &lt;n> (Cleric), awaken (Druid), invoke (Warlock), intone (Bard), celebrate (Paladin), pronounce (Sorcerer), practice (Ranger), drill (Fighter), rage (Barbarian), sneak (Rogue), meditate (Monk). |
 
 ## Merchants and services
@@ -116,7 +116,7 @@ Only for the `dm` account (see the server manual for its password).
 | :--- | :--- | :--- |
 | `dm_goto <floor> <x> <y>` |  | Teleport. |
 | `dm_spawn <bestiary_id> <x> <y>` |  | Create a monster on your floor. |
-| `dm_spawn_boss <floor>` |  | Create the boss of a floor again. |
+| `dm_spawn_boss <floor>` |  | Create the boss of a boss floor (10, 20, ...) again, once it is dead. |
 | `dm_boss <floor>` |  | The bosses of a boss floor (10, 20, ...): where they are, their statistics and loot. |
 | `dm_merchant <floor>` |  | The wandering merchant of a floor (5, 15, 25, ...). |
 | `dm_find_monster <name>` |  | Bestiary entries whose name contains the text. |

@@ -192,6 +192,7 @@ ItemInstance *give(Client *c, int template_idx, int count) {
     it->durability = item_database[template_idx].max_durability > 0
                          ? item_database[template_idx].max_durability
                          : 100;
+    it->current_charges = item_database[template_idx].max_charges;
     return it;
 }
 

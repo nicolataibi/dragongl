@@ -21,6 +21,7 @@
  * server_loot.c - Loot: the unique artifacts and what a dead monster drops.
  */
 
+#include "inventory.h"
 #include "server_loot.h"
 #include <limits.h>
 #include "server_internal.h"
@@ -270,17 +271,11 @@ static ItemBlessing loot_blessing(void) {
 static ItemInstance loot_instance(int idx, int tier, bool identified) {
     const ItemTemplate *it = &item_database[idx];
     ItemInstance drop;
-    memset(&drop, 0, sizeof(ItemInstance));
-    drop.template_idx = idx;
-    drop.durability = (it->max_durability > 0) ? it->max_durability : 100;
-    if (it->category == ITEM_LIGHT_SOURCE && strcasestr(it->name, "lantern")) {
-        drop.durability = 5000;
+    item_instance_new(&drop, idx);
+    if (it->max_durability <= 0) {
+        drop.durability = 100;
     }
-    drop.stack_count = 1;
     drop.is_identified = identified;
-    drop.quality = QUALITY_NORMAL;
-    drop.blessing = BLESS_NORMAL;
-    drop.element = ELEM_NONE;
 
     if (it->category == ITEM_WEAPON) {
         drop.quality = loot_quality(tier);

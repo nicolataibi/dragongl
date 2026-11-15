@@ -210,8 +210,8 @@ bool cmd_remove(Client *c, const char *cmd, Game *game) {
         }
     }
     if (!target_slot) {
-        send_text_to_client(c->sock, "[ERROR] Item not found among those equipped."
-                                     "Use 'stats' to see what you're wearing.");
+        send_text_to_client(c->sock, "[ERROR] Item not found among those equipped. "
+                                     "Use 'inventory' to see what you're wearing.");
         return true;
     }
     //===== CURSE BLOCK (Heart of Mechanics 1) =====
@@ -219,11 +219,11 @@ bool cmd_remove(Client *c, const char *cmd, Game *game) {
         char curse_buf[128];
         get_full_item_name(target_slot, curse_buf, sizeof(curse_buf));
         send_text_to_client(c->sock,
-                            "[CURSE] The object '%s' is surrounded by an evil aura!"
+                            "[CURSE] The object '%s' is surrounded by an evil aura! "
                             "You can't take it off!",
                             curse_buf);
-        send_text_to_client(c->sock, "[TIP] Find a cleric and use 'uncurse' (200gp)"
-                                     "or use a Scroll of Curse Removal.");
+        send_text_to_client(c->sock, "[TIP] Stand next to a merchant in town and use 'uncurse' "
+                                     "(200gp), or read a Scroll of Remove Curse.");
         return true;
     }
     //Normal removal: put in backpack

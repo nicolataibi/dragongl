@@ -72,7 +72,7 @@ static const CmdDoc COMMAND_DOCS[] = {
     {"statue", "crystal", CMD_GROUP_WORLD, "statue",
      "Meditate at a crystal statue of the town: no fatigue, no hunger, spell slots restored."},
     {"rest", "R", CMD_GROUP_WORLD, "rest",
-     "In town (floor 0): recover all hit points and spell slots."},
+     "In town (floor 0): recover all hit points, spell slots and the charges of your wands."},
     {"pray", "p", CMD_GROUP_WORLD, "pray",
      "Sacrifice 100 XP to the gods to recover a quarter of your hit points."},
 
@@ -96,17 +96,20 @@ static const CmdDoc COMMAND_DOCS[] = {
     {"unbelt", NULL, CMD_GROUP_ITEMS, "unbelt [n|item]",
      "Move an item from the belt back to the backpack."},
     {"use", "quaff|q|read|r|eat|e|zap|z", CMD_GROUP_ITEMS, "use <n|item>",
-     "Use an item: drink a potion, read a scroll, eat, zap a wand."},
+     "Use an item: drink a potion, read a scroll (its spell, once), eat, zap a wand (one "
+     "charge)."},
     {"drop", "d", CMD_GROUP_ITEMS, "drop <n>", "Drop an item of the backpack on the ground."},
     {"throw", "v", CMD_GROUP_ITEMS, "throw <n|item> [n|s|e|w]",
-     "Throw an item: 5 tiles, 8 for ammunition. It lands where its flight ends."},
+     "Throw one item: 5 tiles, 8 for ammunition; without a direction, at the nearest creature "
+     "in a straight line. It lands where its flight ends."},
     {"fill", NULL, CMD_GROUP_ITEMS, "fill <lantern>", "Refill a lantern with a flask of oil."},
     {"lore", NULL, CMD_GROUP_ITEMS, "lore <n|item>",
      "What is known about an identified item of the backpack; for a book, its spells."},
 
     {"spells", NULL, CMD_GROUP_MAGIC, "spells", "The spells you know."},
     {"cast", "c", CMD_GROUP_MAGIC, "cast <spell> [target]",
-     "Cast a spell you know; the book that holds it must be with you."},
+     "Cast a spell you know at the nearest creature, or at the one whose name contains target; "
+     "the book that holds it must be with you."},
     {"study", "awaken|invoke|intone|celebrate|pronounce|practice|drill|rage|sneak|meditate",
      CMD_GROUP_MAGIC, "study <n|book>",
      "Learn the spells of a book, inside the temple of your class in town, with the word of "
@@ -152,7 +155,7 @@ static const CmdDoc COMMAND_DOCS[] = {
     {"dm_spawn", NULL, CMD_GROUP_DM, "dm_spawn <bestiary_id> <x> <y>",
      "Create a monster on your floor."},
     {"dm_spawn_boss", NULL, CMD_GROUP_DM, "dm_spawn_boss <floor>",
-     "Create the boss of a floor again."},
+     "Create the boss of a boss floor (10, 20, ...) again, once it is dead."},
     {"dm_boss", NULL, CMD_GROUP_DM, "dm_boss <floor>",
      "The bosses of a boss floor (10, 20, ...): where they are, their statistics and loot."},
     {"dm_merchant", NULL, CMD_GROUP_DM, "dm_merchant <floor>",

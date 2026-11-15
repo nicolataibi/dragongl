@@ -352,11 +352,11 @@ void tombstone_list(Game *game, Client *c) {
     send_text_to_client(c->sock, "[SYSTEM] No tombstones nearby.");
 }
 
-/*The active tombstone on the player's tile or next to it, or NULL.*/
-static Tombstone *tombstone_near(Game *game, const Client *c) {
+/*The active tombstone on the player's own tile, or NULL.*/
+static Tombstone *tombstone_underfoot(Game *game, const Client *c) {
     for (int i = 0; i < MAX_TOMBSTONES; i++) {
         Tombstone *t = &game->tombstones[i];
-        if (t->active && t->floor_id == c->floor_id && abs(t->x - c->x) + abs(t->y - c->y) <= 1) {
+        if (t->active && t->floor_id == c->floor_id && t->x == c->x && t->y == c->y) {
             return t;
         }
     }
@@ -465,27 +465,9 @@ static bool tombstone_is_empty(Tombstone *t) {
     return true;
 }
 
-/*---------------------------------------------------------------
- * tombstone_pickup
- * Allows the owning player to recover all items
- * from the tombstone and place them in your inventory.
- * Returns true if recovery occurred, false otherwise.
- * ---------------------------------------------------------------*/
-bool tombstone_pickup(Game *game, Client *c) {
-    if (!c) {
-        return false;
-    }
-    Tombstone *t = tombstone_near(game, c);
-    if (!t) {
-        send_text_to_client(c->sock, "[SYSTEM] No gravestone of yours nearby.");
-        return false;
-    }
-    if (strcmp(c->username, t->owner) != 0) {
-        send_text_to_client(
-            c->sock, "[WARNING] This tombstone belongs to %s. You cannot take items from it.",
-            t->owner);
-        return false;
-    }
+/*Moves what fits from the tombstone to its owner and says what came back;
+ * an empty tombstone leaves memory, disk and every map.*/
+static void tombstone_recover(Game *game, Client *c, Tombstone *t) {
     /*Partial recovery: every item actually transferred leaves the
      * tombstone; if anything is left the tombstone stays (saved again)
      * until the player comes back with space. The gold is zeroed at once:
@@ -509,7 +491,7 @@ bool tombstone_pickup(Game *game, Client *c) {
         server_log("TOMB",
                    "%s partially recovered their tombstone on floor %d (%d,%d) - items left behind",
                    c->username, t->floor_id, t->x, t->y);
-        return true;
+        return;
     }
 
     /*Everything recovered: the tombstone leaves memory, disk and the map
@@ -529,5 +511,39 @@ bool tombstone_pickup(Game *game, Client *c) {
         (unsigned long)gold_recovered);
     server_log("TOMB", "%s recovered their tombstone on floor %d (%d,%d)", c->username, t->floor_id,
                t->x, t->y);
+}
+
+/*---------------------------------------------------------------
+ * tombstone_pickup
+ * The owner, standing on his tombstone, takes back what it holds.
+ * Returns true if recovery occurred, false otherwise.
+ * ---------------------------------------------------------------*/
+bool tombstone_pickup(Game *game, Client *c) {
+    if (!c) {
+        return false;
+    }
+    Tombstone *t = tombstone_underfoot(game, c);
+    if (!t) {
+        send_text_to_client(c->sock, "[SYSTEM] There is no tombstone under your feet.");
+        return false;
+    }
+    if (strcmp(c->username, t->owner) != 0) {
+        send_text_to_client(
+            c->sock, "[WARNING] This tombstone belongs to %s. You cannot take items from it.",
+            t->owner);
+        return false;
+    }
+    tombstone_recover(game, c, t);
     return true;
+}
+
+bool tombstone_recover_own(Game *game, Client *c) {
+    for (int i = 0; i < MAX_TOMBSTONES; i++) {
+        Tombstone *t = &game->tombstones[i];
+        if (t->active && t->floor_id == c->floor_id && strcmp(t->owner, c->username) == 0) {
+            tombstone_recover(game, c, t);
+            return true;
+        }
+    }
+    return false;
 }

@@ -40,5 +40,8 @@ bool spell_affect_npc(Game *game, const SpellTemplate *sp, const SpellCaster *sc
  * False (after telling the caster why) when there is nothing to cast at:
  * the caller then keeps the spell slot.*/
 bool spell_cast(Client *c, const SpellTemplate *sp, Game *game);
+/*The same, aimed at the nearest creature whose name contains target
+ * (case ignored); NULL target: the nearest creature.*/
+bool spell_cast_at(Client *c, const SpellTemplate *sp, Game *game, const char *target);
 
 #endif

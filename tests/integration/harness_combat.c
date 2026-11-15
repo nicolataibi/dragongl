@@ -338,10 +338,16 @@ int test_death_and_tombstone(void) {
     run(thief, "list");
     CHECK(said("TOMBSTONE - unlucky") && said("[GOLD] 777 gp") && said("--- BACKPACK ---"),
           "the list does not show the tombstone");
+    place(thief, FLOOR, CX, CY);
     run(thief, "pickup");
     CHECK(said("belongs to unlucky") && thief->backpack_count == 0, "a thief took the tombstone");
+    place(thief, FLOOR, CX + 5, CY);
 
+    /* The tombstone is emptied standing on it, not from the next tile. */
     place(c, FLOOR, CX, CY + 1);
+    run(c, "pickup");
+    CHECK(said("no tombstone under your feet") && c->gold == 0, "picked up from the next tile");
+    place(c, FLOOR, CX, CY);
     run(c, "pickup");
     CHECK(said("recovered your items") && c->gold == 777, "gold %lu after the pickup",
           (unsigned long)c->gold);
@@ -351,13 +357,13 @@ int test_death_and_tombstone(void) {
     CHECK(!file_with_prefix("state-death_and_tombstone/saves", "tombstone_unlucky_"),
           "the tombstone file outlived the pickup");
     run(c, "pickup");
-    CHECK(said("No gravestone"), "a second pickup");
+    CHECK(said("no tombstone under your feet"), "a second pickup");
 
     /* The ghost gives the soul back once. */
     run(c, "retrieve");
     CHECK(said("recovered your soul") && !g_game.npcs[ghost].active, "no retrieve");
     run(c, "retrieve");
-    CHECK(said("No ghosts of you nearby"), "a second retrieve");
+    CHECK(said("No ghost of yours next to you"), "a second retrieve");
     return 0;
 }
 

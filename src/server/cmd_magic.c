@@ -36,6 +36,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <ctype.h>
 
 /*-------------------------------------------------------
  * spells — lists the spells in your personal grimoire
@@ -143,7 +144,46 @@ static const char *spell_by_book_index(const Client *c, const char *arg) {
     return tmpl->book_spell_names[local_idx];
 }
 
-//cast <name> or cast <book_idx> <spell_idx>
+/*The spell the line starts with: the longest run of words that is the name
+ * of a spell (case ignored), or "<book> <spell>" numbers; *rest points past
+ * it (the target, or ""). -1 if none.*/
+static int spell_and_target(const Client *c, const char *arg, const char **rest) {
+    char words[256];
+    copy_str(words, arg, sizeof(words));
+    int bl[2] = {0};
+    if (isdigit((unsigned char)arg[0]) && scan_ints(arg, ' ', 2, bl) == 2) {
+        char two[64];
+        snprintf(two, sizeof(two), "%d %d", bl[0], bl[1]);
+        const char *name = spell_by_book_index(c, two);
+        for (int i = 0; name != two && i < spell_database_size; i++) {
+            if (strcasecmp(spell_database[i].name, name) == 0) {
+                /*Past the two numbers.*/
+                const char *p = arg + strspn(arg, " ");
+                p += strcspn(p, " ");
+                p += strspn(p, " ");
+                p += strcspn(p, " ");
+                *rest = p + strspn(p, " ");
+                return i;
+            }
+        }
+    }
+    for (size_t len = strlen(words); len > 0; len--) {
+        if (words[len] != '\0' && words[len] != ' ') {
+            continue; /*only whole words*/
+        }
+        for (int i = 0; i < spell_database_size; i++) {
+            if (strlen(spell_database[i].name) == len &&
+                strncasecmp(spell_database[i].name, words, len) == 0) {
+                *rest = arg + len + strspn(arg + len, " ");
+                return i;
+            }
+        }
+    }
+    return -1;
+}
+
+/*cast <spell> [target] or cast <book_idx> <spell_idx> [target]: the target
+ * is part of the name of a creature; without it the nearest one.*/
 bool cmd_cast(Client *c, const char *cmd, Game *game) {
     if (rules_has_condition_t(c->effects, c->effect_count, COND_SILENCED)) {
         send_text_to_client(c->sock, "[SYSTEM] You are silenced and cannot cast spells!");
@@ -156,15 +196,11 @@ bool cmd_cast(Client *c, const char *cmd, Game *game) {
     if (!arg) {
         return true;
     }
-    const char *spell_name = spell_by_book_index(c, arg + 1);
-    int sp_idx = -1;
-    for (int i = 0; i < spell_database_size && sp_idx < 0; i++) {
-        if (strcasecmp(spell_database[i].name, spell_name) == 0) {
-            sp_idx = i;
-        }
-    }
+    arg += strspn(arg, " ");
+    const char *target = "";
+    int sp_idx = spell_and_target(c, arg, &target);
     if (sp_idx == -1) {
-        send_text_to_client(c->sock, "[ERROR] Spell '%s' not found.", spell_name);
+        send_text_to_client(c->sock, "[ERROR] Spell '%s' not found.", arg);
         return true;
     }
     const SpellTemplate *sp = &spell_database[sp_idx];
@@ -188,7 +224,7 @@ bool cmd_cast(Client *c, const char *cmd, Game *game) {
         return true;
     }
     /*The slot is spent only when the spell goes off.*/
-    if (spell_cast(c, sp, game) && slv > 0) {
+    if (spell_cast_at(c, sp, game, target[0] ? target : NULL) && slv > 0) {
         c->spell_slots[slv]--;
     }
     return true;

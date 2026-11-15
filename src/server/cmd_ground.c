@@ -28,6 +28,7 @@
 #include "server_loot.h"
 #include "server_combat.h"
 #include "spell_cast.h"
+#include "server_cmd.h"
 #include <ctype.h>
 
 // --- RECOVERY FROM TOMBSTONE ---
@@ -233,34 +234,50 @@ static void throw_hit(Game *game, Client *c, NPC *target, const ItemTemplate *it
     }
 }
 
-/*throw <name|n> <n|s|e|w>: 5 tiles (8 for ammunition); the item lands
- * where its flight ends and can be picked up again.*/
+/*The direction of the nearest creature that a throw of `range` tiles
+ * would hit, among n, s, e and w; false if none.*/
+static bool throw_auto_aim(const Client *c, Game *game, int range, int *dx, int *dy) {
+    static const int k_dx[4] = {0, 0, 1, -1}, k_dy[4] = {-1, 1, 0, 0};
+    int best = range + 1;
+    for (int d = 0; d < 4; d++) {
+        int lx, ly;
+        NPC *hit = throw_flight(c, game, k_dx[d], k_dy[d], range, &lx, &ly);
+        int dist = abs(lx - c->x) + abs(ly - c->y);
+        if (hit && dist < best) {
+            best = dist;
+            *dx = k_dx[d];
+            *dy = k_dy[d];
+        }
+    }
+    return best <= range;
+}
+
+/*throw <n|item> [n|s|e|w]: one unit of the item flies 5 tiles (8 for
+ * ammunition), towards the nearest creature in a straight line when no
+ * direction is given; it lands where its flight ends and can be picked up
+ * again.*/
 bool cmd_throw(Client *c, const char *cmd, Game *game) {
     const char *input = strchr(cmd, ' ');
     if (!input) {
         return true;
     }
-    input++;
-    const char *last_space = strrchr(input, ' ');
-    if (!last_space) {
-        send_text_to_client(c->sock, "[SYSTEM] Specifies the direction. Example: throw dart n");
-        return true;
-    }
-    char dir_char = last_space[1];
+    input += strspn(input, " ");
     char item_query[64];
-    size_t len = (size_t)(last_space - input);
-    if (len > sizeof(item_query) - 1) {
-        len = sizeof(item_query) - 1;
+    copy_str(item_query, input, sizeof(item_query));
+    /*Trailing spaces, then an optional last word that is a direction.*/
+    size_t qlen = strlen(item_query);
+    while (qlen > 0 && item_query[qlen - 1] == ' ') {
+        item_query[--qlen] = '\0';
     }
-    memcpy(item_query, input, len);
-    item_query[len] = '\0';
-
-    int dx = (dir_char == 'e') - (dir_char == 'w');
-    int dy = (dir_char == 's') - (dir_char == 'n');
-    if (dx == 0 && dy == 0) {
-        send_text_to_client(c->sock,
-                            "[SYSTEM] Invalid direction. Use: n, s, e, w (e.g. throw dart e)");
-        return true;
+    int dx = 0, dy = 0;
+    bool aimed = false;
+    char *last_space = strrchr(item_query, ' ');
+    if (last_space && parse_direction4(last_space + 1, &dx, &dy)) {
+        aimed = true;
+        while (last_space > item_query && last_space[-1] == ' ') {
+            last_space--;
+        }
+        *last_space = '\0';
     }
     bool in_belt = false;
     int found_idx = find_carried(c, item_query, &in_belt);
@@ -268,18 +285,36 @@ bool cmd_throw(Client *c, const char *cmd, Game *game) {
         send_text_to_client(c->sock, "[SYSTEM] Item '%s' not found in your inventory.", item_query);
         return true;
     }
-    ItemInstance thrown = in_belt ? c->belt[found_idx] : c->backpack[found_idx];
-    const ItemTemplate *t_item = &item_database[thrown.template_idx];
+    ItemInstance *carried = in_belt ? &c->belt[found_idx] : &c->backpack[found_idx];
+    const ItemTemplate *t_item = &item_database[carried->template_idx];
+    int range = t_item->category == ITEM_AMMO ? 8 : 5;
+    if (!aimed && !throw_auto_aim(c, game, range, &dx, &dy)) {
+        send_text_to_client(c->sock,
+                            "[SYSTEM] No creature in a straight line within %d tiles: give a "
+                            "direction (e.g. throw %s n).",
+                            range, item_query);
+        return true;
+    }
+    /*One unit flies; the rest of the stack stays in hand.*/
+    ItemInstance thrown = *carried;
+    thrown.stack_count = 1;
 
     int land_x, land_y;
-    NPC *target =
-        throw_flight(c, game, dx, dy, t_item->category == ITEM_AMMO ? 8 : 5, &land_x, &land_y);
-    send_text_to_client(c->sock, "[ACTION] You throw %s towards %c...", t_item->name, dir_char);
+    NPC *target = throw_flight(c, game, dx, dy, range, &land_x, &land_y);
+    static const char *const k_names[3][3] = {
+        {"", "west", ""}, {"north", "", "south"}, {"", "east", ""}};
+    send_text_to_client(c->sock, "[ACTION] You throw %s towards the %s...", t_item->name,
+                        k_names[dx + 1][dy + 1]);
     broadcast_spell_vfx(game, c->x, c->y, land_x, land_y, 0, 1.0f, 0.8f, 0.3f, c->floor_id);
     if (target) {
         throw_hit(game, c, target, t_item);
     }
     npc_spawn_item(game, c->floor_id, land_x, land_y, &thrown);
-    remove_carried(c, found_idx, in_belt);
+    if (carried->stack_count > 1) {
+        carried->stack_count--;
+    } else {
+        remove_carried(c, found_idx, in_belt);
+    }
+    send_detailed_state(game, c);
     return true;
 }

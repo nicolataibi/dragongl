@@ -31,6 +31,7 @@
 #include "server_internal.h"
 #include "server_log.h"
 #include <string.h>
+#include <strings.h>
 
 static bool list_match(const char *list, const char *cmd, bool prefix) {
     if (!list) {
@@ -93,6 +94,33 @@ const CmdEntry *cmd_table_find_word(const CmdEntry *table, size_t n, const char 
     return NULL;
 }
 
+bool parse_direction4(const char *word, int *dx, int *dy) {
+    static const struct {
+        const char *a, *b;
+        int dx, dy;
+    } k_dirs[] = {
+        {"n", "north", 0, -1}, {"s", "south", 0, 1}, {"e", "east", 1, 0}, {"w", "west", -1, 0}};
+    size_t len = strcspn(word, " ");
+    if (word[len + strspn(word + len, " ")] != '\0') {
+        return false;
+    }
+    for (size_t i = 0; i < sizeof(k_dirs) / sizeof(k_dirs[0]); i++) {
+        if ((strlen(k_dirs[i].a) == len && strncasecmp(word, k_dirs[i].a, len) == 0) ||
+            (strlen(k_dirs[i].b) == len && strncasecmp(word, k_dirs[i].b, len) == 0)) {
+            *dx = k_dirs[i].dx;
+            *dy = k_dirs[i].dy;
+            return true;
+        }
+    }
+    return false;
+}
+
+/*"c <n|s|e|w>" closes a door; "c <anything else>" is cast (next entry).*/
+static bool cmd_close_short(Client *c, const char *cmd, Game *game) {
+    int dx, dy;
+    return parse_direction4(cmd + 2, &dx, &dy) && cmd_close(c, cmd, game);
+}
+
 static const CmdEntry COMMANDS[] = {
     {"help|?", "help |? ", cmd_help, NULL},
     {"train", "train ", cmd_train, "train <str|dex|con|int|wis|cha|random>"},
@@ -144,18 +172,19 @@ static const CmdEntry COMMANDS[] = {
      "celebrate |pronounce |practice |drill |rage |sneak |meditate ",
      cmd_use, NULL},
     {"spells", NULL, cmd_spells, NULL},
+    {NULL, "c ", cmd_close_short, NULL},
     {NULL, "cast |c ", cmd_cast, "cast <spell> [target]"},
     {"pickup", NULL, cmd_pickup, NULL},
     {"get|g", "get |g ", cmd_get, NULL},
     {NULL, "drop |d ", cmd_drop, "drop <n>"},
     {NULL, "throw |v ", cmd_throw, "throw <n|item> [n|s|e|w]"},
     {"search|s", NULL, cmd_search, NULL},
-    {"disarm|D", "disarm ", cmd_disarm, NULL},
+    {"disarm|D", "disarm |D ", cmd_disarm, NULL},
     {"pray|p", NULL, cmd_pray, NULL},
     {"examine|ex", NULL, cmd_examine, NULL},
-    {"tunnel|T", "tunnel |T |t ", cmd_tunnel, NULL},
+    {"tunnel|T|t", "tunnel |T |t ", cmd_tunnel, NULL},
     {"open|o", "open |o ", cmd_open, NULL},
-    {"close|c", "close ", cmd_close, NULL}, /*"c <n>" is cast, above*/
+    {"close|c", "close ", cmd_close, NULL}, /*"c <n|s|e|w>" is above, before cast*/
 };
 
 const CmdEntry *cmd_commands(size_t *n) {

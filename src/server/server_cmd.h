@@ -34,6 +34,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include "server_entities.h"
+#include <stdlib.h>
 
 typedef bool (*CmdFn)(Client *c, const char *cmd, Game *game);
 
@@ -54,6 +55,21 @@ bool cmd_table_run(const CmdEntry *table, size_t n, Client *c, const char *cmd, 
 /*The first entry of the table whose command word is the first word of cmd
  * (a name, or a prefix without its space), or NULL.*/
 const CmdEntry *cmd_table_find_word(const CmdEntry *table, size_t n, const char *cmd);
+
+/*cmd_mine.c: the tools that dig ('tunnel'), and the first one carried
+ * (hands, backpack, belt) or NULL.*/
+bool is_digging_tool(const ItemInstance *it);
+const ItemInstance *find_digging_tool(const Client *c);
+
+/*A compass word: n|s|e|w or north|south|east|west, case ignored, alone
+ * (trailing spaces allowed). Sets the step; false for anything else.*/
+bool parse_direction4(const char *word, int *dx, int *dy);
+
+/*True if (x1, y1) and (x2, y2) touch, diagonals included, or are the
+ * same tile: what "next to you" means for every command.*/
+static inline bool tiles_adjacent(int x1, int y1, int x2, int y2) {
+    return abs(x1 - x2) <= 1 && abs(y1 - y2) <= 1;
+}
 
 /*The player command table (server_commands.c), for the tests.*/
 const CmdEntry *cmd_commands(size_t *n);
@@ -151,6 +167,8 @@ bool cmd_unbelt(Client *c, const char *cmd, Game *game);
 bool cmd_lore(Client *c, const char *cmd, Game *game);
 bool cmd_fill(Client *c, const char *cmd, Game *game);
 bool cmd_use(Client *c, const char *cmd, Game *game);
+/*The level a character needs to learn the spell from a book.*/
+int spell_required_level(const SpellTemplate *sp);
 bool cmd_pickup(Client *c, const char *cmd, Game *game);
 bool cmd_get(Client *c, const char *cmd, Game *game);
 bool cmd_drop(Client *c, const char *cmd, Game *game);

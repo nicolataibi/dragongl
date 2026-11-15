@@ -203,7 +203,7 @@ int test_search_and_disarm(void) {
     Trap *t = trap_at(FLOOR, TRAP_PIT, CX + 1, CY);
     t->detection_dc = 15;
     run(c, "disarm");
-    CHECK(said("No traps detected"), "an unseen trap was disarmed");
+    CHECK(said("No detected trap next to you"), "an unseen trap was disarmed");
     rules_force_d20(2);
     run(c, "search");
     CHECK(!t->detected && said("don't notice anything"), "a bad search found it");
@@ -275,7 +275,11 @@ int test_look_and_examine(void) {
     CHECK(said("(HP:7/30)"), "the neighbour is not listed");
     CHECK(said("VERY RICH"), "the gold vein is not rated");
     CHECK(said("No pickaxes or shovels"), "a tool that is not there");
-    int pick = item_named("Pick");
+    /* A war pick is a weapon, not a pickaxe. */
+    give(c, item_named("War pick"), 1);
+    run(c, "examine");
+    CHECK(said("No pickaxes or shovels"), "a war pick digs");
+    int pick = item_named("Miner's");
     CHECK(pick >= 0, "no pick in the data");
     give(c, pick, 1);
     run(c, "examine");
@@ -328,7 +332,7 @@ int test_town_services(void) {
 }
 
 /* tunnel: gold, crystals that grow back, mushrooms, rock, the ground;
- * what needs a tool; nothing in town. */
+ * nothing without a pickaxe or a shovel; nothing in town. */
 int test_mining(void) {
     hx_reset_world();
     Client *c = hero(0, "miner", FLOOR, CX, CY);
@@ -344,15 +348,29 @@ int test_mining(void) {
     run(c, "tunnel x");
     CHECK(said("Invalid direction"), "a wrong direction");
     run(c, "tunnel e");
-    CHECK(fl->map.data[0][CY][CX + 1] == VOXEL_GOLD_VEIN && said("need a pickaxe"),
+    CHECK(fl->map.data[0][CY][CX + 1] == VOXEL_GOLD_VEIN && said("need a pickaxe or a shovel"),
           "gold mined bare-handed");
     run(c, "tunnel d");
-    CHECK(fl->map.data[0][CY][CX] == VOXEL_FLOOR && said("without a shovel"), "dug bare-handed");
-    c->hp = 40;
-    run(c, "tunnel n");
-    CHECK(c->hp == 55 && fl->map.data[0][CY - 1][CX] == VOXEL_FLOOR, "mushrooms: HP %d", c->hp);
+    CHECK(fl->map.data[0][CY][CX] == VOXEL_FLOOR && said("need a pickaxe"), "dug bare-handed");
+    run(c, "tunnel s");
+    CHECK(fl->map.data[0][CY + 1][CX] == VOXEL_ROCK && said("need a pickaxe"), "rock bare-handed");
+    run(c, "tunnel north-east");
+    CHECK(said("Invalid direction"), "'north-east' read as north");
+    /* A war pick is a weapon. */
+    give(c, item_named("War pick"), 1);
+    run(c, "tunnel e");
+    CHECK(fl->map.data[0][CY][CX + 1] == VOXEL_GOLD_VEIN, "a war pick mined gold");
+    c->backpack_count = 0;
 
-    int pick = item_named("Pick");
+    int shovel = item_named("Shovel");
+    CHECK(shovel >= 0, "no shovel in the data");
+    give(c, shovel, 1);
+    c->hp = 40;
+    run(c, "tunnel north");
+    CHECK(c->hp == 55 && fl->map.data[0][CY - 1][CX] == VOXEL_FLOOR, "mushrooms: HP %d", c->hp);
+    c->backpack_count = 0;
+
+    int pick = item_named("Miner's");
     CHECK(pick >= 0, "no pick in the data");
     give(c, pick, 1);
     uint64_t gold = c->gold;

@@ -32,9 +32,26 @@
 #include "server_cmd.h"
 #include "server_internal.h"
 #include "player.h"
+#include "server_combat.h"
+#include "spell_cast.h"
 #include <math.h>
 #include <ctype.h>
 
+/*The index of the spell called name (case ignored), or -1.*/
+static int spell_index_named(const char *name) {
+    for (int k = 0; k < spell_database_size; k++) {
+        if (strcasecmp(spell_database[k].name, name) == 0) {
+            return k;
+        }
+    }
+    return -1;
+}
+
+static void consume_one(Client *c, int idx, bool in_belt);
+
+/*retrieve: next to his own ghost, the player lays it to rest (his soul)
+ * and takes back what his tombstone on this floor holds (his equipment),
+ * wherever the tombstone lies. What does not fit stays in the tombstone.*/
 bool cmd_retrieve(Client *c, const char *cmd, Game *game) {
     (void)cmd;
     int ghost_npc_idx = -1;
@@ -44,38 +61,28 @@ bool cmd_retrieve(Client *c, const char *cmd, Game *game) {
     FloorIter walk = floor_iter(game, c->floor_id);
     for (int i; (i = floor_iter_next(&walk)) >= 0;) {
         if (game->npcs[i].is_ghost && abs(game->npcs[i].x - c->x) <= 1 &&
-            abs(game->npcs[i].y - c->y) <= 1) {
-            if (strcmp(game->npcs[i].custom_name, expected_name) == 0) {
-                ghost_npc_idx = i;
-                break;
-            }
+            abs(game->npcs[i].y - c->y) <= 1 &&
+            strcmp(game->npcs[i].custom_name, expected_name) == 0) {
+            ghost_npc_idx = i;
+            break;
         }
     }
-
     if (ghost_npc_idx == -1) {
-        send_text_to_client(c->sock, "[SYSTEM] No ghosts of you nearby.");
+        send_text_to_client(c->sock, "[SYSTEM] No ghost of yours next to you.");
         return true;
     }
-
-    if (game->npcs[ghost_npc_idx].gold_drop > 0) {
-        c->gold += (uint64_t)game->npcs[ghost_npc_idx].gold_drop;
-        game->npcs[ghost_npc_idx].gold_drop = 0;
+    NPC *ghost = &game->npcs[ghost_npc_idx];
+    send_text_to_client(c->sock, "[SYSTEM] You have recovered your soul: your ghost finds peace.");
+    npc_set_active(game, ghost, false);
+    ghost->respawn_timer = 0;
+    Floor *fl = &game->world->floors[c->floor_id];
+    if (fl->entity_grid[ghost->y][ghost->x] == ghost->entity_id) {
+        fl->entity_grid[ghost->y][ghost->x] = 0;
     }
-    ItemInstance *loot = npc_loot(&game->pools, &game->npcs[ghost_npc_idx]);
-    for (int gi = 0; loot && gi < NPC_LOOT_MAX; gi++) {
-        if (loot[gi].template_idx >= 0 && loot[gi].stack_count > 0 &&
-            c->backpack_count < MAX_BACKPACK) {
-            c->backpack[c->backpack_count++] = loot[gi];
-            loot[gi].template_idx = -1;
-            loot[gi].stack_count = 0;
-        }
+    if (!tombstone_recover_own(game, c)) {
+        send_text_to_client(c->sock, "[SYSTEM] No tombstone of yours lies on this floor.");
     }
-
-    send_text_to_client(c->sock, "[SYSTEM] You have recovered your soul and equipment!");
-    npc_set_active(game, &game->npcs[ghost_npc_idx], false);
-    game->npcs[ghost_npc_idx].respawn_timer = 0;
-    game->world->floors[c->floor_id]
-        .entity_grid[game->npcs[ghost_npc_idx].y][game->npcs[ghost_npc_idx].x] = 0;
+    send_detailed_state(game, c);
     save_player_data(c);
     return true;
 }
@@ -159,7 +166,7 @@ bool cmd_lore(Client *c, const char *cmd, Game *game) {
     } else {
         for (int i = 0; i < c->backpack_count; i++) {
             if (c->backpack[i].template_idx != -1 &&
-                strcasecmp(item_database[c->backpack[i].template_idx].name, input) == 0) {
+                strcasestr(item_database[c->backpack[i].template_idx].name, input) != NULL) {
                 found_idx = i;
                 break;
             }
@@ -184,9 +191,16 @@ bool cmd_lore(Client *c, const char *cmd, Game *game) {
         if (tmpl->book_spell_count > 0) {
             for (int local_idx = 0; local_idx < tmpl->book_spell_count; local_idx++) {
                 int global_idx = tmpl->book_seq * MAX_BOOK_SPELLS + local_idx;
-                int required_pg_level = global_idx / 3;
-                send_text_to_client(c->sock, "  [#%2d] %-25s (Req. Lv PG: %d)", global_idx,
-                                    tmpl->book_spell_names[local_idx], required_pg_level);
+                int si = spell_index_named(tmpl->book_spell_names[local_idx]);
+                if (si < 0) {
+                    send_text_to_client(c->sock, "  [#%2d] %-25s (unknown spell)", global_idx,
+                                        tmpl->book_spell_names[local_idx]);
+                    continue;
+                }
+                send_text_to_client(c->sock, "  [#%2d] %-25s (Lv%d, learned at level %d)",
+                                    global_idx, tmpl->book_spell_names[local_idx],
+                                    spell_database[si].level,
+                                    spell_required_level(&spell_database[si]));
             }
         } else {
             send_text_to_client(c->sock, "(No readable spells listed here)");
@@ -196,13 +210,29 @@ bool cmd_lore(Client *c, const char *cmd, Game *game) {
     return true;
 }
 
-//fill <n> - fills a lantern using an oil (fuel) from the backpack
+/*The lantern in a hand whose name contains input, or NULL.*/
+static ItemInstance *lantern_in_hand(Client *c, const char *input) {
+    ItemInstance *hands[2] = {&c->slot_hand_r, &c->slot_hand_l};
+    for (int h = 0; h < 2; h++) {
+        if (hands[h]->template_idx != -1 &&
+            strcasestr(item_database[hands[h]->template_idx].name, input) != NULL) {
+            return hands[h];
+        }
+    }
+    return NULL;
+}
+
+/*fill <n|lantern>: refills a lantern (in a hand, on the belt or in the
+ * backpack) with a flask of oil from the backpack.*/
 bool cmd_fill(Client *c, const char *cmd, Game *game) {
     (void)game;
     const char *input = cmd + 5;
     int lantern_idx = -1;
     bool in_belt = false;
-    if (isdigit(input[0])) {
+    ItemInstance *held = isdigit((unsigned char)input[0]) ? NULL : lantern_in_hand(c, input);
+    if (held) {
+        lantern_idx = 0; /*not an index: target is the hand slot*/
+    } else if (isdigit(input[0])) {
         int requested_idx = list_index(input);
         if (requested_idx >= 0 && requested_idx < c->backpack_count) {
             lantern_idx = requested_idx;
@@ -233,7 +263,10 @@ bool cmd_fill(Client *c, const char *cmd, Game *game) {
         return true;
     }
 
-    ItemInstance *target = in_belt ? &c->belt[lantern_idx] : &c->backpack[lantern_idx];
+    ItemInstance *target = held;
+    if (!target) {
+        target = in_belt ? &c->belt[lantern_idx] : &c->backpack[lantern_idx];
+    }
     ItemTemplate *ltmpl = &item_database[target->template_idx];
 
     if (ltmpl->category != ITEM_LIGHT_SOURCE) {
@@ -275,11 +308,8 @@ bool cmd_fill(Client *c, const char *cmd, Game *game) {
     send_text_to_client(c->sock, "[OBJECT] You filled %s using a dose of %s.", ltmpl->name,
                         ftmpl->name);
 
-    fuel->stack_count--;
-    if (fuel->stack_count <= 0) {
-        c->backpack[fuel_idx] = c->backpack[c->backpack_count - 1];
-        c->backpack_count--;
-    }
+    consume_one(c, fuel_idx, false);
+    send_detailed_state(game, c);
     return true;
 }
 
@@ -297,20 +327,19 @@ typedef struct {
     int learned, locked, already;
 } StudyTally;
 
+int spell_required_level(const SpellTemplate *sp) {
+    return sp->level > 0 ? sp->level * 2 : 1;
+}
+
 /*One spell of the book: learned if the class may cast it and the
  * character has twice its level (cantrips: level 1).*/
 static void study_spell(Client *c, const char *spell_name, StudyTally *tally) {
-    int si = -1;
-    for (int k = 0; k < spell_database_size && si < 0; k++) {
-        if (strcasecmp(spell_database[k].name, spell_name) == 0) {
-            si = k;
-        }
-    }
+    int si = spell_index_named(spell_name);
     if (si < 0 || !(spell_database[si].class_mask & (1u << (int)c->class_id))) {
         return;
     }
     const SpellTemplate *sp = &spell_database[si];
-    int required_level = (sp->level > 0) ? (sp->level * 2) : 1;
+    int required_level = spell_required_level(sp);
     if (c->level < required_level) {
         send_text_to_client(c->sock, "  [-] %-30s  (requires PC Lv %d - LOCKED)", sp->name,
                             required_level);
@@ -348,12 +377,12 @@ static void study_summary(Client *c, const StudyTally *t) {
     }
 }
 
-/*Learns the spells of a book. The player must use the ritual command of
- * his class (study, pray, awaken, ...) inside the temple of his class on
- * floor 0, and learns the spells his level allows. The book is never
- * consumed: a spell is cast from its book, so it must be kept.*/
-static void learn_from_book(Client *c, int found_idx, ItemTemplate *tmpl, bool is_ritual_cmd) {
-    if (!is_ritual_cmd) {
+/*Learns the spells of a book. The player must use the ritual word of his
+ * class (study, pray, awaken, ...) inside the temple of his class on floor
+ * 0, and learns the spells his level allows. The book is never consumed: a
+ * spell is cast from its book, so it must be kept.*/
+static void learn_from_book(Client *c, int number, ItemTemplate *tmpl, const char *ritual_word) {
+    if (!ritual_word) {
         send_text_to_client(
             c->sock,
             "[ERROR] Use 'study' (or your class ritual) to learn from this book, or use 'lore' to browse it.");
@@ -374,13 +403,18 @@ static void learn_from_book(Client *c, int found_idx, ItemTemplate *tmpl, bool i
                             CLASSES[c->class_id].name);
         return;
     }
+    if (strcmp(ritual_word, temple->ritual) != 0) {
+        send_text_to_client(c->sock, "[RITUAL] A %s learns with '%s %d', not with '%s'.",
+                            CLASSES[c->class_id].name, temple->ritual, number, ritual_word);
+        return;
+    }
     bool in_temple = (c->floor_id == 0 && c->x >= temple->x0 && c->x <= temple->x1 &&
                       c->y >= temple->y0 && c->y <= temple->y1);
     if (!in_temple) {
         send_text_to_client(c->sock,
                             "[RITUAL] To activate '%s' you must go to floor 0, in %s, "
                             "and use the command '%s %d' while you are physically inside.",
-                            tmpl->name, temple->name, temple->ritual, found_idx + 1);
+                            tmpl->name, temple->name, temple->ritual, number);
         return;
     }
     send_text_to_client(c->sock, "[RITUAL] %s... '%s' (you are in %s, Lv PG %d):", temple->ritual,
@@ -393,38 +427,28 @@ static void learn_from_book(Client *c, int found_idx, ItemTemplate *tmpl, bool i
     c->needs_study = false;
 }
 
-/*True for the ritual commands that learn from a book (one per class).*/
-static bool is_ritual_command(const char *cmd) {
+/*The ritual word the command starts with (study, pray, awaken, ...), or
+ * NULL for any other word.*/
+static const char *ritual_word_of(const char *cmd) {
     static const char *const k_rituals[] = {"study",  "pray",      "awaken",    "invoke",
                                             "intone", "celebrate", "pronounce", "practice",
                                             "drill",  "rage",      "sneak",     "meditate"};
+    size_t word = strcspn(cmd, " ");
     for (size_t i = 0; i < sizeof(k_rituals) / sizeof(k_rituals[0]); i++) {
-        if (strncmp(cmd, k_rituals[i], strlen(k_rituals[i])) == 0) {
-            return true;
+        if (strlen(k_rituals[i]) == word && strncmp(cmd, k_rituals[i], word) == 0) {
+            return k_rituals[i];
         }
     }
-    return false;
+    return NULL;
 }
 
-/*The backpack slot of the item to use (a belt item moves to the backpack
- * to be consumed); -1 after the message when there is none.*/
-static int use_find_item(Client *c, const char *input) {
-    bool in_belt = false;
-    int idx = find_carried(c, input, &in_belt);
-    if (idx == -1) {
-        send_text_to_client(c->sock, "[ERROR] Item not found in inventory (use name or number).");
-        return -1;
+/*One unit of the carried item is used up; the last one leaves the
+ * backpack (closing the gap) or the belt.*/
+static void consume_one(Client *c, int idx, bool in_belt) {
+    ItemInstance *it = in_belt ? &c->belt[idx] : &c->backpack[idx];
+    if (--it->stack_count <= 0) {
+        remove_carried(c, idx, in_belt);
     }
-    if (!in_belt) {
-        return idx;
-    }
-    if (c->backpack_count >= MAX_BACKPACK) {
-        send_text_to_client(c->sock, "[ERROR] Backpack too full to handle the belt item!");
-        return -1;
-    }
-    c->backpack[c->backpack_count] = c->belt[idx];
-    c->belt[idx].template_idx = -1;
-    return c->backpack_count++;
 }
 
 /*A burst of light around the player, in a colour derived from the item's
@@ -502,11 +526,47 @@ static void use_effect_item(Game *game, Client *c, const ItemTemplate *tmpl) {
     }
 }
 
-/*use <name|n>, eat [name]: a consumable or fuel from the backpack or the
- * belt. The ritual commands (study, pray, awaken, ...) are the same
- * command for books: they work only inside the temple of the class.*/
+/*A scroll is read and used up; a wand spends one charge. Either casts its
+ * spell as the reader would (no slot, no book, no spell known), and
+ * nothing is spent when the spell does not go off.*/
+static void use_magic_item(Game *game, Client *c, int idx, bool in_belt) {
+    ItemInstance *it = in_belt ? &c->belt[idx] : &c->backpack[idx];
+    const ItemTemplate *t = &item_database[it->template_idx];
+    const SpellTemplate *sp = &spell_database[t->cast_spell_idx];
+    bool wand = t->max_charges > 0;
+    if (!client_can_act(c)) {
+        return;
+    }
+    if (!wand && rules_has_condition_t(c->effects, c->effect_count, COND_SILENCED)) {
+        send_text_to_client(c->sock, "[ITEM] You are silenced: you cannot read %s aloud.", t->name);
+        return;
+    }
+    if (wand && it->current_charges <= 0) {
+        send_text_to_client(c->sock, "[ITEM] %s has no charges left: rest in town to recharge it.",
+                            t->name);
+        return;
+    }
+    send_text_to_client(c->sock, wand ? "[ITEM] You zap %s: %s!" : "[ITEM] You read %s: %s!",
+                        t->name, sp->name);
+    if (!spell_cast(c, sp, game)) {
+        return;
+    }
+    it = in_belt ? &c->belt[idx] : &c->backpack[idx];
+    if (wand) {
+        it->current_charges--;
+        send_text_to_client(c->sock, "[ITEM] %s: %d of %d charges left.", t->name,
+                            it->current_charges, t->max_charges);
+    } else {
+        consume_one(c, idx, in_belt);
+    }
+    send_detailed_state(game, c);
+}
+
+/*use <n|item> (quaff, read, eat, zap: the same command): a potion, food,
+ * oil, a scroll or a wand from the backpack or the belt. 'eat' alone looks
+ * for a ration. The ritual words (study, pray, awaken, ...) learn from a
+ * book, inside the temple of the class.*/
 bool cmd_use(Client *c, const char *cmd, Game *game) {
-    (void)game;
     bool is_eat_cmd = (strcmp(cmd, "eat") == 0 || strncmp(cmd, "eat ", 4) == 0 ||
                        strcmp(cmd, "e") == 0 || strncmp(cmd, "e ", 2) == 0);
     const char *input = strchr(cmd, ' ');
@@ -518,24 +578,31 @@ bool cmd_use(Client *c, const char *cmd, Game *game) {
         send_text_to_client(c->sock, "[ERROR] Specify the subject (e.g. 'use 1' or 'study book').");
         return true;
     }
-    bool is_ritual_cmd = is_ritual_command(cmd);
-    int found_idx = use_find_item(c, input);
-    if (found_idx == -1) {
+    const char *ritual = ritual_word_of(cmd);
+    bool in_belt = false;
+    int idx = find_carried(c, input, &in_belt);
+    if (idx == -1) {
+        send_text_to_client(c->sock, "[ERROR] Item not found in inventory (use name or number).");
         return true;
     }
-    ItemTemplate *tmpl = &item_database[c->backpack[found_idx].template_idx];
-    if (!c->backpack[found_idx].is_identified) {
+    ItemInstance *it = in_belt ? &c->belt[idx] : &c->backpack[idx];
+    ItemTemplate *tmpl = &item_database[it->template_idx];
+    if (!it->is_identified) {
         send_text_to_client(c->sock, "[ERROR] You must first identify this object.");
         return true;
     }
-    if (is_ritual_cmd && tmpl->category != ITEM_BOOK) {
+    if (ritual && tmpl->category != ITEM_BOOK) {
         send_text_to_client(
             c->sock,
             "[ERROR] Ritual commands (like 'study') are only for learning from magical books.");
         return true;
     }
     if (tmpl->category == ITEM_BOOK) {
-        learn_from_book(c, found_idx, tmpl, is_ritual_cmd);
+        learn_from_book(c, in_belt ? 1 : idx + 1, tmpl, ritual);
+        return true;
+    }
+    if (tmpl->cast_spell_idx >= 0) {
+        use_magic_item(game, c, idx, in_belt);
         return true;
     }
     if (tmpl->category != ITEM_CONSUMABLE && tmpl->category != ITEM_FUEL) {
@@ -551,12 +618,7 @@ bool cmd_use(Client *c, const char *cmd, Game *game) {
     } else {
         use_effect_item(game, c, tmpl);
     }
-    //Remove a unit from your backpack
-    c->backpack[found_idx].stack_count--;
-    if (c->backpack[found_idx].stack_count <= 0) {
-        c->backpack[found_idx] = c->backpack[c->backpack_count - 1];
-        c->backpack_count--;
-    }
+    consume_one(c, idx, in_belt);
     send_detailed_state(game,
                         c); //Instantly sync HP, inventory and Vitality (hunger) with the HUD client
     return true;

@@ -29,4 +29,18 @@
 /*Detects the traps near the player and fires the one under him.*/
 void check_traps(Client *c, Game *game);
 
+/*--- Secret passages ---
+ * A straight stretch of room wall with open ground on both sides may hide
+ * a passage (one such tile in SECRET_PASSAGE_RARITY, chosen by its
+ * position, so there is nothing to save). 'search' or a divination finds
+ * it: the wall becomes a door, kept on the saved map. The town has none.*/
+#define SECRET_PASSAGE_RARITY 40
+bool secret_passage_at(const Floor *f, int floor_id, int x, int y);
+/*The perception a search needs to notice one.*/
+int secret_passage_dc(int floor_id);
+/*Reveals the passages within radius cells of the player whose DC the
+ * perception total reaches (perception < 0: every one, as magic does) and
+ * tells him; returns how many.*/
+int secret_passages_reveal(Game *game, Client *c, int radius, int perception);
+
 #endif /* SERVER_TRAPS_H */

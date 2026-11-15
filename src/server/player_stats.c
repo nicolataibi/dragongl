@@ -22,6 +22,7 @@
  * item names and wear, experience and levels, starting gear.
  */
 
+#include "inventory.h"
 #include "server_internal.h"
 
 #include "player.h"
@@ -270,28 +271,29 @@ int get_vision_radius(Client *c) {
     return best_radius;
 }
 
+/*Body armour gives its base (else 10 + DEX) and its enchantment; every
+ * other worn piece, shield and ring adds its bonus and its enchantment; a
+ * weapon in a hand adds nothing.*/
 int get_player_ac(Client *c) {
     int ts, td, tc, ti, tw, th;
     get_total_stats(c, &ts, &td, &tc, &ti, &tw, &th);
     int ac_b =
         (c->slot_body.template_idx != -1) ? item_database[c->slot_body.template_idx].ac_base : 0;
     int bonus = 0;
-    if (c->slot_head.template_idx != -1) {
-        bonus += item_database[c->slot_head.template_idx].ac_bonus;
-    }
-    if (c->slot_hand_r.template_idx != -1 &&
-        item_database[c->slot_hand_r.template_idx].category == ITEM_SHIELD) {
-        bonus += item_database[c->slot_hand_r.template_idx].ac_bonus;
-    }
-    if (c->slot_hand_l.template_idx != -1 &&
-        item_database[c->slot_hand_l.template_idx].category == ITEM_SHIELD) {
-        bonus += item_database[c->slot_hand_l.template_idx].ac_bonus;
-    }
-    if (c->slot_arm_r.template_idx != -1) {
-        bonus += item_database[c->slot_arm_r.template_idx].ac_bonus;
-    }
-    if (c->slot_arm_l.template_idx != -1) {
-        bonus += item_database[c->slot_arm_l.template_idx].ac_bonus;
+    for (int i = 0; i < EQUIP_SLOT_COUNT + 10; i++) {
+        const ItemInstance *s =
+            i < EQUIP_SLOT_COUNT ? equip_slot(c, i) : &c->slot_rings[i - EQUIP_SLOT_COUNT];
+        if (s->template_idx == -1) {
+            continue;
+        }
+        const ItemTemplate *t = &item_database[s->template_idx];
+        if (s == &c->slot_body) {
+            bonus += s->ac_bonus;
+        } else if ((s == &c->slot_hand_r || s == &c->slot_hand_l) && t->category != ITEM_SHIELD) {
+            continue;
+        } else {
+            bonus += t->ac_bonus + s->ac_bonus;
+        }
     }
     int final_ac = (ac_b > 0 ? ac_b : 10 + rules_get_modifier(td)) + bonus;
     if (rules_has_condition_t(c->effects, c->effect_count, COND_PETRIFIED)) {
@@ -440,20 +442,7 @@ static void give_item_by_name(Client *c, const char *name) {
         return;
     }
 
-    ItemInstance it;
-    memset(&it, 0, sizeof(ItemInstance));
-    it.template_idx = idx;
-    it.durability = (item_database[idx].category == ITEM_LIGHT_SOURCE &&
-                     strcasestr(item_database[idx].name, "lantern"))
-                        ? 5000
-                        : item_database[idx].max_durability;
-    it.stack_count = 1;
-    it.is_identified = true;
-    it.quality = QUALITY_NORMAL;
-    it.blessing = BLESS_NORMAL;
-    it.element = ELEM_NONE;
-
-    c->backpack[c->backpack_count++] = it;
+    item_instance_new(&c->backpack[c->backpack_count++], idx);
 }
 
 void give_starting_gear(Client *c) {

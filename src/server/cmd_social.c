@@ -258,8 +258,8 @@ static const char *trade_check(const Client *c, const Client *t) {
     if (c->gold < c->trade_offer_gold || t->gold < t->trade_offer_gold) {
         return "insufficient gold";
     }
-    if (c->floor_id != t->floor_id || abs(c->x - t->x) > 2 || abs(c->y - t->y) > 2) {
-        return "you are too far apart";
+    if (c->floor_id != t->floor_id || !tiles_adjacent(c->x, c->y, t->x, t->y)) {
+        return "you are not next to each other";
     }
     int c_gives = (c->trade_offer_item_idx != -1), t_gives = (t->trade_offer_item_idx != -1);
     if (c->backpack_count - c_gives + t_gives > MAX_BACKPACK ||
@@ -463,8 +463,8 @@ bool cmd_trade(Client *c, const char *cmd, Game *game) {
     for (int i = 0; i < MAX_CLIENTS; i++) {
         Client *t = &game->clients[i];
         if (t->active && t->authenticated && strcmp(t->username, target_name) == 0) {
-            if (abs(t->x - c->x) > 2 || abs(t->y - c->y) > 2 || t->floor_id != c->floor_id) {
-                send_text_to_client(c->sock, "[TRADE] %s is too far away.", target_name);
+            if (t->floor_id != c->floor_id || !tiles_adjacent(t->x, t->y, c->x, c->y)) {
+                send_text_to_client(c->sock, "[TRADE] %s is not next to you.", target_name);
                 return true;
             }
 
@@ -552,6 +552,8 @@ bool cmd_offer(Client *c, const char *cmd, Game *game) {
         send_text_to_client(c->sock, "[TRADE] You bid: %lld gold, %s. Pending...", gold, item_name);
         send_text_to_client(t->sock, "[TRADE] %s offers: %lld gold, %s.", c->username, gold,
                             item_name);
+    } else {
+        send_text_to_client(c->sock, "[SYSTEM] Usage: offer <gold> [n]");
     }
     return true;
 }

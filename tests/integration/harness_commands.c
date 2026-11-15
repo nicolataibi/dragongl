@@ -202,13 +202,22 @@ int test_shop_needs_a_merchant(void) {
     carry(c, sword);
     uint64_t gold = c->gold;
     run(c, "sell 1");
-    CHECK(said("No merchant nearby") && c->gold == gold && c->backpack_count == 1,
+    CHECK(said("No merchant next to you") && c->gold == gold && c->backpack_count == 1,
           "sold an item with no merchant around");
     merchant_at(CX + 30, CY + 30, sword, 5);
     run(c, "sell 1");
     CHECK(c->gold == gold && c->backpack_count == 1, "sold to a merchant 30 tiles away");
     run(c, "buy 1");
     CHECK(c->gold == gold && c->backpack_count == 1, "bought from a merchant 30 tiles away");
+    /* Two steps away is not next to you. */
+    NPC *m = merchant_at(CX + 2, CY, sword, 5);
+    run(c, "sell 1");
+    CHECK(c->gold == gold && c->backpack_count == 1, "sold to a merchant two steps away");
+    /* A diagonal neighbour is. */
+    m->x = CX + 1;
+    m->y = CY + 1;
+    run(c, "sell 1");
+    CHECK(c->gold > gold && c->backpack_count == 0, "no sale to the merchant next to you");
     return 0;
 }
 
@@ -462,7 +471,9 @@ int test_numeric_arguments(void) {
     run(c, "dm_boss -10");
     CHECK(said("floors 1 to"), "dm_boss: no refusal of floor -10");
     run(c, "dm_spawn_boss 100000");
-    CHECK(said("floor 1-"), "dm_spawn_boss: no refusal of floor 100000");
+    CHECK(said("boss floor: 10, 20"), "dm_spawn_boss: no refusal of floor 100000");
+    run(c, "dm_spawn_boss 15");
+    CHECK(said("boss floor: 10, 20"), "dm_spawn_boss: no refusal of floor 15, which has no boss");
     return 0;
 }
 
