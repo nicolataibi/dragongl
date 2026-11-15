@@ -371,15 +371,14 @@ int test_dm_reports(void) {
         }
     }
     CHECK(boss != NULL, "the boss is not in the table");
-    for (int i = 0; i < 30; i++) {
-        fx_reset_item(&boss->ghost_loot[i]);
-    }
+    ItemInstance *loot = npc_loot_new(&g_game.pools, g_game.npcs, MAX_NPCS, boss);
+    CHECK(loot != NULL, "no loot for the boss");
     int dagger = item_named("Dagger");
-    boss->ghost_loot[0].template_idx = dagger;
-    boss->ghost_loot[0].stack_count = 1;
-    boss->ghost_loot[0].blessing = BLESS_NORMAL;
-    boss->ghost_loot[0].quality = QUALITY_NORMAL;
-    boss->ghost_loot[0].is_identified = true;
+    loot[0].template_idx = dagger;
+    loot[0].stack_count = 1;
+    loot[0].blessing = BLESS_NORMAL;
+    loot[0].quality = QUALITY_NORMAL;
+    loot[0].is_identified = true;
     boss->spell_slots_max[2] = 3;
     boss->spell_slots[2] = 1;
     boss->effects[boss->effect_count++] =
@@ -388,7 +387,7 @@ int test_dm_reports(void) {
     CHECK(said("BOSS #1") && said("[DM] AC :") && said("L2:1/3") && said("Dagger") &&
               said("Active Effects (1)") && said("Total active bosses on Floor 10: 1"),
           "the boss report misses something");
-    boss->ghost_loot[0].template_idx = -1;
+    loot[0].template_idx = -1;
     run(c, "dm_boss 10");
     CHECK(said("loot generated on death"), "the empty loot is not told");
     npc_set_active(&g_game, boss, false);
@@ -413,9 +412,11 @@ int test_dm_reports(void) {
         m->x = 10 + k;
         m->y = 10;
         m->respawn_timer = -1;
-        snprintf(m->merchant.shop_name, sizeof(m->merchant.shop_name), "Wagon %d", k);
+        MerchantData *shop = npc_shop_new(&g_game.pools, g_game.npcs, MAX_NPCS, m);
+        CHECK(shop != NULL, "no shop for the wagon");
+        snprintf(shop->shop_name, sizeof(shop->shop_name), "Wagon %d", k);
         if (k == 0) {
-            add_item_to_shop(m, dagger, 3);
+            add_item_to_shop(shop, dagger, 3);
         }
         npc_set_active(&g_game, m, true);
     }

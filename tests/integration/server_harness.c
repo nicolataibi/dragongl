@@ -302,6 +302,8 @@ static bool rewrite_payload_u32(const char *path, size_t at, uint32_t v) {
 
 static int test_npcs_roundtrip(void) {
     memset(g_game.npcs, 0, sizeof(NPC) * MAX_NPCS);
+    npc_pools_clear(&g_game.pools);
+    CHECK(sizeof(NPC) <= 1024, "the NPC record is %zu bytes", sizeof(NPC));
     NPC *a = &g_game.npcs[3];
     a->entity_id = 42;
     a->x = 11;
@@ -314,28 +316,34 @@ static int test_npcs_roundtrip(void) {
     a->template_idx = 2;
     a->gold_drop = 77;
     a->ai_ctx.behavior = AI_BEHAVIOR_MAGE;
-    a->merchant.item_count = 2;
-    a->merchant.item_templates[1] = 9;
-    a->merchant.item_stock[1] = 5;
-    snprintf(a->merchant.shop_name, sizeof(a->merchant.shop_name), "The Iron Anvil");
-    a->merchant.spec = BOOKS_MARTIAL;
+    MerchantData *shop = npc_shop_new(&g_game.pools, g_game.npcs, MAX_NPCS, a);
+    CHECK(shop != NULL, "no shop");
+    shop->item_count = 2;
+    shop->item_templates[1] = 9;
+    shop->item_stock[1] = 5;
+    snprintf(shop->shop_name, sizeof(shop->shop_name), "The Iron Anvil");
+    shop->spec = BOOKS_MARTIAL;
     a->respawn_timer = -1;
     a->energy = 3;
-    a->ghost_loot[29].template_idx = 1; /* a merchant carries no loot: not kept */
-    a->ghost_loot[29].stack_count = 2;
     a->effect_count = 1; /* transient: must not survive */
-    /* The remains of a character: the loot is kept, a shop is not. */
+    /* The remains of a character: loot, no shop. */
     NPC *g = &g_game.npcs[7];
     g->entity_id = 44;
     g->active = true;
     g->is_ghost = true;
     g->respawn_timer = -1;
     snprintf(g->custom_name, sizeof(g->custom_name), "Ghost of Aldric");
-    g->ghost_loot[0].template_idx = 5;
-    g->ghost_loot[0].stack_count = 1;
-    g->ghost_loot[29].template_idx = 1;
-    g->ghost_loot[29].stack_count = 2;
-    g->merchant.item_count = 3;
+    ItemInstance *loot = npc_loot_new(&g_game.pools, g_game.npcs, MAX_NPCS, g);
+    CHECK(loot != NULL, "no loot");
+    loot[0].template_idx = 5;
+    loot[0].stack_count = 1;
+    loot[29].template_idx = 1;
+    loot[29].stack_count = 2;
+    /* A copy of the merchant's record in another slot (another entity)
+     * names the same shop: it must not have one. */
+    NPC *copy = &g_game.npcs[9];
+    *copy = *a;
+    copy->entity_id = 45;
     NPC *b = &g_game.npcs[MAX_NPCS - 1];
     b->entity_id = 43;
     b->floor_id = 100;
@@ -343,41 +351,53 @@ static int test_npcs_roundtrip(void) {
     b->y = 299;
     b->template = (const MonsterTemplate *)1; /* inactive but kept (respawning) */
     b->respawn_timer = 50;
+    CHECK(npc_shop(&g_game.pools, copy) == NULL && npc_loot(&g_game.pools, a) == NULL,
+          "a record sees what is not its own");
 
     char path[512];
     CHECK(state_path(path, sizeof(path), "npcs.dat"), "state path");
-    CHECK(persist_write_npcs(path, g_game.npcs, MAX_NPCS, 1234, 5678), "write failed");
+    CHECK(persist_write_npcs(path, g_game.npcs, &g_game.pools, MAX_NPCS, 1234, 5678),
+          "write failed");
+    NpcPools pools;
+    CHECK(npc_pools_create(&pools), "out of memory");
     NPC *loaded = calloc(MAX_NPCS, sizeof(NPC));
+    if (!loaded) {
+        npc_pools_destroy(&pools);
+    }
     CHECK(loaded != NULL, "out of memory");
     int next = 0, turns = 0, count = 0;
     char why[96];
     BinFileStatus st =
-        persist_read_npcs(path, loaded, MAX_NPCS, &next, &turns, &count, why, sizeof(why));
+        persist_read_npcs(path, loaded, &pools, MAX_NPCS, &next, &turns, &count, why, sizeof(why));
     int rc = 0;
     if (st != BINFILE_OK) {
         fprintf(stderr, "FAIL read: %s\n", why);
         rc = 1;
-    } else if (count != 3 || next != 1234 || turns != 5678) {
+    } else if (count != 4 || next != 1234 || turns != 5678) {
         fprintf(stderr, "FAIL header\n");
         rc = 1;
     } else {
         const NPC *la = &loaded[3], *lb = &loaded[MAX_NPCS - 1];
+        const MerchantData *ls = npc_shop(&pools, la);
         if (la->entity_id != 42 || la->x != 11 || la->hp != 30 || !la->active ||
-            la->archetype != ARCH_MERCHANT || la->ai_ctx.behavior != AI_BEHAVIOR_MAGE ||
-            la->merchant.item_count != 2 || la->merchant.item_stock[1] != 5 ||
-            strcmp(la->merchant.shop_name, "The Iron Anvil") != 0 ||
-            la->merchant.spec != BOOKS_MARTIAL || la->ghost_loot[29].stack_count != 0 ||
-            la->effect_count != 0 || la->template != NULL) {
+            la->archetype != ARCH_MERCHANT || la->ai_ctx.behavior != AI_BEHAVIOR_MAGE || !ls ||
+            ls->item_count != 2 || ls->item_stock[1] != 5 ||
+            strcmp(ls->shop_name, "The Iron Anvil") != 0 || ls->spec != BOOKS_MARTIAL ||
+            npc_loot(&pools, la) != NULL || la->effect_count != 0 || la->template != NULL) {
             fprintf(stderr, "FAIL npc 3 fields\n");
             rc = 1;
         }
         const NPC *lg = &loaded[7];
+        const ItemInstance *ll = npc_loot(&pools, lg);
         if (lg->entity_id != 44 || !lg->is_ghost ||
-            strcmp(lg->custom_name, "Ghost of Aldric") != 0 ||
-            lg->ghost_loot[0].template_idx != 5 || lg->ghost_loot[0].stack_count != 1 ||
-            lg->ghost_loot[29].stack_count != 2 || lg->ghost_loot[1].stack_count != 0 ||
-            lg->merchant.item_count != 0) {
+            strcmp(lg->custom_name, "Ghost of Aldric") != 0 || !ll || ll[0].template_idx != 5 ||
+            ll[0].stack_count != 1 || ll[29].stack_count != 2 || ll[1].stack_count != 0 ||
+            npc_shop(&pools, lg) != NULL) {
             fprintf(stderr, "FAIL ghost fields\n");
+            rc = 1;
+        }
+        if (npc_shop(&pools, &loaded[9]) != NULL) {
+            fprintf(stderr, "FAIL the copy has a shop\n");
             rc = 1;
         }
         if (lb->entity_id != 43 || lb->active || lb->respawn_timer != 50 || lb->floor_id != 100) {
@@ -393,15 +413,56 @@ static int test_npcs_roundtrip(void) {
         rc = 1;
     } else if (rc == 0) {
         memset(loaded, 0, sizeof(NPC) * MAX_NPCS);
-        st = persist_read_npcs(path, loaded, MAX_NPCS, &next, &turns, &count, why, sizeof(why));
+        npc_pools_clear(&pools);
+        st = persist_read_npcs(path, loaded, &pools, MAX_NPCS, &next, &turns, &count, why,
+                               sizeof(why));
         if (st != BINFILE_INVALID || strstr(why, "another bestiary") == NULL) {
             fprintf(stderr, "FAIL: npcs.dat of another bestiary accepted (%d)\n", (int)st);
             rc = 1;
         }
     }
     free(loaded);
+    npc_pools_destroy(&pools);
     b->template = NULL;
     return rc;
+}
+
+/* The tables of shops and loot never run out: what no NPC names any more
+ * is taken back (slots reused, records overwritten). */
+static int test_npc_pools_reclaim(void) {
+    memset(g_game.npcs, 0, sizeof(NPC) * MAX_NPCS);
+    npc_pools_clear(&g_game.pools);
+    for (int round = 0; round < 3; round++) {
+        for (int i = 0; i < MAX_LOOT_BAGS; i++) {
+            NPC *n = &g_game.npcs[i];
+            memset(n, 0, sizeof(*n)); /* a reused slot: its loot is lost */
+            n->entity_id = 1 + round * MAX_LOOT_BAGS + i;
+            n->active = true;
+            CHECK(npc_loot_new(&g_game.pools, g_game.npcs, MAX_NPCS, n) != NULL,
+                  "round %d, bag %d: the table is full", round, i);
+        }
+    }
+    /* All taken by active NPCs: no room, and nothing of theirs is lost. */
+    NPC *extra = &g_game.npcs[MAX_LOOT_BAGS];
+    extra->entity_id = 999999;
+    extra->active = true;
+    CHECK(npc_loot_new(&g_game.pools, g_game.npcs, MAX_NPCS, extra) == NULL, "overbooked");
+    CHECK(npc_loot(&g_game.pools, &g_game.npcs[0]) != NULL, "a held bag was taken");
+    /* One holder gone (inactive): its bag goes to the newcomer. */
+    g_game.npcs[5].active = false;
+    CHECK(npc_loot_new(&g_game.pools, g_game.npcs, MAX_NPCS, extra) != NULL, "not reclaimed");
+    CHECK(npc_loot(&g_game.pools, &g_game.npcs[5]) == NULL, "two owners of one bag");
+    for (int i = 0; i < MAX_SHOPS + 10; i++) {
+        NPC *m = &g_game.npcs[i];
+        memset(m, 0, sizeof(*m));
+        m->entity_id = 5000000 + i;
+        CHECK(npc_shop_new(&g_game.pools, g_game.npcs, MAX_NPCS, m) != NULL,
+              "shop %d: the table is full", i);
+        memset(m, 0, sizeof(*m)); /* the merchant is gone: its shop is free */
+    }
+    memset(g_game.npcs, 0, sizeof(NPC) * MAX_NPCS);
+    npc_pools_clear(&g_game.pools);
+    return 0;
 }
 
 static int test_tombstone_and_flags_roundtrip(void) {
@@ -974,8 +1035,9 @@ static int test_transit_cantrips_need_a_book(void) {
             if (!m->active || m->archetype != ARCH_MERCHANT) {
                 continue;
             }
-            for (int s = 0; s < m->merchant.item_count && !sold; s++) {
-                const ItemTemplate *t = &item_database[m->merchant.item_templates[s]];
+            for (int s = 0; s < npc_shop_any(&g_game.pools, m)->item_count && !sold; s++) {
+                const ItemTemplate *t =
+                    &item_database[npc_shop_any(&g_game.pools, m)->item_templates[s]];
                 sold = t->category == ITEM_BOOK && t->book_spell_count == 1 &&
                        strcmp(t->book_spell_names[0], cantrips[k]) == 0;
             }
@@ -1199,10 +1261,12 @@ static int test_player_move(void) {
 
     NPC *m = &g_game.npcs[43];
     m->archetype = ARCH_MERCHANT;
-    snprintf(m->merchant.shop_name, sizeof(m->merchant.shop_name), "Test Shop");
     m->x = 53;
     m->y = 50;
     spawn_at(43, 1, 5001);
+    MerchantData *shop = npc_shop_new(&g_game.pools, g_game.npcs, MAX_NPCS, m);
+    CHECK(shop != NULL, "no shop");
+    snprintf(shop->shop_name, sizeof(shop->shop_name), "Test Shop");
     fl->entity_grid[50][53] = m->entity_id;
     fx_drain(0);
     c->last_action_ms = 0;
@@ -1265,6 +1329,7 @@ static const TestCase k_tests[] = {
     {"trade_moves_item_and_gold", test_trade_moves_item_and_gold},
     {"trade_into_full_backpack_is_cancelled", test_trade_into_full_backpack_is_cancelled},
     {"world_roundtrip", test_world_roundtrip},
+    {"npc_pools_reclaim", test_npc_pools_reclaim},
     {"npcs_roundtrip", test_npcs_roundtrip},
     {"tombstone_and_flags_roundtrip", test_tombstone_and_flags_roundtrip},
     {"writer_queue", test_writer_queue},

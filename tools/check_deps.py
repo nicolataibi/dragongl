@@ -25,7 +25,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LAYERS = ["shared", "model", "infra", "game", "commands", "main"]
-MODEL = {"auth", "server", "server_entities"}
+MODEL = {"auth", "npc_store", "server", "server_entities"}
 INFRA = {
     "combat_log", "login_worker", "pathfinding", "persist", "server_conn",
     "server_log", "server_metrics", "server_tls", "writer",

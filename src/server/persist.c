@@ -35,7 +35,7 @@
 #include <unistd.h>
 
 #define CRYSTAL_RESPAWN_MAX 100
-#define GHOST_LOOT_MAX      30
+#define GHOST_LOOT_MAX      NPC_LOOT_MAX
 
 static char g_state_dir[STATE_DIR_MAX];
 
@@ -600,7 +600,38 @@ static bool npc_is_persistent(const NPC *n) {
  * grows.*/
 #define NPC_RECORD_BYTES 192
 
-static void put_npc(BinWriter *w, uint32_t slot, const NPC *n) {
+static void put_shop(BinWriter *w, const MerchantData *m) {
+    int items = m->item_count;
+    if (items < 0) {
+        items = 0;
+    }
+    if (items > MAX_SHOP_ITEMS) {
+        items = MAX_SHOP_ITEMS;
+    }
+    bw_u32(w, (uint32_t)items);
+    for (int i = 0; i < items; i++) {
+        bw_i32(w, m->item_templates[i]);
+        bw_i32(w, m->item_stock[i]);
+        bw_i32(w, m->item_stock_max[i]);
+    }
+    bw_i32(w, m->restock_timer);
+    bw_str(w, m->shop_name, sizeof(m->shop_name));
+    bw_i32(w, (int32_t)m->spec);
+}
+
+static void get_shop(BinReader *r, MerchantData *m) {
+    m->item_count = (int)br_count(r, MAX_SHOP_ITEMS);
+    for (int i = 0; i < m->item_count && !r->failed; i++) {
+        m->item_templates[i] = br_i32(r);
+        m->item_stock[i] = br_i32(r);
+        m->item_stock_max[i] = br_i32(r);
+    }
+    m->restock_timer = br_i32(r);
+    br_str(r, m->shop_name, sizeof(m->shop_name));
+    m->spec = (MerchantSpecialization)get_enum(r, 0, SPEC_COUNT - 1);
+}
+
+static void put_npc(BinWriter *w, uint32_t slot, const NPC *n, const NpcPools *pools) {
     bw_u32(w, slot);
     bw_i32(w, n->entity_id);
     bw_i32(w, n->x);
@@ -624,37 +655,19 @@ static void put_npc(BinWriter *w, uint32_t slot, const NPC *n) {
     bw_i32(w, n->ai_ctx.state_timer);
     bw_i32(w, n->ai_ctx.legendary_actions_spent);
     bw_i32(w, (int32_t)n->ai_ctx.behavior);
-    /*Only a merchant has a shop: the others are written with an empty
-     * one, without reading theirs.*/
-    static const MerchantData no_shop;
-    const MerchantData *m = n->archetype == ARCH_MERCHANT ? &n->merchant : &no_shop;
-    int items = m->item_count;
-    if (items < 0) {
-        items = 0;
-    }
-    if (items > MAX_SHOP_ITEMS) {
-        items = MAX_SHOP_ITEMS;
-    }
-    bw_u32(w, (uint32_t)items);
-    for (int i = 0; i < items; i++) {
-        bw_i32(w, m->item_templates[i]);
-        bw_i32(w, m->item_stock[i]);
-        bw_i32(w, m->item_stock_max[i]);
-    }
-    bw_i32(w, m->restock_timer);
-    bw_str(w, m->shop_name, sizeof(m->shop_name));
-    bw_i32(w, (int32_t)m->spec);
     bw_bool(w, n->is_ghost);
     bw_str(w, n->custom_name, sizeof(n->custom_name));
-    /*Only the remains of a character and an item on the ground carry
-     * loot: for every other NPC the 30 slots are not even looked at (the
-     * table is 50,000 NPCs, saved once a minute on the game thread), and
-     * what a previous tenant of the slot left there is not kept.*/
-    if (n->is_ghost || n->archetype == ARCH_TREASURE || n->archetype == ARCH_GOLD) {
-        put_sparse_items(w, n->ghost_loot, GHOST_LOOT_MAX);
-    } else {
-        bw_u32(w, GHOST_LOOT_MAX);
-        bw_u32(w, 0);
+    /*Version 3: a shop and loot only where there is one (a flag, then the
+     * data), instead of an empty shop and 30 empty slots in every record.*/
+    const MerchantData *m = npc_shop(pools, n);
+    bw_bool(w, m != NULL);
+    if (m) {
+        put_shop(w, m);
+    }
+    const ItemInstance *loot = npc_loot(pools, n);
+    bw_bool(w, loot != NULL);
+    if (loot) {
+        put_sparse_items(w, loot, GHOST_LOOT_MAX);
     }
     bw_i32(w, n->spawn_x);
     bw_i32(w, n->spawn_y);
@@ -662,7 +675,7 @@ static void put_npc(BinWriter *w, uint32_t slot, const NPC *n) {
     bw_i32(w, n->energy);
 }
 
-static void get_npc(BinReader *r, NPC *n) {
+static void get_npc(BinReader *r, NPC *npcs, int max_npcs, NpcPools *pools, NPC *n) {
     memset(n, 0, sizeof(*n));
     n->entity_id = br_i32(r);
     n->x = br_i32(r);
@@ -686,19 +699,20 @@ static void get_npc(BinReader *r, NPC *n) {
     n->ai_ctx.state_timer = br_i32(r);
     n->ai_ctx.legendary_actions_spent = br_i32(r);
     n->ai_ctx.behavior = (AiBehavior)get_enum(r, AI_BEHAVIOR_DEFAULT, AI_BEHAVIOR_ALLY);
-    MerchantData *m = &n->merchant;
-    m->item_count = (int)br_count(r, MAX_SHOP_ITEMS);
-    for (int i = 0; i < m->item_count && !r->failed; i++) {
-        m->item_templates[i] = br_i32(r);
-        m->item_stock[i] = br_i32(r);
-        m->item_stock_max[i] = br_i32(r);
-    }
-    m->restock_timer = br_i32(r);
-    br_str(r, m->shop_name, sizeof(m->shop_name));
-    m->spec = (MerchantSpecialization)get_enum(r, 0, SPEC_COUNT - 1);
     n->is_ghost = br_bool(r);
     br_str(r, n->custom_name, sizeof(n->custom_name));
-    get_sparse_items(r, n->ghost_loot, GHOST_LOOT_MAX);
+    if (br_bool(r)) {
+        MerchantData *m = npc_shop_new(pools, npcs, max_npcs, n);
+        MerchantData discard;
+        get_shop(r, m ? m : &discard);
+        r->failed = r->failed || !m; /*more shops than the table holds*/
+    }
+    if (br_bool(r)) {
+        ItemInstance *loot = npc_loot_new(pools, npcs, max_npcs, n);
+        ItemInstance discard[GHOST_LOOT_MAX];
+        get_sparse_items(r, loot ? loot : discard, GHOST_LOOT_MAX);
+        r->failed = r->failed || !loot;
+    }
     n->spawn_x = br_i32(r);
     n->spawn_y = br_i32(r);
     n->respawn_timer = br_i32(r);
@@ -709,8 +723,8 @@ static void get_npc(BinReader *r, NPC *n) {
     }
 }
 
-bool persist_write_npcs(const char *path, const NPC *npcs, int max_npcs, int next_id,
-                        int total_turns) {
+bool persist_write_npcs(const char *path, const NPC *npcs, const NpcPools *pools, int max_npcs,
+                        int next_id, int total_turns) {
     uint32_t count = 0;
     for (int i = 0; i < max_npcs; i++) {
         if (npc_is_persistent(&npcs[i])) {
@@ -727,14 +741,15 @@ bool persist_write_npcs(const char *path, const NPC *npcs, int max_npcs, int nex
     bw_u32(&w, count);
     for (int i = 0; i < max_npcs; i++) {
         if (npc_is_persistent(&npcs[i])) {
-            put_npc(&w, (uint32_t)i, &npcs[i]);
+            put_npc(&w, (uint32_t)i, &npcs[i], pools);
         }
     }
     return write_and_free(path, PERSIST_NPCS_MAGIC, PERSIST_NPCS_VERSION, &w);
 }
 
-BinFileStatus persist_read_npcs(const char *path, NPC *npcs, int max_npcs, int *next_id,
-                                int *total_turns, int *loaded, char *why, size_t why_len) {
+BinFileStatus persist_read_npcs(const char *path, NPC *npcs, NpcPools *pools, int max_npcs,
+                                int *next_id, int *total_turns, int *loaded, char *why,
+                                size_t why_len) {
     BinReader r;
     uint8_t *buf = NULL;
     *loaded = 0;
@@ -767,7 +782,7 @@ BinFileStatus persist_read_npcs(const char *path, NPC *npcs, int max_npcs, int *
             r.failed = true; /* out of range or duplicated slot */
             break;
         }
-        get_npc(&r, &npcs[slot]);
+        get_npc(&r, npcs, max_npcs, pools, &npcs[slot]);
         (*loaded)++;
     }
     if (nid < 1) {

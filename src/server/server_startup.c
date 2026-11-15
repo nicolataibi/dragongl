@@ -113,6 +113,7 @@ void generate_world(Game *game) {
     for (int i = 0; i < MAX_NPCS; i++) {
         game->npcs[i].respawn_timer = -1;
     }
+    npc_pools_clear(&game->pools);
     game->next_id = 1;
     game->total_turns = 0;
     world_init(game->world);
@@ -142,7 +143,8 @@ bool load_or_generate_world(Game *game) {
         }
         if (world_ok) {
             int loaded = 0;
-            st = persist_read_npcs(npcs_path, game->npcs, MAX_NPCS, &game->next_id,
+            npc_pools_clear(&game->pools);
+            st = persist_read_npcs(npcs_path, game->npcs, &game->pools, MAX_NPCS, &game->next_id,
                                    &game->total_turns, &loaded, why, sizeof(why));
             npcs_ok = (st == BINFILE_OK);
             if (npcs_ok) {

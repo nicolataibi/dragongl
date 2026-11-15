@@ -121,7 +121,8 @@ bool save_world_state(Game *game) {
     char world_path[STATE_DIR_MAX + 32], npcs_path[STATE_DIR_MAX + 32];
     return world_paths(world_path, npcs_path, sizeof(world_path)) &&
            persist_write_world(world_path, game->world) &&
-           persist_write_npcs(npcs_path, game->npcs, MAX_NPCS, game->next_id, game->total_turns);
+           persist_write_npcs(npcs_path, game->npcs, &game->pools, MAX_NPCS, game->next_id,
+                              game->total_turns);
 }
 
 bool autosave_step(Client *clients, Game *game, int step) {
@@ -143,7 +144,8 @@ bool autosave_step(Client *clients, Game *game, int step) {
         }
         return ok;
     }
-    return persist_write_npcs(npcs_path, game->npcs, MAX_NPCS, game->next_id, game->total_turns);
+    return persist_write_npcs(npcs_path, game->npcs, &game->pools, MAX_NPCS, game->next_id,
+                              game->total_turns);
 }
 
 /*Once a minute, over AUTOSAVE_STEPS consecutive rounds (autosave_step).*/
@@ -467,8 +469,11 @@ NPC *npc_spawn_item(Game *game, int floor_id, int x, int y, const ItemInstance *
     n->archetype = ARCH_TREASURE;
     n->template_idx = item->template_idx; /*the client renders the item from it*/
     n->hp = n->max_hp = 1;
-    memset(n->ghost_loot, 0, sizeof(n->ghost_loot));
-    n->ghost_loot[0] = *item;
+    ItemInstance *loot = npc_loot_new(&game->pools, game->npcs, MAX_NPCS, n);
+    if (!loot) {
+        return NULL; /*the slot stays free: nothing was activated*/
+    }
+    loot[0] = *item;
     n->template = NULL;
     /*Nothing of the slot's previous tenant may show through.*/
     n->is_ghost = false;
@@ -493,15 +498,19 @@ static bool npc_cannot_act(NPC *n) {
 }
 
 /*A merchant restocks every 100 rounds.*/
-static void merchant_round(NPC *n) {
-    if (n->merchant.restock_timer > 0) {
-        n->merchant.restock_timer--;
+static void merchant_round(Game *game, NPC *n) {
+    MerchantData *shop = npc_shop(&game->pools, n);
+    if (!shop) {
         return;
     }
-    for (int j = 0; j < n->merchant.item_count; j++) {
-        n->merchant.item_stock[j] = n->merchant.item_stock_max[j];
+    if (shop->restock_timer > 0) {
+        shop->restock_timer--;
+        return;
     }
-    n->merchant.restock_timer = 100;
+    for (int j = 0; j < shop->item_count; j++) {
+        shop->item_stock[j] = shop->item_stock_max[j];
+    }
+    shop->restock_timer = 100;
 }
 
 /*Poison and bleeding cost an NPC 1 HP a round, fire 2. False if it died
@@ -617,7 +626,7 @@ static void awake_floors(const Client *clients, bool awake[MAX_FLOORS]) {
 static void npc_round(Client *clients, Game *game, NPC *n, const bool awake[MAX_FLOORS]) {
     if (n->respawn_timer < 0) {
         if (n->active && n->archetype == ARCH_MERCHANT) {
-            merchant_round(n);
+            merchant_round(game, n);
         }
         return;
     }

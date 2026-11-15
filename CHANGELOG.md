@@ -1,3 +1,39 @@
+* Sun Nov 15 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.15.04
+- DOCS: docs/GPU_TESTING.md: the checklist on Intel Arc A770 is done.
+  Rows 3 and 4: the window resized by dragging, maximized, minimized and
+  restored; the picture and the HUD followed and the game went on, with
+  0 validation messages in 9227 frames. The results table lists every
+  run (rows 1-8 and 10-12; row 9 goes through the same restart as row
+  10); AMD and NVIDIA have no result, for lack of hardware.
+
+* Sun Nov 15 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.15.03
+- SERVER: the NPC record goes from 5,176 to 784 bytes, and the table of
+  50,000 NPCs from 259 MB to 39 MB. The shop of a merchant and the items
+  of the remains of a character or of an item on the ground (4.4 KB of
+  every record, which a monster never used) are entries of two side
+  tables (src/server/npc_store.c: 256 shops, 1,024 bags of 30 items),
+  named by shop_id and loot_id. An entry belongs to the entity_id that
+  took it: a reused slot or a copied record never sees another NPC's
+  shop or loot. A full table takes back what no NPC names any more
+  (loot: no active NPC), so nothing is freed by hand. A static assertion
+  keeps the record under 1 KB.
+- SERVER: on the bench (64 characters, 36,000 NPCs) the round with one
+  character per floor goes from a mean of 9.6 ms (p99 20.5) to 6.5 ms
+  (p99 15-17), the autosave of the NPC table on the game thread from 27
+  to 11 ms; the round with all on one floor does not change (p99 5.5-7
+  ms). The one-minute load test with 64 clients passes (round p99 13.8
+  ms).
+- PERSISTENCE: npcs.dat version 3 writes a shop and loot only where
+  there is one (a flag, then the data); version 2 is refused, so an
+  existing world is generated again at the first start.
+- TESTS: npcs_roundtrip checks the record size, a shop and loot through
+  the new format, and that a copy of a merchant's record has no shop;
+  npc_pools_reclaim fills the tables three times over through reused
+  slots, checks that an entry held by an active NPC is never taken and
+  that one of an inactive NPC is. The persistence fuzzer seeds a shop
+  and loot.
+- DOCS: DEVELOPMENT.md (the side tables, the measures).
+
 * Sun Nov 15 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.15.02
 - GAMEPLAY: every spell has a mechanic. The 263 spells of kind
   'utility', which only said "it has no effect in combat", now act, and

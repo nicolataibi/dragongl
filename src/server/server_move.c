@@ -122,15 +122,16 @@ static bool pick_up_loot(Game *game, Client *c, NPC *n, Floor *fl, int nx, int n
             n->gold_drop = 0;
             any = true;
         }
-        for (int gi = 0; gi < 30; gi++) {
-            if (n->ghost_loot[gi].template_idx >= 0 && n->ghost_loot[gi].stack_count > 0) {
+        ItemInstance *loot = npc_loot(&game->pools, n);
+        for (int gi = 0; loot && gi < NPC_LOOT_MAX; gi++) {
+            if (loot[gi].template_idx >= 0 && loot[gi].stack_count > 0) {
                 if (c->backpack_count >= MAX_BACKPACK) {
                     full = true;
                     break;
                 }
-                c->backpack[c->backpack_count++] = n->ghost_loot[gi];
-                n->ghost_loot[gi].template_idx = -1;
-                n->ghost_loot[gi].stack_count = 0;
+                c->backpack[c->backpack_count++] = loot[gi];
+                loot[gi].template_idx = -1;
+                loot[gi].stack_count = 0;
                 any = true;
             }
         }
@@ -147,15 +148,16 @@ static bool pick_up_loot(Game *game, Client *c, NPC *n, Floor *fl, int nx, int n
         save_player_data(c);
         return blocked;
     }
-    if (n->ghost_loot[0].stack_count > 0) {
+    const ItemInstance *dropped = npc_loot(&game->pools, n);
+    if (dropped && dropped[0].stack_count > 0) {
         /*A single dropped item.*/
         if (c->backpack_count >= MAX_BACKPACK) {
             send_text_to_client(c->sock, "[SYSTEM] Backpack full! You cannot pick up the item.");
             return true;
         }
-        c->backpack[c->backpack_count++] = n->ghost_loot[0];
+        c->backpack[c->backpack_count++] = dropped[0];
         send_text_to_client(c->sock, "[SYSTEM] You picked up: %s",
-                            item_database[n->ghost_loot[0].template_idx].name);
+                            item_database[dropped[0].template_idx].name);
         loot_taken(game, n, fl, nx, ny, 0);
         save_player_data(c);
         return false;
@@ -183,8 +185,8 @@ static bool bump_into(Client *c, Floor *fl, int ent_id, int nx, int ny, Client *
             send_text_to_client(c->sock,
                                 "[%s] Welcome! Use 'buy <n>', 'sell <n>', 'haggle "
                                 "buy <n>', 'identify' or 'cure'.",
-                                n->merchant.shop_name);
-            print_merchant_inventory(c, n);
+                                npc_shop_any(&game->pools, n)->shop_name);
+            print_merchant_inventory(c, npc_shop_any(&game->pools, n));
             return true;
         }
         if (is_loot(n)) {

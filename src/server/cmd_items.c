@@ -61,13 +61,13 @@ bool cmd_retrieve(Client *c, const char *cmd, Game *game) {
         c->gold += (uint64_t)game->npcs[ghost_npc_idx].gold_drop;
         game->npcs[ghost_npc_idx].gold_drop = 0;
     }
-    for (int gi = 0; gi < 30; gi++) {
-        if (game->npcs[ghost_npc_idx].ghost_loot[gi].template_idx >= 0 &&
-            game->npcs[ghost_npc_idx].ghost_loot[gi].stack_count > 0 &&
+    ItemInstance *loot = npc_loot(&game->pools, &game->npcs[ghost_npc_idx]);
+    for (int gi = 0; loot && gi < NPC_LOOT_MAX; gi++) {
+        if (loot[gi].template_idx >= 0 && loot[gi].stack_count > 0 &&
             c->backpack_count < MAX_BACKPACK) {
-            c->backpack[c->backpack_count++] = game->npcs[ghost_npc_idx].ghost_loot[gi];
-            game->npcs[ghost_npc_idx].ghost_loot[gi].template_idx = -1;
-            game->npcs[ghost_npc_idx].ghost_loot[gi].stack_count = 0;
+            c->backpack[c->backpack_count++] = loot[gi];
+            loot[gi].template_idx = -1;
+            loot[gi].stack_count = 0;
         }
     }
 
