@@ -79,8 +79,9 @@ static void read_back(int kind) {
         break;
     case KIND_NPCS:
         memset(npcs, 0, sizeof(npcs));
-        (void)persist_read_npcs(g_path, npcs, FUZZ_NPCS, &next_id, &turns, &loaded, why,
-                                sizeof(why));
+        npc_pools_clear(&g_game.pools);
+        (void)persist_read_npcs(g_path, npcs, &g_game.pools, FUZZ_NPCS, &next_id, &turns, &loaded,
+                                why, sizeof(why));
         break;
     case KIND_TOMB:
         (void)persist_read_tombstone(g_path, &tomb, why, sizeof(why));
@@ -138,8 +139,22 @@ static void write_seeds(const char *dir) {
         npcs[i].template_idx = i;
         npcs[i].hp = 10;
         npcs[i].respawn_timer = -1;
+        npcs[i].entity_id = 1 + i;
     }
-    if (!persist_write_npcs(g_path, npcs, FUZZ_NPCS, 4, 100)) {
+    /* A merchant with a shop and the remains of a character with loot. */
+    npcs[0].archetype = ARCH_MERCHANT;
+    MerchantData *shop = npc_shop_new(&g_game.pools, npcs, FUZZ_NPCS, &npcs[0]);
+    ItemInstance *loot = npc_loot_new(&g_game.pools, npcs, FUZZ_NPCS, &npcs[1]);
+    if (!shop || !loot) {
+        exit(1);
+    }
+    shop->item_count = 1;
+    shop->item_templates[0] = 2;
+    snprintf(shop->shop_name, sizeof(shop->shop_name), "Fuzz Shop");
+    npcs[1].is_ghost = true;
+    loot[0].template_idx = 3;
+    loot[0].stack_count = 1;
+    if (!persist_write_npcs(g_path, npcs, &g_game.pools, FUZZ_NPCS, 4, 100)) {
         exit(1);
     }
     seed_from_file(dir, "npcs", KIND_NPCS);

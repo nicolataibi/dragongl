@@ -69,7 +69,7 @@ void send_combat_event(int sock, int kind, int entity_id, int amount);
 bool send_welcome(int sock, const MsgWelcome *m);
 void send_time_sync(int sock, const MsgTimeSync *m);
 void send_tombstone_remove(int sock, int entity_id);
-void print_merchant_inventory(Client *c, NPC *merchant);
+void print_merchant_inventory(Client *c, const MerchantData *shop);
 void handle_boss_death(Game *game, Client *c, NPC *boss);
 /*NULL-safe display name for NPC messages/logs: custom_name (ghosts,
  * summons, dominated) > template name > archetype fallback. NEVER

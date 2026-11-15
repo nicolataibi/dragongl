@@ -53,14 +53,14 @@
  * @n: Recipient merchant NPC.
  * @template_idx: Index into the item_database of the template to add.
  * @stock: Initial stock quantity.*/
-void add_item_to_shop(NPC *n, int template_idx, int stock) {
-    if (n->merchant.item_count >= MAX_SHOP_ITEMS) {
+void add_item_to_shop(MerchantData *m, int template_idx, int stock) {
+    if (m->item_count >= MAX_SHOP_ITEMS) {
         return;
     }
-    n->merchant.item_templates[n->merchant.item_count] = template_idx;
-    n->merchant.item_stock[n->merchant.item_count] = stock;
-    n->merchant.item_stock_max[n->merchant.item_count] = stock;
-    n->merchant.item_count++;
+    m->item_templates[m->item_count] = template_idx;
+    m->item_stock[m->item_count] = stock;
+    m->item_stock_max[m->item_count] = stock;
+    m->item_count++;
 }
 
 /**
@@ -141,8 +141,8 @@ static bool is_item_matching_spec(int item_idx, MerchantSpecialization spec) {
  * random items appropriate to his specialization and plan.
  * @n: Merchant NPC to populate.
  * @floor_id: Current floor (used to calibrate the item tier).*/
-static void fill_shop_by_specialization(NPC *n, int floor_id) {
-    n->merchant.item_count = 0;
+static void fill_shop_by_specialization(MerchantData *m, int floor_id) {
+    m->item_count = 0;
     int attempts = 0;
     int target = 50; // Max 50 items
 
@@ -152,9 +152,9 @@ static void fill_shop_by_specialization(NPC *n, int floor_id) {
         max_tier = 5;
     }
 
-    while (n->merchant.item_count < target && attempts < 5000) {
+    while (m->item_count < target && attempts < 5000) {
         int i_idx = rand() % item_database_size;
-        if (is_item_matching_spec(i_idx, n->merchant.spec)) {
+        if (is_item_matching_spec(i_idx, m->spec)) {
             //Check cost/tier appropriateness
             uint64_t cost = item_database[i_idx].cost;
             int item_tier = 0;
@@ -183,11 +183,11 @@ static void fill_shop_by_specialization(NPC *n, int floor_id) {
                 continue;
             }
 
-            if (item_tier <= max_tier + 1 || n->merchant.spec == BLACK_MARKET) {
+            if (item_tier <= max_tier + 1 || m->spec == BLACK_MARKET) {
                 // Avoid duplicates
                 bool dup = false;
-                for (int j = 0; j < n->merchant.item_count; j++) {
-                    if (n->merchant.item_templates[j] == i_idx) {
+                for (int j = 0; j < m->item_count; j++) {
+                    if (m->item_templates[j] == i_idx) {
                         dup = true;
                     }
                 }
@@ -195,7 +195,7 @@ static void fill_shop_by_specialization(NPC *n, int floor_id) {
                     int stock = (item_database[i_idx].category == ITEM_CONSUMABLE)
                                     ? (5 + rand() % 10)
                                     : (1 + rand() % 3);
-                    add_item_to_shop(n, i_idx, stock);
+                    add_item_to_shop(m, i_idx, stock);
                 }
             }
         }
@@ -207,7 +207,7 @@ static void fill_shop_by_specialization(NPC *n, int floor_id) {
  * fill_provisioner_floor0 - Populate a supply store (floor 0) with
  * a curated list of essential survival materials.
  * @n: NPC merchant provider to populate.*/
-static void fill_provisioner_floor0(NPC *n) {
+static void fill_provisioner_floor0(MerchantData *m) {
     /*Light, survival and camping, tools, containers, writing, and a few
      * simple weapons for the traveler.*/
     static const struct {
@@ -242,22 +242,37 @@ static void fill_provisioner_floor0(NPC *n) {
         {"Sling", 3},
         {"Sling Bullets (20)", 10},
     };
-    n->merchant.item_count = 0;
+    m->item_count = 0;
     for (size_t i = 0; i < sizeof(k_stock) / sizeof(k_stock[0]); i++) {
         int idx = get_item_idx_by_name(k_stock[i].item);
         if (idx >= 0) {
-            add_item_to_shop(n, idx, k_stock[i].stock);
+            add_item_to_shop(m, idx, k_stock[i].stock);
         }
     }
     //If the DB is missing key items, fallback to random filling
-    if (n->merchant.item_count < 5) {
-        fill_shop_by_specialization(n, 0);
+    if (m->item_count < 5) {
+        fill_shop_by_specialization(m, 0);
     }
 }
 
 /* =========================================================================
  * Public functions
  * ========================================================================= */
+
+/*The shop of a new merchant (its entity_id is set): its trade and name.
+ * The table of shops is empty when a world is generated, so it never
+ * fails here; a merchant without one would sell nothing.*/
+static MerchantData *open_shop(Game *game, NPC *n, MerchantSpecialization spec, const char *name) {
+    static MerchantData no_shop;
+    MerchantData *m = npc_shop_new(&game->pools, game->npcs, MAX_NPCS, n);
+    if (!m) {
+        memset(&no_shop, 0, sizeof(no_shop));
+        return &no_shop;
+    }
+    m->spec = spec;
+    copy_str(m->shop_name, name, sizeof(m->shop_name));
+    return m;
+}
 
 void spawn_city_merchants(Game *game) {
     int cx = MAP_CENTER_X;
@@ -284,9 +299,8 @@ void spawn_city_merchants(Game *game) {
     f->hp = 1; //hp>0 required: the client drops entities with hp<=0
     f->max_hp = 1;
     f->template = &bestiary_data[0];
-    f->merchant.spec = BLACKSMITH;
-    strncpy(f->merchant.shop_name, "The Iron Anvil", 63);
-    fill_shop_by_specialization(f, 0);
+    MerchantData *f_shop = open_shop(game, f, BLACKSMITH, "The Iron Anvil");
+    fill_shop_by_specialization(f_shop, 0);
 
     // 1: Alchemy and Potions - The Bubbling Cauldron
     NPC *p = &game->npcs[1];
@@ -300,9 +314,8 @@ void spawn_city_merchants(Game *game) {
     p->hp = 1; //hp>0 required: the client drops entities with hp<=0
     p->max_hp = 1;
     p->template = &bestiary_data[0];
-    p->merchant.spec = ALCHEMIST;
-    strncpy(p->merchant.shop_name, "The Bubbling Cauldron", 63);
-    fill_shop_by_specialization(p, 0);
+    MerchantData *p_shop = open_shop(game, p, ALCHEMIST, "The Bubbling Cauldron");
+    fill_shop_by_specialization(p_shop, 0);
 
     // 2: General Store - The Drunken Dragon
     NPC *o = &game->npcs[2];
@@ -316,9 +329,8 @@ void spawn_city_merchants(Game *game) {
     o->hp = 1; //hp>0 required: the client drops entities with hp<=0
     o->max_hp = 1;
     o->template = &bestiary_data[0];
-    o->merchant.spec = PROVISIONER;
-    strncpy(o->merchant.shop_name, "The Drunken Dragon", 63);
-    fill_provisioner_floor0(o);
+    MerchantData *o_shop = open_shop(game, o, PROVISIONER, "The Drunken Dragon");
+    fill_provisioner_floor0(o_shop);
 
     // 3: Magic and Utility - Temple of Arcana
     NPC *s = &game->npcs[3];
@@ -332,9 +344,8 @@ void spawn_city_merchants(Game *game) {
     s->hp = 1; //hp>0 required: the client drops entities with hp<=0
     s->max_hp = 1;
     s->template = &bestiary_data[0];
-    s->merchant.spec = MAGIC_SHOP;
-    strncpy(s->merchant.shop_name, "Temple of Arcana", 63);
-    fill_shop_by_specialization(s, 0);
+    MerchantData *s_shop = open_shop(game, s, MAGIC_SHOP, "Temple of Arcana");
+    fill_shop_by_specialization(s_shop, 0);
 
     // 4: Black Market - The Shadow's Edge
     NPC *m = &game->npcs[4];
@@ -348,10 +359,9 @@ void spawn_city_merchants(Game *game) {
     m->hp = 1; //hp>0 required: the client drops entities with hp<=0
     m->max_hp = 1;
     m->template = &bestiary_data[0];
-    m->merchant.spec = BLACK_MARKET;
-    strncpy(m->merchant.shop_name, "The Shadow's Edge", 63);
-    fill_shop_by_specialization(m, 40);
-    m->merchant.restock_timer = 100;
+    MerchantData *m_shop = open_shop(game, m, BLACK_MARKET, "The Shadow's Edge");
+    fill_shop_by_specialization(m_shop, 40);
+    m_shop->restock_timer = 100;
 }
 
 void spawn_magic_shops(Game *game) {
@@ -379,10 +389,9 @@ void spawn_magic_shops(Game *game) {
     m->hp = 1; //hp>0 required: the client drops entities with hp<=0
     m->max_hp = 1;
     m->template = &bestiary_data[0];
-    m->merchant.spec = MAGIC_SHOP;
-    strncpy(m->merchant.shop_name, "Xanthus's Arcane Curios", 63);
-    fill_shop_by_specialization(m, 20);
-    m->merchant.restock_timer = 100;
+    MerchantData *m_shop = open_shop(game, m, MAGIC_SHOP, "Xanthus's Arcane Curios");
+    fill_shop_by_specialization(m_shop, 20);
+    m_shop->restock_timer = 100;
 
     //6: Sanctum of Prayers - Sister Elara
     NPC *p = &game->npcs[6];
@@ -396,10 +405,9 @@ void spawn_magic_shops(Game *game) {
     p->hp = 1; //hp>0 required: the client drops entities with hp<=0
     p->max_hp = 1;
     p->template = &bestiary_data[0];
-    p->merchant.spec = MAGIC_SHOP;
-    strncpy(p->merchant.shop_name, "Sister Elara's Sanctum", 63);
-    fill_shop_by_specialization(p, 20);
-    p->merchant.restock_timer = 100;
+    MerchantData *p_shop = open_shop(game, p, MAGIC_SHOP, "Sister Elara's Sanctum");
+    fill_shop_by_specialization(p_shop, 20);
+    p_shop->restock_timer = 100;
 
     // 7: Catalyst Emporium - Master Malchor
     NPC *c = &game->npcs[7];
@@ -413,10 +421,9 @@ void spawn_magic_shops(Game *game) {
     c->hp = 1; //hp>0 required: the client drops entities with hp<=0
     c->max_hp = 1;
     c->template = &bestiary_data[0];
-    c->merchant.spec = ALCHEMIST;
-    strncpy(c->merchant.shop_name, "Master Malchor's Reagents", 63);
-    fill_shop_by_specialization(c, 20);
-    c->merchant.restock_timer = 100;
+    MerchantData *c_shop = open_shop(game, c, ALCHEMIST, "Master Malchor's Reagents");
+    fill_shop_by_specialization(c_shop, 20);
+    c_shop->restock_timer = 100;
 
     // 8: Arcane Bookshop (books for mages, warlocks, etc.)
     NPC *r = &game->npcs[8];
@@ -430,10 +437,9 @@ void spawn_magic_shops(Game *game) {
     r->hp = 1; //hp>0 required: the client drops entities with hp<=0
     r->max_hp = 1;
     r->template = &bestiary_data[0];
-    r->merchant.spec = BOOKS_MAGE;
-    strncpy(r->merchant.shop_name, "The Arcane Library", 63);
-    fill_shop_by_specialization(r, 100);
-    r->merchant.restock_timer = 100;
+    MerchantData *r_shop = open_shop(game, r, BOOKS_MAGE, "The Arcane Library");
+    fill_shop_by_specialization(r_shop, 100);
+    r_shop->restock_timer = 100;
 
     // 9: Temple Library (books of clerics, druids, etc.)
     NPC *b = &game->npcs[9];
@@ -447,10 +453,9 @@ void spawn_magic_shops(Game *game) {
     b->hp = 1; //hp>0 required: the client drops entities with hp<=0
     b->max_hp = 1;
     b->template = &bestiary_data[0];
-    b->merchant.spec = BOOKS_PRIEST;
-    strncpy(b->merchant.shop_name, "Temple Library", 63);
-    fill_shop_by_specialization(b, 100);
-    b->merchant.restock_timer = 100;
+    MerchantData *b_shop = open_shop(game, b, BOOKS_PRIEST, "Temple Library");
+    fill_shop_by_specialization(b_shop, 100);
+    b_shop->restock_timer = 100;
 }
 
 /* =========================================================================
@@ -479,10 +484,9 @@ void spawn_martial_archive(Game *game) {
     a->hp = 1; //hp>0 required: the client drops entities with hp<=0
     a->max_hp = 1;
     a->template = &bestiary_data[0];
-    a->merchant.spec = BOOKS_MARTIAL;
-    strncpy(a->merchant.shop_name, "The Archive of a Thousand Battles", 63);
-    fill_shop_by_specialization(a, 100);
-    a->merchant.restock_timer = 100;
+    MerchantData *a_shop = open_shop(game, a, BOOKS_MARTIAL, "The Archive of a Thousand Battles");
+    fill_shop_by_specialization(a_shop, 100);
+    a_shop->restock_timer = 100;
 }
 
 /*A random tile a creature can stand on (any walkable ground, or stone
@@ -625,12 +629,11 @@ static void spawn_wandering_merchant(Game *game, int *npc_idx, int f) {
     s->template = &bestiary_data[0];
     s->hp = 1;
     s->max_hp = 1;
-    s->merchant.restock_timer = 100;
     int trade = rand() % 8;
-    s->merchant.spec = k_trades[trade].spec;
-    copy_str(s->merchant.shop_name, k_trades[trade].shop_name, sizeof(s->merchant.shop_name));
+    MerchantData *s_shop = open_shop(game, s, k_trades[trade].spec, k_trades[trade].shop_name);
+    s_shop->restock_timer = 100;
     npc_set_active(game, s, true); /*merchant: no floor-cache effect*/
-    fill_shop_by_specialization(s, f);
+    fill_shop_by_specialization(s_shop, f);
 }
 
 /*Populates every dungeon floor of a new world: a boss alone on every

@@ -70,7 +70,8 @@ static NPC *merchant(int slot, int floor, int x, int y) {
     m->y = m->spawn_y = y;
     m->hp = m->max_hp = 100;
     m->respawn_timer = -1;
-    snprintf(m->merchant.shop_name, sizeof(m->merchant.shop_name), "Test Shop");
+    MerchantData *shop = npc_shop_new(&g_game.pools, g_game.npcs, MAX_NPCS, m);
+    snprintf(shop->shop_name, sizeof(shop->shop_name), "Test Shop");
     npc_set_active(&g_game, m, true);
     g_game.world->floors[floor].entity_grid[y][x] = m->entity_id;
     return m;
@@ -303,7 +304,7 @@ int test_merchant_services(void) {
     CHECK(said("must be near the Cleric"), "uncursed without a cleric");
 
     NPC *m = merchant(20, 0, CX + 1, CY);
-    add_item_to_shop(m, heal, 5);
+    add_item_to_shop(npc_shop_any(&g_game.pools, m), heal, 5);
     run(c, "talk");
     CHECK(said("[Test Shop] Welcome!") && said("=== Test Shop ==="), "the merchant is mute");
     run(c, "browse 1");

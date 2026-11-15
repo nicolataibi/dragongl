@@ -31,6 +31,7 @@
 #include "aoe.h"
 #include "map.h"
 #include "server.h"
+#include "npc_store.h"
 #include "server_entities.h"
 
 /*Length of the path of the data directory, terminator included.*/
@@ -49,6 +50,7 @@ struct Game {
     World *world;       /*Every floor of the dungeon and the town*/
     Client *clients;    /*MAX_CLIENTS slots*/
     NPC *npcs;          /*MAX_NPCS slots*/
+    NpcPools pools;     /*The merchants' shops and the loot of the NPCs*/
     int total_turns;    /*Rounds played since the world was created*/
     int next_id;        /*Next entity id to hand out*/
     int npc_alloc_hint; /*Where npc_alloc() resumes its search*/

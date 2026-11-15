@@ -45,6 +45,7 @@
 #include "binio.h"
 #include "map.h"
 #include "server.h"
+#include "npc_store.h"
 #include "server_entities.h"
 
 #include <stdbool.h>
@@ -59,7 +60,7 @@
 #define PERSIST_WORLD_MAGIC   0x57475244u /* "DRGW" */
 #define PERSIST_WORLD_VERSION 4
 #define PERSIST_NPCS_MAGIC    0x43504E44u /* "DNPC" */
-#define PERSIST_NPCS_VERSION  2
+#define PERSIST_NPCS_VERSION  3
 #define PERSIST_TOMB_MAGIC    0x424D5444u /* "DTMB" */
 #define PERSIST_TOMB_VERSION  1
 #define PERSIST_ART_MAGIC     0x54524144u /* "DART" */
@@ -101,11 +102,15 @@ BinFileStatus persist_read_world(const char *path, World *w, char *why, size_t w
 /* NPC records: the slots that are active or keep a template (respawning
  * monsters). Each record keeps its slot index. Transient state (active
  * effects, the template pointer) is not stored: the loader re-binds
- * templates from template_idx. */
-bool persist_write_npcs(const char *path, const NPC *npcs, int max_npcs, int next_id,
-                        int total_turns);
-BinFileStatus persist_read_npcs(const char *path, NPC *npcs, int max_npcs, int *next_id,
-                                int *total_turns, int *loaded, char *why, size_t why_len);
+ * templates from template_idx.
+ * A merchant's shop and the loot of the remains and of the items on the
+ * ground are written with their NPC (version 3: only where there is one)
+ * and read back into pools, which the caller passes empty. */
+bool persist_write_npcs(const char *path, const NPC *npcs, const NpcPools *pools, int max_npcs,
+                        int next_id, int total_turns);
+BinFileStatus persist_read_npcs(const char *path, NPC *npcs, NpcPools *pools, int max_npcs,
+                                int *next_id, int *total_turns, int *loaded, char *why,
+                                size_t why_len);
 
 bool persist_write_tombstone(const char *path, const Tombstone *t);
 BinFileStatus persist_read_tombstone(const char *path, Tombstone *t, char *why, size_t why_len);

@@ -65,14 +65,15 @@ static void collect(Game *game, Client *c, NPC *n) {
         send_text_to_client(c->sock, "[SYSTEM] You have collected %d gold coins!", n->gold_drop);
         send_combat_event(c->sock, COMBAT_EV_GOLD, c->entity_id, n->gold_drop);
         npc_set_active(game, n, false);
-    } else if (n->ghost_loot[0].stack_count > 0) {
+    } else if (npc_loot(&game->pools, n) && npc_loot(&game->pools, n)[0].stack_count > 0) {
+        const ItemInstance *item = &npc_loot(&game->pools, n)[0];
         if (c->backpack_count >= MAX_BACKPACK) {
             send_text_to_client(c->sock, "[SYSTEM] Backpack full! Unable to collect.");
             return;
         }
-        c->backpack[c->backpack_count++] = n->ghost_loot[0];
+        c->backpack[c->backpack_count++] = *item;
         send_text_to_client(c->sock, "[SYSTEM] You have collected: %s",
-                            item_database[n->ghost_loot[0].template_idx].name);
+                            item_database[item->template_idx].name);
         npc_set_active(game, n, false);
         n->respawn_timer = 0;
     } else {
@@ -145,9 +146,9 @@ bool cmd_get(Client *c, const char *cmd, Game *game) {
         const NPC *n = &game->npcs[items[i]];
         if (n->archetype == ARCH_GOLD) {
             send_text_to_client(c->sock, "  %d. %d gold coins", i + 1, n->gold_drop);
-        } else if (n->ghost_loot[0].stack_count > 0) {
+        } else if (npc_loot(&game->pools, n) && npc_loot(&game->pools, n)[0].stack_count > 0) {
             send_text_to_client(c->sock, "  %d. %s", i + 1,
-                                item_database[n->ghost_loot[0].template_idx].name);
+                                item_database[npc_loot(&game->pools, n)[0].template_idx].name);
         } else {
             send_text_to_client(c->sock, "  %d. Treasure chest", i + 1);
         }

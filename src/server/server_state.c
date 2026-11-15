@@ -34,7 +34,7 @@ bool game_create(Game *game) {
     game->clients = calloc(MAX_CLIENTS, sizeof(Client));
     game->npcs = calloc(MAX_NPCS, sizeof(NPC));
     game->world = calloc(1, sizeof(World));
-    if (!game->clients || !game->npcs || !game->world) {
+    if (!game->clients || !game->npcs || !game->world || !npc_pools_create(&game->pools)) {
         game_destroy(game);
         return false;
     }
@@ -45,6 +45,7 @@ void game_destroy(Game *game) {
     free(game->clients);
     free(game->npcs);
     free(game->world);
+    npc_pools_destroy(&game->pools);
     game->clients = NULL;
     game->npcs = NULL;
     game->world = NULL;

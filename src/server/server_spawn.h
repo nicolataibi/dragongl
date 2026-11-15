@@ -60,6 +60,6 @@ void spawn_martial_archive(Game *game);
  *
  * Exposed to allow the 'dm_shop' DM command to add items
  * dynamically to a merchant's inventory during the game.*/
-void add_item_to_shop(NPC *n, int template_idx, int stock);
+void add_item_to_shop(MerchantData *m, int template_idx, int stock);
 
 #endif /* SERVER_SPAWN_H */

@@ -131,8 +131,9 @@ static NPC *merchant_at(int x, int y, int template_idx, int stock) {
     m->y = m->spawn_y = y;
     m->hp = m->max_hp = 100;
     m->respawn_timer = -1;
-    snprintf(m->merchant.shop_name, sizeof(m->merchant.shop_name), "Test Shop");
-    add_item_to_shop(m, template_idx, stock);
+    MerchantData *shop = npc_shop_new(&g_game.pools, g_game.npcs, MAX_NPCS, m);
+    snprintf(shop->shop_name, sizeof(shop->shop_name), "Test Shop");
+    add_item_to_shop(shop, template_idx, stock);
     npc_set_active(&g_game, m, true);
     g_game.world->floors[FLOOR].entity_grid[y][x] = m->entity_id;
     return m;
@@ -218,15 +219,15 @@ int test_merchant_restocks(void) {
     int sword = item_of(ITEM_WEAPON, 50);
     CHECK(c && sword >= 0, "no player or no weapon");
     NPC *m = merchant_at(CX + 1, CY, sword, 5);
-    m->merchant.item_stock[0] = 0;
-    m->merchant.restock_timer = 2;
+    npc_shop_any(&g_game.pools, m)->item_stock[0] = 0;
+    npc_shop_any(&g_game.pools, m)->restock_timer = 2;
     run(c, "buy 1");
     CHECK(said("sold out") && c->backpack_count == 0, "bought an item that was sold out");
-    for (int tick = 0; tick < 8 && m->merchant.item_stock[0] == 0; tick++) {
+    for (int tick = 0; tick < 8 && npc_shop_any(&g_game.pools, m)->item_stock[0] == 0; tick++) {
         update_world(g_game.clients, &g_game);
     }
-    CHECK(m->merchant.item_stock[0] == 5, "stock %d after the restock time",
-          m->merchant.item_stock[0]);
+    CHECK(npc_shop_any(&g_game.pools, m)->item_stock[0] == 5, "stock %d after the restock time",
+          npc_shop_any(&g_game.pools, m)->item_stock[0]);
     CHECK(m->active, "the merchant vanished");
     return 0;
 }
@@ -327,8 +328,14 @@ int test_dm_spawn_and_place(void) {
     stale->respawn_timer = -1;
     stale->gold_drop = 500;
     stale->is_ghost = true;
-    stale->ghost_loot[0].template_idx = 1;
-    stale->ghost_loot[0].stack_count = 1;
+    stale->entity_id = 6999;
+    stale->active = true;
+    ItemInstance *stale_loot = npc_loot_new(&g_game.pools, g_game.npcs, MAX_NPCS, stale);
+    CHECK(stale_loot != NULL, "no loot for the stale slot");
+    stale_loot[0].template_idx = 1;
+    stale_loot[0].stack_count = 1;
+    stale->active = false;
+    stale->entity_id = 0;
     snprintf(stale->custom_name, sizeof(stale->custom_name), "Ghost of nobody");
 
     fl->map.data[0][CY][CX + 3] = VOXEL_WALL;
@@ -351,7 +358,7 @@ int test_dm_spawn_and_place(void) {
     NPC *n = npc_by_entity_id(&g_game, fl->entity_grid[CY][CX + 2]);
     CHECK(n && n->template == &bestiary_data[0] && n->hp > 0, "the monster is not on the grid");
     CHECK(n->gold_drop == 0 && !n->is_ghost && n->custom_name[0] == '\0' &&
-              n->ghost_loot[0].stack_count == 0,
+              npc_loot(&g_game.pools, n) == NULL,
           "the monster inherited the previous tenant of its slot");
     run(c, line);
     CHECK(said("not a free") && active_npcs_at(CX + 2, CY) == 1, "two monsters on one tile");
@@ -504,8 +511,8 @@ int test_floors_without_characters_sleep(void) {
     dead->respawn_timer = 3;
     NPC *shop = merchant_at(CX + 20, CY, item_of(ITEM_WEAPON, 50), 5);
     shop->floor_id = OTHER;
-    shop->merchant.item_stock[0] = 0;
-    shop->merchant.restock_timer = 2;
+    npc_shop_any(&g_game.pools, shop)->item_stock[0] = 0;
+    npc_shop_any(&g_game.pools, shop)->restock_timer = 2;
     floor_index_rebuild(&g_game);
 
     NPC before_near = *near, before_asleep = *asleep;
@@ -522,7 +529,8 @@ int test_floors_without_characters_sleep(void) {
           "a monster moved on a floor with no character");
     CHECK(dead->active && dead->hp == dead->max_hp,
           "a dead monster of a sleeping floor is not back");
-    CHECK(shop->merchant.item_stock[0] == 5, "the merchant of a sleeping floor did not restock");
+    CHECK(npc_shop_any(&g_game.pools, shop)->item_stock[0] == 5,
+          "the merchant of a sleeping floor did not restock");
 
     /* The floor wakes up with the first character on it. */
     g_game.world->floors[FLOOR].entity_grid[c->y][c->x] = 0;
@@ -600,11 +608,17 @@ int test_autosave_in_steps(void) {
     CHECK(access(world, F_OK) == 0 && access(save, F_OK) == 0, "step 0: world or character");
     CHECK(access(npcs, F_OK) != 0, "step 0 already wrote the NPC table");
     CHECK(autosave_step(g_game.clients, &g_game, 1), "step 1 failed");
+    NpcPools pools;
+    CHECK(npc_pools_create(&pools), "out of memory");
     NPC *loaded = calloc(MAX_NPCS, sizeof(NPC));
+    if (!loaded) {
+        npc_pools_destroy(&pools);
+    }
     CHECK(loaded != NULL, "out of memory");
     int next = 0, turns = 0, count = 0;
     BinFileStatus st =
-        persist_read_npcs(npcs, loaded, MAX_NPCS, &next, &turns, &count, why, sizeof(why));
+        persist_read_npcs(npcs, loaded, &pools, MAX_NPCS, &next, &turns, &count, why, sizeof(why));
+    npc_pools_destroy(&pools);
     bool ok = st == BINFILE_OK && next == 4321 && loaded[3].active && loaded[3].x == CX + 5;
     free(loaded);
     CHECK(ok, "the NPC table of step 1 does not read back");

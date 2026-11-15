@@ -184,7 +184,7 @@ static void look_underfoot(Client *c, Game *game, char *buf, size_t cap) {
         } else if (n->is_ghost) {
             buf_add(buf, cap, "| [%s remains]", n->custom_name);
         } else if (n->archetype == ARCH_MERCHANT) {
-            buf_add(buf, cap, " | [%s]", n->merchant.shop_name);
+            buf_add(buf, cap, " | [%s]", npc_shop_any(&game->pools, n)->shop_name);
         } else if (n->template) {
             buf_add(buf, cap, " | [%s HP:%d/%d]", n->template->name, n->hp, n->max_hp);
         }
@@ -225,9 +225,9 @@ static void sector_add(LookSectors *s, int sector, const char *what, int steps) 
 }
 
 /*How a creature or an item shows in the look table.*/
-static void look_npc_label(const NPC *n, char *out, size_t cap) {
+static void look_npc_label(const Game *game, const NPC *n, char *out, size_t cap) {
     if (n->archetype == ARCH_MERCHANT) {
-        snprintf(out, cap, "%s", n->merchant.shop_name);
+        snprintf(out, cap, "%s", npc_shop_any(&game->pools, n)->shop_name);
     } else if (n->archetype == ARCH_GOLD) {
         snprintf(out, cap, "Gold");
     } else if (n->archetype == ARCH_TREASURE) {
@@ -264,7 +264,7 @@ static void look_cell(Client *c, Game *game, LookSectors *s, int sector, int nx,
     FloorIter walk = floor_iter(game, f);
     for (int i; (i = floor_iter_next(&walk)) >= 0;) {
         if (game->npcs[i].x == nx && game->npcs[i].y == ny) {
-            look_npc_label(&game->npcs[i], label, sizeof(label));
+            look_npc_label(game, &game->npcs[i], label, sizeof(label));
             sector_add(s, sector, label, steps);
         }
     }
@@ -632,7 +632,7 @@ static void tile_presence(Game *game, int floor_id, int nx, int ny, char *out, s
         } else if (n->is_ghost) {
             snprintf(part, sizeof(part), " | [%s remains]", n->custom_name);
         } else if (n->archetype == ARCH_MERCHANT) {
-            snprintf(part, sizeof(part), " | [%s]", n->merchant.shop_name);
+            snprintf(part, sizeof(part), " | [%s]", npc_shop_any(&game->pools, n)->shop_name);
         } else if (n->template) {
             snprintf(part, sizeof(part), " | %s (HP:%d/%d)", n->template->name, n->hp, n->max_hp);
         }

@@ -421,9 +421,11 @@ int test_steps(void) {
     chest->respawn_timer = -1;
     int dagger = item_named("Dagger");
     CHECK(dagger >= 0, "no dagger");
-    chest->ghost_loot[0].template_idx = dagger;
-    chest->ghost_loot[0].stack_count = 1;
     npc_set_active(&g_game, chest, true);
+    ItemInstance *in_chest = npc_loot_new(&g_game.pools, g_game.npcs, MAX_NPCS, chest);
+    CHECK(in_chest != NULL, "no loot for the chest");
+    in_chest[0].template_idx = dagger;
+    in_chest[0].stack_count = 1;
     fl->entity_grid[CY][CX - 1] = chest->entity_id;
     step(c, -1, 0);
     CHECK(c->x == CX - 1 && c->backpack_count == 1 && said("You picked up"), "no pickup");

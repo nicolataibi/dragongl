@@ -328,7 +328,7 @@ static inline int client_seen_test(int ci, int npc_i) {
 
 /*Full MsgState for an NPC (used the first time the client sees it, when
  * it still needs the merchant/tombstone/identity fields).*/
-static void send_full_npc_state(int sock, const NPC *n) {
+static void send_full_npc_state(const Game *game, int sock, const NPC *n) {
     MsgState s;
     memset(&s, 0, sizeof(s));
     s.entity_id = n->entity_id;
@@ -338,7 +338,8 @@ static void send_full_npc_state(int sock, const NPC *n) {
     s.max_hp = n->max_hp;
     s.floor_id = n->floor_id;
     s.is_merchant = (n->archetype == ARCH_MERCHANT) ? 1 : 0;
-    s.shop_spec = (n->archetype == ARCH_MERCHANT) ? (int)n->merchant.spec : SHOP_SPEC_NONE;
+    s.shop_spec =
+        (n->archetype == ARCH_MERCHANT) ? (int)npc_shop_any(&game->pools, n)->spec : SHOP_SPEC_NONE;
     s.is_tombstone = 0;
     s.is_player = 0;
     if (wire_put_state(tx_frame(), &s)) {
@@ -401,7 +402,7 @@ static void send_nearby_npcs(Client *c, int c_idx, Game *game, int r2) {
             continue;
         }
         if (!client_seen_test(c_idx, i)) {
-            send_full_npc_state(c->sock, n);
+            send_full_npc_state(game, c->sock, n);
             client_seen_set(c_idx, i);
             continue;
         }

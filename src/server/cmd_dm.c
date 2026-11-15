@@ -460,7 +460,7 @@ static bool cmd_dm_spawn_boss(Client *c, const char *cmd, Game *game) {
 }
 
 /*Everything a DM wants to know about one boss.*/
-static void dm_boss_report(Client *c, const NPC *n, int ordinal) {
+static void dm_boss_report(Client *c, const Game *game, const NPC *n, int ordinal) {
     const char *bname = (n->template) ? n->template->name : "Unknown Boss";
     send_text_to_client(c->sock, "[DM] +======================= =======================+");
     send_text_to_client(c->sock, "[DM] BOSS #%d - %s (NPC id %d)", ordinal, bname, n->entity_id);
@@ -505,22 +505,23 @@ static void dm_boss_report(Client *c, const NPC *n, int ordinal) {
         }
         send_text_to_client(c->sock, "[DM] Ki/Inc Slot: %s", slot_buf);
     }
-    /*Loot ghost (items he carries)*/
+    /*The items it carries*/
+    const ItemInstance *loot = npc_loot(&game->pools, n);
     bool has_loot = false;
-    for (int li = 0; li < 30; li++) {
-        if (n->ghost_loot[li].template_idx >= 0 && n->ghost_loot[li].stack_count > 0) {
+    for (int li = 0; li < NPC_LOOT_MAX; li++) {
+        if (loot && loot[li].template_idx >= 0 && loot[li].stack_count > 0) {
             has_loot = true;
             break;
         }
     }
     if (has_loot) {
         send_text_to_client(c->sock, "[DM] --- Inventory/Loot ---");
-        for (int li = 0; li < 30; li++) {
-            if (n->ghost_loot[li].template_idx < 0 || n->ghost_loot[li].stack_count <= 0) {
+        for (int li = 0; li < NPC_LOOT_MAX; li++) {
+            if (loot[li].template_idx < 0 || loot[li].stack_count <= 0) {
                 continue;
             }
             char loot_buf[128];
-            get_full_item_name(&n->ghost_loot[li], loot_buf, sizeof(loot_buf));
+            get_full_item_name(&loot[li], loot_buf, sizeof(loot_buf));
             send_text_to_client(c->sock, "[DM] [%d] %s", li, loot_buf);
         }
     } else {
@@ -570,7 +571,7 @@ static bool cmd_dm_boss(Client *c, const char *cmd, Game *game) {
     FloorIter walk = floor_iter(game, target_floor);
     for (int i; (i = floor_iter_next(&walk)) >= 0;) {
         if (game->npcs[i].archetype == ARCH_BOSS) {
-            dm_boss_report(c, &game->npcs[i], ++boss_count);
+            dm_boss_report(c, game, &game->npcs[i], ++boss_count);
         }
     }
 
@@ -668,16 +669,16 @@ static bool cmd_dm_merchant(Client *c, const char *cmd, Game *game) {
         /*Stats (a merchant usually doesn't fight, but we show it anyway)*/
         send_text_to_client(c->sock, "[DM] HP : %d / %d", game->npcs[i].hp, game->npcs[i].max_hp);
         send_text_to_client(c->sock, "[DM] Restock timer: %d",
-                            game->npcs[i].merchant.restock_timer);
+                            npc_shop_any(&game->pools, &game->npcs[i])->restock_timer);
 
         /*Inventory for sale*/
-        if (game->npcs[i].merchant.item_count > 0) {
+        if (npc_shop_any(&game->pools, &game->npcs[i])->item_count > 0) {
             send_text_to_client(c->sock, "[DM] --- Goods for sale (%s) ---",
-                                game->npcs[i].merchant.shop_name);
-            for (int li = 0; li < game->npcs[i].merchant.item_count; li++) {
-                int t_idx = game->npcs[i].merchant.item_templates[li];
-                int stock = game->npcs[i].merchant.item_stock[li];
-                int max_stock = game->npcs[i].merchant.item_stock_max[li];
+                                npc_shop_any(&game->pools, &game->npcs[i])->shop_name);
+            for (int li = 0; li < npc_shop_any(&game->pools, &game->npcs[i])->item_count; li++) {
+                int t_idx = npc_shop_any(&game->pools, &game->npcs[i])->item_templates[li];
+                int stock = npc_shop_any(&game->pools, &game->npcs[i])->item_stock[li];
+                int max_stock = npc_shop_any(&game->pools, &game->npcs[i])->item_stock_max[li];
                 if (t_idx >= 0 && t_idx < item_database_size) {
                     send_text_to_client(c->sock, "[DM] [%d] %s (Quantity: %d/%d)", li,
                                         item_database[t_idx].name, stock, max_stock);
@@ -818,9 +819,9 @@ static bool cmd_dm_shop(Client *c, const char *cmd, Game *game) {
         for (int i; (i = floor_iter_next(&walk)) >= 0;) {
             if (game->npcs[i].archetype == ARCH_MERCHANT) {
                 if (abs(game->npcs[i].x - c->x) + abs(game->npcs[i].y - c->y) <= 5) {
-                    add_item_to_shop(&game->npcs[i], iid, qty);
+                    add_item_to_shop(npc_shop_any(&game->pools, &game->npcs[i]), iid, qty);
                     send_text_to_client(c->sock, "[DM] Added item %d (qty %d) to %s", iid, qty,
-                                        game->npcs[i].merchant.shop_name);
+                                        npc_shop_any(&game->pools, &game->npcs[i])->shop_name);
                     return true;
                 }
             }

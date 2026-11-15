@@ -38,8 +38,13 @@ Write what you measure in the table below (or in an issue).
 
 | Release | GPU | Rows | Outcome |
 | :-- | :-- | :-- | :-- |
-| 2026.11.14.11 | Intel Arc A770 (discrete) | 11 | `DRAGONGL_VSYNC=0 --frames 2000`: 1999 frames, p50 0.50 ms, p99 1.25 ms, max 35.47 ms (the first frames); HUD clear and readable |
+| 2026.11.14.10 | Intel Arc A770 (discrete, Vulkan 1.4), 3072x1728 | 1, 2, 12 | a game with the validation layer: 21162 frames, 0 validation messages; with vsync p50 16.75 ms, p99 35 ms |
+| 2026.11.14.11 | Intel Arc A770 (discrete) | 5-8, 11 | `DRAGONGL_VSYNC=0 --frames 2000`: 1999 frames, p50 0.50 ms, p99 1.25 ms, max 35.47 ms (the first frames); HUD clear and readable at every scale |
 | 2026.11.14.11 | Intel Arc A770 (discrete) | 10 | `DRAGONGL_TEST_DEVICE_LOST=300`: device lost at frame 300, `Renderer restarted.`, the game went on (6512 frames) |
+| 2026.11.15 | Intel Arc A770 (discrete) | 3, 4, 12 | resized by dragging, maximized, minimized and restored: the picture and the HUD followed, the game went on; 9227 frames, 0 validation messages, p50 16.75 ms, p99 35.25 ms (the longest frame, 2.9 s, is the one the window was minimized or dragged) |
 
-Still to be checked on this GPU: rows 3 and 4 (resize and minimize).
-No result yet on AMD or NVIDIA.
+On Intel Arc A770, the only GPU at hand, every row has been checked but
+row 9 (console switch, suspend): what it can cause, a lost device or
+surface, goes through the restart that row 10 forces. No result yet on
+AMD or NVIDIA: the project has no such hardware, and a report from
+anyone who has is welcome.

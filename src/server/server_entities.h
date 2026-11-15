@@ -124,10 +124,13 @@ typedef struct {
     AiBehavior behavior;
 } AIContext;
 
+#define NPC_LOOT_MAX 30 /*items of the remains of a character*/
+
 /*A monster, a merchant, the remains of a character or an item on the
- * ground. The fields every round reads come first; the shop and the loot
- * (4.4 of the 5.2 KB) come last, so that walking the table of MAX_NPCS
- * entries does not pull them through the cache.*/
+ * ground. The shop of a merchant and the items of the remains or of an
+ * item on the ground are not in the record: they are entries of the
+ * tables of npc_store.h, named by shop_id and loot_id (0 = none). The
+ * record stays under 1 KB (it was 5.2 KB with them inside).*/
 typedef struct {
     int entity_id, x, y, floor_id, hp, max_hp;
     bool active;
@@ -158,9 +161,11 @@ typedef struct {
     int spell_slots_max[MAX_SPELL_LEVEL + 1];
 
     char custom_name[64];
-    MerchantData merchant;       /*ARCH_MERCHANT only*/
-    ItemInstance ghost_loot[30]; /*remains (is_ghost) and items on the ground only*/
+    int shop_id; /*ARCH_MERCHANT: its entry of NpcPools.shops (npc_shop)*/
+    int loot_id; /*remains and items on the ground: NpcPools.bags (npc_loot)*/
 } EntityInstance;
+
+_Static_assert(sizeof(EntityInstance) <= 1024, "the NPC record must stay under 1 KB");
 
 typedef EntityInstance NPC; // Temporary alias for backward compatibility
 
