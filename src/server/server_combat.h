@@ -38,6 +38,10 @@
  * @npcs: Array of all NPCs (for secondary AOEs).*/
 void perform_attack(Client *c, NPC *t, Game *game);
 
+/*An attack or a hostile spell reveals an invisible character: the
+ * condition ends (told to the character).*/
+void client_reveal(Client *c);
+
 /*False (after telling the player) when a condition takes his actions:
  * paralyzed, stunned, unconscious, petrified, frozen, incapacitated.*/
 bool client_can_act(Client *c);

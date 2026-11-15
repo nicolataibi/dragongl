@@ -41,6 +41,9 @@ typedef struct {
     double heal_max[LEVELS];
     int buff_max[4];        /*by SpellBuffStat*/
     int control_rounds_max; /*rounds of a condition that takes the turn, without a save*/
+    int light_max;          /*cells of sight of a light spell*/
+    int summon_max;         /*allies of one summoning*/
+    int summon_rounds_max;  /*rounds an ally stays*/
 } Limits;
 
 static bool read_array(const cJSON *root, const char *key, double *out, int n) {
@@ -81,6 +84,12 @@ static bool read_limits(const char *path, Limits *l) {
                              : 1);
     const cJSON *ctl = cJSON_GetObjectItem(root, "control_rounds_max");
     l->control_rounds_max = cJSON_IsNumber(ctl) ? ctl->valueint : 0;
+    const cJSON *light = cJSON_GetObjectItem(root, "light_max");
+    l->light_max = cJSON_IsNumber(light) ? light->valueint : 0;
+    const cJSON *summon = cJSON_GetObjectItem(root, "summon_max");
+    l->summon_max = cJSON_IsNumber(summon) ? summon->valueint : 0;
+    const cJSON *summon_rounds = cJSON_GetObjectItem(root, "summon_rounds_max");
+    l->summon_rounds_max = cJSON_IsNumber(summon_rounds) ? summon_rounds->valueint : 0;
     bool has_buff = cJSON_IsObject(buff);
     if (ok && has_buff) {
         l->buff_max[SPELL_BUFF_AC] = cJSON_GetObjectItem(buff, "ac")->valueint;
@@ -88,10 +97,11 @@ static bool read_limits(const char *path, Limits *l) {
         l->buff_max[SPELL_BUFF_DAMAGE] = cJSON_GetObjectItem(buff, "damage")->valueint;
     }
     cJSON_Delete(root);
-    if (!ok || l->trials <= 0 || l->control_rounds_max <= 0 || !has_buff) {
+    if (!ok || l->trials <= 0 || l->control_rounds_max <= 0 || !has_buff || l->light_max <= 0 ||
+        l->summon_max <= 0 || l->summon_rounds_max <= 0) {
         fprintf(stderr,
-                "%s: trials, seed, damage_max, damage_min, heal_max, buff_max and "
-                "control_rounds_max are required\n",
+                "%s: trials, seed, damage_max, damage_min, heal_max, buff_max, "
+                "control_rounds_max, light_max, summon_max and summon_rounds_max are required\n",
                 path);
         return false;
     }
@@ -145,7 +155,9 @@ static int check_spell(const SpellTemplate *sp, const Limits *l, double dmg) {
                l->damage_min[lv], l->damage_max[lv]);
         bad++;
     }
-    if (e->kind == SPELL_KIND_HEAL) {
+    /*Heals: the heal spells, and the dice of a cure or a meal.*/
+    if (e->kind == SPELL_KIND_HEAL ||
+        (e->kind == SPELL_KIND_SPECIAL && (e->dice_count > 0 || e->dice_bonus > 0))) {
         SpellCaster c = reference_caster(lv);
         double heal = spell_average_amount(e, &c);
         if (heal > l->heal_max[lv]) {
@@ -156,6 +168,17 @@ static int check_spell(const SpellTemplate *sp, const Limits *l, double dmg) {
     }
     if (e->kind == SPELL_KIND_BUFF && e->value > l->buff_max[e->stat]) {
         printf("FAIL %s: buff +%d, at most +%d\n", sp->name, e->value, l->buff_max[e->stat]);
+        bad++;
+    }
+    if (e->kind == SPELL_KIND_SPECIAL && e->handler == SPELL_HANDLER_LIGHT &&
+        e->value > l->light_max) {
+        printf("FAIL %s: light of %d cells, at most %d\n", sp->name, e->value, l->light_max);
+        bad++;
+    }
+    if (e->kind == SPELL_KIND_SPECIAL && e->handler == SPELL_HANDLER_SUMMON &&
+        (e->value > l->summon_max || e->rounds > l->summon_rounds_max)) {
+        printf("FAIL %s: %d allies for %d rounds, at most %d for %d\n", sp->name, e->value,
+               e->rounds, l->summon_max, l->summon_rounds_max);
         bad++;
     }
     bool unresisted = e->roll == SPELL_ROLL_AUTO && e->save == ABILITY_NONE;

@@ -5,5 +5,8 @@
   "damage_min": [5, 1, 1, 2, 2, 5, 5, 10, 5, 10],
   "heal_max": [0, 15, 25, 35, 45, 70, 90, 100, 120, 999],
   "buff_max": {"ac": 6, "attack": 5, "damage": 4},
-  "control_rounds_max": 10
+  "control_rounds_max": 10,
+  "light_max": 12,
+  "summon_max": 2,
+  "summon_rounds_max": 50
 }

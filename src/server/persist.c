@@ -685,7 +685,7 @@ static void get_npc(BinReader *r, NPC *n) {
     n->ai_ctx.current_target_id = br_i32(r);
     n->ai_ctx.state_timer = br_i32(r);
     n->ai_ctx.legendary_actions_spent = br_i32(r);
-    n->ai_ctx.behavior = (AiBehavior)get_enum(r, AI_BEHAVIOR_DEFAULT, AI_BEHAVIOR_SWARM);
+    n->ai_ctx.behavior = (AiBehavior)get_enum(r, AI_BEHAVIOR_DEFAULT, AI_BEHAVIOR_ALLY);
     MerchantData *m = &n->merchant;
     m->item_count = (int)br_count(r, MAX_SHOP_ITEMS);
     for (int i = 0; i < m->item_count && !r->failed; i++) {

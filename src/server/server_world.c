@@ -628,6 +628,11 @@ static void npc_round(Client *clients, Game *game, NPC *n, const bool awake[MAX_
         }
         return;
     }
+    /*An ally counts its rounds even where it sleeps: it ends when its
+     * character has left the floor.*/
+    if (npc_is_ally(n) && !ai_ally_round(game, n, clients, MAX_CLIENTS)) {
+        return;
+    }
     if (n->floor_id < 0 || n->floor_id >= MAX_FLOORS || !awake[n->floor_id]) {
         return;
     }

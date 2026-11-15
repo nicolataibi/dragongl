@@ -25,6 +25,7 @@
 #include "spell_effect.h"
 #include "spell_rules.h"
 #include "spells.h"
+#include "traps.h"
 #include "player.h"
 
 #include <stdio.h>
@@ -347,9 +348,9 @@ int test_spell_special_and_terrain(void) {
     return 0;
 }
 
-/* No enemy in range: nothing happens and the slot stays; a utility spell
- * goes off (slot spent) and says it does nothing in combat; an
- * incapacitated caster cannot cast. */
+/* No enemy in range: nothing happens and the slot stays; a spell that
+ * needs no enemy goes off (slot spent); an incapacitated caster cannot
+ * cast. */
 int test_spell_refusals(void) {
     Client *c = caster(CLASS_WIZARD);
     CHECK(c && learn(c, "Magic Missile") && learn(c, "Find Familiar"), "missing spells");
@@ -357,7 +358,7 @@ int test_spell_refusals(void) {
     CHECK(said("no enemy within 24 cells"), "no refusal: %s", g_out);
     CHECK(c->spell_slots[1] == 9, "slot spent without a target");
     cast(c, "Find Familiar");
-    CHECK(said("no effect in combat") && c->spell_slots[1] == 8, "utility: %s", g_out);
+    CHECK(said("answers your call") && c->spell_slots[1] == 8, "no familiar");
     ActiveEffect fx = {0};
     fx.name = condition_to_name(COND_INCAPACITATED);
     fx.duration_rounds = 2;
@@ -379,6 +380,96 @@ static ClassType class_of(const SpellTemplate *sp) {
     return CLASS_WIZARD;
 }
 
+/*What the caster carries and suffers before each cast of
+ * spell_every_effect, so that every handler has something to act on: a
+ * condition, hunger, a worn and cursed armour, an unknown item, a hidden
+ * trap and a wall next to the caster.*/
+enum { TRAP_X = CX - 1, TRAP_Y = CY, WALL_X = CX, WALL_Y = CY + 1 };
+static void prepare_world(Client *c) {
+    c->effects[c->effect_count++] =
+        (ActiveEffect){"Poisoned", EVENT_ON_TURN_START, MOD_ADDITIVE, 0, 5, false};
+    c->hunger_level = 500;
+    int armour = -1, other = -1;
+    for (int i = 0; i < item_database_size; i++) {
+        const ItemTemplate *t = &item_database[i];
+        if (armour < 0 && t->category == ITEM_ARMOR && t->max_durability > 10) {
+            armour = i;
+        } else if (other < 0 && t->category == ITEM_WEAPON) {
+            other = i;
+        }
+    }
+    memset(&c->slot_body, 0, sizeof(c->slot_body));
+    c->slot_body.template_idx = armour;
+    c->slot_body.durability = 1;
+    c->slot_body.stack_count = 1;
+    c->slot_body.is_identified = true;
+    c->slot_body.blessing = BLESS_CURSED;
+    /*After the book of the spell, which learn() put in the backpack.*/
+    ItemInstance *unknown = &c->backpack[c->backpack_count++];
+    memset(unknown, 0, sizeof(*unknown));
+    unknown->template_idx = other;
+    unknown->stack_count = 1;
+    unknown->blessing = BLESS_NORMAL;
+    Floor *fl = &g_game.world->floors[FLOOR];
+    fl->trap_count = 1;
+    memset(&fl->traps[0], 0, sizeof(fl->traps[0]));
+    fl->traps[0].type = TRAP_SPIKES;
+    fl->traps[0].x = TRAP_X;
+    fl->traps[0].y = TRAP_Y;
+    fl->traps[0].floor_id = FLOOR;
+    fl->traps[0].active = true;
+    fl->traps[0].detection_dc = 30;
+    fl->map.data[0][WALL_Y][WALL_X] = VOXEL_WALL;
+}
+
+static int allies(void) {
+    int n = 0;
+    for (int i = 0; i < MAX_NPCS; i++) {
+        n += g_game.npcs[i].active && g_game.npcs[i].ai_ctx.behavior == AI_BEHAVIOR_ALLY;
+    }
+    return n;
+}
+
+/*What a special spell must have done, by handler; NULL if it did.*/
+static const char *check_handler(const SpellTemplate *sp, Client *c) {
+    const Floor *fl = &g_game.world->floors[FLOOR];
+    const Trap *t = &fl->traps[0];
+    switch (sp->effect.handler) {
+    case SPELL_HANDLER_CLEANSE:
+        return rules_has_condition_t(c->effects, c->effect_count, COND_POISONED) ? "still poisoned"
+                                                                                 : NULL;
+    case SPELL_HANDLER_FIND_TRAPS:
+        if (sp->effect.value > 0) {
+            return t->active ? "the trap is armed" : NULL;
+        }
+        return t->detected && fl->map.data[0][TRAP_Y][TRAP_X] == VOXEL_TRAP ? NULL
+                                                                            : "the trap is hidden";
+    case SPELL_HANDLER_IDENTIFY:
+        return c->backpack[c->backpack_count - 1].is_identified ? NULL : "the item is unknown";
+    case SPELL_HANDLER_LIGHT:
+        return get_vision_radius(c) >= sp->effect.value ? NULL : "no light";
+    case SPELL_HANDLER_MEND:
+        return c->slot_body.durability > 1 ? NULL : "the armour is worn";
+    case SPELL_HANDLER_NOURISH:
+        return c->hunger_level == 0 ? NULL : "still hungry";
+    case SPELL_HANDLER_RALLY:
+        return said("you reach out") ? NULL : "no one reached";
+    case SPELL_HANDLER_REMOVE_CURSE:
+        return c->slot_body.blessing == BLESS_NORMAL ? NULL : "the armour is cursed";
+    case SPELL_HANDLER_SENSE:
+        return said("cells you sense") && said("cells east") ? NULL : "the foe is not sensed";
+    case SPELL_HANDLER_SHAPE_EARTH:
+        return fl->map.data[0][WALL_Y][WALL_X] == VOXEL_FLOOR ? NULL : "the wall stands";
+    case SPELL_HANDLER_SHELTER:
+        /*An enemy is one cell away: the rest is refused.*/
+        return said("too close to rest") ? NULL : "rested next to an enemy";
+    case SPELL_HANDLER_SUMMON:
+        return allies() > 0 ? NULL : "no ally";
+    default:
+        return said(sp->name) || said("[MAGIC]") ? NULL : "the handler said nothing";
+    }
+}
+
 /*What a cast of sp must have done, by kind; NULL if it did.*/
 static const char *check_outcome(const SpellTemplate *sp, Client *c, const NPC *n, int hp_before) {
     const SpellEffect *e = &sp->effect;
@@ -392,10 +483,8 @@ static const char *check_outcome(const SpellTemplate *sp, Client *c, const NPC *
         return c->hp > hp_before ? NULL : "no healing";
     case SPELL_KIND_BUFF:
         return has_effect(c->effects, c->effect_count, sp->name) ? NULL : "no buff";
-    case SPELL_KIND_UTILITY:
-        return said("no effect in combat") ? NULL : "no utility line";
     case SPELL_KIND_SPECIAL:
-        return said(sp->name) || said("[MAGIC]") ? NULL : "the handler said nothing";
+        return check_handler(sp, c);
     default:
         break;
     }
@@ -418,6 +507,7 @@ int test_spell_every_effect(void) {
         CHECK(c && learn(c, sp->name), "%s: no book", sp->name);
         c->hp = 1;
         NPC *n = foe(10, CX + 1, CY);
+        prepare_world(c);
         cast(c, sp->name);
         const char *why = check_outcome(sp, c, n, 1);
         if (why) {

@@ -16,7 +16,7 @@
 static const char *const k_kinds[SPELL_KIND_COUNT] = {
     [SPELL_KIND_DAMAGE] = "damage",       [SPELL_KIND_HEAL] = "heal",
     [SPELL_KIND_CONDITION] = "condition", [SPELL_KIND_BUFF] = "buff",
-    [SPELL_KIND_UTILITY] = "utility",     [SPELL_KIND_SPECIAL] = "special",
+    [SPELL_KIND_SPECIAL] = "special",
 };
 static const char *const k_targets[SPELL_TARGET_COUNT] = {
     [SPELL_TARGET_SINGLE] = "single",     [SPELL_TARGET_SELF] = "self",
@@ -35,6 +35,18 @@ static const char *const k_handlers[SPELL_HANDLER_COUNT] = {
     [SPELL_HANDLER_INVISIBILITY] = "invisibility",
     [SPELL_HANDLER_SUMMON_ELEMENTAL] = "summon_elemental",
     [SPELL_HANDLER_TELEPORT] = "teleport",
+    [SPELL_HANDLER_CLEANSE] = "cleanse",
+    [SPELL_HANDLER_FIND_TRAPS] = "find_traps",
+    [SPELL_HANDLER_IDENTIFY] = "identify",
+    [SPELL_HANDLER_LIGHT] = "light",
+    [SPELL_HANDLER_MEND] = "mend",
+    [SPELL_HANDLER_NOURISH] = "nourish",
+    [SPELL_HANDLER_RALLY] = "rally",
+    [SPELL_HANDLER_REMOVE_CURSE] = "remove_curse",
+    [SPELL_HANDLER_SENSE] = "sense",
+    [SPELL_HANDLER_SHAPE_EARTH] = "shape_earth",
+    [SPELL_HANDLER_SHELTER] = "shelter",
+    [SPELL_HANDLER_SUMMON] = "summon",
 };
 static const char *const k_stats[] = {"", "ac", "attack", "damage"};
 static const char *const k_terrains[] = {"", "wall", "ice", "mud"};
@@ -235,7 +247,8 @@ static bool read_kind_fields(Reader *r, SpellEffect *e) {
         }
     }
     if (e->kind == SPELL_KIND_SPECIAL) {
-        if (!read_name(r, "handler", true, k_handlers, SPELL_HANDLER_COUNT, &v)) {
+        if (!read_name(r, "handler", true, k_handlers, SPELL_HANDLER_COUNT, &v) ||
+            !read_int(r, "value", false, 0, 10, &e->value)) {
             return false;
         }
         e->handler = (SpellHandler)v;

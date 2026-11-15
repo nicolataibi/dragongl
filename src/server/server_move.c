@@ -27,6 +27,7 @@
  */
 
 #include "server_move.h"
+#include "ai.h"
 #include "server_internal.h"
 #include "server_combat.h"
 #include "server_world.h"
@@ -188,6 +189,10 @@ static bool bump_into(Client *c, Floor *fl, int ent_id, int nx, int ny, Client *
         }
         if (is_loot(n)) {
             return pick_up_loot(game, c, n, fl, nx, ny);
+        }
+        if (npc_is_ally(n)) {
+            send_text_to_client(c->sock, "[ALLY] %s stands beside you.", npc_name(n));
+            return true;
         }
         perform_attack(c, n, game);
         return true;

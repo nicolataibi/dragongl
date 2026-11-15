@@ -180,7 +180,9 @@ void ai_init_npc(NPC *npc, const char *monster_name, int floor_id) {
 
 // Reattaches the behavior tree after loading from disk (does not touch stats).
 void ai_attach_behavior(NPC *npc) {
-    if (!npc || npc->archetype == ARCH_MERCHANT) {
+    /*An ally keeps its behavior across a restart: its first round ends it
+     * (its character is not in the game yet).*/
+    if (!npc || npc->archetype == ARCH_MERCHANT || npc->ai_ctx.behavior == AI_BEHAVIOR_ALLY) {
         return;
     }
     attach_behavior_by_archetype(npc);
@@ -222,6 +224,12 @@ static Client *find_closest_target(Game *game, NPC *npc, Client *clients, int nu
 
     for (int i = 0; i < num_clients; i++) {
         if (clients[i].active && clients[i].authenticated && clients[i].floor_id == npc->floor_id) {
+            /*An invisible character is not seen (it was: invisibility only
+             * gave the monsters disadvantage).*/
+            if (rules_has_condition_t(clients[i].effects, clients[i].effect_count,
+                                      COND_INVISIBLE)) {
+                continue;
+            }
             int d = abs(clients[i].x - npc->x) + abs(clients[i].y - npc->y);
             int sight_range = base_sight + get_light_level(game, &clients[i]);
             if (d <= sight_range && d < min_d) {
@@ -422,6 +430,148 @@ AINodeStatus ai_swarm_behavior(Game *game, NPC *npc, Client *clients, int num_cl
     return AI_SUCCESS;
 }
 
+/* --- Allies ---------------------------------------------------------------- */
+
+#define ALLY_SIGHT  8 /*cells within which an ally sees an enemy*/
+#define ALLY_FOLLOW 2 /*an ally with nothing to fight stays this close*/
+
+void ai_make_ally(NPC *npc, const Client *c, int rounds) {
+    npc->ai_ctx.behavior = AI_BEHAVIOR_ALLY;
+    npc->ai_ctx.current_target_id = c->entity_id;
+    npc->ai_ctx.state_timer = rounds > 0 ? rounds : 1;
+    npc->xp_reward = 0;
+    npc->gold_drop = 0;
+}
+
+bool npc_is_ally(const NPC *npc) {
+    return npc->ai_ctx.behavior == AI_BEHAVIOR_ALLY;
+}
+
+static Client *ally_owner(NPC *npc, Client *clients, int num_clients) {
+    for (int i = 0; i < num_clients; i++) {
+        Client *c = &clients[i];
+        if (c->active && c->authenticated && c->entity_id == npc->ai_ctx.current_target_id) {
+            return c->floor_id == npc->floor_id ? c : NULL;
+        }
+    }
+    return NULL;
+}
+
+/*The end of an ally: a dominated creature is hostile again, any other one
+ * leaves the world (a raised corpse later respawns as the monster it was;
+ * a summoned creature has no spawn point and never comes back).*/
+static void ally_dismiss(Game *game, NPC *npc, Client *owner) {
+    bool dominated = strncmp(npc->custom_name, "[DOMINATED]", 11) == 0;
+    if (owner) {
+        send_text_to_client(owner->sock, "[MAGIC] %s %s.", npc_name(npc),
+                            dominated ? "shakes off your control" : "fades away");
+    }
+    npc->custom_name[0] = '\0';
+    npc->ai_ctx.current_target_id = -1;
+    npc->ai_ctx.state_timer = 0;
+    npc->ai_ctx.behavior = AI_BEHAVIOR_DEFAULT;
+    ai_attach_behavior(npc);
+    if (dominated) {
+        return;
+    }
+    if (npc->x >= 0 && npc->x < MAP_WIDTH && npc->y >= 0 && npc->y < MAP_HEIGHT &&
+        game->world->floors[npc->floor_id].entity_grid[npc->y][npc->x] == npc->entity_id) {
+        game->world->floors[npc->floor_id].entity_grid[npc->y][npc->x] = 0;
+    }
+    npc_set_active(game, npc, false);
+    npc->respawn_timer = RESPAWN_TICKS;
+}
+
+/*A hostile creature an ally may fight: alive, not loot, not a merchant,
+ * not another ally.*/
+static bool ally_can_fight(const NPC *n) {
+    return n->active && n->hp > 0 && n->archetype != ARCH_MERCHANT &&
+           n->archetype != ARCH_TREASURE && n->archetype != ARCH_GOLD && !npc_is_ally(n);
+}
+
+static NPC *ally_enemy(Game *game, const NPC *npc) {
+    NPC *best = NULL;
+    int best_d = ALLY_SIGHT + 1;
+    FloorIter walk = floor_iter(game, npc->floor_id);
+    for (int i; (i = floor_iter_next(&walk)) >= 0;) {
+        NPC *n = &game->npcs[i];
+        if (n == npc || n->floor_id != npc->floor_id || !ally_can_fight(n)) {
+            continue;
+        }
+        int dx = abs(n->x - npc->x), dy = abs(n->y - npc->y);
+        int d = dx > dy ? dx : dy;
+        if (d < best_d) {
+            best_d = d;
+            best = n;
+        }
+    }
+    return best;
+}
+
+static void ally_step_towards(Game *game, NPC *npc, int tx, int ty, Client *clients,
+                              int num_clients) {
+    int nx = npc->x + (tx > npc->x) - (tx < npc->x);
+    int ny = npc->y + (ty > npc->y) - (ty < npc->y);
+    const Map *map = &game->world->floors[npc->floor_id].map;
+    VoxelType v = map->data[0][ny][nx];
+    if (v != VOXEL_WALL && v != VOXEL_ROCK &&
+        !cell_occupied(game, nx, ny, npc, clients, num_clients)) {
+        npc_set_cell(game, npc, nx, ny);
+    }
+}
+
+/*An ally's attack: d20 + its bonus against the AC of the enemy, the
+ * damage of its dice; a kill is the owner's.*/
+static void ally_attack(Game *game, NPC *npc, NPC *enemy, Client *owner) {
+    int roll = rules_roll_d20(false, false);
+    bool hit = roll == 20 || (roll != 1 && roll + npc->attack_bonus >= enemy->ac);
+    if (!hit) {
+        send_text_to_client(owner->sock, "[ALLY] %s misses %s.", npc_name(npc), npc_name(enemy));
+        return;
+    }
+    int dmg = rules_roll_dice(npc->damage_dice > 0 ? npc->damage_dice : 1,
+                              npc->damage_sides > 0 ? npc->damage_sides : 4);
+    enemy->hp -= dmg;
+    send_text_to_client(owner->sock, "[ALLY] %s hits %s for %d damage (HP %d/%d).", npc_name(npc),
+                        npc_name(enemy), dmg, enemy->hp > 0 ? enemy->hp : 0, enemy->max_hp);
+    if (enemy->hp <= 0) {
+        enemy->hp = 0;
+        npc_killed(game, owner, enemy, npc_name(npc));
+    }
+}
+
+bool ai_ally_round(Game *game, NPC *npc, Client *clients, int num_clients) {
+    Client *owner = ally_owner(npc, clients, num_clients);
+    if (!owner || --npc->ai_ctx.state_timer <= 0) {
+        ally_dismiss(game, npc, owner);
+        return false;
+    }
+    return true;
+}
+
+static void ai_ally_behavior(Game *game, NPC *npc, Client *clients, int num_clients,
+                             bool new_round) {
+    Client *owner = ally_owner(npc, clients, num_clients);
+    if (!owner) {
+        return;
+    }
+    NPC *enemy = ally_enemy(game, npc);
+    if (enemy) {
+        int dx = abs(enemy->x - npc->x), dy = abs(enemy->y - npc->y);
+        if (dx <= 1 && dy <= 1) {
+            if (new_round) {
+                ally_attack(game, npc, enemy, owner);
+            }
+            return;
+        }
+        ally_step_towards(game, npc, enemy->x, enemy->y, clients, num_clients);
+        return;
+    }
+    if (abs(owner->x - npc->x) > ALLY_FOLLOW || abs(owner->y - npc->y) > ALLY_FOLLOW) {
+        ally_step_towards(game, npc, owner->x, owner->y, clients, num_clients);
+    }
+}
+
 void ai_update_npc(Game *game, NPC *npc, Client *clients, int num_clients, bool new_round) {
     /*Merchants have no AI; TREASURE and GOLD have NO AI at all: they are
      * pickable loot with template==NULL. Running them through the default
@@ -437,6 +587,9 @@ void ai_update_npc(Game *game, NPC *npc, Client *clients, int num_clients, bool 
     }
 
     switch (npc->ai_ctx.behavior) {
+    case AI_BEHAVIOR_ALLY:
+        ai_ally_behavior(game, npc, clients, num_clients, new_round);
+        break;
     case AI_BEHAVIOR_VOID_CRAWLER:
         (void)ai_void_crawler_behavior(game, npc, clients, num_clients, new_round);
         break;

@@ -59,6 +59,9 @@ bool spell_router_dispatch(SpellContext *ctx);
 
 /*Stamps the spell's terrain (wall, ice, mud) around (x, y), radius the
  * effect's radius (2 if it has none). The caster's cell stays free.*/
+/*A free floor cell next to the caster (then further out); false if none.*/
+bool spell_find_spawn_cell(Game *game, Client *c, int *out_x, int *out_y);
+
 void spell_router_terrain(Game *game, Client *c, const SpellTemplate *sp, int x, int y);
 
 #endif /* SPELL_ROUTER_H */
