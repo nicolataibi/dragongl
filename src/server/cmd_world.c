@@ -106,30 +106,30 @@ static const char *get_voxel_name_it(VoxelType vt) {
 static void evaluate_digging_potential(int nx, int ny, int f, VoxelType vt, char *buf,
                                        size_t buf_size) {
     if (vt == VOXEL_GOLD_VEIN) {
-        snprintf(buf, buf_size, "⚡ VERY RICH: Pure Gold Vein! Highly recommended dig!");
+        snprintf(buf, buf_size, "VERY RICH: Pure Gold Vein! Highly recommended dig!");
     } else if (vt >= VOXEL_CRYSTAL_BLUE && vt <= VOXEL_CRYSTAL_WHITE) {
-        snprintf(buf, buf_size, "✨ PRECIOUS: Raw magic crystal! Extraction recommended!");
+        snprintf(buf, buf_size, "PRECIOUS: Raw magic crystal! Extraction recommended!");
     } else if (vt == VOXEL_WALL || vt == VOXEL_ROCK) {
         unsigned int hash = (unsigned int)(nx * 73 + ny * 37 + f * 19 + 17);
         int chance = (int)(hash % 100);
         if (chance < 15) {
             snprintf(buf, buf_size,
-                     "💎 VERY PROSPEROUS: Silver and Quartz veins detected in the wall!");
+                     "VERY PROSPEROUS: Silver and Quartz veins detected in the wall!");
         } else if (chance < 35) {
-            snprintf(buf, buf_size, "🪙 PROSPEROUS: Traces of metallic minerals and pyrite.");
+            snprintf(buf, buf_size, "PROSPEROUS: Traces of metallic minerals and pyrite.");
         } else {
-            snprintf(buf, buf_size, "🪨 STERILE: Ordinary hard rock. Risk of blunting the tool.");
+            snprintf(buf, buf_size, "STERILE: Ordinary hard rock. Risk of blunting the tool.");
         }
     } else if (vt == VOXEL_MUD || vt == VOXEL_SAND || vt == VOXEL_ASH || vt == VOXEL_GRASS) {
         unsigned int hash = (unsigned int)(nx * 31 + ny * 47 + f * 13 + 5);
         int chance = (int)(hash % 100);
         if (chance < 20) {
-            snprintf(buf, buf_size, "🏺 PROSPEROUS: Sediment rich in raw nuggets or finds!");
+            snprintf(buf, buf_size, "PROSPEROUS: Sediment rich in raw nuggets or finds!");
         } else {
-            snprintf(buf, buf_size, "🌱 SOIL: Soft soil, easy but poor excavation.");
+            snprintf(buf, buf_size, "SOIL: Soft soil, easy but poor excavation.");
         }
     } else {
-        snprintf(buf, buf_size, "➖ REGULAR: Non-mining surface.");
+        snprintf(buf, buf_size, "REGULAR: Non-mining surface.");
     }
 }
 
@@ -167,7 +167,7 @@ static void look_underfoot(Client *c, Game *game, char *buf, size_t cap) {
     for (int i = 0; i < MAX_TOMBSTONES; i++) {
         if (game->tombstones[i].active && game->tombstones[i].floor_id == f &&
             abs(game->tombstones[i].x - px) + abs(game->tombstones[i].y - py) <= 1) {
-            buf_add(buf, cap, "| [⚰ Tombstone of %s — type 'list' to inspect]",
+            buf_add(buf, cap, "| [Tombstone of %s - type 'list' to inspect]",
                     game->tombstones[i].owner);
         }
     }
@@ -403,7 +403,7 @@ bool cmd_statue(Client *c, const char *cmd, Game *game) {
 bool cmd_search(Client *c, const char *cmd, Game *game) {
     (void)cmd;
     (void)game;
-    int roll = (rand() % 20) + 1;
+    int roll = rules_roll_d20(false, false);
     int perception = roll + rules_get_modifier(c->wis);
     bool found_something = false;
 
@@ -414,8 +414,9 @@ bool cmd_search(Client *c, const char *cmd, Game *game) {
             continue;
         }
 
+        /*A wall trap is found from the tile it fires onto.*/
         int check_x = t->x, check_y = t->y;
-        if (t->type == 1) { // TRAP_DART_WALL
+        if (t->type == TRAP_DART_WALL || t->type == TRAP_SPRING_SPEAR) {
             int wall_dx[4] = {0, 1, 0, -1};
             int wall_dy[4] = {-1, 0, 1, 0};
             check_x += wall_dx[t->wall_dir];
@@ -426,6 +427,9 @@ bool cmd_search(Client *c, const char *cmd, Game *game) {
             if (perception >= t->detection_dc) {
                 t->detected = true;
                 found_something = true;
+                if (t->type != TRAP_DART_WALL && t->type != TRAP_SPRING_SPEAR) {
+                    f->map.data[0][t->y][t->x] = VOXEL_TRAP; /*now on the map*/
+                }
                 send_text_to_client(
                     c->sock, "[PERCEPTION] You have discovered a hidden trap! (Roll: %d vs DC: %d)",
                     perception, t->detection_dc);
@@ -441,9 +445,9 @@ bool cmd_search(Client *c, const char *cmd, Game *game) {
     return true;
 }
 
-/*The trap to work on: the nearest active one within 2 steps (a wall trap
- * counts from the tile it fires onto); a detected trap wins over a hidden
- * one that is not closer.*/
+/*The trap to work on: the nearest detected one within 2 steps (a wall
+ * trap counts from the tile it fires onto). A trap nobody has found
+ * cannot be disarmed: 'search' first.*/
 static Trap *disarm_target(const Client *c, Floor *f) {
     static const int wall_dx[4] = {0, 1, 0, -1};
     static const int wall_dy[4] = {-1, 0, 1, 0};
@@ -451,7 +455,7 @@ static Trap *disarm_target(const Client *c, Floor *f) {
     int min_dist = 999;
     for (int i = 0; i < f->trap_count; i++) {
         Trap *t = &f->traps[i];
-        if (!t->active) {
+        if (!t->active || !t->detected) {
             continue;
         }
         int tx = t->x, ty = t->y;
@@ -460,7 +464,7 @@ static Trap *disarm_target(const Client *c, Floor *f) {
             ty += wall_dy[t->wall_dir];
         }
         int dist = abs(c->x - tx) + abs(c->y - ty);
-        if (dist <= 2 && dist < min_dist && (t->detected || !target)) {
+        if (dist <= 2 && dist < min_dist) {
             min_dist = dist;
             target = t;
         }
@@ -586,14 +590,12 @@ bool cmd_disarm(Client *c, const char *cmd, Game *game) {
                             "[ERROR] No traps detected in range. Use 'search' to find one.");
         return true;
     }
-    t->detected = true;
-
     bool arcane =
         strstr(cmd, "magic") != NULL || strstr(cmd, " m") != NULL || trap_is_magical(t->type);
     DisarmCheck k;
     k.salvage = strstr(cmd, "salvage") != NULL || strstr(cmd, " r") != NULL;
     k.method = arcane ? "Arcane Dissipation" : "Manual Dexterity";
-    k.roll = (rand() % 20) + 1;
+    k.roll = rules_roll_d20(false, false);
     k.dc = (t->detection_dc > 0 ? t->detection_dc : 12) + (k.salvage ? 3 : 0);
     k.mod = disarm_modifier(c, arcane);
     k.total = k.roll + k.mod;

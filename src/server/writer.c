@@ -74,7 +74,7 @@ static bool job_perform(const WriterJob *j) {
         copy_str(msg, "unknown error", sizeof(msg));
     }
     server_log("SAVE", "Failed to %s %s (%s)%s", j->unlink_only ? "remove" : "save", j->path, msg,
-               j->unlink_only ? "." : " — previous file kept.");
+               j->unlink_only ? "." : " - previous file kept.");
     errno = saved;
     return false;
 }

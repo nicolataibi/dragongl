@@ -249,6 +249,10 @@ jobs:
       - name: Spelling
         run: tools/quality.sh spelling
 
+      # The HUD font is ASCII: so must be the messages and the game data.
+      - name: ASCII text
+        run: tools/quality.sh ascii
+
       # Links between the Markdown files, their anchors and the files they
       # name (tools/check_links.py); the external links are checked nightly.
       - name: Links of the documentation

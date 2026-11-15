@@ -13,8 +13,12 @@
  */
 
 #include "fixture.h"
+#include "harness_combat.h"
 #include "harness_commands.h"
+#include "harness_items.h"
+#include "harness_rounds.h"
 #include "harness_spells.h"
+#include "harness_world.h"
 
 #include "binio.h"
 #include "classes.h"
@@ -1222,6 +1226,34 @@ typedef struct {
 } TestCase;
 
 static const TestCase k_tests[] = {
+    {"melee_attack", test_melee_attack},
+    {"weapons_and_arrows", test_weapons_and_arrows},
+    {"monster_attacks", test_monster_attacks},
+    {"loot", test_loot},
+    {"party_shares_xp", test_party_shares_xp},
+    {"boss_and_event_kills", test_boss_and_event_kills},
+    {"death_and_tombstone", test_death_and_tombstone},
+    {"ghost_is_not_a_boss", test_ghost_is_not_a_boss},
+    {"tombstone_expires", test_tombstone_expires},
+    {"combat_log", test_combat_log},
+    {"every_trap", test_every_trap},
+    {"search_and_disarm", test_search_and_disarm},
+    {"look_and_examine", test_look_and_examine},
+    {"town_services", test_town_services},
+    {"mining", test_mining},
+    {"steps", test_steps},
+    {"use_items", test_use_items},
+    {"books_and_lore", test_books_and_lore},
+    {"equipment", test_equipment},
+    {"level_up_and_train", test_level_up_and_train},
+    {"merchant_services", test_merchant_services},
+    {"social", test_social},
+    {"player_rounds", test_player_rounds},
+    {"global_event", test_global_event},
+    {"world_respawns", test_world_respawns},
+    {"monster_minds", test_monster_minds},
+    {"dm_reports", test_dm_reports},
+    {"starting_gear", test_starting_gear},
     {"full_backpack_roundtrip", test_full_backpack_roundtrip},
     {"partial_backpack_roundtrip", test_partial_backpack_roundtrip},
     {"trade_offer_revalidated_on_accept", test_trade_offer_revalidated_on_accept},

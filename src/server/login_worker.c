@@ -206,7 +206,7 @@ void log_login_outcome(const LoginJob *job) {
     case LOGIN_UNREADABLE:
         /*Never half-loaded, never treated as a new character (the next save
      * would overwrite it): refused, file kept.*/
-        server_log("SAVE", "%s.save is unreadable (%s) — login refused (file kept).",
+        server_log("SAVE", "%s.save is unreadable (%s) - login refused (file kept).",
                    job->ml.username, job->why);
         break;
     case LOGIN_BAD_DM:

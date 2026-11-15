@@ -407,14 +407,12 @@ bool cmd_identify(Client *c, const char *cmd, Game *game) {
                 target_idx = n;
             }
         } else {
-            for (int i = 0; i < c->backpack_count; i++) {
-                if (!c->backpack[i].is_identified) {
-                    target_idx = i;
-                }
+            /*An unidentified item whose name contains the text (the first
+             * unidentified one when the text names none used to be taken).*/
+            for (int i = 0; i < c->backpack_count && target_idx == -1; i++) {
                 const char *iname = item_database[c->backpack[i].template_idx].name;
-                if (strcasecmp(iname, arg) == 0) {
+                if (!c->backpack[i].is_identified && strcasestr(iname, arg)) {
                     target_idx = i;
-                    break;
                 }
             }
         }
@@ -432,7 +430,7 @@ bool cmd_identify(Client *c, const char *cmd, Game *game) {
         return true;
     }
     if (c->gold < 100) {
-        send_text_to_client(c->sock, "[ALCHEMIST] Identification service costs 100gp."
+        send_text_to_client(c->sock, "[ALCHEMIST] Identification service costs 100gp. "
                                      "You don't have enough gold.");
         return true;
     }
@@ -443,7 +441,7 @@ bool cmd_identify(Client *c, const char *cmd, Game *game) {
     if (c->backpack[target_idx].blessing == BLESS_CURSED) {
         send_text_to_client(c->sock,
                             "[ALCHEMIST] *whistles softly* The item is: %s"
-                            "-- WARNING: it's CURSED! Don't wear it!",
+                            " -- WARNING: it's CURSED! Don't wear it!",
                             id_buf);
     } else {
         send_text_to_client(c->sock, "[ALCHEMIST] The item is: %s", id_buf);
@@ -451,17 +449,33 @@ bool cmd_identify(Client *c, const char *cmd, Game *game) {
     return true;
 }
 
+/*cure: next to a merchant, for 50 gold, every condition goes but
+ * invisibility; the effects of potions and spells stay. It cured anywhere,
+ * in the middle of a fight too, and took the good effects with the bad.*/
 bool cmd_cure(Client *c, const char *cmd, Game *game) {
     (void)cmd;
-    (void)game;
-    if (c->gold >= 50) {
-        c->gold -= 50;
-        c->effect_count = 0;
-        send_text_to_client(c->sock,
-                            "[TEMPLE] Your afflictions have been cleansed by the Arcanum!");
-    } else {
-        send_text_to_client(c->sock, "[ERROR] Not enough gold (50gp).");
+    if (!nearby_merchant(c, game)) {
+        send_text_to_client(c->sock, "[ERROR] The healers are merchants: find one first.");
+        return true;
     }
+    if (c->gold < 50) {
+        send_text_to_client(c->sock, "[ERROR] Not enough gold (50gp).");
+        return true;
+    }
+    int kept = 0;
+    for (int i = 0; i < c->effect_count; i++) {
+        ConditionType cond = condition_from_name(c->effects[i].name);
+        if (cond == MAX_CONDITIONS || cond == COND_INVISIBLE) {
+            c->effects[kept++] = c->effects[i];
+        }
+    }
+    if (kept == c->effect_count) {
+        send_text_to_client(c->sock, "[TEMPLE] You have no affliction to cure.");
+        return true;
+    }
+    c->gold -= 50;
+    c->effect_count = kept;
+    send_text_to_client(c->sock, "[TEMPLE] Your afflictions have been cleansed by the Arcanum!");
     return true;
 }
 
@@ -541,7 +555,7 @@ bool cmd_repair(Client *c, const char *cmd, Game *game) {
     if (items_repaired == 0 && total_cost == 0) {
         send_text_to_client(c->sock,
                             "[BLACKSMITH] Your items are in excellent shape, there is nothing"
-                            "to repair (or you don't have enough gold).");
+                            " to repair (or you don't have enough gold).");
     } else {
         send_text_to_client(c->sock, "[BLACKSMITH] Work completed. Total spent: %d gp.",
                             total_cost);
@@ -567,12 +581,11 @@ bool cmd_uncurse(Client *c, const char *cmd, Game *game) {
         }
     }
     if (!near_cleric) {
-        send_text_to_client(c->sock, "[ERROR] You must be near the Cleric to remove"
-                                     "to curse.");
+        send_text_to_client(c->sock, "[ERROR] You must be near the Cleric to remove a curse.");
         return true;
     }
     if (c->gold < 200) {
-        send_text_to_client(c->sock, "[CLERIC] The purification rite costs 200gp."
+        send_text_to_client(c->sock, "[CLERIC] The purification rite costs 200gp. "
                                      "You don't have enough gold.");
         return true;
     }
@@ -594,13 +607,13 @@ bool cmd_uncurse(Client *c, const char *cmd, Game *game) {
         }
     }
     if (uncursed_count == 0) {
-        send_text_to_client(c->sock, "[CLERIC] Do not carry cursed objects. Save your 200gp.");
+        send_text_to_client(c->sock, "[CLERIC] You carry no cursed object. Keep your 200gp.");
         return true;
     }
     c->gold -= 200;
     send_text_to_client(c->sock,
-                        "[CLERIC] The sacred fire burns the curses! %d item(s)."
-                        "purified(s) (200gp).",
+                        "[CLERIC] The sacred fire burns the curses! %d item(s) purified"
+                        " (200gp).",
                         uncursed_count);
     return true;
 }

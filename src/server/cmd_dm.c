@@ -462,22 +462,22 @@ static bool cmd_dm_spawn_boss(Client *c, const char *cmd, Game *game) {
 /*Everything a DM wants to know about one boss.*/
 static void dm_boss_report(Client *c, const NPC *n, int ordinal) {
     const char *bname = (n->template) ? n->template->name : "Unknown Boss";
-    send_text_to_client(c->sock, "[DM] ╔═══════════════════════ ═══════════════════════╗");
-    send_text_to_client(c->sock, "[DM] BOSS #%d — %s (NPC id %d)", ordinal, bname, n->entity_id);
-    send_text_to_client(c->sock, "[DM] ╚═══════════════════════ ═══════════════════════╝");
+    send_text_to_client(c->sock, "[DM] +======================= =======================+");
+    send_text_to_client(c->sock, "[DM] BOSS #%d - %s (NPC id %d)", ordinal, bname, n->entity_id);
+    send_text_to_client(c->sock, "[DM] +======================= =======================+");
     send_text_to_client(c->sock, "[DM] Position: Floor %d X:%d Y:%d", n->floor_id, n->x, n->y);
     send_text_to_client(c->sock, "[DM] Spawn : X:%d Y:%d", n->spawn_x, n->spawn_y);
     /*Combat statistics*/
     send_text_to_client(c->sock, "[DM] HP : %d / %d", n->hp, n->max_hp);
-    send_text_to_client(c->sock, "[DM] CA : %d", n->ac);
+    send_text_to_client(c->sock, "[DM] AC : %d", n->ac);
     send_text_to_client(c->sock, "[DM] Attack: +%d Damage: %dd%d", n->attack_bonus, n->damage_dice,
                         n->damage_sides);
     send_text_to_client(c->sock, "[DM] XP: %d Gold: %d", n->xp_reward, n->gold_drop);
-    send_text_to_client(c->sock, "[DM] Moral: %d", n->morale);
+    send_text_to_client(c->sock, "[DM] Morale: %d", n->morale);
     /*Data from template bestiary*/
     if (n->template) {
         const MonsterTemplate *t = n->template;
-        send_text_to_client(c->sock, "[DM] View: %d Speed: %d", t->sight_range, t->speed);
+        send_text_to_client(c->sock, "[DM] Sight: %d Speed: %d", t->sight_range, t->speed);
         send_text_to_client(c->sock, "[DM] Floors : %d-%d", t->floor_min, t->floor_max);
         if (t->description && t->description[0] != '\0') {
             send_text_to_client(c->sock, "[DM] Lore : %.120s", t->description);
@@ -535,7 +535,7 @@ static void dm_boss_report(Client *c, const NPC *n, int ordinal) {
                                 n->effects[ei].value, n->effects[ei].duration_rounds);
         }
     }
-    send_text_to_client(c->sock, "[DM] ──────────────────────── ────────────────────────");
+    send_text_to_client(c->sock, "[DM] ------------------------ ------------------------");
 }
 
 static bool cmd_dm_boss(Client *c, const char *cmd, Game *game) {
@@ -592,7 +592,7 @@ static bool cmd_dm_boss(Client *c, const char *cmd, Game *game) {
         const char *bname =
             (game->npcs[i].template) ? game->npcs[i].template->name : "Unknown Boss";
         send_text_to_client(c->sock,
-                            "[DM] *** DEAD BOSS — %s (NPC id %d) — respawn in %d round ***", bname,
+                            "[DM] *** DEAD BOSS - %s (NPC id %d) - respawn in %d round ***", bname,
                             game->npcs[i].entity_id, game->npcs[i].respawn_timer);
         send_text_to_client(c->sock, "[DM] Spawn: X:%d Y:%d |  Max HP: %d", game->npcs[i].spawn_x,
                             game->npcs[i].spawn_y, game->npcs[i].max_hp);
@@ -658,10 +658,10 @@ static bool cmd_dm_merchant(Client *c, const char *cmd, Game *game) {
             continue;
         }
         merch_count++;
-        send_text_to_client(c->sock, "[DM] ╔═══════════════════════ ═══════════════════════╗");
-        send_text_to_client(c->sock, "[DM] WANDING MERCHANT #%d (NPC id %d)", merch_count,
+        send_text_to_client(c->sock, "[DM] +======================= =======================+");
+        send_text_to_client(c->sock, "[DM] WANDERING MERCHANT #%d (NPC id %d)", merch_count,
                             game->npcs[i].entity_id);
-        send_text_to_client(c->sock, "[DM] ╚═══════════════════════ ═══════════════════════╝");
+        send_text_to_client(c->sock, "[DM] +======================= =======================+");
         /* Position */
         send_text_to_client(c->sock, "[DM] Position: Floor %d X:%d Y:%d", game->npcs[i].floor_id,
                             game->npcs[i].x, game->npcs[i].y);
@@ -686,7 +686,7 @@ static bool cmd_dm_merchant(Client *c, const char *cmd, Game *game) {
         } else {
             send_text_to_client(c->sock, "[DM] Goods for sale: empty");
         }
-        send_text_to_client(c->sock, "[DM] ──────────────────────── ────────────────────────");
+        send_text_to_client(c->sock, "[DM] ------------------------ ------------------------");
     }
     if (merch_count == 0) {
         send_text_to_client(c->sock, "[DM] No active wandering merchants found on Floor %d.",

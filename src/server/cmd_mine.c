@@ -186,6 +186,11 @@ bool cmd_tunnel(Client *c, const char *cmd, Game *game) {
         send_text_to_client(c->sock, "[SYSTEM] Invalid direction. Use: n, s, e, w, or d (down)");
         return true;
     }
+    /*The town is built, not dug: its walls, statues and paving stay.*/
+    if (c->floor_id == 0) {
+        send_text_to_client(c->sock, "[MINE] The town is not a mine: dig in the dungeon.");
+        return true;
+    }
     /*The outermost ring of rock is the edge of the world: it is never dug.*/
     if (tx < 1 || tx >= MAP_WIDTH - 1 || ty < 1 || ty >= MAP_HEIGHT - 1) {
         send_text_to_client(c->sock, "[SYSTEM] Beyond borders.");

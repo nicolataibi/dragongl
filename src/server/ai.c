@@ -534,11 +534,16 @@ AINodeStatus ai_void_crawler_behavior(Game *game, NPC *npc, Client *clients, int
                 if (!saved) {
                     send_text_to_client(target->sock,
                                         "[DANGER] The Boss enters your mind! You are Charmed!");
-                    ActiveEffect charm_effect = {"Enslave", EVENT_ON_TURN_START, MOD_ADDITIVE, 0, 3,
+                    /*The condition itself: the effect was named "Enslave",
+                     * which no rule knows, so the charm did nothing.*/
+                    ActiveEffect charm_effect = {condition_to_name(COND_CHARMED),
+                                                 EVENT_ON_TURN_START,
+                                                 MOD_ADDITIVE,
+                                                 0,
+                                                 3,
                                                  false};
-                    if (target->effect_count < MAX_EFFECTS_PER_ENTITY) {
-                        target->effects[target->effect_count++] = charm_effect;
-                    }
+                    rules_add_effect(target->effects, &target->effect_count, MAX_EFFECTS_PER_ENTITY,
+                                     &charm_effect);
                     return AI_SUCCESS;
                 }
                 send_text_to_client(target->sock,
@@ -557,11 +562,15 @@ AINodeStatus ai_void_crawler_behavior(Game *game, NPC *npc, Client *clients, int
                 if (!saved) {
                     send_text_to_client(target->sock,
                                         "[DANGER] You are engulfed by Mucus! You are Poisoned!");
-                    ActiveEffect poison_effect = {
-                        "Mucous Cloud", EVENT_ON_TURN_START, MOD_ADDITIVE, -2, 3, false};
-                    if (target->effect_count < MAX_EFFECTS_PER_ENTITY) {
-                        target->effects[target->effect_count++] = poison_effect;
-                    }
+                    /*Poisoned, as told (it was "Mucous Cloud": no poison).*/
+                    ActiveEffect poison_effect = {condition_to_name(COND_POISONED),
+                                                  EVENT_ON_TURN_START,
+                                                  MOD_ADDITIVE,
+                                                  -2,
+                                                  3,
+                                                  false};
+                    rules_add_effect(target->effects, &target->effect_count, MAX_EFFECTS_PER_ENTITY,
+                                     &poison_effect);
                 } else {
                     send_text_to_client(target->sock, "[DANGER] You dodge the Mucous Cloud!");
                 }
