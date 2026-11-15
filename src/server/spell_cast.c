@@ -19,6 +19,7 @@
 
 #include "spell_cast.h"
 
+#include "ai.h"
 #include "aoe.h"
 #include "combat_log.h"
 #include "server_combat.h"
@@ -57,8 +58,7 @@ bool spell_can_affect_npc(const NPC *n) {
         n->archetype == ARCH_GOLD) {
         return false;
     }
-    return strncmp(n->custom_name, "[SUMMONED]", 10) != 0 &&
-           strncmp(n->custom_name, "[DOMINATED]", 11) != 0;
+    return !npc_is_ally(n);
 }
 
 static DamageModifier npc_damage_mod(const NPC *n, DamageType type) {
@@ -327,6 +327,7 @@ bool spell_cast(Client *c, const SpellTemplate *sp, Game *game) {
     switch (sp->effect.kind) {
     case SPELL_KIND_DAMAGE:
     case SPELL_KIND_CONDITION:
+        client_reveal(c);
         cast_offense(c, sp, &sc, game, &a);
         break;
     case SPELL_KIND_HEAL:
@@ -335,16 +336,12 @@ bool spell_cast(Client *c, const SpellTemplate *sp, Game *game) {
     case SPELL_KIND_BUFF:
         cast_buff(game, c, sp);
         break;
-    case SPELL_KIND_SPECIAL: {
+    case SPELL_KIND_SPECIAL:
+    default: {
         SpellContext ctx = {c, sp, game, a.target};
         spell_router_dispatch(&ctx);
         break;
     }
-    case SPELL_KIND_UTILITY:
-    default:
-        send_text_to_client(c->sock, "[MAGIC] You cast %s. (It has no effect in combat.)",
-                            sp->name);
-        break;
     }
     if (sp->effect.terrain != SPELL_TERRAIN_NONE) {
         spell_router_terrain(game, c, sp, a.ox, a.oy);

@@ -34,6 +34,8 @@
  * 4. UTILITY — Teleport, Invisibility and other special effects*/
 
 #include "spell_router.h"
+#include "ai.h"
+#include "spell_utility.h"
 #include "server_internal.h"
 #include "server_spawn.h"
 #include "server_world.h"
@@ -76,6 +78,18 @@ static const SpellHandlerFn g_handlers[SPELL_HANDLER_COUNT] = {
     [SPELL_HANDLER_INVISIBILITY] = handle_invisibility,
     [SPELL_HANDLER_SUMMON_ELEMENTAL] = handle_summon_elemental,
     [SPELL_HANDLER_TELEPORT] = handle_teleport,
+    [SPELL_HANDLER_CLEANSE] = spell_cleanse,
+    [SPELL_HANDLER_FIND_TRAPS] = spell_find_traps,
+    [SPELL_HANDLER_IDENTIFY] = spell_identify,
+    [SPELL_HANDLER_LIGHT] = spell_light,
+    [SPELL_HANDLER_MEND] = spell_mend,
+    [SPELL_HANDLER_NOURISH] = spell_nourish,
+    [SPELL_HANDLER_RALLY] = spell_rally,
+    [SPELL_HANDLER_REMOVE_CURSE] = spell_remove_curse,
+    [SPELL_HANDLER_SENSE] = spell_sense,
+    [SPELL_HANDLER_SHAPE_EARTH] = spell_shape_earth,
+    [SPELL_HANDLER_SHELTER] = spell_shelter,
+    [SPELL_HANDLER_SUMMON] = spell_summon,
 };
 
 void spell_router_init(void) {
@@ -159,6 +173,10 @@ void spell_router_terrain(Game *game, Client *c, const SpellTemplate *sp, int x,
         c->floor_id >= MAX_FLOORS) {
         return;
     }
+    if (c->floor_id == 0) {
+        send_text_to_client(c->sock, "  > The wards of the town keep its ground as it is.");
+        return;
+    }
     Floor *floor = &game->world->floors[c->floor_id];
     int radius = sp->effect.radius > 0 ? sp->effect.radius : 2;
     int changed = spell_terrain_stamp(floor, x, y, radius, k_terrain[t].voxel, true);
@@ -174,17 +192,13 @@ void spell_router_terrain(Game *game, Client *c, const SpellTemplate *sp, int x,
  * CATEGORY 2: SUMMON — Summon Allied NPCs
  * ──────────────────────────────────── ─────────────────────────────────────
  *
- * Summoned NPCs are identified by the custom_name field with prefix
- * "[SUMMONED]". The AIContext.current_target_id is set to the caster for
- * indicates the "allied faction" and the Behavior Tree decides aggression
- * towards the player's enemies.
+ * Summoned NPCs carry the prefix "[SUMMONED]" in their name and the ally
+ * behavior (ai_make_ally): they fight the caster's enemies for the rounds
+ * of the spell, then leave.
  * ==========================================================================*/
 
-/**
- * find_spawn_cell — Searches for a free VOXEL_FLOOR cell adjacent to the caster.
- *Try the 8 cardinal + diagonal directions, then expand the radius.
- * Returns true and sets *out_x, *out_y if found.*/
-static bool find_spawn_cell(Game *game, Client *c, int *out_x, int *out_y) {
+/*Tries the 8 cells around the caster, then further out.*/
+bool spell_find_spawn_cell(Game *game, Client *c, int *out_x, int *out_y) {
     Floor *floor = &game->world->floors[c->floor_id];
 
     static const int dx[] = {0, 1, 0, -1, 1, -1, 1, -1};
@@ -248,7 +262,7 @@ static bool handle_summon_elemental(SpellContext *ctx) {
     int sx = 0;
     int sy = 0;
 
-    if (!find_spawn_cell(game, c, &sx, &sy)) {
+    if (!spell_find_spawn_cell(game, c, &sx, &sy)) {
         send_text_to_client(c->sock, "[MAGIC] No free space to summon the elemental!");
         return true;
     }
@@ -305,12 +319,11 @@ static bool handle_summon_elemental(SpellContext *ctx) {
     slot->gold_drop = 0;
     slot->morale = 100;
     slot->energy = 0;
-    slot->spawn_x = sx;
-    slot->spawn_y = sy;
+    slot->spawn_x = -1; /*no spawn point: it never respawns*/
+    slot->spawn_y = -1;
     slot->respawn_timer = 0;
-
-    /*Ally Marker: The target_id points to the caster's entity_id*/
-    slot->ai_ctx.current_target_id = c->entity_id;
+    /*It fought the caster: the default AI only knows characters as targets.*/
+    ai_make_ally(slot, c, ctx->sp->effect.rounds > 0 ? ctx->sp->effect.rounds : 30);
 
     snprintf(slot->custom_name, sizeof(slot->custom_name), "[SUMMONED] %s", elem_name);
 
@@ -319,8 +332,8 @@ static bool handle_summon_elemental(SpellContext *ctx) {
 
     send_text_to_client(c->sock, "[MAGIC] %s: a %s materializes from the ethereal plane!",
                         ctx->sp->name, elem_name);
-    send_text_to_client(c->sock, "  > The entity (HP:%d AC:%d) will follow you into battle.",
-                        elem_hp, elem_ac);
+    send_text_to_client(c->sock, "  > The entity (HP:%d AC:%d) fights for you for %d rounds.",
+                        elem_hp, elem_ac, slot->ai_ctx.state_timer);
 
     server_log("MAGIC", "%s summons %s (ID:%d) at (%d,%d) floor %d.", c->username, elem_name,
                slot->entity_id, sx, sy, c->floor_id);
@@ -344,7 +357,12 @@ static bool handle_animate_dead(SpellContext *ctx) {
         if (game->npcs[i].active) {
             continue;
         }
-        if (game->npcs[i].template == NULL) {
+        /*Remains of a monster: not a ghost (a character's bones), not
+         * loot, not a merchant, nothing waiting in no spawn point.*/
+        const NPC *n = &game->npcs[i];
+        if (n->template == NULL || n->is_ghost || n->respawn_timer <= 0 ||
+            n->archetype == ARCH_MERCHANT || n->archetype == ARCH_TREASURE ||
+            n->archetype == ARCH_GOLD) {
             continue;
         }
         if (game->npcs[i].floor_id != c->floor_id) {
@@ -364,13 +382,21 @@ static bool handle_animate_dead(SpellContext *ctx) {
         return true;
     }
 
+    /*It rises next to the caster: where it fell may be taken.*/
+    int sx = 0, sy = 0;
+    if (!spell_find_spawn_cell(game, c, &sx, &sy)) {
+        send_text_to_client(c->sock, "[MAGIC] Animate Dead: no free space for the dead to rise.");
+        return true;
+    }
+    corpse->x = sx;
+    corpse->y = sy;
     /*Reactivate the corpse as an undead ally (it has a template, so
      * npc_set_active also counts it on the floor)*/
     npc_set_active(game, corpse, true);
     corpse->hp = corpse->max_hp / 2; /* revives with half HP */
-    corpse->xp_reward = 0;
-    corpse->gold_drop = 0;
-    corpse->ai_ctx.current_target_id = c->entity_id; /* allied faction */
+    corpse->respawn_timer = 0;
+    corpse->effect_count = 0;
+    ai_make_ally(corpse, c, ctx->sp->effect.rounds > 0 ? ctx->sp->effect.rounds : 30);
 
     const char *original = corpse->template ? corpse->template->name : "Creature";
     snprintf(corpse->custom_name, sizeof(corpse->custom_name), "[SUMMONED] Skeleton of %s",
@@ -453,7 +479,7 @@ static bool handle_dominate_monster(SpellContext *ctx) {
                             npc_name(tgt), dc);
         return true;
     }
-    tgt->ai_ctx.current_target_id = c->entity_id; /* allied faction */
+    ai_make_ally(tgt, c, ctx->sp->effect.rounds);
     mind_effect(tgt, "Dominated", ctx->sp->effect.rounds);
     snprintf(tgt->custom_name, sizeof(tgt->custom_name), "[DOMINATED] %s",
              tgt->template ? tgt->template->name : "Creature");
@@ -700,7 +726,9 @@ static bool transit_find_dungeon_entry(Floor *fl, int *ox, int *oy) {
  * Shared by the 12 class transit cantrips (Ancestral Totem Call, The Last
  * Refrain, Divine Recall, The Green Path, Warrior's March, Flowing Step,
  * Oathbound Passage, Hunter's Trail, The Back Door, Bloodline Rift,
- * Pact Passage, Arcane Transit).
+ * Pact Passage, Arcane Transit) and the travel spells (Word of Recall,
+ * Plane Shift, Teleportation Circle, Transport via Plants, Wind Walk,
+ * Astral Projection).
  * -------------------------------------------------------------------------*/
 static bool handle_class_transit(SpellContext *ctx) {
     Game *game = ctx->game;

@@ -60,9 +60,11 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 6
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "radius": 10,
+        "handler": "sense"
       }
     },
     {
@@ -152,9 +154,12 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
+        "kind": "buff",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "rounds": 2,
+        "stat": "ac",
+        "value": 2
       }
     },
     {
@@ -413,9 +418,13 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
+        "kind": "condition",
         "target": "single",
-        "range": 6
+        "range": 6,
+        "roll": "save",
+        "save": "wis",
+        "condition": "charmed",
+        "rounds": 2
       }
     },
     {
@@ -441,9 +450,11 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "radius": 6,
+        "handler": "sense"
       }
     },
     {
@@ -469,9 +480,10 @@
         "b": 0
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 6
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "nourish"
       }
     },
     {
@@ -530,9 +542,12 @@
         "b": 0.4
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 24
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "rounds": 10,
+        "value": 6,
+        "handler": "light"
       }
     },
     {
@@ -558,9 +573,11 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "radius": 6,
+        "handler": "sense"
       }
     },
     {
@@ -586,9 +603,11 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "radius": 6,
+        "handler": "find_traps"
       }
     },
     {
@@ -614,9 +633,11 @@
         "b": 0.2
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "radius": 6,
+        "handler": "find_traps"
       }
     },
     {
@@ -642,9 +663,11 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "rounds": 5,
+        "handler": "invisibility"
       }
     },
     {
@@ -737,9 +760,12 @@
         "b": 0
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 6
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "rounds": 10,
+        "value": 4,
+        "handler": "light"
       }
     },
     {
@@ -869,9 +895,14 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
-        "target": "self",
-        "range": 0
+        "kind": "condition",
+        "target": "circle",
+        "range": 12,
+        "radius": 2,
+        "roll": "save",
+        "save": "dex",
+        "condition": "cursed",
+        "rounds": 10
       }
     },
     {
@@ -897,9 +928,10 @@
         "b": 0.2
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "handler": "blink"
       }
     },
     {
@@ -925,9 +957,14 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
+        "kind": "heal",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "dice": {
+          "count": 1,
+          "sides": 4,
+          "bonus": 4
+        }
       }
     },
     {
@@ -953,9 +990,12 @@
         "b": 0.2
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 12
+        "kind": "buff",
+        "target": "self",
+        "range": 0,
+        "rounds": 10,
+        "stat": "ac",
+        "value": 1
       }
     },
     {
@@ -981,9 +1021,12 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "rounds": 30,
+        "value": 1,
+        "handler": "summon"
       }
     },
     {
@@ -1044,9 +1087,13 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 24
+        "kind": "condition",
+        "target": "cloud",
+        "range": 12,
+        "radius": 4,
+        "roll": "auto",
+        "condition": "blinded",
+        "rounds": 10
       }
     },
     {
@@ -1072,9 +1119,13 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
-        "target": "self",
-        "range": 0
+        "kind": "condition",
+        "target": "single",
+        "range": 2,
+        "roll": "save",
+        "save": "cha",
+        "condition": "charmed",
+        "rounds": 2
       }
     },
     {
@@ -1100,9 +1151,14 @@
         "b": 0.2
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "dice": {
+          "count": 2,
+          "sides": 4
+        },
+        "handler": "nourish"
       }
     },
     {
@@ -1161,9 +1217,12 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "buff",
+        "target": "self",
+        "range": 0,
+        "rounds": 10,
+        "stat": "attack",
+        "value": 1
       }
     },
     {
@@ -1357,9 +1416,15 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "dice": {
+          "count": 1,
+          "sides": 6,
+          "bonus": 2
+        },
+        "handler": "cleanse"
       }
     },
     {
@@ -1416,9 +1481,11 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "value": 1,
+        "handler": "identify"
       }
     },
     {
@@ -1444,9 +1511,10 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "rally"
       }
     },
     {
@@ -1506,9 +1574,10 @@
         "b": 0.2
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "blink"
       }
     },
     {
@@ -1534,9 +1603,12 @@
         "b": 0.4
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "rounds": 100,
+        "value": 8,
+        "handler": "light"
       }
     },
     {
@@ -1562,9 +1634,10 @@
         "b": 0.2
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "blink"
       }
     },
     {
@@ -1621,9 +1694,11 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 6
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "radius": 3,
+        "handler": "find_traps"
       }
     },
     {
@@ -1684,9 +1759,11 @@
         "b": 0.2
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "value": 2,
+        "handler": "mend"
       }
     },
     {
@@ -1712,9 +1789,10 @@
         "b": 0.2
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 24
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "rally"
       }
     },
     {
@@ -1740,9 +1818,11 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 6
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "rounds": 2,
+        "handler": "invisibility"
       }
     },
     {
@@ -1805,9 +1885,12 @@
         "b": 0
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 2
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "rounds": 10,
+        "value": 4,
+        "handler": "light"
       }
     },
     {
@@ -1868,9 +1951,12 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
+        "kind": "buff",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "rounds": 100,
+        "stat": "ac",
+        "value": 2
       }
     },
     {
@@ -1896,9 +1982,10 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 2
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "nourish"
       }
     },
     {
@@ -1996,9 +2083,10 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "remove_curse"
       }
     },
     {
@@ -2024,9 +2112,12 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "buff",
+        "target": "self",
+        "range": 0,
+        "rounds": 10,
+        "stat": "ac",
+        "value": 1
       }
     },
     {
@@ -2089,9 +2180,12 @@
         "b": 0
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 6
+        "kind": "buff",
+        "target": "self",
+        "range": 0,
+        "rounds": 3,
+        "stat": "ac",
+        "value": 5
       }
     },
     {
@@ -2216,9 +2310,12 @@
         "b": 0.2
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "buff",
+        "target": "self",
+        "range": 0,
+        "rounds": 10,
+        "stat": "damage",
+        "value": 2
       }
     },
     {
@@ -2279,9 +2376,11 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 12
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "rounds": 3,
+        "handler": "invisibility"
       }
     },
     {
@@ -2339,9 +2438,10 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "cleanse"
       }
     },
     {
@@ -2367,9 +2467,11 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "radius": 8,
+        "handler": "sense"
       }
     },
     {
@@ -2395,9 +2497,13 @@
         "b": 0
       },
       "effect": {
-        "kind": "utility",
+        "kind": "condition",
         "target": "single",
-        "range": 6
+        "range": 6,
+        "roll": "save",
+        "save": "wis",
+        "condition": "frightened",
+        "rounds": 1
       }
     },
     {
@@ -2532,9 +2638,12 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 6
+        "kind": "buff",
+        "target": "self",
+        "range": 0,
+        "rounds": 1,
+        "stat": "attack",
+        "value": 3
       }
     },
     {
@@ -2560,9 +2669,12 @@
         "b": 0
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 12
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "radius": 4,
+        "value": 1,
+        "handler": "find_traps"
       }
     },
     {
@@ -2696,9 +2808,14 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
+        "kind": "heal",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "dice": {
+          "count": 1,
+          "sides": 4,
+          "bonus": 5
+        }
       }
     },
     {
@@ -2724,9 +2841,10 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 6
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "rally"
       }
     },
     {
@@ -2784,9 +2902,11 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "radius": 20,
+        "handler": "sense"
       }
     },
     {
@@ -2812,9 +2932,14 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
-        "target": "self",
-        "range": 0
+        "kind": "condition",
+        "target": "circle",
+        "range": 12,
+        "radius": 4,
+        "roll": "save",
+        "save": "cha",
+        "condition": "charmed",
+        "rounds": 10
       }
     },
     {
@@ -2872,9 +2997,10 @@
         "b": 0.2
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "cleanse"
       }
     },
     {
@@ -2933,9 +3059,13 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 24
+        "kind": "condition",
+        "target": "cloud",
+        "range": 24,
+        "radius": 4,
+        "roll": "auto",
+        "condition": "silenced",
+        "rounds": 10
       }
     },
     {
@@ -3056,9 +3186,11 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 6
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "radius": 20,
+        "handler": "sense"
       }
     },
     {
@@ -3084,9 +3216,13 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
+        "kind": "heal",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "dice": {
+          "count": 2,
+          "sides": 6
+        }
       }
     },
     {
@@ -3112,9 +3248,10 @@
         "b": 0.2
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "handler": "cleanse"
       }
     },
     {
@@ -3204,9 +3341,13 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 6
+        "kind": "heal",
+        "target": "self",
+        "range": 0,
+        "dice": {
+          "count": 3,
+          "sides": 8
+        }
       }
     },
     {
@@ -3403,9 +3544,11 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 60
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "radius": 30,
+        "handler": "sense"
       }
     },
     {
@@ -3467,9 +3610,14 @@
         "b": 0
       },
       "effect": {
-        "kind": "utility",
-        "target": "self",
-        "range": 0
+        "kind": "condition",
+        "target": "circle",
+        "range": 0,
+        "radius": 6,
+        "roll": "save",
+        "save": "wis",
+        "condition": "frightened",
+        "rounds": 6
       }
     },
     {
@@ -3495,9 +3643,12 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 12
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "rounds": 20,
+        "value": 2,
+        "handler": "summon"
       }
     },
     {
@@ -3560,9 +3711,13 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
+        "kind": "condition",
         "target": "single",
-        "range": 12
+        "range": 12,
+        "roll": "save",
+        "save": "con",
+        "condition": "silenced",
+        "rounds": 3
       }
     },
     {
@@ -3588,9 +3743,10 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 6
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "nourish"
       }
     },
     {
@@ -3647,9 +3803,12 @@
         "b": 0.4
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 12
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "rounds": 100,
+        "value": 10,
+        "handler": "light"
       }
     },
     {
@@ -3675,9 +3834,10 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 24
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "cleanse"
       }
     },
     {
@@ -3767,9 +3927,11 @@
         "b": 0.2
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "rounds": 5,
+        "handler": "invisibility"
       }
     },
     {
@@ -3832,9 +3994,12 @@
         "b": 0.2
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "buff",
+        "target": "self",
+        "range": 0,
+        "rounds": 30,
+        "stat": "ac",
+        "value": 2
       }
     },
     {
@@ -3860,9 +4025,12 @@
         "b": 0.2
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "buff",
+        "target": "self",
+        "range": 0,
+        "rounds": 10,
+        "stat": "ac",
+        "value": 4
       }
     },
     {
@@ -3986,9 +4154,12 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
+        "kind": "buff",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "rounds": 60,
+        "stat": "ac",
+        "value": 2
       }
     },
     {
@@ -4014,9 +4185,13 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "condition",
         "target": "single",
-        "range": 24
+        "range": 24,
+        "roll": "save",
+        "save": "int",
+        "condition": "frightened",
+        "rounds": 3
       }
     },
     {
@@ -4075,9 +4250,12 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "buff",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "rounds": 60,
+        "stat": "damage",
+        "value": 2
       }
     },
     {
@@ -4103,9 +4281,10 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "shelter"
       }
     },
     {
@@ -4162,9 +4341,11 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "rounds": 10,
+        "handler": "invisibility"
       }
     },
     {
@@ -4190,9 +4371,10 @@
         "b": 0.2
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "handler": "shelter"
       }
     },
     {
@@ -4218,9 +4400,10 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 6
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "blink"
       }
     },
     {
@@ -4246,9 +4429,15 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 30
+        "kind": "condition",
+        "target": "circle",
+        "range": 24,
+        "radius": 6,
+        "roll": "save",
+        "save": "str",
+        "condition": "restrained",
+        "rounds": 5,
+        "terrain": "mud"
       }
     },
     {
@@ -4274,9 +4463,12 @@
         "b": 0
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "buff",
+        "target": "self",
+        "range": 0,
+        "rounds": 10,
+        "stat": "ac",
+        "value": 2
       }
     },
     {
@@ -4302,9 +4494,13 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "heal",
+        "target": "self",
+        "range": 0,
+        "dice": {
+          "count": 4,
+          "sides": 8
+        }
       }
     },
     {
@@ -4330,9 +4526,10 @@
         "b": 0.4
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 30
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "rally"
       }
     },
     {
@@ -4424,9 +4621,11 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 2
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "radius": 10,
+        "handler": "sense"
       }
     },
     {
@@ -4452,9 +4651,11 @@
         "b": 0.2
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "radius": 12,
+        "handler": "sense"
       }
     },
     {
@@ -4612,9 +4813,15 @@
         "b": 0.2
       },
       "effect": {
-        "kind": "utility",
-        "target": "self",
-        "range": 0
+        "kind": "condition",
+        "target": "circle",
+        "range": 24,
+        "radius": 4,
+        "roll": "save",
+        "save": "str",
+        "condition": "prone",
+        "rounds": 2,
+        "terrain": "mud"
       }
     },
     {
@@ -4640,9 +4847,12 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 12
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "rounds": 20,
+        "value": 2,
+        "handler": "summon"
       }
     },
     {
@@ -4668,9 +4878,13 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
+        "kind": "heal",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "dice": {
+          "count": 4,
+          "sides": 8
+        }
       }
     },
     {
@@ -4696,9 +4910,11 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "radius": 8,
+        "handler": "sense"
       }
     },
     {
@@ -4724,9 +4940,11 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "radius": 12,
+        "handler": "sense"
       }
     },
     {
@@ -4752,9 +4970,12 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
+        "kind": "buff",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "rounds": 10,
+        "stat": "ac",
+        "value": 3
       }
     },
     {
@@ -4814,9 +5035,17 @@
         "b": 0.2
       },
       "effect": {
-        "kind": "utility",
-        "target": "self",
-        "range": 0
+        "kind": "damage",
+        "target": "single",
+        "range": 6,
+        "roll": "save",
+        "save": "dex",
+        "on_save": "half",
+        "dice": {
+          "count": 2,
+          "sides": 4
+        },
+        "damage_type": "piercing"
       }
     },
     {
@@ -4874,9 +5103,13 @@
         "b": 0.4
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 12
+        "kind": "condition",
+        "target": "cloud",
+        "range": 12,
+        "radius": 3,
+        "roll": "auto",
+        "condition": "blinded",
+        "rounds": 10
       }
     },
     {
@@ -4902,9 +5135,12 @@
         "b": 0.2
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "rounds": 100,
+        "value": 6,
+        "handler": "light"
       }
     },
     {
@@ -4930,9 +5166,11 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "radius": 6,
+        "handler": "sense"
       }
     },
     {
@@ -4958,9 +5196,12 @@
         "b": 0.2
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 6
+        "kind": "buff",
+        "target": "self",
+        "range": 0,
+        "rounds": 60,
+        "stat": "damage",
+        "value": 3
       }
     },
     {
@@ -4986,9 +5227,13 @@
         "b": 0
       },
       "effect": {
-        "kind": "utility",
-        "target": "self",
-        "range": 0
+        "kind": "condition",
+        "target": "circle",
+        "range": 0,
+        "radius": 2,
+        "roll": "auto",
+        "condition": "silenced",
+        "rounds": 10
       }
     },
     {
@@ -5014,9 +5259,14 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 12
+        "kind": "condition",
+        "target": "circle",
+        "range": 0,
+        "radius": 6,
+        "roll": "save",
+        "save": "wis",
+        "condition": "frightened",
+        "rounds": 10
       }
     },
     {
@@ -5042,9 +5292,10 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 2
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "class_transit"
       }
     },
     {
@@ -5070,9 +5321,13 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "heal",
+        "target": "self",
+        "range": 0,
+        "dice": {
+          "count": 10,
+          "sides": 10
+        }
       }
     },
     {
@@ -5098,9 +5353,13 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
-        "target": "self",
-        "range": 0
+        "kind": "condition",
+        "target": "cloud",
+        "range": 0,
+        "radius": 8,
+        "roll": "auto",
+        "condition": "blinded",
+        "rounds": 10
       }
     },
     {
@@ -5126,9 +5385,10 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 12
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "shelter"
       }
     },
     {
@@ -5255,9 +5515,12 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "buff",
+        "target": "self",
+        "range": 0,
+        "rounds": 100,
+        "stat": "ac",
+        "value": 4
       }
     },
     {
@@ -5283,9 +5546,12 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 12
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "rounds": 20,
+        "value": 1,
+        "handler": "summon"
       }
     },
     {
@@ -5311,9 +5577,13 @@
         "b": 0.2
       },
       "effect": {
-        "kind": "utility",
-        "target": "self",
-        "range": 0
+        "kind": "condition",
+        "target": "single",
+        "range": 6,
+        "roll": "save",
+        "save": "cha",
+        "condition": "charmed",
+        "rounds": 5
       }
     },
     {
@@ -5473,9 +5743,12 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
+        "kind": "condition",
         "target": "single",
-        "range": 12
+        "range": 12,
+        "roll": "auto",
+        "condition": "incapacitated",
+        "rounds": 5
       }
     },
     {
@@ -5538,9 +5811,10 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "cleanse"
       }
     },
     {
@@ -5665,9 +5939,19 @@
         "b": 0
       },
       "effect": {
-        "kind": "utility",
-        "target": "self",
-        "range": 0
+        "kind": "damage",
+        "target": "circle",
+        "range": 12,
+        "radius": 3,
+        "roll": "save",
+        "save": "dex",
+        "on_save": "half",
+        "dice": {
+          "count": 10,
+          "sides": 6
+        },
+        "damage_type": "fire",
+        "terrain": "wall"
       }
     },
     {
@@ -5693,9 +5977,12 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "buff",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "rounds": 60,
+        "stat": "damage",
+        "value": 4
       }
     },
     {
@@ -5760,9 +6047,10 @@
         "b": 0.4
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 30
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "rally"
       }
     },
     {
@@ -5827,9 +6115,13 @@
         "b": 0.2
       },
       "effect": {
-        "kind": "utility",
-        "target": "self",
-        "range": 0
+        "kind": "condition",
+        "target": "circle",
+        "range": 0,
+        "radius": 6,
+        "roll": "auto",
+        "condition": "stunned",
+        "rounds": 3
       }
     },
     {
@@ -5855,9 +6147,13 @@
         "b": 0.2
       },
       "effect": {
-        "kind": "utility",
+        "kind": "condition",
         "target": "single",
-        "range": 6
+        "range": 6,
+        "roll": "save",
+        "save": "wis",
+        "condition": "incapacitated",
+        "rounds": 10
       }
     },
     {
@@ -5920,9 +6216,13 @@
         "b": 0.2
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "heal",
+        "target": "self",
+        "range": 0,
+        "dice": {
+          "count": 20,
+          "sides": 10
+        }
       }
     },
     {
@@ -5987,9 +6287,14 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "dice": {
+          "count": 20,
+          "sides": 10
+        },
+        "handler": "cleanse"
       }
     },
     {
@@ -6015,9 +6320,12 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 18
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "rounds": 20,
+        "value": 1,
+        "handler": "summon"
       }
     },
     {
@@ -6142,9 +6450,11 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "rounds": 20,
+        "handler": "invisibility"
       }
     },
     {
@@ -6244,9 +6554,13 @@
         "b": 0.4
       },
       "effect": {
-        "kind": "utility",
+        "kind": "condition",
         "target": "single",
-        "range": 20
+        "range": 20,
+        "roll": "auto",
+        "condition": "restrained",
+        "rounds": 10,
+        "terrain": "wall"
       }
     },
     {
@@ -6272,9 +6586,14 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 30
+        "kind": "condition",
+        "target": "circle",
+        "range": 24,
+        "radius": 6,
+        "roll": "save",
+        "save": "int",
+        "condition": "frightened",
+        "rounds": 5
       }
     },
     {
@@ -6337,9 +6656,11 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 60
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "rounds": 10,
+        "handler": "invisibility"
       }
     },
     {
@@ -6365,9 +6686,10 @@
         "b": 0
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "class_transit"
       }
     },
     {
@@ -6426,9 +6748,13 @@
         "b": 0.2
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "heal",
+        "target": "self",
+        "range": 0,
+        "dice": {
+          "count": 10,
+          "sides": 10
+        }
       }
     },
     {
@@ -6454,9 +6780,20 @@
         "b": 0.2
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 20
+        "kind": "damage",
+        "target": "circle",
+        "range": 20,
+        "radius": 4,
+        "roll": "save",
+        "save": "dex",
+        "on_save": "half",
+        "dice": {
+          "count": 6,
+          "sides": 10
+        },
+        "damage_type": "bludgeoning",
+        "condition": "prone",
+        "rounds": 1
       }
     },
     {
@@ -6482,9 +6819,11 @@
         "b": 0.2
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "rounds": 20,
+        "handler": "invisibility"
       }
     },
     {
@@ -6510,9 +6849,12 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "rounds": 50,
+        "value": 1,
+        "handler": "summon"
       }
     },
     {
@@ -6538,9 +6880,14 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "condition",
+        "target": "circle",
+        "range": 12,
+        "radius": 4,
+        "roll": "save",
+        "save": "wis",
+        "condition": "stunned",
+        "rounds": 3
       }
     },
     {
@@ -6692,9 +7039,12 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
+        "kind": "buff",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "rounds": 10,
+        "stat": "ac",
+        "value": 5
       }
     },
     {
@@ -6720,9 +7070,10 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 60
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "blink"
       }
     },
     {
@@ -6748,9 +7099,12 @@
         "b": 0.2
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "rounds": 50,
+        "value": 1,
+        "handler": "summon"
       }
     },
     {
@@ -6922,9 +7276,12 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
+        "kind": "buff",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "rounds": 10,
+        "stat": "ac",
+        "value": 2
       }
     },
     {
@@ -6988,9 +7345,11 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "radius": 30,
+        "handler": "sense"
       }
     },
     {
@@ -7016,9 +7375,11 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "radius": 30,
+        "handler": "sense"
       }
     },
     {
@@ -7110,9 +7471,12 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 18
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "rounds": 20,
+        "value": 1,
+        "handler": "summon"
       }
     },
     {
@@ -7175,9 +7539,11 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "radius": 30,
+        "handler": "sense"
       }
     },
     {
@@ -7234,9 +7600,12 @@
         "b": 0.4
       },
       "effect": {
-        "kind": "utility",
+        "kind": "buff",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "rounds": 100,
+        "stat": "ac",
+        "value": 3
       }
     },
     {
@@ -7262,9 +7631,11 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 2
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "rounds": 30,
+        "handler": "animate_dead"
       }
     },
     {
@@ -7290,9 +7661,12 @@
         "b": 0
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "rounds": 100,
+        "value": 8,
+        "handler": "light"
       }
     },
     {
@@ -7318,9 +7692,11 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 6
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "value": 10,
+        "handler": "mend"
       }
     },
     {
@@ -7422,9 +7798,11 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "radius": 30,
+        "handler": "sense"
       }
     },
     {
@@ -7450,9 +7828,10 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "handler": "cleanse"
       }
     },
     {
@@ -7578,9 +7957,12 @@
         "b": 0.2
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "buff",
+        "target": "self",
+        "range": 0,
+        "rounds": 60,
+        "stat": "attack",
+        "value": 2
       }
     },
     {
@@ -7669,9 +8051,11 @@
         "b": 0.2
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 24
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "value": 10,
+        "handler": "mend"
       }
     },
     {
@@ -7729,9 +8113,12 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 6
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "rounds": 50,
+        "value": 1,
+        "handler": "summon"
       }
     },
     {
@@ -7757,9 +8144,11 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "radius": 30,
+        "handler": "sense"
       }
     },
     {
@@ -7785,9 +8174,11 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 24
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "radius": 20,
+        "handler": "find_traps"
       }
     },
     {
@@ -7813,9 +8204,12 @@
         "b": 0
       },
       "effect": {
-        "kind": "utility",
+        "kind": "buff",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "rounds": 60,
+        "stat": "ac",
+        "value": 2
       }
     },
     {
@@ -7981,9 +8375,10 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "shelter"
       }
     },
     {
@@ -8009,9 +8404,10 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "cleanse"
       }
     },
     {
@@ -8075,9 +8471,10 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "cleanse"
       }
     },
     {
@@ -8103,9 +8500,12 @@
         "b": 0.2
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 6
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "rounds": 20,
+        "value": 2,
+        "handler": "summon"
       }
     },
     {
@@ -8131,9 +8531,12 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
+        "kind": "buff",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "rounds": 10,
+        "stat": "ac",
+        "value": 6
       }
     },
     {
@@ -8159,9 +8562,18 @@
         "b": 0
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "damage",
+        "target": "circle",
+        "range": 12,
+        "radius": 4,
+        "roll": "save",
+        "save": "dex",
+        "on_save": "half",
+        "dice": {
+          "count": 5,
+          "sides": 8
+        },
+        "damage_type": "thunder"
       }
     },
     {
@@ -8187,9 +8599,13 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "condition",
         "target": "single",
-        "range": 6
+        "range": 6,
+        "roll": "save",
+        "save": "dex",
+        "condition": "restrained",
+        "rounds": 3
       }
     },
     {
@@ -8215,9 +8631,11 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "rounds": 10,
+        "handler": "invisibility"
       }
     },
     {
@@ -8243,9 +8661,14 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "dice": {
+          "count": 4,
+          "sides": 8
+        },
+        "handler": "cleanse"
       }
     },
     {
@@ -8271,9 +8694,12 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 6
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "rounds": 20,
+        "value": 1,
+        "handler": "summon"
       }
     },
     {
@@ -8299,9 +8725,10 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "shelter"
       }
     },
     {
@@ -8327,9 +8754,14 @@
         "b": 0
       },
       "effect": {
-        "kind": "utility",
-        "target": "self",
-        "range": 0
+        "kind": "condition",
+        "target": "line",
+        "range": 0,
+        "radius": 12,
+        "roll": "save",
+        "save": "str",
+        "condition": "prone",
+        "rounds": 1
       }
     },
     {
@@ -8355,9 +8787,14 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 60
+        "kind": "condition",
+        "target": "circle",
+        "range": 24,
+        "radius": 6,
+        "roll": "save",
+        "save": "int",
+        "condition": "restrained",
+        "rounds": 3
       }
     },
     {
@@ -8383,9 +8820,12 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "buff",
+        "target": "self",
+        "range": 0,
+        "rounds": 100,
+        "stat": "ac",
+        "value": 3
       }
     },
     {
@@ -8657,9 +9097,12 @@
         "b": 0.2
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 12
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "radius": 2,
+        "value": 1,
+        "handler": "find_traps"
       }
     },
     {
@@ -8685,9 +9128,10 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "handler": "identify"
       }
     },
     {
@@ -8713,9 +9157,13 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "condition",
         "target": "single",
-        "range": 12
+        "range": 12,
+        "roll": "save",
+        "save": "con",
+        "condition": "restrained",
+        "rounds": 5
       }
     },
     {
@@ -8741,9 +9189,11 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "radius": 30,
+        "handler": "sense"
       }
     },
     {
@@ -8806,9 +9256,11 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "radius": 30,
+        "handler": "sense"
       }
     },
     {
@@ -8834,9 +9286,11 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "radius": 30,
+        "handler": "sense"
       }
     },
     {
@@ -8862,9 +9316,13 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
-        "target": "self",
-        "range": 0
+        "kind": "special",
+        "target": "single",
+        "range": 6,
+        "roll": "save",
+        "save": "wis",
+        "rounds": 10,
+        "handler": "dominate_monster"
       }
     },
     {
@@ -8921,9 +9379,10 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 6
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "rally"
       }
     },
     {
@@ -9014,9 +9473,12 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
+        "kind": "buff",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "rounds": 10,
+        "stat": "ac",
+        "value": 3
       }
     },
     {
@@ -9072,9 +9534,10 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "handler": "blink"
       }
     },
     {
@@ -9170,9 +9633,11 @@
         "b": 0.2
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 24
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "radius": 3,
+        "handler": "shape_earth"
       }
     },
     {
@@ -9198,9 +9663,11 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "rounds": 10,
+        "handler": "invisibility"
       }
     },
     {
@@ -9226,9 +9693,11 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 6
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "radius": 2,
+        "handler": "shape_earth"
       }
     },
     {
@@ -9328,9 +9797,12 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 12
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "rounds": 30,
+        "value": 1,
+        "handler": "summon"
       }
     },
     {
@@ -9356,9 +9828,13 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "single",
-        "range": 12
+        "range": 12,
+        "roll": "save",
+        "save": "wis",
+        "rounds": 10,
+        "handler": "dominate_monster"
       }
     },
     {
@@ -9384,9 +9860,13 @@
         "b": 0.2
       },
       "effect": {
-        "kind": "utility",
+        "kind": "condition",
         "target": "single",
-        "range": 12
+        "range": 12,
+        "roll": "save",
+        "save": "wis",
+        "condition": "incapacitated",
+        "rounds": 5
       }
     },
     {
@@ -9412,9 +9892,14 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 24
+        "kind": "condition",
+        "target": "circle",
+        "range": 24,
+        "radius": 4,
+        "roll": "save",
+        "save": "int",
+        "condition": "frightened",
+        "rounds": 3
       }
     },
     {
@@ -9440,9 +9925,13 @@
         "b": 0.2
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "heal",
+        "target": "self",
+        "range": 0,
+        "dice": {
+          "count": 8,
+          "sides": 8
+        }
       }
     },
     {
@@ -9468,9 +9957,10 @@
         "b": 0.2
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "cleanse"
       }
     },
     {
@@ -9496,9 +9986,12 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
+        "kind": "condition",
         "target": "single",
-        "range": 12
+        "range": 12,
+        "roll": "attack",
+        "condition": "poisoned",
+        "rounds": 10
       }
     },
     {
@@ -9524,9 +10017,13 @@
         "b": 0.2
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "heal",
+        "target": "self",
+        "range": 0,
+        "dice": {
+          "count": 8,
+          "sides": 8
+        }
       }
     },
     {
@@ -9552,9 +10049,10 @@
         "b": 0.2
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "shelter"
       }
     },
     {
@@ -9614,9 +10112,11 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "radius": 30,
+        "handler": "sense"
       }
     },
     {
@@ -9642,9 +10142,11 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 6
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "rounds": 10,
+        "handler": "invisibility"
       }
     },
     {
@@ -9670,9 +10172,11 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "radius": 12,
+        "handler": "sense"
       }
     },
     {
@@ -9734,9 +10238,12 @@
         "b": 0.2
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "buff",
+        "target": "self",
+        "range": 0,
+        "rounds": 60,
+        "stat": "ac",
+        "value": 2
       }
     },
     {
@@ -9831,9 +10338,11 @@
         "b": 0.2
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "radius": 1,
+        "handler": "shape_earth"
       }
     },
     {
@@ -9898,9 +10407,12 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "buff",
+        "target": "self",
+        "range": 0,
+        "rounds": 60,
+        "stat": "ac",
+        "value": 4
       }
     },
     {
@@ -9926,9 +10438,12 @@
         "b": 0.2
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "buff",
+        "target": "self",
+        "range": 0,
+        "rounds": 10,
+        "stat": "damage",
+        "value": 4
       }
     },
     {
@@ -9954,9 +10469,13 @@
         "b": 0.2
       },
       "effect": {
-        "kind": "utility",
+        "kind": "condition",
         "target": "single",
-        "range": 12
+        "range": 12,
+        "roll": "save",
+        "save": "str",
+        "condition": "restrained",
+        "rounds": 5
       }
     },
     {
@@ -9982,9 +10501,10 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 2
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "class_transit"
       }
     },
     {
@@ -10010,9 +10530,10 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 2
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "class_transit"
       }
     },
     {
@@ -10038,9 +10559,10 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "handler": "blink"
       }
     },
     {
@@ -10066,9 +10588,11 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "radius": 30,
+        "handler": "sense"
       }
     },
     {
@@ -10203,9 +10727,15 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 24
+        "kind": "condition",
+        "target": "circle",
+        "range": 24,
+        "radius": 2,
+        "roll": "save",
+        "save": "dex",
+        "condition": "restrained",
+        "rounds": 5,
+        "terrain": "wall"
       }
     },
     {
@@ -10231,9 +10761,14 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
+        "kind": "condition",
+        "target": "circle",
         "range": 24,
+        "radius": 2,
+        "roll": "save",
+        "save": "dex",
+        "condition": "restrained",
+        "rounds": 5,
         "terrain": "wall"
       }
     },
@@ -10298,9 +10833,12 @@
         "b": 0.2
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 6
+        "kind": "buff",
+        "target": "self",
+        "range": 0,
+        "rounds": 100,
+        "stat": "ac",
+        "value": 1
       }
     },
     {
@@ -10326,9 +10864,12 @@
         "b": 0.2
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 6
+        "kind": "buff",
+        "target": "self",
+        "range": 0,
+        "rounds": 100,
+        "stat": "ac",
+        "value": 1
       }
     },
     {
@@ -10387,9 +10928,10 @@
         "b": 0.2
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 6
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "class_transit"
       }
     },
     {
@@ -10451,9 +10993,10 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "class_transit"
       }
     },
     {
@@ -10479,9 +11022,14 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 12
+        "kind": "condition",
+        "target": "circle",
+        "range": 12,
+        "radius": 3,
+        "roll": "save",
+        "save": "cha",
+        "condition": "charmed",
+        "rounds": 10
       }
     },
     {
@@ -10579,9 +11127,10 @@
         "b": 0.2
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 30
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "rally"
       }
     },
     {
@@ -10645,9 +11194,12 @@
         "b": 0
       },
       "effect": {
-        "kind": "utility",
+        "kind": "buff",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "rounds": 10,
+        "stat": "ac",
+        "value": 2
       }
     },
     {
@@ -10673,9 +11225,12 @@
         "b": 0
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 12
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "rounds": 30,
+        "value": 6,
+        "handler": "light"
       }
     },
     {
@@ -10777,9 +11332,13 @@
         "b": 0.2
       },
       "effect": {
-        "kind": "utility",
+        "kind": "condition",
         "target": "single",
-        "range": 6
+        "range": 6,
+        "roll": "save",
+        "save": "str",
+        "condition": "prone",
+        "rounds": 1
       }
     },
     {
@@ -10805,9 +11364,12 @@
         "b": 0.2
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "buff",
+        "target": "self",
+        "range": 0,
+        "rounds": 10,
+        "stat": "damage",
+        "value": 2
       }
     },
     {
@@ -10833,9 +11395,11 @@
         "b": 0.2
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 6
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "radius": 1,
+        "handler": "shape_earth"
       }
     },
     {
@@ -10861,9 +11425,14 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "condition",
         "target": "single",
-        "range": 6
+        "range": 6,
+        "roll": "save",
+        "save": "dex",
+        "condition": "prone",
+        "rounds": 1,
+        "terrain": "ice"
       }
     },
     {
@@ -10920,9 +11489,11 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "radius": 12,
+        "handler": "sense"
       }
     },
     {
@@ -10982,9 +11553,13 @@
         "b": 0.2
       },
       "effect": {
-        "kind": "utility",
+        "kind": "condition",
         "target": "single",
-        "range": 60
+        "range": 20,
+        "roll": "save",
+        "save": "str",
+        "condition": "grappled",
+        "rounds": 10
       }
     },
     {
@@ -11083,9 +11658,13 @@
         "b": 0.2
       },
       "effect": {
-        "kind": "utility",
-        "target": "self",
-        "range": 0
+        "kind": "condition",
+        "target": "cloud",
+        "range": 24,
+        "radius": 6,
+        "roll": "auto",
+        "condition": "prone",
+        "rounds": 10
       }
     },
     {
@@ -11440,9 +12019,12 @@
         "b": 0
       },
       "effect": {
-        "kind": "utility",
+        "kind": "buff",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "rounds": 10,
+        "stat": "ac",
+        "value": 3
       }
     },
     {
@@ -11540,9 +12122,14 @@
         "b": 0
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 12
+        "kind": "condition",
+        "target": "circle",
+        "range": 12,
+        "radius": 2,
+        "roll": "save",
+        "save": "str",
+        "condition": "restrained",
+        "rounds": 5
       }
     },
     {
@@ -11752,9 +12339,15 @@
         "b": 0.4
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 18
+        "kind": "condition",
+        "target": "circle",
+        "range": 18,
+        "radius": 2,
+        "roll": "save",
+        "save": "dex",
+        "condition": "blinded",
+        "rounds": 10,
+        "terrain": "wall"
       }
     },
     {
@@ -11885,9 +12478,13 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "condition",
         "target": "single",
-        "range": 6
+        "range": 6,
+        "roll": "save",
+        "save": "wis",
+        "condition": "incapacitated",
+        "rounds": 3
       }
     },
     {
@@ -11913,9 +12510,10 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "identify"
       }
     },
     {
@@ -11941,9 +12539,10 @@
         "b": 0
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 60
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "shelter"
       }
     },
     {
@@ -11969,9 +12568,11 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "rounds": 10,
+        "handler": "invisibility"
       }
     },
     {
@@ -11997,9 +12598,10 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 24
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "shelter"
       }
     },
     {
@@ -12063,9 +12665,11 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 6
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "value": 3,
+        "handler": "mend"
       }
     },
     {
@@ -12091,9 +12695,10 @@
         "b": 0.8
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 1
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "identify"
       }
     },
     {
@@ -12119,9 +12724,10 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
-        "target": "single",
-        "range": 6
+        "kind": "special",
+        "target": "self",
+        "range": 0,
+        "handler": "rally"
       }
     },
     {
@@ -12181,9 +12787,13 @@
         "b": 0.4
       },
       "effect": {
-        "kind": "utility",
+        "kind": "condition",
         "target": "single",
-        "range": 6
+        "range": 6,
+        "roll": "save",
+        "save": "dex",
+        "condition": "restrained",
+        "rounds": 10
       }
     },
     {
@@ -12241,9 +12851,10 @@
         "b": 0.4
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "handler": "shelter"
       }
     },
     {
@@ -12304,9 +12915,12 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "buff",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "rounds": 1,
+        "stat": "attack",
+        "value": 2
       }
     },
     {
@@ -12538,9 +13152,12 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "buff",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "rounds": 2,
+        "stat": "ac",
+        "value": 2
       }
     },
     {
@@ -12601,9 +13218,12 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "buff",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "rounds": 1,
+        "stat": "ac",
+        "value": 2
       }
     },
     {
@@ -12732,9 +13352,12 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "buff",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "rounds": 3,
+        "stat": "ac",
+        "value": 3
       }
     },
     {
@@ -12760,9 +13383,12 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "buff",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "rounds": 3,
+        "stat": "attack",
+        "value": 3
       }
     },
     {
@@ -13002,9 +13628,10 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "handler": "blink"
       }
     },
     {
@@ -13064,9 +13691,12 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "buff",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "rounds": 2,
+        "stat": "ac",
+        "value": 5
       }
     },
     {
@@ -13170,9 +13800,10 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "handler": "cleanse"
       }
     },
     {
@@ -13198,9 +13829,12 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "buff",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "rounds": 3,
+        "stat": "attack",
+        "value": 4
       }
     },
     {
@@ -13226,9 +13860,10 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "handler": "cleanse"
       }
     },
     {
@@ -13286,9 +13921,10 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "handler": "blink"
       }
     },
     {
@@ -13353,9 +13989,12 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "buff",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "rounds": 3,
+        "stat": "damage",
+        "value": 4
       }
     },
     {
@@ -13381,9 +14020,12 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "buff",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "rounds": 2,
+        "stat": "damage",
+        "value": 4
       }
     },
     {
@@ -13721,9 +14363,12 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "buff",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "rounds": 1,
+        "stat": "ac",
+        "value": 3
       }
     },
     {
@@ -13951,9 +14596,14 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
-        "target": "self",
-        "range": 0
+        "kind": "condition",
+        "target": "single",
+        "range": 1,
+        "roll": "save",
+        "save": "con",
+        "dc": 14,
+        "condition": "incapacitated",
+        "rounds": 1
       }
     },
     {
@@ -14082,9 +14732,10 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "handler": "blink"
       }
     },
     {
@@ -14145,9 +14796,12 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "buff",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "rounds": 1,
+        "stat": "ac",
+        "value": 4
       }
     },
     {
@@ -14309,9 +14963,12 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "buff",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "rounds": 1,
+        "stat": "damage",
+        "value": 4
       }
     },
     {
@@ -14337,9 +14994,12 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "buff",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "rounds": 1,
+        "stat": "attack",
+        "value": 5
       }
     },
     {
@@ -14579,9 +15239,12 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "buff",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "rounds": 3,
+        "stat": "damage",
+        "value": 3
       }
     },
     {
@@ -14825,9 +15488,12 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "buff",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "rounds": 1,
+        "stat": "ac",
+        "value": 2
       }
     },
     {
@@ -15131,9 +15797,13 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "heal",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "dice": {
+          "count": 2,
+          "sides": 6
+        }
       }
     },
     {
@@ -15193,9 +15863,14 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "heal",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "dice": {
+          "count": 1,
+          "sides": 1,
+          "bonus": 19
+        }
       }
     },
     {
@@ -15318,9 +15993,12 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "buff",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "rounds": 1,
+        "stat": "attack",
+        "value": 5
       }
     },
     {
@@ -15452,9 +16130,12 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "buff",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "rounds": 3,
+        "stat": "damage",
+        "value": 4
       }
     },
     {
@@ -15512,9 +16193,12 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "buff",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "rounds": 2,
+        "stat": "damage",
+        "value": 3
       }
     },
     {
@@ -15615,9 +16299,12 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "buff",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "rounds": 3,
+        "stat": "damage",
+        "value": 3
       }
     },
     {
@@ -15782,9 +16469,12 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "buff",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "rounds": 3,
+        "stat": "attack",
+        "value": 4
       }
     },
     {
@@ -15845,9 +16535,11 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "rounds": 2,
+        "handler": "invisibility"
       }
     },
     {
@@ -15908,9 +16600,12 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "buff",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "rounds": 2,
+        "stat": "attack",
+        "value": 2
       }
     },
     {
@@ -15936,9 +16631,11 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "rounds": 3,
+        "handler": "invisibility"
       }
     },
     {
@@ -15999,9 +16696,11 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "rounds": 3,
+        "handler": "invisibility"
       }
     },
     {
@@ -16027,9 +16726,12 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "radius": 1,
+        "value": 1,
+        "handler": "find_traps"
       }
     },
     {
@@ -16055,9 +16757,12 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "radius": 1,
+        "value": 1,
+        "handler": "find_traps"
       }
     },
     {
@@ -16083,9 +16788,10 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "handler": "blink"
       }
     },
     {
@@ -16111,9 +16817,11 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "radius": 2,
+        "handler": "find_traps"
       }
     },
     {
@@ -16139,9 +16847,11 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "rounds": 2,
+        "handler": "invisibility"
       }
     },
     {
@@ -16167,9 +16877,12 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "radius": 2,
+        "value": 1,
+        "handler": "find_traps"
       }
     },
     {
@@ -16195,9 +16908,12 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "radius": 3,
+        "value": 1,
+        "handler": "find_traps"
       }
     },
     {
@@ -16361,9 +17077,14 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
-        "target": "self",
-        "range": 0
+        "kind": "condition",
+        "target": "single",
+        "range": 4,
+        "roll": "save",
+        "save": "wis",
+        "dc": 14,
+        "condition": "charmed",
+        "rounds": 1
       }
     },
     {
@@ -16577,9 +17298,10 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "handler": "cleanse"
       }
     },
     {
@@ -16605,9 +17327,10 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "handler": "blink"
       }
     },
     {
@@ -16633,9 +17356,11 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "radius": 1,
+        "handler": "shape_earth"
       }
     },
     {
@@ -16661,9 +17386,11 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "rounds": 5,
+        "handler": "invisibility"
       }
     },
     {
@@ -16689,9 +17416,11 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "rounds": 3,
+        "handler": "invisibility"
       }
     },
     {
@@ -16717,9 +17446,11 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "rounds": 3,
+        "handler": "invisibility"
       }
     },
     {
@@ -16745,9 +17476,10 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "handler": "blink"
       }
     },
     {
@@ -16773,9 +17505,12 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
-        "target": "self",
-        "range": 0
+        "kind": "condition",
+        "target": "single",
+        "range": 5,
+        "roll": "auto",
+        "condition": "cursed",
+        "rounds": 3
       }
     },
     {
@@ -16836,9 +17571,11 @@
         "b": 1
       },
       "effect": {
-        "kind": "utility",
+        "kind": "special",
         "target": "self",
-        "range": 0
+        "range": 0,
+        "radius": 30,
+        "handler": "sense"
       }
     },
     {

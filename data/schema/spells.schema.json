@@ -173,10 +173,9 @@
                   "heal",
                   "condition",
                   "buff",
-                  "utility",
                   "special"
                 ],
-                "description": "damage: dice of damage_type (optional condition rider); heal: the caster regains dice HP; condition: a condition for rounds; buff: +value to stat for rounds on the caster; utility: no combat mechanic; special: a handler of spell_router.c"
+                "description": "damage: dice of damage_type (optional condition rider); heal: the caster regains dice HP; condition: a condition for rounds; buff: +value to stat for rounds on the caster; special: a handler (src/server/spell_router.c, src/server/spell_utility.c)"
               },
               "target": {
                 "enum": [
@@ -337,8 +336,9 @@
               },
               "value": {
                 "type": "integer",
-                "minimum": 1,
-                "maximum": 10
+                "minimum": 0,
+                "maximum": 10,
+                "description": "buff: the bonus (at least 1); special: the parameter of the handler"
               },
               "handler": {
                 "enum": [
@@ -346,11 +346,24 @@
                   "blink",
                   "charm_person",
                   "class_transit",
+                  "cleanse",
                   "dominate_monster",
+                  "find_traps",
+                  "identify",
                   "invisibility",
+                  "light",
+                  "mend",
+                  "nourish",
+                  "rally",
+                  "remove_curse",
+                  "sense",
+                  "shape_earth",
+                  "shelter",
+                  "summon",
                   "summon_elemental",
                   "teleport"
-                ]
+                ],
+                "description": "animate_dead, blink, charm_person, class_transit (town and the deepest floor), dominate_monster, invisibility, summon_elemental, teleport; cleanse: the caster's conditions end (dice: HP too); find_traps: traps within radius found (value 1: disarmed); identify: value items identified (none: all); light: sight of value cells for rounds; mend: value tenths of durability to the most worn item; nourish: hunger and a level of exhaustion gone (dice: HP too); rally: where the party is; remove_curse: worn items and the Cursed condition; sense: creatures and items within radius, the stairs; shape_earth: wall and rock within radius open (not in town); shelter: a rest with no enemy within 10 cells; summon: value allies of the floor's bestiary for rounds"
               },
               "terrain": {
                 "enum": [
@@ -430,6 +443,9 @@
                   "properties": {
                     "target": {
                       "const": "self"
+                    },
+                    "value": {
+                      "minimum": 1
                     }
                   }
                 }
@@ -544,11 +560,25 @@
                   ]
                 },
                 "else": {
-                  "not": {
-                    "required": [
-                      "radius"
-                    ]
-                  }
+                  "anyOf": [
+                    {
+                      "properties": {
+                        "kind": {
+                          "const": "special"
+                        }
+                      },
+                      "required": [
+                        "kind"
+                      ]
+                    },
+                    {
+                      "not": {
+                        "required": [
+                          "radius"
+                        ]
+                      }
+                    }
+                  ]
                 }
               }
             ]

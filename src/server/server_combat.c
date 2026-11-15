@@ -240,10 +240,20 @@ static void announce_attack(Client *c, const NPC *t, const ItemTemplate *w) {
  * to d6, else STR) + half the level against AC. A hit on a paralyzed,
  * stunned or unconscious target is a critical; a blinded attacker has
  * disadvantage.*/
+void client_reveal(Client *c) {
+    for (int i = 0; i < c->effect_count; i++) {
+        if (condition_from_name(c->effects[i].name) == COND_INVISIBLE) {
+            c->effects[i--] = c->effects[--c->effect_count];
+            send_text_to_client(c->sock, "[MAGIC] You strike: you are visible again.");
+        }
+    }
+}
+
 void perform_attack(Client *c, NPC *t, Game *game) {
     if (!c || !t || !client_can_act(c)) {
         return;
     }
+    client_reveal(c);
     int ts, td, tc, ti, tw, th;
     get_total_stats(c, &ts, &td, &tc, &ti, &tw, &th);
     /*Never NULL: one of the two hand slots is always selected.*/

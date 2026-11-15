@@ -260,6 +260,13 @@ int get_vision_radius(Client *c) {
             }
         }
     }
+    /*Light spells (Light, Darkvision, ...): the largest one counts.*/
+    for (int i = 0; i < c->effect_count; i++) {
+        const ActiveEffect *e = &c->effects[i];
+        if (e->trigger == EVENT_ON_LIGHT && e->duration_rounds > 0 && e->value > best_radius) {
+            best_radius = e->value;
+        }
+    }
     return best_radius;
 }
 

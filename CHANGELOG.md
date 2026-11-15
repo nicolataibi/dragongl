@@ -1,3 +1,51 @@
+* Sun Nov 15 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.15.02
+- GAMEPLAY: every spell has a mechanic. The 263 spells of kind
+  'utility', which only said "it has no effect in combat", now act, and
+  the kind is gone (a record with it is refused). By family: 45 put a
+  condition on enemies (Hideous Laughter, Time Stop, Silence, Darkness,
+  Fog Cloud, Wall of Stone and Forcecage with their walls, ...), 54 are
+  buffs of armour class, attack or damage (Blade Ward, Stoneskin, Blur,
+  Shillelagh, most martial techniques), 13 heal (Revivify, Raise Dead,
+  False Life, ...), 4 deal damage (Prismatic Wall, Reverse Gravity,
+  Glyph of Warding, Cordon of Arrows), 38 move or hide the caster (the
+  blink, the class transit to town and back, invisibility), 3 control a
+  creature (Magic Jar, Planar Binding, Create Undead), and 106 use new
+  handlers.
+- GAMEPLAY: the new handlers (src/server/spell_utility.c): sense (25
+  spells: creatures and things on the ground within the radius, the way
+  to the stairs), find_traps (11: found within the radius, disarmed by
+  Trap Disarm, Knock, Skeleton Key, ...), identify (4), light (8: sight
+  in the dark, Darkvision included), mend (4: durability back to the
+  most worn item), nourish (4), cleanse (15: the caster's conditions
+  end, invisibility kept), remove_curse, shelter (9: a rest with no
+  enemy within 10 cells, hit points but not slots), shape_earth (5:
+  stone opens, never in town), rally (8: where the party is, and the
+  party is told) and summon (12: creatures of the floor's bestiary that
+  fight for the caster for some rounds).
+- FIX: summoned, raised and dominated creatures attacked their caster:
+  the AI of the monsters only knows characters as targets. They have an
+  ally behavior now: they fight the hostile creatures near them (a kill
+  is the caster's), follow the caster, are not hit by the caster's
+  steps, and end when their rounds run out or the caster leaves the
+  floor; a dominated monster turns hostile again, any other ally leaves
+  and never respawns. Animate Dead no longer raises a ghost or loot, and
+  the dead rise next to the caster.
+- FIX: monsters attacked invisible characters (only with disadvantage):
+  they do not see them now, and an attack or a damaging or controlling
+  spell ends invisibility, as the spell always said.
+- FIX: a spell's terrain (walls, ice, mud) is no longer left in town.
+- TESTS: spell_every_effect checks the outcome of every handler (a
+  condition cured, a trap found or disarmed, an item identified, light,
+  durability, hunger, a curse lifted, the creatures sensed, the stone
+  opened, the rest refused next to an enemy, an ally called); four new
+  cases (magic_exploration, magic_care, magic_allies,
+  magic_invisibility). The balance simulator also checks the dice of
+  cleanse and nourish against the heal limits, light (at most 12 cells)
+  and summonings (at most 2 allies for 50 rounds). Line coverage 81.7%,
+  the ratchet goes to 81%.
+- DOCS: DEVELOPMENT.md (the handlers, the allies), README.md (what
+  spells do), the schema of the spells.
+
 * Sun Nov 15 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.15.01
 - TESTS: line coverage of the server and shared code from 62.8% to
   81.2%; the ratchet of tools/quality_limits.json goes to 80%. 28 new

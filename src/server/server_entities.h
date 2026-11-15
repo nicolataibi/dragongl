@@ -110,7 +110,10 @@ typedef enum {
     AI_BEHAVIOR_DEFAULT = 0,
     AI_BEHAVIOR_VOID_CRAWLER,
     AI_BEHAVIOR_MAGE,
-    AI_BEHAVIOR_SWARM
+    AI_BEHAVIOR_SWARM,
+    /*Fights for a character: current_target_id is the entity id of that
+     * character, state_timer the rounds it has left (ai_make_ally).*/
+    AI_BEHAVIOR_ALLY
 } AiBehavior;
 
 // Context for NPC Artificial Intelligence

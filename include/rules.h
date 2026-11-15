@@ -87,7 +87,8 @@ typedef enum {
     EVENT_ON_SAVE,   //During a saving throw
     EVENT_ON_TURN_START,
     EVENT_ON_TURN_END,
-    EVENT_ON_DEFEND //Armor class of the bearer
+    EVENT_ON_DEFEND, //Armor class of the bearer
+    EVENT_ON_LIGHT   //Sight radius of the bearer in the dark (the largest counts)
 } RuleEventType;
 
 //Applicable modifier types

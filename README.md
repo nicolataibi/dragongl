@@ -241,7 +241,7 @@ In the game, `help` lists the topics (exploring, character, items, magic, mercha
 | `rest` | In town: recover hit points and spell slots |
 | `say <text>`, `msg <player> <text>`, `who` | Chat |
 
-Spells are learned only from books and cast only with their book at hand. That includes the class transit cantrips, which move you between the surface and the deepest floor you have reached: each class has its own travel tome (for example *Primer of Arcane Transit* for the Wizard), sold by the book shops of floor 0. A command typed without its arguments answers with its usage; anything else that is not a command is reported as unrecognized.
+Spells are learned only from books and cast only with their book at hand. That includes the class transit cantrips, which move you between the surface and the deepest floor you have reached: each class has its own travel tome (for example *Primer of Arcane Transit* for the Wizard), sold by the book shops of floor 0. Every spell has an effect in the game: besides attacks, curses and healing there are spells that find traps and creatures and point to the stairs, give light, feed, cure, lift curses, mend equipment, open stone, give a safe rest away from enemies, reach the party, hide you from monsters (until you attack), and call creatures that fight at your side for a while. A command typed without its arguments answers with its usage; anything else that is not a command is reported as unrecognized.
 
 ---
 

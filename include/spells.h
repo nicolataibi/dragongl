@@ -55,8 +55,7 @@ typedef enum {
     SPELL_KIND_HEAL,      /*the caster regains dice hit points*/
     SPELL_KIND_CONDITION, /*a condition for `rounds` rounds*/
     SPELL_KIND_BUFF,      /*+value to stat for `rounds` rounds, on the caster*/
-    SPELL_KIND_UTILITY,   /*no combat mechanic (exploration, social, ...)*/
-    SPELL_KIND_SPECIAL,   /*a dedicated handler of spell_router.c*/
+    SPELL_KIND_SPECIAL,   /*a dedicated handler (spell_router.c, spell_utility.c)*/
     SPELL_KIND_COUNT
 } SpellKind;
 
@@ -80,6 +79,19 @@ typedef enum {
     SPELL_HANDLER_INVISIBILITY,
     SPELL_HANDLER_SUMMON_ELEMENTAL,
     SPELL_HANDLER_TELEPORT,
+    /*The spells of exploration, protection and support (spell_utility.c).*/
+    SPELL_HANDLER_CLEANSE,      /*the caster's conditions end; dice: hit points too*/
+    SPELL_HANDLER_FIND_TRAPS,   /*traps within radius found; value 1: disarmed too*/
+    SPELL_HANDLER_IDENTIFY,     /*value unidentified items identified (0: all)*/
+    SPELL_HANDLER_LIGHT,        /*sight of at least value cells for rounds rounds*/
+    SPELL_HANDLER_MEND,         /*value points of durability to the most worn item*/
+    SPELL_HANDLER_NOURISH,      /*hunger and exhaustion gone; dice: hit points too*/
+    SPELL_HANDLER_RALLY,        /*where the party is, and the party is told*/
+    SPELL_HANDLER_REMOVE_CURSE, /*the curses of worn items and the Cursed condition*/
+    SPELL_HANDLER_SENSE,        /*creatures and items within radius, the stairs*/
+    SPELL_HANDLER_SHAPE_EARTH,  /*stone within radius opens (never in town)*/
+    SPELL_HANDLER_SHELTER,      /*a rest where no enemy is near*/
+    SPELL_HANDLER_SUMMON,       /*value allies of the floor's bestiary for rounds rounds*/
     SPELL_HANDLER_COUNT
 } SpellHandler;
 
@@ -114,7 +126,7 @@ typedef struct {
      * condition a cloud gives lasts one round and is renewed each round).*/
     int rounds;
     SpellBuffStat stat;
-    int value;
+    int value; /*buff: the bonus; special: the parameter of the handler*/
     SpellHandler handler;
     SpellTerrain terrain;
 } SpellEffect;

@@ -30,6 +30,20 @@ void ai_init_npc(NPC *npc, const char *monster_name, int floor_id);
 //Reattaches only the behavior tree after loading from disk (no stat reset)
 void ai_attach_behavior(NPC *npc);
 
+/*The NPC fights for the character c for `rounds` rounds: it attacks the
+ * hostile creatures near it, follows c, and never attacks a character.
+ * When the rounds run out, or c leaves its floor or the game, a dominated
+ * creature turns hostile again and any other ally is gone.*/
+void ai_make_ally(NPC *npc, const Client *c, int rounds);
+
+/*The round of an ally, before it acts: one round less, and the end of it
+ * when the rounds are over or its character is gone. False if it ended
+ * (an ally is no longer: it left, or turned hostile).*/
+bool ai_ally_round(Game *game, NPC *npc, Client *clients, int num_clients);
+
+/*True for an NPC that fights for a character.*/
+bool npc_is_ally(const NPC *npc);
+
 // Main update function called by the server
 void ai_update_npc(Game *game, NPC *npc, Client *clients, int num_clients, bool new_round);
 

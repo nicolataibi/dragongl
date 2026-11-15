@@ -16,6 +16,7 @@
 #include "harness_combat.h"
 #include "harness_commands.h"
 #include "harness_items.h"
+#include "harness_magic.h"
 #include "harness_rounds.h"
 #include "harness_spells.h"
 #include "harness_world.h"
@@ -1254,6 +1255,10 @@ static const TestCase k_tests[] = {
     {"monster_minds", test_monster_minds},
     {"dm_reports", test_dm_reports},
     {"starting_gear", test_starting_gear},
+    {"magic_exploration", test_magic_exploration},
+    {"magic_care", test_magic_care},
+    {"magic_allies", test_magic_allies},
+    {"magic_invisibility", test_magic_invisibility},
     {"full_backpack_roundtrip", test_full_backpack_roundtrip},
     {"partial_backpack_roundtrip", test_partial_backpack_roundtrip},
     {"trade_offer_revalidated_on_accept", test_trade_offer_revalidated_on_accept},

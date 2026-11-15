@@ -8,7 +8,7 @@
 %global app_id io.github.nicolataibi.dragongl
 
 Name:           dragongl
-Version:        2026.11.15.01
+Version:        2026.11.15.02
 Release:        %autorelease
 Summary:        Multi-user 3D dungeon RPG: Vulkan client
 

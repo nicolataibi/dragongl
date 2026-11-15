@@ -76,7 +76,7 @@ static void expect_error(const char *json, const char *needle) {
 static void test_parse_errors(void) {
     expect_error("{\"target\":\"self\",\"range\":0}", "effect.kind");
     expect_error("{\"kind\":\"zap\",\"target\":\"self\",\"range\":0}", "effect.kind");
-    expect_error("{\"kind\":\"utility\",\"target\":\"self\",\"range\":61}", "effect.range");
+    expect_error("{\"kind\":\"special\",\"target\":\"self\",\"range\":61}", "effect.range");
     expect_error("{\"kind\":\"damage\",\"target\":\"circle\",\"range\":0,\"roll\":\"auto\","
                  "\"dice\":{\"count\":1,\"sides\":6},\"damage_type\":\"fire\"}",
                  "effect.radius");
@@ -100,20 +100,25 @@ static void test_parse_errors(void) {
                  "effect.rounds");
     expect_error("{\"kind\":\"special\",\"target\":\"self\",\"range\":0,\"handler\":\"wish\"}",
                  "effect.handler");
+    /* The kind of the spells with no effect is gone (phase 18). */
+    expect_error("{\"kind\":\"utility\",\"target\":\"self\",\"range\":0}", "effect.kind");
+    expect_error("{\"kind\":\"special\",\"target\":\"self\",\"range\":0,\"handler\":\"light\","
+                 "\"value\":11}",
+                 "effect.value");
     expect_error("{\"kind\":\"buff\",\"target\":\"self\",\"range\":0,\"rounds\":1,"
                  "\"stat\":\"luck\",\"value\":1}",
                  "effect.stat");
     /* Whole numbers only, in the range of int (cJSON saturates beyond it). */
-    expect_error("{\"kind\":\"utility\",\"target\":\"self\",\"range\":1.5}", "effect.range");
-    expect_error("{\"kind\":\"utility\",\"target\":\"self\",\"range\":-0.25}", "effect.range");
-    expect_error("{\"kind\":\"utility\",\"target\":\"self\",\"range\":3e9}", "effect.range");
-    expect_error("{\"kind\":\"utility\",\"target\":\"self\",\"range\":\"6\"}", "effect.range");
+    expect_error("{\"kind\":\"special\",\"target\":\"self\",\"range\":1.5}", "effect.range");
+    expect_error("{\"kind\":\"special\",\"target\":\"self\",\"range\":-0.25}", "effect.range");
+    expect_error("{\"kind\":\"special\",\"target\":\"self\",\"range\":3e9}", "effect.range");
+    expect_error("{\"kind\":\"special\",\"target\":\"self\",\"range\":\"6\"}", "effect.range");
     SpellEffect e;
     char err[160] = "";
-    EXPECT(
-        parse("{\"kind\":\"utility\",\"target\":\"self\",\"range\":6.0}", &e, err, sizeof(err)) &&
-            e.range == 6,
-        "6.0 is a whole number: %s", err);
+    EXPECT(parse("{\"kind\":\"special\",\"target\":\"self\",\"range\":6.0,\"handler\":\"light\"}",
+                 &e, err, sizeof(err)) &&
+               e.range == 6,
+           "6.0 is a whole number: %s", err);
 }
 
 static SpellCaster caster(int level, int mod) {
