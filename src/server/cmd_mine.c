@@ -22,27 +22,36 @@
  */
 
 #include "server_internal.h"
+#include "server_cmd.h"
 
-static bool is_digging_tool(const ItemInstance *it) {
+/*Only a miner's pickaxe or a shovel digs: a war pick is a weapon.*/
+bool is_digging_tool(const ItemInstance *it) {
     if (it->template_idx == -1) {
         return false;
     }
     const char *iname = item_database[it->template_idx].name;
-    return strcasestr(iname, "Pick") || strcasestr(iname, "Shovel") ||
-           strcasestr(iname, "Hammer") || strcasestr(iname, "Mining") || strcasestr(iname, "Tool");
+    return strcasestr(iname, "Miner's") || strcasestr(iname, "Pickaxe") ||
+           strcasestr(iname, "Shovel");
 }
 
-/*A pick, shovel, hammer or tool in a hand or in the backpack.*/
-static bool has_digging_tool(const Client *c) {
-    if (is_digging_tool(&c->slot_hand_r) || is_digging_tool(&c->slot_hand_l)) {
-        return true;
+const ItemInstance *find_digging_tool(const Client *c) {
+    if (is_digging_tool(&c->slot_hand_r)) {
+        return &c->slot_hand_r;
+    }
+    if (is_digging_tool(&c->slot_hand_l)) {
+        return &c->slot_hand_l;
     }
     for (int i = 0; i < c->backpack_count; i++) {
         if (is_digging_tool(&c->backpack[i])) {
-            return true;
+            return &c->backpack[i];
         }
     }
-    return false;
+    for (int i = 0; i < MAX_BELT; i++) {
+        if (is_digging_tool(&c->belt[i])) {
+            return &c->belt[i];
+        }
+    }
+    return NULL;
 }
 
 /*Yields scale with the depth (the city counts as floor 1).*/
@@ -100,22 +109,13 @@ static void mine_crystal(Game *game, Client *c, Floor *f, int tx, int ty, VoxelT
         gold_yield);
 }
 
-/*Rock and walls: with a tool they always open (15% of the tiles hide some
- * silver); bare-handed four times in five the player only hurts himself.*/
-static void mine_rock(Game *game, Client *c, Floor *f, int tx, int ty, bool has_tool) {
-    if (!has_tool && (rand() % 100 < 80)) {
-        send_text_to_client(
-            c->sock,
-            "[MINE] Digging rock bare-handed is exhausting and painful... You can't break through.");
-        c->hp = c->hp > 1 ? c->hp - 1 : 1;
-        send_detailed_state(game, c);
-        return;
-    }
+/*Rock and walls open; 15% of the tiles hide some silver.*/
+static void mine_rock(Game *game, Client *c, Floor *f, int tx, int ty) {
     f->map.data[0][ty][tx] = VOXEL_FLOOR;
     broadcast_spell_vfx(game, tx, ty, tx, ty, 1, 0.6f, 0.6f, 0.6f,
                         c->floor_id); // Grey rock explosion
     unsigned int hash = (unsigned int)(tx * 73 + ty * 37 + c->floor_id * 19 + 17);
-    if (has_tool && (hash % 100 < 15)) {
+    if (hash % 100 < 15) {
         int bonus = 20 * depth_factor(c);
         c->gold += (uint64_t)bonus;
         send_text_to_client(
@@ -143,49 +143,26 @@ static void dig_ground(Client *c, Floor *f, int tx, int ty) {
     }
 }
 
-/*What the voxel needs a tool for, as the refusal the player reads; NULL
- * if it can be worked bare-handed.*/
-static const char *tool_needed_for(VoxelType vt, bool digging_down) {
-    if (vt == VOXEL_GOLD_VEIN) {
-        return "[MINE] The gold vein is too hard to mine bare-handed. You need a pickaxe!";
-    }
-    if (vt >= VOXEL_CRYSTAL_BLUE && vt <= VOXEL_CRYSTAL_WHITE) {
-        return "[MINE] The magic crystal is as hard as diamond. You need a proper tool!";
-    }
-    if (digging_down && (vt == VOXEL_MUD || vt == VOXEL_SAND || vt == VOXEL_ASH ||
-                         vt == VOXEL_GRASS || vt == VOXEL_FLOOR)) {
-        return "[MINE] Digging the ground without a shovel or pickaxe takes too much time and effort.";
-    }
-    return NULL;
-}
-
 /*tunnel <n|s|e|w|d>: mines the tile in that direction, or digs underfoot.
  * "t " (lowercase) is the short alias: 't n' = tunnel north.*/
 bool cmd_tunnel(Client *c, const char *cmd, Game *game) {
-    (void)game;
     const char *dir_str = strchr(cmd, ' ');
     if (!dir_str) {
         send_text_to_client(c->sock,
                             "[SYSTEM] Use: tunnel <n|s|e|w> or 'tunnel d' (down/under your feet)");
         return true;
     }
-    while (*dir_str == ' ') {
-        dir_str++;
-    }
-    int tx = c->x, ty = c->y;
-    bool digging_down = *dir_str == 'd' || *dir_str == 'g';
-    if (*dir_str == 'n') {
-        ty--;
-    } else if (*dir_str == 's') {
-        ty++;
-    } else if (*dir_str == 'e') {
-        tx++;
-    } else if (*dir_str == 'w') {
-        tx--;
-    } else if (!digging_down) {
+    dir_str += strspn(dir_str, " ");
+    int dx = 0, dy = 0;
+    size_t len = strcspn(dir_str, " ");
+    bool digging_down =
+        dir_str[len + strspn(dir_str + len, " ")] == '\0' &&
+        ((len == 1 && dir_str[0] == 'd') || (len == 4 && strncasecmp(dir_str, "down", 4) == 0));
+    if (!digging_down && !parse_direction4(dir_str, &dx, &dy)) {
         send_text_to_client(c->sock, "[SYSTEM] Invalid direction. Use: n, s, e, w, or d (down)");
         return true;
     }
+    int tx = c->x + dx, ty = c->y + dy;
     /*The town is built, not dug: its walls, statues and paving stay.*/
     if (c->floor_id == 0) {
         send_text_to_client(c->sock, "[MINE] The town is not a mine: dig in the dungeon.");
@@ -196,13 +173,15 @@ bool cmd_tunnel(Client *c, const char *cmd, Game *game) {
         send_text_to_client(c->sock, "[SYSTEM] Beyond borders.");
         return true;
     }
+    if (!find_digging_tool(c)) {
+        send_text_to_client(c->sock,
+                            "[MINE] You need a pickaxe or a shovel to dig (in a hand, on the belt "
+                            "or in the backpack).");
+        return true;
+    }
     Floor *f = &game->world->floors[c->floor_id];
     VoxelType vt = f->map.data[0][ty][tx];
-    bool has_tool = has_digging_tool(c);
-    const char *refusal = has_tool ? NULL : tool_needed_for(vt, digging_down);
-    if (refusal) {
-        send_text_to_client(c->sock, "%s", refusal);
-    } else if (vt == VOXEL_GOLD_VEIN) {
+    if (vt == VOXEL_GOLD_VEIN) {
         mine_gold_vein(game, c, f, tx, ty);
     } else if (vt >= VOXEL_CRYSTAL_BLUE && vt <= VOXEL_CRYSTAL_WHITE) {
         mine_crystal(game, c, f, tx, ty, vt);
@@ -214,12 +193,14 @@ bool cmd_tunnel(Client *c, const char *cmd, Game *game) {
             c->sock,
             "[MINE] Extract the glowing mushrooms and absorb their life essence (+15 HP).");
     } else if (vt == VOXEL_WALL || vt == VOXEL_ROCK) {
-        mine_rock(game, c, f, tx, ty, has_tool);
+        mine_rock(game, c, f, tx, ty);
     } else if (digging_down && (vt == VOXEL_MUD || vt == VOXEL_SAND || vt == VOXEL_ASH ||
                                 vt == VOXEL_GRASS || vt == VOXEL_FLOOR)) {
         dig_ground(c, f, tx, ty);
     } else {
         send_text_to_client(c->sock, "[SYSTEM] There is nothing to dig or mine there.");
+        return true;
     }
+    send_map_chunk(c->sock, &f->map, c->x, c->y, INITIAL_VIEW_RADIUS);
     return true;
 }

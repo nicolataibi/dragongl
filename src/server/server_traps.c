@@ -428,3 +428,66 @@ void check_traps(Client *c, Game *game) {
         }
     }
 }
+
+static bool secret_open_side(VoxelType v) {
+    return v != VOXEL_WALL && v != VOXEL_ROCK;
+}
+
+bool secret_passage_at(const Floor *f, int floor_id, int x, int y) {
+    if (floor_id <= 0 || x < 2 || y < 2 || x >= MAP_WIDTH - 2 || y >= MAP_HEIGHT - 2) {
+        return false;
+    }
+    const VoxelType(*m)[MAP_WIDTH] = f->map.data[0];
+    if (m[y][x] != VOXEL_WALL) {
+        return false;
+    }
+    /*Wall to the left and right with open ground above and below, or the
+     * other way round: a passage through a straight wall.*/
+    bool vertical = secret_open_side(m[y - 1][x]) && secret_open_side(m[y + 1][x]) &&
+                    m[y][x - 1] == VOXEL_WALL && m[y][x + 1] == VOXEL_WALL;
+    bool horizontal = secret_open_side(m[y][x - 1]) && secret_open_side(m[y][x + 1]) &&
+                      m[y - 1][x] == VOXEL_WALL && m[y + 1][x] == VOXEL_WALL;
+    if (!vertical && !horizontal) {
+        return false;
+    }
+    unsigned int h = (unsigned int)x * 73856093u ^ (unsigned int)y * 19349663u ^
+                     (unsigned int)floor_id * 83492791u;
+    h ^= h >> 13;
+    h *= 0x5bd1e995u;
+    h ^= h >> 15;
+    return h % SECRET_PASSAGE_RARITY == 0;
+}
+
+int secret_passage_dc(int floor_id) {
+    return 12 + floor_id / 10;
+}
+
+int secret_passages_reveal(Game *game, Client *c, int radius, int perception) {
+    Floor *f = &game->world->floors[c->floor_id];
+    int dc = secret_passage_dc(c->floor_id);
+    int found = 0;
+    for (int y = c->y - radius; y <= c->y + radius; y++) {
+        for (int x = c->x - radius; x <= c->x + radius; x++) {
+            if (!secret_passage_at(f, c->floor_id, x, y)) {
+                continue;
+            }
+            if (perception >= 0 && perception < dc) {
+                continue;
+            }
+            f->map.data[0][y][x] = VOXEL_DOOR;
+            found++;
+            if (perception >= 0) {
+                send_text_to_client(
+                    c->sock,
+                    "[PERCEPTION] You have discovered a secret passage at (%d, %d)! (Roll: %d vs DC: %d)",
+                    x, y, perception, dc);
+            } else {
+                send_text_to_client(c->sock, "  > A secret passage at (%d, %d).", x, y);
+            }
+        }
+    }
+    if (found > 0) {
+        send_map_chunk(c->sock, &f->map, c->x, c->y, INITIAL_VIEW_RADIUS);
+    }
+    return found;
+}

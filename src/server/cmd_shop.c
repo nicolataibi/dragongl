@@ -38,30 +38,34 @@
 #include "inventory.h"
 #include <ctype.h>
 
-//browse <n> — inspect item description in store
-bool cmd_browse(Client *c, const char *cmd, Game *game) {
-    int target_item = list_index(cmd + 7);
-    bool found = false;
+/*The merchant next to the player (diagonals too), or NULL: every service
+ * of a merchant is asked face to face.*/
+static NPC *nearby_merchant(const Client *c, Game *game) {
     FloorIter walk = floor_iter(game, c->floor_id);
     for (int i; (i = floor_iter_next(&walk)) >= 0;) {
         if (game->npcs[i].archetype == ARCH_MERCHANT &&
-            abs(game->npcs[i].x - c->x) + abs(game->npcs[i].y - c->y) <= 4) {
-            if (target_item >= 0 &&
-                target_item < npc_shop_any(&game->pools, &game->npcs[i])->item_count) {
-                ItemTemplate *it = &item_database[npc_shop_any(&game->pools, &game->npcs[i])
-                                                      ->item_templates[target_item]];
-                send_text_to_client(c->sock, "[INFO] %s: %s", it->name, it->description);
-                found = true;
-            } else {
-                send_text_to_client(c->sock, "[ERROR] Invalid object number.");
-                found = true;
-            }
-            break;
+            tiles_adjacent(game->npcs[i].x, game->npcs[i].y, c->x, c->y)) {
+            return &game->npcs[i];
         }
     }
-    if (!found) {
-        send_text_to_client(c->sock, "[SYSTEM] No merchants nearby.");
+    return NULL;
+}
+
+//browse <n> — inspect item description in store
+bool cmd_browse(Client *c, const char *cmd, Game *game) {
+    int target_item = list_index(cmd + 7);
+    NPC *m = nearby_merchant(c, game);
+    if (!m) {
+        send_text_to_client(c->sock, "[SYSTEM] No merchant next to you.");
+        return true;
     }
+    const MerchantData *shop = npc_shop_any(&game->pools, m);
+    if (target_item < 0 || target_item >= shop->item_count) {
+        send_text_to_client(c->sock, "[ERROR] Invalid object number.");
+        return true;
+    }
+    const ItemTemplate *it = &item_database[shop->item_templates[target_item]];
+    send_text_to_client(c->sock, "[INFO] %s: %s", it->name, it->description);
     return true;
 }
 
@@ -80,33 +84,14 @@ bool cmd_list(Client *c, const char *cmd, Game *game) {
     if (tomb_found) {
         return true;
     }
-    /*Then look for a merchant*/
-    bool found = false;
-    FloorIter walk = floor_iter(game, c->floor_id);
-    for (int i; (i = floor_iter_next(&walk)) >= 0;) {
-        if (game->npcs[i].archetype == ARCH_MERCHANT &&
-            abs(game->npcs[i].x - c->x) + abs(game->npcs[i].y - c->y) <= 4) {
-            print_merchant_inventory(c, npc_shop_any(&game->pools, &game->npcs[i]));
-            found = true;
-            break;
-        }
-    }
-    if (!found) {
-        send_text_to_client(c->sock, "[SYSTEM] No merchants or tombstones nearby.");
+    /*Then the merchant next to the player*/
+    NPC *m = nearby_merchant(c, game);
+    if (m) {
+        print_merchant_inventory(c, npc_shop_any(&game->pools, m));
+    } else {
+        send_text_to_client(c->sock, "[SYSTEM] No merchant or tombstone next to you.");
     }
     return true;
-}
-
-/*The merchant within 4 steps of the player, or NULL.*/
-static NPC *nearby_merchant(const Client *c, Game *game) {
-    FloorIter walk = floor_iter(game, c->floor_id);
-    for (int i; (i = floor_iter_next(&walk)) >= 0;) {
-        if (game->npcs[i].archetype == ARCH_MERCHANT &&
-            abs(game->npcs[i].x - c->x) + abs(game->npcs[i].y - c->y) <= 4) {
-            return &game->npcs[i];
-        }
-    }
-    return NULL;
 }
 
 /*The shelf of the merchant that holds the item template, or -1.*/
@@ -171,14 +156,20 @@ static int shop_find_shelf(const MerchantData *m, const char *input) {
     return -1;
 }
 
-/*A backpack slot by number or by the exact name of the item; -1 if none.*/
+/*A backpack slot by number or by part of the item's name (an exact name
+ * first); -1 if none.*/
 static int backpack_find(const Client *c, const char *input) {
     if (isdigit((unsigned char)input[0])) {
         int idx = list_index(input);
         return (idx >= 0 && idx < c->backpack_count) ? idx : -1;
     }
-    for (int i = 0; i < c->backpack_count; i++) {
+    for (int i = 0; input[0] && i < c->backpack_count; i++) {
         if (strcasecmp(input, item_database[c->backpack[i].template_idx].name) == 0) {
+            return i;
+        }
+    }
+    for (int i = 0; input[0] && i < c->backpack_count; i++) {
+        if (strcasestr(item_database[c->backpack[i].template_idx].name, input) != NULL) {
             return i;
         }
     }
@@ -206,17 +197,8 @@ static bool backpack_add_bought(Client *c, int template_idx) {
     if (c->backpack_count >= MAX_BACKPACK) {
         return false;
     }
-    ItemInstance *slot = &c->backpack[c->backpack_count++];
-    memset(slot, 0, sizeof(ItemInstance));
-    slot->template_idx = template_idx;
-    slot->durability = (it->category == ITEM_LIGHT_SOURCE && strcasestr(it->name, "lantern"))
-                           ? 5000
-                           : it->max_durability;
-    slot->stack_count = 1;
-    slot->is_identified = true; /*the merchant vouches for the item*/
-    slot->blessing = BLESS_NORMAL;
-    slot->quality = QUALITY_NORMAL;
-    slot->element = ELEM_NONE;
+    /*Identified: the merchant vouches for the item.*/
+    item_instance_new(&c->backpack[c->backpack_count++], template_idx);
     return true;
 }
 
@@ -225,7 +207,7 @@ static bool backpack_add_bought(Client *c, int template_idx) {
 bool cmd_buy(Client *c, const char *cmd, Game *game) {
     NPC *m = nearby_merchant(c, game);
     if (!m) {
-        send_text_to_client(c->sock, "[ERROR] No merchant nearby.");
+        send_text_to_client(c->sock, "[ERROR] No merchant next to you.");
         return true;
     }
     int shelf = shop_find_shelf(npc_shop_any(&game->pools, m), cmd + 4);
@@ -267,7 +249,7 @@ bool cmd_buy(Client *c, const char *cmd, Game *game) {
 bool cmd_sell(Client *c, const char *cmd, Game *game) {
     NPC *m = nearby_merchant(c, game);
     if (!m) {
-        send_text_to_client(c->sock, "[ERROR] No merchant nearby.");
+        send_text_to_client(c->sock, "[ERROR] No merchant next to you.");
         return true;
     }
     int si = backpack_find(c, cmd + 5);
@@ -343,14 +325,11 @@ bool cmd_haggle(Client *c, const char *cmd, Game *game) {
     const char *input = is_buying ? sub + 4 : sub + 5;
     NPC *m = nearby_merchant(c, game);
     if (!m) {
-        send_text_to_client(c->sock, "[ERROR] No merchant nearby.");
+        send_text_to_client(c->sock, "[ERROR] No merchant next to you.");
         return true;
     }
-    int item_idx = -1;
-    if (isdigit((unsigned char)input[0])) {
-        item_idx = is_buying ? shop_find_shelf(npc_shop_any(&game->pools, m), input)
-                             : backpack_find(c, input);
-    }
+    int item_idx =
+        is_buying ? shop_find_shelf(npc_shop_any(&game->pools, m), input) : backpack_find(c, input);
     if (is_buying && (item_idx == -1 || npc_shop_any(&game->pools, m)->item_stock[item_idx] <= 0)) {
         send_text_to_client(c->sock, "[SHOP] Item not available for trading.");
         return true;
@@ -386,18 +365,8 @@ bool cmd_haggle(Client *c, const char *cmd, Game *game) {
 //identify [n] — identifies the first unidentified object
 //or the nth if specified. Cost: 100 gp per item.
 bool cmd_identify(Client *c, const char *cmd, Game *game) {
-    //Check if we are close to a merchant
-    bool near_merchant = false;
-    FloorIter walk = floor_iter(game, c->floor_id);
-    for (int i; (i = floor_iter_next(&walk)) >= 0;) {
-        if (game->npcs[i].archetype == ARCH_MERCHANT &&
-            abs(game->npcs[i].x - c->x) + abs(game->npcs[i].y - c->y) <= 4) {
-            near_merchant = true;
-            break;
-        }
-    }
-    if (!near_merchant) {
-        send_text_to_client(c->sock, "[ERROR] You must be near a merchant to identify.");
+    if (!nearby_merchant(c, game)) {
+        send_text_to_client(c->sock, "[ERROR] You must be next to a merchant to identify.");
         return true;
     }
     //Optional argument parsing: "identify 3" or "identify sword"
@@ -452,9 +421,8 @@ bool cmd_identify(Client *c, const char *cmd, Game *game) {
     return true;
 }
 
-/*cure: next to a merchant, for 50 gold, every condition goes but
- * invisibility; the effects of potions and spells stay. It cured anywhere,
- * in the middle of a fight too, and took the good effects with the bad.*/
+/*cure: next to a merchant, for 50 gold, poison goes (the game has no
+ * disease); other conditions and the effects of potions and spells stay.*/
 bool cmd_cure(Client *c, const char *cmd, Game *game) {
     (void)cmd;
     if (!nearby_merchant(c, game)) {
@@ -467,18 +435,18 @@ bool cmd_cure(Client *c, const char *cmd, Game *game) {
     }
     int kept = 0;
     for (int i = 0; i < c->effect_count; i++) {
-        ConditionType cond = condition_from_name(c->effects[i].name);
-        if (cond == MAX_CONDITIONS || cond == COND_INVISIBLE) {
+        if (condition_from_name(c->effects[i].name) != COND_POISONED) {
             c->effects[kept++] = c->effects[i];
         }
     }
     if (kept == c->effect_count) {
-        send_text_to_client(c->sock, "[TEMPLE] You have no affliction to cure.");
+        send_text_to_client(c->sock, "[TEMPLE] You have no poison or disease to cure.");
         return true;
     }
     c->gold -= 50;
     c->effect_count = kept;
-    send_text_to_client(c->sock, "[TEMPLE] Your afflictions have been cleansed by the Arcanum!");
+    send_text_to_client(c->sock, "[TEMPLE] The poison has been cleansed by the Arcanum!");
+    send_detailed_state(game, c);
     return true;
 }
 
@@ -490,39 +458,29 @@ bool cmd_repair(Client *c, const char *cmd, Game *game) {
         send_text_to_client(c->sock, "[ERROR] The Blacksmith is only found on floor 0 (city).");
         return true;
     }
-    //Check for a merchant/blacksmith near floor 0
-    bool near_smith = false;
-    FloorIter walk = floor_iter(game, 0);
-    for (int i; (i = floor_iter_next(&walk)) >= 0;) {
-        if (game->npcs[i].archetype == ARCH_MERCHANT &&
-            abs(game->npcs[i].x - c->x) + abs(game->npcs[i].y - c->y) <= 5) {
-            near_smith = true;
-            break;
-        }
-    }
-    if (!near_smith) {
-        send_text_to_client(c->sock, "[ERROR] You must be near the Blacksmith to repair.");
+    if (!nearby_merchant(c, game)) {
+        send_text_to_client(c->sock, "[ERROR] You must be next to the Blacksmith to repair.");
         return true;
     }
-    //Collects all repairable slots
-    ItemInstance *sls[] = {&c->slot_head,   &c->slot_neck,   &c->slot_body,  &c->slot_back,
-                           &c->slot_hand_r, &c->slot_hand_l, &c->slot_hands, &c->slot_arm_r,
-                           &c->slot_arm_l,  &c->slot_feet};
-    //Optional argument: specific slot
-    const char *repair_arg = (cmd[6] == ' ') ? cmd + 7 : NULL;
+    /*Optional argument: one slot ("body", "hand_r") or part of the name
+     * of an equipped item.*/
+    ItemInstance *only = NULL;
+    if (cmd[6] == ' ') {
+        only = find_equipped(c, cmd + 7);
+        if (!only) {
+            send_text_to_client(c->sock, "[BLACKSMITH] You are not wearing '%s'.", cmd + 7);
+            return true;
+        }
+    }
     int total_cost = 0;
     int items_repaired = 0;
-    for (int i = 0; i < 10; i++) {
-        if (sls[i]->template_idx == -1) {
+    ItemInstance *sls[EQUIP_SLOT_COUNT];
+    for (int i = 0; i < EQUIP_SLOT_COUNT; i++) {
+        sls[i] = equip_slot(c, i);
+    }
+    for (int i = 0; i < EQUIP_SLOT_COUNT; i++) {
+        if (sls[i]->template_idx == -1 || (only && sls[i] != only)) {
             continue;
-        }
-        //If an argument is specified, repair only that object
-        if (repair_arg != NULL) {
-            const char *iname = item_database[sls[i]->template_idx].name;
-            if (strcasecmp(iname, repair_arg) != 0 &&
-                !(sls[i]->is_artifact && strcasecmp(sls[i]->artifact_name, repair_arg) == 0)) {
-                continue;
-            }
         }
         int max_dur = item_database[sls[i]->template_idx].max_durability;
         if (max_dur <= 0) {
@@ -574,17 +532,8 @@ bool cmd_uncurse(Client *c, const char *cmd, Game *game) {
         send_text_to_client(c->sock, "[ERROR] The Cleric is only on floor 0 (city).");
         return true;
     }
-    bool near_cleric = false;
-    FloorIter walk = floor_iter(game, 0);
-    for (int i; (i = floor_iter_next(&walk)) >= 0;) {
-        if (game->npcs[i].archetype == ARCH_MERCHANT &&
-            abs(game->npcs[i].x - c->x) + abs(game->npcs[i].y - c->y) <= 4) {
-            near_cleric = true;
-            break;
-        }
-    }
-    if (!near_cleric) {
-        send_text_to_client(c->sock, "[ERROR] You must be near the Cleric to remove a curse.");
+    if (!nearby_merchant(c, game)) {
+        send_text_to_client(c->sock, "[ERROR] You must be next to the Cleric to remove a curse.");
         return true;
     }
     if (c->gold < 200) {
@@ -609,34 +558,40 @@ bool cmd_uncurse(Client *c, const char *cmd, Game *game) {
             uncursed_count++;
         }
     }
-    if (uncursed_count == 0) {
-        send_text_to_client(c->sock, "[CLERIC] You carry no cursed object. Keep your 200gp.");
+    /*The Cursed condition goes with the cursed items.*/
+    int kept = 0;
+    for (int i = 0; i < c->effect_count; i++) {
+        if (condition_from_name(c->effects[i].name) != COND_CURSED) {
+            c->effects[kept++] = c->effects[i];
+        }
+    }
+    bool condition_lifted = kept < c->effect_count;
+    c->effect_count = kept;
+    if (uncursed_count == 0 && !condition_lifted) {
+        send_text_to_client(c->sock, "[CLERIC] You carry no curse. Keep your 200gp.");
         return true;
     }
     c->gold -= 200;
     send_text_to_client(c->sock,
-                        "[CLERIC] The sacred fire burns the curses! %d item(s) purified"
+                        "[CLERIC] The sacred fire burns the curses! %d item(s) purified%s"
                         " (200gp).",
-                        uncursed_count);
+                        uncursed_count, condition_lifted ? ", the curse on you lifted" : "");
+    send_detailed_state(game, c);
     return true;
 }
 
 bool cmd_talk(Client *c, const char *cmd, Game *game) {
     (void)cmd;
-    FloorIter walk = floor_iter(game, c->floor_id);
-    for (int i; (i = floor_iter_next(&walk)) >= 0;) {
-        if (game->npcs[i].archetype == ARCH_MERCHANT &&
-            abs(game->npcs[i].x - c->x) + abs(game->npcs[i].y - c->y) <= 2) {
-            send_text_to_client(
-                c->sock,
-                "[%s] Welcome! Commands: 'list', 'browse <n>', 'buy <n>', 'sell <n>',"
-                " 'haggle buy/sell', 'identify [n]', 'repair [name]', 'uncurse', 'cure'.",
-                npc_shop_any(&game->pools, &game->npcs[i])->shop_name);
-            print_merchant_inventory(c, npc_shop_any(&game->pools, &game->npcs[i]));
-            return true;
-        }
+    NPC *m = nearby_merchant(c, game);
+    if (!m) {
+        send_text_to_client(c->sock, "[SYSTEM] There is no merchant next to you.");
+        return true;
     }
-    send_text_to_client(c->sock, "[SYSTEM] There is no merchant within 2 steps.");
+    send_text_to_client(c->sock,
+                        "[%s] Welcome! Commands: 'list', 'browse <n>', 'buy <n>', 'sell <n>',"
+                        " 'haggle buy/sell', 'identify [n]', 'repair [name]', 'uncurse', 'cure'.",
+                        npc_shop_any(&game->pools, m)->shop_name);
+    print_merchant_inventory(c, npc_shop_any(&game->pools, m));
     return true;
 }
 

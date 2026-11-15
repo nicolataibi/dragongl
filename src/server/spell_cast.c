@@ -184,13 +184,14 @@ static int cells_between(int x1, int y1, int x2, int y2) {
     return dx > dy ? dx : dy;
 }
 
-static NPC *nearest_target(const Client *c, Game *game, int reach) {
+static NPC *nearest_target(const Client *c, Game *game, int reach, const char *name) {
     NPC *best = NULL;
     int best_d = reach + 1;
     FloorIter walk = floor_iter(game, c->floor_id);
     for (int i; (i = floor_iter_next(&walk)) >= 0;) {
         NPC *n = &game->npcs[i];
-        if (n->floor_id != c->floor_id || !spell_can_affect_npc(n)) {
+        if (n->floor_id != c->floor_id || !spell_can_affect_npc(n) ||
+            (name && !strcasestr(npc_name(n), name))) {
             continue;
         }
         int d = cells_between(c->x, c->y, n->x, n->y);
@@ -216,18 +217,28 @@ static bool needs_target(const SpellEffect *e) {
     }
 }
 
-static bool aim(const Client *c, const SpellTemplate *sp, Game *game, CastAim *a) {
+static bool aim(const Client *c, const SpellTemplate *sp, Game *game, const char *name,
+                CastAim *a) {
     const SpellEffect *e = &sp->effect;
     memset(a, 0, sizeof(*a));
     a->ox = a->tx = c->x;
     a->oy = a->ty = c->y;
     if (e->target == SPELL_TARGET_SELF) {
+        if (name) {
+            send_text_to_client(c->sock, "[MAGIC] %s affects only you: '%s' is ignored.", sp->name,
+                                name);
+        }
         return true;
     }
     bool from_caster = e->target == SPELL_TARGET_AOE_CONE || e->target == SPELL_TARGET_AOE_LINE;
     int reach = from_caster ? e->radius : e->range;
-    a->target = reach > 0 ? nearest_target(c, game, reach) : NULL;
+    a->target = reach > 0 ? nearest_target(c, game, reach, name) : NULL;
     if (!a->target) {
+        if (name) {
+            send_text_to_client(c->sock, "[MAGIC] %s: no '%s' within %d cells.", sp->name, name,
+                                reach);
+            return false;
+        }
         if (needs_target(e)) {
             send_text_to_client(c->sock, "[MAGIC] %s: no enemy within %d cells.", sp->name, reach);
             return false;
@@ -316,8 +327,12 @@ static void cast_offense(Client *c, const SpellTemplate *sp, const SpellCaster *
 }
 
 bool spell_cast(Client *c, const SpellTemplate *sp, Game *game) {
+    return spell_cast_at(c, sp, game, NULL);
+}
+
+bool spell_cast_at(Client *c, const SpellTemplate *sp, Game *game, const char *target) {
     CastAim a;
-    if (!aim(c, sp, game, &a)) {
+    if (!aim(c, sp, game, target, &a)) {
         return false;
     }
     SpellCaster sc;

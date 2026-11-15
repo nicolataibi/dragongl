@@ -3425,7 +3425,9 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 150000
+      "cost": 150000,
+      "cast_spell": "Find Traps",
+      "max_charges": 3
     },
     {
       "name": "Greatsword of Sharpness",
@@ -4023,7 +4025,9 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 400000
+      "cost": 400000,
+      "cast_spell": "Detect Evil and Good",
+      "max_charges": 7
     },
     {
       "name": "Bag of Holding",
@@ -4687,7 +4691,9 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 800000
+      "cost": 800000,
+      "cast_spell": "Magic Missile",
+      "max_charges": 7
     },
     {
       "name": "Wand of Web",
@@ -4700,7 +4706,9 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement a spellcaster",
-      "cost": 800000
+      "cost": 800000,
+      "cast_spell": "Web",
+      "max_charges": 7
     },
     {
       "name": "Cape of the Mountebank",
@@ -4869,7 +4877,9 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement a spellcaster",
-      "cost": 1000000
+      "cost": 1000000,
+      "cast_spell": "Hold Person",
+      "max_charges": 7
     },
     {
       "name": "Wand of Fear",
@@ -4882,7 +4892,9 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 1000000
+      "cost": 1000000,
+      "cast_spell": "Fear",
+      "max_charges": 7
     },
     {
       "name": "Apparatus of Kwalish",
@@ -5116,7 +5128,9 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement by a spellcaster",
-      "cost": 1600000
+      "cost": 1600000,
+      "cast_spell": "Hold Person",
+      "max_charges": 7
     },
     {
       "name": "Cube of Force",
@@ -5428,7 +5442,9 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement by a spellcaster",
-      "cost": 3200000
+      "cost": 3200000,
+      "cast_spell": "Fireball",
+      "max_charges": 7
     },
     {
       "name": "Wand of Lightning Bolts",
@@ -5441,7 +5457,9 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement by a spellcaster",
-      "cost": 3200000
+      "cost": 3200000,
+      "cast_spell": "Lightning Bolt",
+      "max_charges": 7
     },
     {
       "name": "Wand of Polymorph",
@@ -5454,7 +5472,9 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement by a spellcaster",
-      "cost": 3200000
+      "cost": 3200000,
+      "cast_spell": "Polymorph",
+      "max_charges": 7
     },
     {
       "name": "Gem of Seeing",
@@ -9330,6 +9350,198 @@
         "Arcane Transit"
       ],
       "book_class_mask": 2048
+    },
+    {
+      "name": "Scroll of Light",
+      "image": "",
+      "description": "A short incantation in glowing ink. Reading it aloud makes the reader shine like a torch for a while; the parchment crumbles to dust.",
+      "category": "SCROLL",
+      "rarity": "COMMON",
+      "classification": "Spell Scroll",
+      "ac": "",
+      "damage": "",
+      "damage_type": "",
+      "properties": "",
+      "cost": 3000,
+      "weight": 0.1,
+      "material": "paper",
+      "cast_spell": "Light"
+    },
+    {
+      "name": "Scroll of Fire Bolt",
+      "image": "",
+      "description": "Words of flame written on singed parchment. Read aloud, they hurl a mote of fire at the nearest foe; the scroll burns away.",
+      "category": "SCROLL",
+      "rarity": "COMMON",
+      "classification": "Spell Scroll",
+      "ac": "",
+      "damage": "",
+      "damage_type": "",
+      "properties": "",
+      "cost": 3000,
+      "weight": 0.1,
+      "material": "paper",
+      "cast_spell": "Fire Bolt"
+    },
+    {
+      "name": "Scroll of Magic Missile",
+      "image": "",
+      "description": "Three runes of force that leap from the page when read, striking the nearest enemy without fail. The scroll is used up.",
+      "category": "SCROLL",
+      "rarity": "COMMON",
+      "classification": "Spell Scroll",
+      "ac": "",
+      "damage": "",
+      "damage_type": "",
+      "properties": "",
+      "cost": 7500,
+      "weight": 0.1,
+      "material": "paper",
+      "cast_spell": "Magic Missile"
+    },
+    {
+      "name": "Scroll of Cure Wounds",
+      "image": "",
+      "description": "A healer's prayer copied in green ink. Reading it closes the reader's wounds; the words fade from the page.",
+      "category": "SCROLL",
+      "rarity": "COMMON",
+      "classification": "Spell Scroll",
+      "ac": "",
+      "damage": "",
+      "damage_type": "",
+      "properties": "",
+      "cost": 7500,
+      "weight": 0.1,
+      "material": "paper",
+      "cast_spell": "Cure Wounds"
+    },
+    {
+      "name": "Scroll of Shield",
+      "image": "",
+      "description": "A ward of a single word. Read in the moment of danger, it raises an invisible barrier around the reader for a round.",
+      "category": "SCROLL",
+      "rarity": "COMMON",
+      "classification": "Spell Scroll",
+      "ac": "",
+      "damage": "",
+      "damage_type": "",
+      "properties": "",
+      "cost": 7500,
+      "weight": 0.1,
+      "material": "paper",
+      "cast_spell": "Shield"
+    },
+    {
+      "name": "Scroll of Identify",
+      "image": "",
+      "description": "A diviner's formula that reveals the nature of an unknown item carried by the reader. The ink vanishes once read.",
+      "category": "SCROLL",
+      "rarity": "COMMON",
+      "classification": "Spell Scroll",
+      "ac": "",
+      "damage": "",
+      "damage_type": "",
+      "properties": "",
+      "cost": 7500,
+      "weight": 0.1,
+      "material": "paper",
+      "cast_spell": "Identify"
+    },
+    {
+      "name": "Scroll of Sleep",
+      "image": "",
+      "description": "A lullaby in arcane script. Its words send the creatures around the chosen point into a magical slumber.",
+      "category": "SCROLL",
+      "rarity": "COMMON",
+      "classification": "Spell Scroll",
+      "ac": "",
+      "damage": "",
+      "damage_type": "",
+      "properties": "",
+      "cost": 7500,
+      "weight": 0.1,
+      "material": "paper",
+      "cast_spell": "Sleep"
+    },
+    {
+      "name": "Scroll of Find Traps",
+      "image": "",
+      "description": "An augury that reveals the traps and the secret passages around the reader. The scroll is consumed.",
+      "category": "SCROLL",
+      "rarity": "UNCOMMON",
+      "classification": "Spell Scroll",
+      "ac": "",
+      "damage": "",
+      "damage_type": "",
+      "properties": "",
+      "cost": 15000,
+      "weight": 0.1,
+      "material": "paper",
+      "cast_spell": "Find Traps"
+    },
+    {
+      "name": "Scroll of Lesser Restoration",
+      "image": "",
+      "description": "A cleansing litany that ends the conditions afflicting the reader, such as poison or blindness.",
+      "category": "SCROLL",
+      "rarity": "UNCOMMON",
+      "classification": "Spell Scroll",
+      "ac": "",
+      "damage": "",
+      "damage_type": "",
+      "properties": "",
+      "cost": 15000,
+      "weight": 0.1,
+      "material": "paper",
+      "cast_spell": "Lesser Restoration"
+    },
+    {
+      "name": "Scroll of Misty Step",
+      "image": "",
+      "description": "A single silver word. Read aloud, it carries the reader a few steps away in a puff of mist.",
+      "category": "SCROLL",
+      "rarity": "UNCOMMON",
+      "classification": "Spell Scroll",
+      "ac": "",
+      "damage": "",
+      "damage_type": "",
+      "properties": "",
+      "cost": 15000,
+      "weight": 0.1,
+      "material": "paper",
+      "cast_spell": "Misty Step"
+    },
+    {
+      "name": "Scroll of Remove Curse",
+      "image": "",
+      "description": "A rite of purification. Reading it lifts the curses on the items the reader wears and the curse on the reader himself.",
+      "category": "SCROLL",
+      "rarity": "UNCOMMON",
+      "classification": "Spell Scroll",
+      "ac": "",
+      "damage": "",
+      "damage_type": "",
+      "properties": "",
+      "cost": 30000,
+      "weight": 0.1,
+      "material": "paper",
+      "cast_spell": "Remove Curse"
+    },
+    {
+      "name": "Scroll of Fireball",
+      "image": "",
+      "description": "A spell of devastation on charred vellum. Read aloud, it bursts into a ball of fire on the nearest enemy.",
+      "category": "SCROLL",
+      "rarity": "UNCOMMON",
+      "classification": "Spell Scroll",
+      "ac": "",
+      "damage": "",
+      "damage_type": "",
+      "properties": "",
+      "cost": 30000,
+      "weight": 0.1,
+      "material": "paper",
+      "cast_spell": "Fireball"
     }
   ]
 }

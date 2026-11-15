@@ -1,3 +1,62 @@
+* Sun Nov 15 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.15.07
+- COMMANDS: every command checked against docs/COMMANDS.md; where the two
+  differed, the server now does what the reference says.
+  - "Next to you" is one step, diagonals included: talk, list, browse,
+    buy, sell, haggle, identify, cure, repair and uncurse (2 to 5 steps
+    before) and trade (2 steps). disarm works on an adjacent trap (2
+    steps); pickup on the tombstone's own tile (the next tile too); look
+    shows a tombstone under the feet only on the player's tile.
+  - Aliases: "c <n|s|e|w>" closes a door ("c <spell>" still casts), "D"
+    takes the words of disarm, "t" alone is tunnel.
+  - Directions: open, close, tunnel and throw take n, s, e, w or the full
+    word and nothing else ("open nonsense" opened north).
+  - tunnel needs a miner's pickaxe or a shovel for every tile (a war pick,
+    a hammer or any "tool" dug, and rock gave way bare-handed one time in
+    five); examine names the same tools.
+  - throw: one item of a stack flies (the whole stack did); without a
+    direction it flies at the nearest creature in a straight line.
+  - cast <spell> [target]: the target chooses the creature by part of its
+    name (it was read as part of the spell's name).
+  - study: only the ritual word of the player's class teaches (the word of
+    any class did).
+  - status: the armour class monsters roll against, the names of the
+    conditions (it showed "#1 val:0"), the proficiency bonus of combat.
+  - lore takes part of a name; a book lists the level at which each spell
+    is learned (the level shown was not the one study requires).
+  - fill refills a lantern held in a hand.
+  - sell and haggle take part of a name, haggle a name at all; repair takes
+    a slot name or part of the name of a worn item (the exact name only).
+  - cure removes poison only (every condition but invisibility went);
+    uncurse lifts the Cursed condition too.
+  - retrieve gives back what the tombstone holds (it only removed the
+    ghost, which holds nothing).
+  - offer without a number answers with its usage (it was silent).
+  - dm_spawn_boss: boss floors only, on a walkable tile, and not while the
+    floor's boss lives.
+- SERVER: the armour class counts the enchantment of every worn piece and
+  the bonus of rings, amulets, cloaks, gloves, boots and bracers (combat
+  counted helmet, shields and arms, without enchantments).
+- GAME: secret passages. One tile in 40 of a straight wall with open ground
+  on both sides hides a passage (chosen by position: nothing is saved).
+  search (Wisdom against DC 12 + floor/10) finds it within 2 cells; Find
+  Traps, Detect Magic, Knock and the Wand of Secrets reveal it. A passage
+  found becomes a door, kept on the saved map. The town has none.
+- GAME: scrolls. 12 scrolls (category SCROLL of items.json, in the schema)
+  cast their spell once when read, with no slot, book or known spell;
+  nothing is spent when the spell does not go off, and a silenced reader
+  cannot read. The Scroll Peddler sells them.
+- GAME: wands. The 11 wands of items.json cast their spell (cast_spell,
+  max_charges 3 or 7); zap spends a charge; rest in town recharges every
+  wand carried. use takes a consumable from the belt in place (it moved
+  to the backpack first).
+- ITEMS: one constructor for a new instance (shop, loot, starting gear,
+  dm_place): full durability, a lantern full of oil, every charge.
+- DOCS: COMMANDS.md describes rest, use, throw, cast and dm_spawn_boss as
+  they now work.
+- TESTS: 13 tests spec_* (harness_spec.c), one per line of COMMANDS.md the
+  server did not keep; the existing tests follow the new distances and
+  messages.
+
 * Sun Nov 15 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.15.06
 - FIX: CodeQL cpp/loop-variable-changed (alerts #84 and #85): Remove
   Curse (spell_utility.c) and client_reveal (server_combat.c) dropped

@@ -49,6 +49,7 @@
               "POISONS",
               "POTIONS_OILS",
               "RING",
+              "SCROLL",
               "TOOLS",
               "WEAPON",
               "WONDROUS_ITEMS"
@@ -131,7 +132,7 @@
           "cast_spell": {
             "type": "string",
             "minLength": 1,
-            "description": "name of a spell in spells.json"
+            "description": "name of a spell in spells.json: a scroll casts it once and is used up, an item with max_charges casts it once per charge"
           },
           "max_charges": {
             "type": "integer",
@@ -235,12 +236,38 @@
             "if": {
               "required": [
                 "cast_spell"
-              ]
+              ],
+              "properties": {
+                "category": {
+                  "not": {
+                    "const": "SCROLL"
+                  }
+                }
+              }
             },
             "then": {
               "required": [
                 "max_charges"
               ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "category": {
+                  "const": "SCROLL"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "cast_spell"
+              ],
+              "not": {
+                "required": [
+                  "max_charges"
+                ]
+              }
             }
           }
         ]

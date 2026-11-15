@@ -23,6 +23,7 @@
 #include "spell_cast.h"
 #include "spell_rules.h"
 #include "traps.h"
+#include "server_traps.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -297,8 +298,13 @@ bool spell_find_traps(SpellContext *ctx) {
                             cells_between(c->x, c->y, t->x, t->y), compass(c->x, c->y, t->x, t->y),
                             disarm ? ": disarmed" : "");
     }
+    int passages = secret_passages_reveal(ctx->game, c, radius, -1);
     send_text_to_client(c->sock, "[MAGIC] %s: %d trap%s within %d cells%s.", ctx->sp->name, found,
                         found == 1 ? "" : "s", radius, disarm && found ? ", all disarmed" : "");
+    if (passages > 0) {
+        send_text_to_client(c->sock, "[MAGIC] %s: %d secret passage%s revealed.", ctx->sp->name,
+                            passages, passages == 1 ? "" : "s");
+    }
     return true;
 }
 

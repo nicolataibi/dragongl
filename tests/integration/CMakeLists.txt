@@ -44,7 +44,7 @@ target_link_libraries(dragongl_server_it PRIVATE Threads::Threads m PkgConfig::S
 # --- In-process harness: every server module but main_server.c ---
 add_executable(server_harness server_harness.c harness_spells.c harness_commands.c fixture.c
     harness_util.c harness_combat.c harness_world.c harness_items.c
-    harness_rounds.c harness_magic.c
+    harness_rounds.c harness_magic.c harness_spec.c
     ${DRAGONGL_SERVER_LIB_SRCS} ${DRAGONGL_SHARED_SRCS})
 target_include_directories(server_harness PRIVATE ${DGL_INCLUDES})
 # DRAGONGL_FAULT_INJECTION: the crash points of binfile_write_atomic().
@@ -107,6 +107,13 @@ foreach(t player_rounds global_event world_respawns monster_minds dm_reports sta
 endforeach()
 # Spells of exploration and support, allies, invisibility (harness_magic.c).
 foreach(t magic_exploration magic_care magic_allies magic_invisibility)
+    add_test(NAME ${t} COMMAND server_harness ${t} WORKING_DIRECTORY "${DGL_WORK}")
+endforeach()
+# Every command against docs/COMMANDS.md (harness_spec.c).
+foreach(t spec_aliases_and_directions spec_secret_passages spec_disarm_next_to_you spec_throw
+          spec_status_sheet spec_cast_target spec_study_word spec_lore_and_fill
+          spec_scrolls_and_wands spec_merchant_next_to_you spec_trade spec_retrieve
+          spec_dm_commands)
     add_test(NAME ${t} COMMAND server_harness ${t} WORKING_DIRECTORY "${DGL_WORK}")
 endforeach()
 

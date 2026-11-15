@@ -17,6 +17,7 @@
 #include "harness_commands.h"
 #include "harness_items.h"
 #include "harness_magic.h"
+#include "harness_spec.h"
 #include "harness_rounds.h"
 #include "harness_spells.h"
 #include "harness_world.h"
@@ -1366,6 +1367,19 @@ static const TestCase k_tests[] = {
     {"swarm_splits_into_free_slots", test_swarm_splits_into_free_slots},
     {"autosave_in_steps", test_autosave_in_steps},
     {"metrics_and_telemetry", test_metrics_and_telemetry},
+    {"spec_aliases_and_directions", test_spec_aliases_and_directions},
+    {"spec_secret_passages", test_spec_secret_passages},
+    {"spec_disarm_next_to_you", test_spec_disarm_next_to_you},
+    {"spec_throw", test_spec_throw},
+    {"spec_status_sheet", test_spec_status_sheet},
+    {"spec_cast_target", test_spec_cast_target},
+    {"spec_study_word", test_spec_study_word},
+    {"spec_lore_and_fill", test_spec_lore_and_fill},
+    {"spec_scrolls_and_wands", test_spec_scrolls_and_wands},
+    {"spec_merchant_next_to_you", test_spec_merchant_next_to_you},
+    {"spec_trade", test_spec_trade},
+    {"spec_retrieve", test_spec_retrieve},
+    {"spec_dm_commands", test_spec_dm_commands},
 };
 
 int main(int argc, char **argv) {

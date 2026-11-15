@@ -166,7 +166,7 @@ static void look_underfoot(Client *c, Game *game, char *buf, size_t cap) {
     }
     for (int i = 0; i < MAX_TOMBSTONES; i++) {
         if (game->tombstones[i].active && game->tombstones[i].floor_id == f &&
-            abs(game->tombstones[i].x - px) + abs(game->tombstones[i].y - py) <= 1) {
+            game->tombstones[i].x == px && game->tombstones[i].y == py) {
             buf_add(buf, cap, "| [Tombstone of %s - type 'list' to inspect]",
                     game->tombstones[i].owner);
         }
@@ -400,9 +400,10 @@ bool cmd_statue(Client *c, const char *cmd, Game *game) {
     return true;
 }
 
+/*search: one Wisdom roll against every hidden trap within 2 cells (a wall
+ * trap counts from the tile it fires onto) and every secret passage.*/
 bool cmd_search(Client *c, const char *cmd, Game *game) {
     (void)cmd;
-    (void)game;
     int roll = rules_roll_d20(false, false);
     int perception = roll + rules_get_modifier(c->wis);
     bool found_something = false;
@@ -437,6 +438,10 @@ bool cmd_search(Client *c, const char *cmd, Game *game) {
         }
     }
 
+    /*The same look finds the passages hidden in the walls around.*/
+    if (secret_passages_reveal(game, c, 2, perception) > 0) {
+        found_something = true;
+    }
     if (!found_something) {
         send_text_to_client(
             c->sock,
@@ -445,9 +450,9 @@ bool cmd_search(Client *c, const char *cmd, Game *game) {
     return true;
 }
 
-/*The trap to work on: the nearest detected one within 2 steps (a wall
- * trap counts from the tile it fires onto). A trap nobody has found
- * cannot be disarmed: 'search' first.*/
+/*The trap to work on: a detected one on the player's tile or next to it (a
+ * wall trap counts from the tile it fires onto), the nearest first. A trap
+ * nobody has found cannot be disarmed: 'search' first.*/
 static Trap *disarm_target(const Client *c, Floor *f) {
     static const int wall_dx[4] = {0, 1, 0, -1};
     static const int wall_dy[4] = {-1, 0, 1, 0};
@@ -464,7 +469,7 @@ static Trap *disarm_target(const Client *c, Floor *f) {
             ty += wall_dy[t->wall_dir];
         }
         int dist = abs(c->x - tx) + abs(c->y - ty);
-        if (dist <= 2 && dist < min_dist) {
+        if (tiles_adjacent(c->x, c->y, tx, ty) && dist < min_dist) {
             min_dist = dist;
             target = t;
         }
@@ -484,8 +489,7 @@ static bool has_thief_tools(const Client *c) {
             continue;
         }
         const char *iname = item_database[c->backpack[i].template_idx].name;
-        if (strcasestr(iname, "Tool") || strcasestr(iname, "Lockpick") ||
-            strcasestr(iname, "Kit")) {
+        if (strcasestr(iname, "Thieves' Tools") || strcasestr(iname, "Lockpick")) {
             return true;
         }
     }
@@ -587,13 +591,27 @@ bool cmd_disarm(Client *c, const char *cmd, Game *game) {
     Trap *t = disarm_target(c, f);
     if (!t) {
         send_text_to_client(c->sock,
-                            "[ERROR] No traps detected in range. Use 'search' to find one.");
+                            "[ERROR] No detected trap next to you. Use 'search' to find one.");
         return true;
     }
-    bool arcane =
-        strstr(cmd, "magic") != NULL || strstr(cmd, " m") != NULL || trap_is_magical(t->type);
+    bool magic_word = false, salvage_word = false;
+    const char *arg = strchr(cmd, ' ');
+    while (arg) {
+        arg += strspn(arg, " ");
+        size_t len = strcspn(arg, " ");
+        if ((len == 5 && strncmp(arg, "magic", 5) == 0) || (len == 1 && arg[0] == 'm')) {
+            magic_word = true;
+        } else if ((len == 7 && strncmp(arg, "salvage", 7) == 0) || (len == 1 && arg[0] == 'r')) {
+            salvage_word = true;
+        } else if (len > 0) {
+            send_text_to_client(c->sock, "[SYSTEM] Usage: disarm [salvage] [magic]");
+            return true;
+        }
+        arg = len > 0 ? strchr(arg, ' ') : NULL;
+    }
+    bool arcane = magic_word || trap_is_magical(t->type);
     DisarmCheck k;
-    k.salvage = strstr(cmd, "salvage") != NULL || strstr(cmd, " r") != NULL;
+    k.salvage = salvage_word;
     k.method = arcane ? "Arcane Dissipation" : "Manual Dexterity";
     k.roll = rules_roll_d20(false, false);
     k.dc = (t->detection_dc > 0 ? t->detection_dc : 12) + (k.salvage ? 3 : 0);
@@ -641,37 +659,6 @@ static void tile_presence(Game *game, int floor_id, int nx, int ny, char *out, s
     }
 }
 
-/*Pickaxes, shovels, hammers and mining tools dig ('tunnel').*/
-static bool is_mining_tool(const ItemInstance *it) {
-    if (it->template_idx == -1) {
-        return false;
-    }
-    static const char *const words[] = {"Pick", "Shovel", "Hammer", "Mining", "Tool"};
-    const char *name = item_database[it->template_idx].name;
-    for (size_t w = 0; w < sizeof(words) / sizeof(words[0]); w++) {
-        if (strcasestr(name, words[w])) {
-            return true;
-        }
-    }
-    return false;
-}
-
-/*The first mining tool in the hands, else in the backpack, or NULL.*/
-static const ItemInstance *find_mining_tool(const Client *c) {
-    if (is_mining_tool(&c->slot_hand_r)) {
-        return &c->slot_hand_r;
-    }
-    if (is_mining_tool(&c->slot_hand_l)) {
-        return &c->slot_hand_l;
-    }
-    for (int i = 0; i < c->backpack_count; i++) {
-        if (is_mining_tool(&c->backpack[i])) {
-            return &c->backpack[i];
-        }
-    }
-    return NULL;
-}
-
 #define EXAMINE_RULE                                                                               \
     "+--------+-----------------------+-------------------------------------------------------+"
 
@@ -706,7 +693,7 @@ bool cmd_examine(Client *c, const char *cmd, Game *game) {
     }
     send_text_to_client(c->sock, EXAMINE_RULE);
 
-    const ItemInstance *tool = find_mining_tool(c);
+    const ItemInstance *tool = find_digging_tool(c);
     if (tool) {
         send_text_to_client(c->sock,
                             "[TOOLS] You have the right tool (%s). Use 'tunnel <dir>' to dig!",
@@ -736,21 +723,13 @@ bool cmd_open(Client *c, const char *cmd, Game *game) {
         send_text_to_client(c->sock, "[SYSTEM] Use: open <n|s|e|w>");
         return true;
     }
-    dir_str++;
-    int tx = c->x;
-    int ty = c->y;
-    if (*dir_str == 'n') {
-        ty--;
-    } else if (*dir_str == 's') {
-        ty++;
-    } else if (*dir_str == 'e') {
-        tx++;
-    } else if (*dir_str == 'w') {
-        tx--;
-    } else {
+    int dx, dy;
+    if (!parse_direction4(dir_str + 1, &dx, &dy)) {
         send_text_to_client(c->sock, "[SYSTEM] Use: open <n|s|e|w>");
         return true;
     }
+    int tx = c->x + dx;
+    int ty = c->y + dy;
     /*Bounds: at the map edge tx/ty can step outside the array.*/
     /*The outermost ring of rock is the edge of the world: it is never dug.*/
     if (tx < 1 || tx >= MAP_WIDTH - 1 || ty < 1 || ty >= MAP_HEIGHT - 1) {
@@ -775,6 +754,7 @@ bool cmd_open(Client *c, const char *cmd, Game *game) {
             g_recently_opened_door_n[c->floor_id]++;
         }
         send_text_to_client(c->sock, "[SYSTEM] You opened the door.");
+        send_map_chunk(c->sock, &f->map, c->x, c->y, INITIAL_VIEW_RADIUS);
     } else {
         send_text_to_client(c->sock, "[SYSTEM] There is no door there.");
     }
@@ -788,21 +768,13 @@ bool cmd_close(Client *c, const char *cmd, Game *game) {
         send_text_to_client(c->sock, "[SYSTEM] Use: close <n|s|e|w>");
         return true;
     }
-    dir_str++;
-    int tx = c->x;
-    int ty = c->y;
-    if (*dir_str == 'n') {
-        ty--;
-    } else if (*dir_str == 's') {
-        ty++;
-    } else if (*dir_str == 'e') {
-        tx++;
-    } else if (*dir_str == 'w') {
-        tx--;
-    } else {
+    int dx, dy;
+    if (!parse_direction4(dir_str + 1, &dx, &dy)) {
         send_text_to_client(c->sock, "[SYSTEM] Use: close <n|s|e|w>");
         return true;
     }
+    int tx = c->x + dx;
+    int ty = c->y + dy;
     /*The outermost ring of rock is the edge of the world: it is never dug.*/
     if (tx < 1 || tx >= MAP_WIDTH - 1 || ty < 1 || ty >= MAP_HEIGHT - 1) {
         send_text_to_client(c->sock, "[SYSTEM] Beyond borders.");
@@ -812,7 +784,8 @@ bool cmd_close(Client *c, const char *cmd, Game *game) {
     /*Only a floor tile present in the "recently opened doors" registry
    * can become a door again.*/
     bool was_door = false;
-    for (int i = 0; i < g_recently_opened_door_n[c->floor_id]; i++) {
+    for (int i = 0;
+         f->map.data[0][ty][tx] == VOXEL_FLOOR && i < g_recently_opened_door_n[c->floor_id]; i++) {
         if (g_recently_opened_doors[c->floor_id][i].x == tx &&
             g_recently_opened_doors[c->floor_id][i].y == ty) {
             /*Remove it from the registry.*/
@@ -823,9 +796,10 @@ bool cmd_close(Client *c, const char *cmd, Game *game) {
             break;
         }
     }
-    if (f->map.data[0][ty][tx] == VOXEL_FLOOR && was_door) {
+    if (was_door) {
         f->map.data[0][ty][tx] = VOXEL_DOOR;
         send_text_to_client(c->sock, "[SYSTEM] You closed the door.");
+        send_map_chunk(c->sock, &f->map, c->x, c->y, INITIAL_VIEW_RADIUS);
     } else {
         send_text_to_client(c->sock, "[SYSTEM] There is no open door to close there.");
     }

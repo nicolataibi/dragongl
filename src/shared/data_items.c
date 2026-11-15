@@ -368,9 +368,19 @@ static void item_wondrous(ItemTemplate *t, const ItemJson *j) {
     }
 }
 
+/*Spell scrolls: a consumable that casts its cast_spell once when read.*/
+static void item_scroll(ItemTemplate *t) {
+    t->category = ITEM_CONSUMABLE;
+    t->max_stack = 5;
+    t->weight = 0.1f;
+    t->needs_id = true;
+}
+
 static void item_category(ItemTemplate *t, const ItemJson *j) {
     const char *cat_str = j->category->valuestring;
-    if (strcmp(cat_str, "WEAPON") == 0) {
+    if (strcmp(cat_str, "SCROLL") == 0) {
+        item_scroll(t);
+    } else if (strcmp(cat_str, "WEAPON") == 0) {
         item_weapon(t, j);
     } else if (strcmp(cat_str, "ARMOR") == 0) {
         item_armor(t, j);

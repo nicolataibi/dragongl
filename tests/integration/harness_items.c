@@ -293,15 +293,15 @@ int test_merchant_services(void) {
     CHECK(armour >= 0 && heal >= 0 && sword >= 0, "data");
 
     run(c, "talk");
-    CHECK(said("no merchant within 2 steps"), "talked to nobody");
+    CHECK(said("no merchant next to you"), "talked to nobody");
     run(c, "cure");
     CHECK(said("find one first"), "cured without a merchant");
     run(c, "identify");
-    CHECK(said("must be near a merchant"), "identified without a merchant");
+    CHECK(said("must be next to a merchant"), "identified without a merchant");
     run(c, "repair");
-    CHECK(said("must be near the Blacksmith"), "repaired without a smith");
+    CHECK(said("must be next to the Blacksmith"), "repaired without a smith");
     run(c, "uncurse");
-    CHECK(said("must be near the Cleric"), "uncursed without a cleric");
+    CHECK(said("must be next to the Cleric"), "uncursed without a cleric");
 
     NPC *m = merchant(20, 0, CX + 1, CY);
     add_item_to_shop(npc_shop_any(&g_game.pools, m), heal, 5);
@@ -331,7 +331,7 @@ int test_merchant_services(void) {
     c->gold = 1000;
     c->effect_count = 0;
     run(c, "cure");
-    CHECK(said("no affliction") && c->gold == 1000, "paid for nothing");
+    CHECK(said("no poison or disease") && c->gold == 1000, "paid for nothing");
     c->effects[c->effect_count++] =
         (ActiveEffect){"Poisoned", EVENT_ON_TURN_START, MOD_ADDITIVE, 0, 5, false};
     c->effects[c->effect_count++] =
@@ -356,7 +356,7 @@ int test_merchant_services(void) {
 
     /* Uncurse: 200 gold, only with something cursed. */
     run(c, "uncurse");
-    CHECK(said("no cursed object") && c->gold == 930, "paid to uncurse nothing");
+    CHECK(said("You carry no curse") && c->gold == 930, "paid to uncurse nothing");
     c->slot_body.blessing = BLESS_CURSED;
     run(c, "uncurse");
     CHECK(c->slot_body.blessing == BLESS_NORMAL && c->gold == 730 && said("1 item(s) purified"),

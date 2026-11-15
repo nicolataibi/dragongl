@@ -28,6 +28,7 @@
 #include "server_cmd.h"
 #include "server_internal.h"
 #include "player.h"
+#include "inventory.h"
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
@@ -125,25 +126,10 @@ bool cmd_stats(Client *c, const char *cmd, Game *game) {
     (void)game;
     int ts, td, tc, ti, tw, th;
     get_total_stats(c, &ts, &td, &tc, &ti, &tw, &th);
-    //Calculate AC
+    /*The armour class the monsters roll against.*/
+    int ac = get_player_ac(c);
     int ac_base =
         (c->slot_body.template_idx != -1) ? item_database[c->slot_body.template_idx].ac_base : 0;
-    int ac_bonus = 0;
-    if (c->slot_head.template_idx != -1) {
-        ac_bonus += item_database[c->slot_head.template_idx].ac_bonus + c->slot_head.ac_bonus;
-    }
-    if (c->slot_body.template_idx != -1) {
-        ac_bonus += c->slot_body.ac_bonus;
-    }
-    if (c->slot_hand_r.template_idx != -1 &&
-        item_database[c->slot_hand_r.template_idx].category == ITEM_SHIELD) {
-        ac_bonus += item_database[c->slot_hand_r.template_idx].ac_bonus + c->slot_hand_r.ac_bonus;
-    }
-    if (c->slot_hand_l.template_idx != -1 &&
-        item_database[c->slot_hand_l.template_idx].category == ITEM_SHIELD) {
-        ac_bonus += item_database[c->slot_hand_l.template_idx].ac_bonus + c->slot_hand_l.ac_bonus;
-    }
-    int ac = (ac_base > 0 ? ac_base : 10 + rules_get_modifier(td)) + ac_bonus;
     //Weapon equipped
     const char *weapon_name = "Bare hands";
     char weapon_buf[128];
@@ -154,8 +140,8 @@ bool cmd_stats(Client *c, const char *cmd, Game *game) {
         get_full_item_name(&c->slot_hand_l, weapon_buf, sizeof(weapon_buf));
         weapon_name = weapon_buf;
     }
-    //Proficiency bonuses
-    int prof = 2 + (c->level / 4);
+    //Proficiency bonus: +2 at levels 1-4, +3 at 5-8, ... (as in combat)
+    int prof = 2 + (c->level - 1) / 4;
     send_text_to_client(c->sock, "======== %s ========", c->username);
     send_text_to_client(c->sock, "Lvl:%-3d XP:%-6d Floor:%d", c->level, c->xp, c->floor_id);
     send_text_to_client(c->sock, "HP: %d/%d AC:%d Prof:+%d Gold:%lu gp", c->hp, c->max_hp, ac, prof,
@@ -191,29 +177,54 @@ bool cmd_stats(Client *c, const char *cmd, Game *game) {
             }
         }
     }
-    //Active effects
+    //Conditions, then the other effects (potions, spells)
     if (c->effect_count > 0) {
-        send_text_to_client(c->sock, "--- ACTIVE EFFECTS ---");
+        send_text_to_client(c->sock, "--- CONDITIONS AND EFFECTS ---");
         for (int e = 0; e < c->effect_count; e++) {
-            ActiveEffect *ef = &c->effects[e];
-            send_text_to_client(c->sock, "  #%d val:%d (%s)", e + 1, ef->value,
-                                ef->is_persistent ? "persistent" : "temporary");
+            const ActiveEffect *ef = &c->effects[e];
+            bool condition = condition_from_name(ef->name) != MAX_CONDITIONS;
+            char rounds[32] = "persistent";
+            if (!ef->is_persistent) {
+                snprintf(rounds, sizeof(rounds), "%d rounds", ef->duration_rounds);
+            }
+            send_text_to_client(c->sock, "  %s%s (%s)", ef->name ? ef->name : "Effect",
+                                condition ? "" : " [effect]", rounds);
         }
     }
     send_text_to_client(c->sock, "==============================");
     return true;
 }
 
+/*A wand carried in the backpack or on the belt gets all its charges back.*/
+static int recharge_wands(Client *c) {
+    int recharged = 0;
+    for (int i = 0; i < c->backpack_count + MAX_BELT; i++) {
+        ItemInstance *it =
+            i < c->backpack_count ? &c->backpack[i] : &c->belt[i - c->backpack_count];
+        if (item_is_wand(it) && it->current_charges < item_database[it->template_idx].max_charges) {
+            it->current_charges = item_database[it->template_idx].max_charges;
+            recharged++;
+        }
+    }
+    return recharged;
+}
+
+/*rest: in town, every hit point, spell slot and wand charge back.*/
 bool cmd_rest(Client *c, const char *cmd, Game *game) {
     (void)cmd;
-    (void)game;
     if (c->floor_id == 0) {
         c->hp = c->max_hp;
         for (int s = 1; s <= MAX_SPELL_LEVEL; s++) {
             c->spell_slots[s] = c->spell_slots_max[s];
         }
+        int wands = recharge_wands(c);
         send_detailed_state(game, c); //Sync HP and spell slots with the HUD client
-        send_text_to_client(c->sock, "[SYSTEM] Rested.");
+        if (wands > 0) {
+            send_text_to_client(c->sock, "[SYSTEM] Rested. %d wand%s recharged.", wands,
+                                wands == 1 ? "" : "s");
+        } else {
+            send_text_to_client(c->sock, "[SYSTEM] Rested.");
+        }
     } else {
         send_text_to_client(c->sock, "[SYSTEM] You can rest only in town (floor 0).");
     }

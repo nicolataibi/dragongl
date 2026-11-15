@@ -59,6 +59,9 @@
 void tombstone_create(Game *game, Client *c);
 void tombstone_list(Game *game, Client *c);
 bool tombstone_pickup(Game *game, Client *c);
+/*'retrieve': what the player's own tombstone on his floor holds, wherever
+ * it lies; false (and nothing said) if he has none there.*/
+bool tombstone_recover_own(Game *game, Client *c);
 void tombstone_save(const Tombstone *t);
 void tombstone_load_all(Game *game);
 
