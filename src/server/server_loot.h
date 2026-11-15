@@ -30,6 +30,6 @@
 void artifacts_load(void);
 void artifacts_save(void);
 /*The loot of a dead monster, by its archetype and floor, next to the killer.*/
-void drop_loot_from_monster(Client *c, NPC *killer);
+void drop_loot_from_monster(Game *game, Client *c, NPC *killer);
 
 #endif /* SERVER_LOOT_H */

@@ -173,6 +173,7 @@ bool cmd_pickup(Client *c, const char *cmd, Game *game);
 bool cmd_get(Client *c, const char *cmd, Game *game);
 bool cmd_drop(Client *c, const char *cmd, Game *game);
 bool cmd_throw(Client *c, const char *cmd, Game *game);
+bool cmd_shoot(Client *c, const char *cmd, Game *game);
 
 /* cmd_magic.c */
 bool cmd_spells(Client *c, const char *cmd, Game *game);

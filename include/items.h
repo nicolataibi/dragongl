@@ -59,6 +59,9 @@ typedef enum {
     MAT_PAPER
 } MaterialType;
 
+/*The ammunition a ranged weapon shoots, or that an ammunition item is.*/
+typedef enum { AMMO_NONE = 0, AMMO_ARROW, AMMO_BOLT, AMMO_BULLET, AMMO_NEEDLE } AmmoKind;
+
 typedef struct {
     const char *name;
     const char *description;
@@ -81,6 +84,12 @@ typedef struct {
     bool is_cursed;
     int cast_spell_idx;
     int max_charges;
+    /*Weapons: a ranged weapon's ammunition and normal range in tiles (5 ft
+     * each, "ammunition (range 80/320)" -> 16); a finesse weapon hits with
+     * the better of STR and DEX. Ammunition items: their kind.*/
+    AmmoKind ammo;
+    int range;
+    bool finesse;
     MaterialType material;
     /*--- Magic Books ---
      * book_class_mask : Bitmask classes that can read the book (ClassType).

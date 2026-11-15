@@ -44,7 +44,7 @@ target_link_libraries(dragongl_server_it PRIVATE Threads::Threads m PkgConfig::S
 # --- In-process harness: every server module but main_server.c ---
 add_executable(server_harness server_harness.c harness_spells.c harness_commands.c fixture.c
     harness_util.c harness_combat.c harness_world.c harness_items.c
-    harness_rounds.c harness_magic.c harness_spec.c harness_worldgen.c
+    harness_rounds.c harness_magic.c harness_spec.c harness_worldgen.c harness_interact.c
     ${DRAGONGL_SERVER_LIB_SRCS} ${DRAGONGL_SHARED_SRCS})
 target_include_directories(server_harness PRIVATE ${DGL_INCLUDES})
 # DRAGONGL_FAULT_INJECTION: the crash points of binfile_write_atomic().
@@ -118,6 +118,12 @@ foreach(t spec_aliases_and_directions spec_secret_passages spec_disarm_next_to_y
 endforeach()
 # The creatures of a new world, how they walk (harness_worldgen.c).
 foreach(t world_generation monsters_walk_every_biome dm_spawn_full_stats)
+    add_test(NAME ${t} COMMAND server_harness ${t} WORKING_DIRECTORY "${DGL_WORK}")
+endforeach()
+# Characters against monsters and with items (harness_interact.c).
+foreach(t interact_conditions interact_charm interact_reach interact_ranged
+          interact_ability_and_quality interact_worn_bonuses interact_artifacts
+          interact_loot_full_backpack interact_ghosts interact_light)
     add_test(NAME ${t} COMMAND server_harness ${t} WORKING_DIRECTORY "${DGL_WORK}")
 endforeach()
 # A whole world of 100 floors: slow under the sanitizers.

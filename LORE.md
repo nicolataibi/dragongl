@@ -1281,7 +1281,8 @@ Dragon GL implements a dynamic roguelike modifier system inspired by classics li
 *   **Combat Bonuses `(+To-Hit, +To-Dam)`:** Weapons can drop with magical enhancements that increase their accuracy and flat damage. (e.g., `Longsword (+2, +3)`).
 *   **Armor Bonuses `[+AC]`:** Shields and armors can drop with augmented defensive properties (e.g., `Leather Armor [+2]`).
 *   **Elemental Suffixes:** High-tier weapons may roll elemental tags (`Flaming`, `Frost`, `Shocking`, `Poisonous`), causing them to inflict an additional `1d6` elemental damage on successful hits.
-*   **Quality & Blessing:** Items can roll structural qualities (from `Rusty` to `Masterwork`) and spiritual alignments (from `Cursed` to `Blessed`). 
+*   **Quality & Blessing:** Items can roll structural qualities (from `Rusty` to `Masterwork`) and spiritual alignments (from `Cursed` to `Blessed`). Quality adds to a weapon's attack and damage rolls and to the armour class of armour and shields: Rusty -1, Normal 0, Fine +1, Masterwork +2.
+*   **Ranged Weapons:** Bows, crossbows, slings and blowguns shoot with `shoot [n|s|e|w]` at the first creature within the weapon's range (its normal range, 5 feet a tile) and the player's sight, spending their own ammunition from the belt (arrows, bolts, sling bullets, needles) and hitting with DEX; a shot at a neighbour has disadvantage. Finesse weapons hit with the better of STR and DEX, the others with STR.
 
 These modifiers apply in real-time during the `perform_attack` d20 combat calculations, providing an endless variety of exciting loot drops!
 

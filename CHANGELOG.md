@@ -1,3 +1,53 @@
+* Sun Nov 15 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.15.09
+- COMBAT: the conditions of LORE.md act on both sides of an attack. A
+  blinded or frightened attacker has disadvantage, an invisible one
+  advantage (a character's invisibility was dropped before the roll); an
+  invisible target imposes disadvantage; a hit on a paralyzed, stunned or
+  unconscious character is a critical too (monsters only got it); a
+  petrified monster has +10 AC; the attack line tells the advantage.
+- COMBAT: a character charmed by a void crawler cannot attack it, with a
+  weapon or a spell (the charm did nothing to him); the charm names its
+  caster.
+- COMBAT: monsters strike a character on a diagonal, as characters strike
+  them (they reached the four sides only), and no creature steps into a
+  wall or rock, whatever its behaviour (mages and void crawlers walked
+  through them).
+- COMBAT: ranged weapons. shoot [n|s|e|w] (fire) shoots the bow, crossbow,
+  sling or blowgun held at the first creature within the weapon's range
+  (its normal range, 5 feet a tile) and the character's sight, or at the
+  nearest in a straight line; a shot at a neighbour, or a step into a
+  creature with a ranged weapon, has disadvantage. Each weapon spends its
+  own ammunition from the belt (only the shortbow spent any, and any
+  kind) and hits with DEX. Finesse weapons hit with the better of STR and
+  DEX, the others with STR (the dice of a weapon chose before).
+- COMBAT: quality counts, as LORE.md says: Rusty -1, Normal 0, Fine +1,
+  Masterwork +2 to a weapon's attack and damage and to the armour class of
+  armour and shields (it was a word in the name).
+- COMBAT: wear as LORE.md says: a hit received wears the body armour 3
+  times in 100 (every hit wore it, and the character's own hits did too);
+  an artifact never wears.
+- ITEMS: the abilities count the bracers of the arms and an artifact's own
+  STR, DEX and CON (they were ignored, and an artifact's STR was added to
+  the damage instead); the to-hit and to-damage of a worn artifact (gloves,
+  rings, a cloak) count in every attack; a weapon artifact's AC counts.
+- ITEMS: every artifact drops as an item of its kind, the plainest of it
+  (every one was the first weapon, armour or shield worth 100000 gp); the
+  eight artifacts of LORE.md carry its names.
+- ITEMS: a drop that finds the backpack full lies on the ground where the
+  creature fell (it was lost); so does the content of a chest.
+- ITEMS: only the light that shows the way burns, and a stack of torches
+  lights the next one when one is spent (every light in the hands and on
+  the belt burned, and a stack went out at once).
+- GHOSTS: a step into one's own ghost lays it to rest with what the
+  tombstone holds, as retrieve does; another character's step attacks it
+  (whoever walked into a ghost took it like loot, and it vanished).
+- DOCS: COMMANDS.md has shoot; LORE.md gives the quality values and the
+  ranged weapons.
+- TESTS: interact_* (harness_interact.c): conditions both ways, charm,
+  diagonal reach, ranged weapons, ability and quality, worn bonuses,
+  artifacts, loot of a full backpack, ghosts, light. weapons_and_arrows and
+  monster_attacks follow the ammunition and the wear of LORE.md.
+
 * Sun Nov 15 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.15.08
 - FIX: monsters found no path on the floors of most levels. Their A*
   walked on stone floor, sand and grass only, while the rooms of floors

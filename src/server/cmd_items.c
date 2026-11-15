@@ -55,14 +55,11 @@ static void consume_one(Client *c, int idx, bool in_belt);
 bool cmd_retrieve(Client *c, const char *cmd, Game *game) {
     (void)cmd;
     int ghost_npc_idx = -1;
-    char expected_name[64];
-    snprintf(expected_name, sizeof(expected_name), "Ghost of %s", c->username);
 
     FloorIter walk = floor_iter(game, c->floor_id);
     for (int i; (i = floor_iter_next(&walk)) >= 0;) {
-        if (game->npcs[i].is_ghost && abs(game->npcs[i].x - c->x) <= 1 &&
-            abs(game->npcs[i].y - c->y) <= 1 &&
-            strcmp(game->npcs[i].custom_name, expected_name) == 0) {
+        if (ghost_is_of(&game->npcs[i], c) && abs(game->npcs[i].x - c->x) <= 1 &&
+            abs(game->npcs[i].y - c->y) <= 1) {
             ghost_npc_idx = i;
             break;
         }
@@ -71,7 +68,11 @@ bool cmd_retrieve(Client *c, const char *cmd, Game *game) {
         send_text_to_client(c->sock, "[SYSTEM] No ghost of yours next to you.");
         return true;
     }
-    NPC *ghost = &game->npcs[ghost_npc_idx];
+    ghost_retrieve(game, c, &game->npcs[ghost_npc_idx]);
+    return true;
+}
+
+void ghost_retrieve(Game *game, Client *c, NPC *ghost) {
     send_text_to_client(c->sock, "[SYSTEM] You have recovered your soul: your ghost finds peace.");
     npc_set_active(game, ghost, false);
     ghost->respawn_timer = 0;
@@ -84,7 +85,12 @@ bool cmd_retrieve(Client *c, const char *cmd, Game *game) {
     }
     send_detailed_state(game, c);
     save_player_data(c);
-    return true;
+}
+
+bool ghost_is_of(const NPC *n, const Client *c) {
+    char expected_name[64];
+    snprintf(expected_name, sizeof(expected_name), "Ghost of %s", c->username);
+    return n->is_ghost && strcmp(n->custom_name, expected_name) == 0;
 }
 
 bool cmd_inventory(Client *c, const char *cmd, Game *game) {

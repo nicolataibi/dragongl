@@ -58,6 +58,7 @@ backpack, the goods of a merchant, the things on the ground); where
 | `use <n\|item>` | `quaff`, `q`, `read`, `r`, `eat`, `e`, `zap`, `z` | Use an item: drink a potion, read a scroll (its spell, once), eat, zap a wand (one charge). |
 | `drop <n>` | `d` | Drop an item of the backpack on the ground. |
 | `throw <n\|item> [n\|s\|e\|w]` | `v` | Throw one item: 5 tiles, 8 for ammunition; without a direction, at the nearest creature in a straight line. It lands where its flight ends. |
+| `shoot [n\|s\|e\|w]` | `fire` | Shoot the bow, crossbow, sling or blowgun you hold (ammunition from the belt) at the first creature that way within its range and your sight; without a direction, at the nearest one in a straight line. |
 | `fill <lantern>` |  | Refill a lantern with a flask of oil. |
 | `lore <n\|item>` |  | What is known about an identified item of the backpack; for a book, its spells. |
 

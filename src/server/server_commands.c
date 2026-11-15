@@ -178,6 +178,7 @@ static const CmdEntry COMMANDS[] = {
     {"get|g", "get |g ", cmd_get, NULL},
     {NULL, "drop |d ", cmd_drop, "drop <n>"},
     {NULL, "throw |v ", cmd_throw, "throw <n|item> [n|s|e|w]"},
+    {"shoot|fire", "shoot |fire ", cmd_shoot, "shoot [n|s|e|w]"},
     {"search|s", NULL, cmd_search, NULL},
     {"disarm|D", "disarm |D ", cmd_disarm, NULL},
     {"pray|p", NULL, cmd_pray, NULL},

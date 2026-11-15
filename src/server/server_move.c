@@ -101,10 +101,10 @@ static void loot_taken(Game *game, NPC *n, Floor *fl, int nx, int ny, int respaw
     fl->entity_grid[ny][nx] = 0;
 }
 
-/*A gold pile, the ghost of a dead player, a dropped item or a chest.
- * Returns true when something stays on the tile and blocks the step.*/
+/*A gold pile, a dropped item or a chest. Returns true when something stays
+ * on the tile and blocks the step.*/
 static bool pick_up_loot(Game *game, Client *c, NPC *n, Floor *fl, int nx, int ny) {
-    if (n->archetype == ARCH_GOLD && !n->is_ghost) {
+    if (n->archetype == ARCH_GOLD) {
         c->gold += (uint64_t)(n->gold_drop > 0 ? n->gold_drop : 0);
         send_text_to_client(c->sock, "[SYSTEM] You pick up a stack of %d gold coins!",
                             n->gold_drop);
@@ -112,41 +112,6 @@ static bool pick_up_loot(Game *game, Client *c, NPC *n, Floor *fl, int nx, int n
         loot_taken(game, n, fl, nx, ny, 0);
         save_player_data(c);
         return false;
-    }
-    if (n->is_ghost) {
-        /*Gold and every item of the ghost; what does not fit stays.*/
-        bool any = false;
-        bool full = false;
-        if (n->gold_drop > 0) {
-            c->gold += (uint64_t)(n->gold_drop > 0 ? n->gold_drop : 0);
-            n->gold_drop = 0;
-            any = true;
-        }
-        ItemInstance *loot = npc_loot(&game->pools, n);
-        for (int gi = 0; loot && gi < NPC_LOOT_MAX; gi++) {
-            if (loot[gi].template_idx >= 0 && loot[gi].stack_count > 0) {
-                if (c->backpack_count >= MAX_BACKPACK) {
-                    full = true;
-                    break;
-                }
-                c->backpack[c->backpack_count++] = loot[gi];
-                loot[gi].template_idx = -1;
-                loot[gi].stack_count = 0;
-                any = true;
-            }
-        }
-        bool blocked = full;
-        if (full) {
-            send_text_to_client(
-                c->sock, "[SYSTEM] Backpack full! You have only recovered part of the loot.");
-        } else {
-            if (any) {
-                send_text_to_client(c->sock, "[SYSTEM] Recover everything you were carrying!");
-            }
-            loot_taken(game, n, fl, nx, ny, 0);
-        }
-        save_player_data(c);
-        return blocked;
     }
     const ItemInstance *dropped = npc_loot(&game->pools, n);
     if (dropped && dropped[0].stack_count > 0) {
@@ -165,15 +130,14 @@ static bool pick_up_loot(Game *game, Client *c, NPC *n, Floor *fl, int nx, int n
     /*A chest with nothing stored: random loot.*/
     send_text_to_client(c->sock,
                         "[SYSTEM] You open the treasure chest and find something inside...");
-    drop_loot_from_monster(c, n);
+    drop_loot_from_monster(game, c, n);
     loot_taken(game, n, fl, nx, ny, 100);
     save_player_data(c);
     return false;
 }
 
 static bool is_loot(const NPC *n) {
-    return (n->archetype == ARCH_BOSS && n->is_ghost) || n->archetype == ARCH_TREASURE ||
-           n->archetype == ARCH_GOLD;
+    return n->archetype == ARCH_TREASURE || n->archetype == ARCH_GOLD;
 }
 
 /*Meets the entity standing on (nx, ny). Returns true if the step is blocked.*/
@@ -191,6 +155,13 @@ static bool bump_into(Client *c, Floor *fl, int ent_id, int nx, int ny, Client *
         }
         if (is_loot(n)) {
             return pick_up_loot(game, c, n, fl, nx, ny);
+        }
+        /*One's own ghost is laid to rest ('retrieve'); anyone else's is a
+         * hostile creature (it was taken like loot by whoever walked into
+         * it, and vanished).*/
+        if (ghost_is_of(n, c)) {
+            ghost_retrieve(game, c, n);
+            return true;
         }
         if (npc_is_ally(n)) {
             send_text_to_client(c->sock, "[ALLY] %s stands beside you.", npc_name(n));

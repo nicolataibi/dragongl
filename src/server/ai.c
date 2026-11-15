@@ -253,6 +253,12 @@ static void npc_set_cell(Game *game, NPC *npc, int x, int y) {
     if (npc->floor_id < 0 || npc->floor_id >= MAX_FLOORS) {
         return;
     }
+    /*No creature steps into a wall or rock, whatever its behaviour (the
+     * mages and the void crawlers walked through them).*/
+    if (x < 0 || x >= MAP_WIDTH || y < 0 || y >= MAP_HEIGHT ||
+        !voxel_passable(game->world->floors[npc->floor_id].map.data[0][y][x])) {
+        return;
+    }
     if (npc->x >= 0 && npc->x < MAP_WIDTH && npc->y >= 0 && npc->y < MAP_HEIGHT) {
         Floor *fl = &game->world->floors[npc->floor_id];
         if (fl->entity_grid[npc->y][npc->x] == npc->entity_id) {
@@ -284,6 +290,12 @@ static bool cell_occupied(Game *game, int x, int y, NPC *npc, Client *clients, i
     return id != 0 && id != npc->entity_id;
 }
 
+/*A creature strikes what touches it, diagonals included: a character
+ * reaches its eight neighbours too.*/
+static bool npc_in_reach(const NPC *npc, const Client *target) {
+    return abs(target->x - npc->x) <= 1 && abs(target->y - npc->y) <= 1;
+}
+
 static void default_ai_update(Game *game, NPC *npc, Client *clients, int num_clients,
                               bool new_round) {
     Client *target = find_closest_target(game, npc, clients, num_clients);
@@ -291,8 +303,7 @@ static void default_ai_update(Game *game, NPC *npc, Client *clients, int num_cli
         return;
     }
 
-    int d = abs(target->x - npc->x) + abs(target->y - npc->y);
-    if (d <= 1) {
+    if (npc_in_reach(npc, target)) {
         if (new_round) {
             perform_attack_npc(npc, target, game);
         }
@@ -643,7 +654,7 @@ AINodeStatus ai_mage_behavior(Game *game, NPC *npc, Client *clients, int num_cli
         }
 
         //No spells left: attack in melee or back away
-        if (d <= 1) {
+        if (npc_in_reach(npc, target)) {
             perform_attack_npc(npc, target, game);
             return AI_SUCCESS;
         }
@@ -681,7 +692,7 @@ AINodeStatus ai_void_crawler_behavior(Game *game, NPC *npc, Client *clients, int
 
     if (new_round) {
         // Phase 1: Enslave
-        if (d > 1 && d <= 5) {
+        if (!npc_in_reach(npc, target) && d <= 5) {
             if (rand() % 4 == 0) {
                 int save_mod = rules_get_modifier(target->wis);
                 bool saved = rules_roll_save(save_mod, 14, false, false, NULL);
@@ -690,10 +701,12 @@ AINodeStatus ai_void_crawler_behavior(Game *game, NPC *npc, Client *clients, int
                                         "[DANGER] The Boss enters your mind! You are Charmed!");
                     /*The condition itself: the effect was named "Enslave",
                      * which no rule knows, so the charm did nothing.*/
+                    /*The value names the charmer: the character cannot attack
+                     * it (LORE.md, Charmed), only it.*/
                     ActiveEffect charm_effect = {condition_to_name(COND_CHARMED),
                                                  EVENT_ON_TURN_START,
                                                  MOD_ADDITIVE,
-                                                 0,
+                                                 npc->entity_id,
                                                  3,
                                                  false};
                     rules_add_effect(target->effects, &target->effect_count, MAX_EFFECTS_PER_ENTITY,
@@ -706,7 +719,7 @@ AINodeStatus ai_void_crawler_behavior(Game *game, NPC *npc, Client *clients, int
         }
 
         // Phase 2: Mucous Cloud / Melee
-        if (d <= 1) {
+        if (npc_in_reach(npc, target)) {
             if (rand() % 3 == 0) {
                 perform_attack_npc(npc, target, game);
             } else {

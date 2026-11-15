@@ -102,6 +102,10 @@ static const CmdDoc COMMAND_DOCS[] = {
     {"throw", "v", CMD_GROUP_ITEMS, "throw <n|item> [n|s|e|w]",
      "Throw one item: 5 tiles, 8 for ammunition; without a direction, at the nearest creature "
      "in a straight line. It lands where its flight ends."},
+    {"shoot", "fire", CMD_GROUP_ITEMS, "shoot [n|s|e|w]",
+     "Shoot the bow, crossbow, sling or blowgun you hold (ammunition from the belt) at the first "
+     "creature that way within its range and your sight; without a direction, at the nearest one "
+     "in a straight line."},
     {"fill", NULL, CMD_GROUP_ITEMS, "fill <lantern>", "Refill a lantern with a flask of oil."},
     {"lore", NULL, CMD_GROUP_ITEMS, "lore <n|item>",
      "What is known about an identified item of the backpack; for a book, its spells."},

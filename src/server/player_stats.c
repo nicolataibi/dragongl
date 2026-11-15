@@ -23,6 +23,7 @@
  */
 
 #include "inventory.h"
+#include "server_combat.h"
 #include "server_internal.h"
 
 #include "player.h"
@@ -39,6 +40,9 @@ int clamp_stat(int v) {
     return v;
 }
 
+/*The abilities with what is worn: every equipment slot (the bracers of the
+ * arms too) and ring adds its template's bonuses and an artifact its own
+ * STR, DEX and CON.*/
 void get_total_stats(Client *c, int *ts, int *td, int *tc, int *ti, int *tw, int *th) {
     *ts = c->str;
     *td = c->dex;
@@ -46,28 +50,23 @@ void get_total_stats(Client *c, int *ts, int *td, int *tc, int *ti, int *tw, int
     *ti = c->intel;
     *tw = c->wis;
     *th = c->cha;
-    ItemInstance *s[] = {&c->slot_head,   &c->slot_neck,   &c->slot_body,  &c->slot_back,
-                         &c->slot_hand_r, &c->slot_hand_l, &c->slot_hands, &c->slot_feet};
-    for (int i = 0; i < 8; i++) {
-        if (s[i]->template_idx != -1) {
-            const ItemTemplate *it = &item_database[s[i]->template_idx];
-            *ts += it->str_bonus;
-            *td += it->dex_bonus;
-            *tc += it->con_bonus;
-            *ti += it->int_bonus;
-            *tw += it->wis_bonus;
-            *th += it->cha_bonus;
+    for (int i = 0; i < EQUIP_SLOT_COUNT + 10; i++) {
+        const ItemInstance *s =
+            i < EQUIP_SLOT_COUNT ? equip_slot(c, i) : &c->slot_rings[i - EQUIP_SLOT_COUNT];
+        if (s->template_idx == -1) {
+            continue;
         }
-    }
-    for (int i = 0; i < 10; i++) {
-        if (c->slot_rings[i].template_idx != -1) {
-            const ItemTemplate *it = &item_database[c->slot_rings[i].template_idx];
-            *ts += it->str_bonus;
-            *td += it->dex_bonus;
-            *tc += it->con_bonus;
-            *ti += it->int_bonus;
-            *tw += it->wis_bonus;
-            *th += it->cha_bonus;
+        const ItemTemplate *it = &item_database[s->template_idx];
+        *ts += it->str_bonus;
+        *td += it->dex_bonus;
+        *tc += it->con_bonus;
+        *ti += it->int_bonus;
+        *tw += it->wis_bonus;
+        *th += it->cha_bonus;
+        if (s->is_artifact) {
+            *ts += s->artifact_str_bonus;
+            *td += s->artifact_dex_bonus;
+            *tc += s->artifact_con_bonus;
         }
     }
 }
@@ -271,9 +270,10 @@ int get_vision_radius(Client *c) {
     return best_radius;
 }
 
-/*Body armour gives its base (else 10 + DEX) and its enchantment; every
- * other worn piece, shield and ring adds its bonus and its enchantment; a
- * weapon in a hand adds nothing.*/
+/*Body armour gives its base (else 10 + DEX), its enchantment and its
+ * quality; every other worn piece, shield and ring adds its bonus and its
+ * enchantment, a shield its quality too; a weapon in a hand adds only an
+ * enchantment of its own.*/
 int get_player_ac(Client *c) {
     int ts, td, tc, ti, tw, th;
     get_total_stats(c, &ts, &td, &tc, &ti, &tw, &th);
@@ -287,12 +287,15 @@ int get_player_ac(Client *c) {
             continue;
         }
         const ItemTemplate *t = &item_database[s->template_idx];
+        /*Quality counts for armour and shields (Rusty -1 ... Masterwork +2).*/
+        int quality =
+            (t->category == ITEM_ARMOR || t->category == ITEM_SHIELD) ? item_quality_bonus(s) : 0;
         if (s == &c->slot_body) {
-            bonus += s->ac_bonus;
+            bonus += s->ac_bonus + quality;
         } else if ((s == &c->slot_hand_r || s == &c->slot_hand_l) && t->category != ITEM_SHIELD) {
-            continue;
+            bonus += s->ac_bonus; /*a weapon protects only if enchanted to (an artifact)*/
         } else {
-            bonus += t->ac_bonus + s->ac_bonus;
+            bonus += t->ac_bonus + s->ac_bonus + quality;
         }
     }
     int final_ac = (ac_b > 0 ? ac_b : 10 + rules_get_modifier(td)) + bonus;
