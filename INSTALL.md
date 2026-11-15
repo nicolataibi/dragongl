@@ -35,9 +35,9 @@ sudo dnf install dragongl-server dragongl-tools
 
 ### Installed Package Components:
 - **`dragongl`**: the Vulkan client (`dragongl_client`, launcher `dragongl-client`), its SPIR-V shaders in `/usr/share/dragongl/shaders/` and its man pages.
-- **`dragongl-server`**: the server (`dragongl_server`, launchers `dragongl-server` and `dragongl-reset-world`), the world generator, the systemd unit `dragongl-server.service` and its configuration `/etc/dragongl/dragongl-server.conf`.
+- **`dragongl-server`**: the server (`dragongl_server`, launchers `dragongl-server` and `dragongl-reset-world`), the world generator, the systemd unit `dragongl-server.service`, its configuration `/etc/dragongl/dragongl-server.conf` and the firewalld service `dragongl-server` (port 8080/tcp).
 - **`dragongl-data`**: the game datasets (`bestiary.json`, `items.json`, `spells.json`) in `/usr/share/dragongl/data/`, required by the server.
-- **`dragongl-tools`**: analysis utilities (`analyze_balance.py`, `generate_pdf_map.py`, used by the DM `dm_pdf` command) and the Web Data Studio in `/usr/share/dragongl/tools/`.
+- **`dragongl-tools`**: analysis utilities (the commands `dragongl-analyze-balance` and `dragongl-generate-pdf-map`, the latter used by the DM `dm_pdf` command, each with its man page) and the Web Data Studio in `/usr/share/dragongl/tools/`.
 - **`dragongl-doc`**: the manuals in `/usr/share/doc/dragongl/`.
 
 A player machine needs only `dragongl`; a server host needs only `dragongl-server` (it pulls in `dragongl-data` and recommends `dragongl-tools`).
@@ -47,17 +47,21 @@ A player machine needs only `dragongl`; a server host needs only `dragongl-serve
 `dragongl-server` installs a systemd unit. It runs the server under a transient unprivileged user (`DynamicUser=`) with the state directory `/var/lib/dragongl` (mode 0700) and a strict sandbox:
 
 ```bash
-# 1. Set the passwords (the file is root-only, mode 0600)
-sudoedit /etc/dragongl/dragongl-server.conf
+# 1. Set the server password: a root-only file, first line
+sudo install -m 0600 /dev/null /etc/dragongl/server-password
+sudoedit /etc/dragongl/server-password
+#    and, optionally, the Dungeon Master password the same way
+#    (/etc/dragongl/dm-password)
 
-# 2. Start the service now and at boot
+# 2. Open the game port (firewalld) and start the service now and at boot
+sudo firewall-cmd --permanent --add-service=dragongl-server && sudo firewall-cmd --reload
 sudo systemctl enable --now dragongl-server
 
 # 3. Follow the log
 journalctl -u dragongl-server -f
 ```
 
-The configuration file holds `DRAGONGL_SERVER_PASSWORD`, `DRAGONGL_DM_PASSWORD` (empty: the `dm` account is disabled) and `DRAGONGL_SERVER_ARGS` (extra options, for example `--port 9000`). Without a server password the service exits with status 2 and is not restarted. To start a new world, stop the service first: `sudo systemctl stop dragongl-server && sudo dragongl-reset-world -S /var/lib/dragongl`.
+The unit reads the two password files as systemd credentials (`LoadCredential=`): systemd copies them, readable only by the service's dynamic user, into `/run/credentials/dragongl-server.service/`, so the passwords never pass through the environment or the command line. A missing `dm-password` disables the `dm` account; without `server-password` the service exits with status 2 and is not restarted. `/etc/dragongl/dragongl-server.conf` holds only `DRAGONGL_SERVER_ARGS` (extra options, for example `--port 9000`; a port other than 8080 is opened with `firewall-cmd --add-port` instead of the service). To start a new world, stop the service first: `sudo systemctl stop dragongl-server && sudo dragongl-reset-world -S /var/lib/dragongl`.
 
 ---
 

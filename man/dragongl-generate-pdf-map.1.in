@@ -1,16 +1,20 @@
 .\" Dragon GL - Copyright (C) 2026 Nicola Taibi
 .\" SPDX-License-Identifier: GPL-3.0-or-later
-.TH GENERATE_PDF_MAP 1 "@DRAGONGL_RELEASE_DATE@" "Dragon GL @DRAGONGL_VERSION@" "Dragon GL DM Tools"
+.TH DRAGONGL-GENERATE-PDF-MAP 1 "@DRAGONGL_RELEASE_DATE@" "Dragon GL @DRAGONGL_VERSION@" "Dragon GL DM Tools"
 .SH NAME
-generate_pdf_map \- render a Dragon GL floor dump as a faithful color PDF map
+dragongl-generate-pdf-map \- render a Dragon GL floor dump as a faithful color PDF map
 .SH SYNOPSIS
-.B generate_pdf_map.py
+.B dragongl-generate-pdf-map
 .I dump
 .I output_pdf
 .RI [ floor_number ]
 .RI [ options ]
 .SH DESCRIPTION
-.B generate_pdf_map.py
+.B dragongl-generate-pdf-map
+(the script
+.I generate_pdf_map.py
+of the Dragon GL tools, in
+.IR @DRAGONGL_PKGDATADIR@/tools )
 converts a floor dump produced by the Dragon GL server into a readable,
 color-coded PDF map.
 
@@ -203,19 +207,19 @@ the PDF cannot be generated or written.
 Create a PDF and infer the floor number from the dump filename:
 .PP
 .nf
-\&./generate_pdf_map.py map_dump_floor_7.txt floor_7.pdf
+dragongl-generate-pdf-map map_dump_floor_7.txt floor_7.pdf
 .fi
 .PP
 Explicitly specify the floor number:
 .PP
 .nf
-\&./generate_pdf_map.py map_dump_floor_7.txt floor_7.pdf 7
+dragongl-generate-pdf-map map_dump_floor_7.txt floor_7.pdf 7
 .fi
 .PP
 Use a smaller tile size and fewer legend columns:
 .PP
 .nf
-\&./generate_pdf_map.py map_dump_floor_7.txt floor_7.pdf 7 \-\-cell 3 \-\-cols 6
+dragongl-generate-pdf-map map_dump_floor_7.txt floor_7.pdf 7 \-\-cell 3 \-\-cols 6
 .fi
 .SH FILES
 .TP

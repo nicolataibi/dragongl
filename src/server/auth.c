@@ -157,11 +157,17 @@ int auth_load_secret(const char *file, const char *env_name, char *out, size_t o
         char line[256];
         bool got = fgets(line, sizeof(line), f) != NULL;
         fclose(f);
-        if (!got) {
-            snprintf(err, err_len, "%s is empty", file);
-            return -1;
+        if (got) {
+            strip_eol(line);
         }
-        strip_eol(line);
+        /*An empty file is no secret (rc 0): the DM account stays disabled,
+         * a server without its password refuses to start. The systemd unit
+         * relies on it: a password file the administrator did not create
+         * reaches the server as an empty credential.*/
+        if (!got || line[0] == '\0') {
+            snprintf(err, err_len, "%s is empty", file);
+            return 0;
+        }
         if (strlen(line) >= out_len) {
             sodium_memzero(line, sizeof(line));
             snprintf(err, err_len, "the secret in %s is too long", file);

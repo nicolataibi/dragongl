@@ -180,10 +180,12 @@ macro(dragongl_compile_settings)
 endmacro()
 
 # --- Generated header ----------------------------------------------------------
-# <dir>/dragongl_config.h: DRAGONGL_VERSION and DRAGONGL_PKGDATADIR (where the
-# package installs shaders, game data and tools).
+# <dir>/dragongl_config.h: DRAGONGL_VERSION, DRAGONGL_PKGDATADIR (where the
+# package installs shaders, game data and tools) and DRAGONGL_CONFDIR (the
+# configuration of the systemd service).
 function(dragongl_generate_config dir)
     include(GNUInstallDirs)
     set(DRAGONGL_PKGDATADIR "${CMAKE_INSTALL_FULL_DATADIR}/dragongl")
+    set(DRAGONGL_CONFDIR "${CMAKE_INSTALL_FULL_SYSCONFDIR}/dragongl")
     configure_file("${DRAGONGL_ROOT}/cmake/dragongl_config.h.in" "${dir}/dragongl_config.h" @ONLY)
 endfunction()

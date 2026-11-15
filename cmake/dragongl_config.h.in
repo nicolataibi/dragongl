@@ -10,5 +10,7 @@
 #define DRAGONGL_VERSION "@DRAGONGL_VERSION@"
 /* Installed shaders/, data/ and tools/ (e.g. /usr/share/dragongl). */
 #define DRAGONGL_PKGDATADIR "@DRAGONGL_PKGDATADIR@"
+/* Configuration and password files of the systemd service (/etc/dragongl). */
+#define DRAGONGL_CONFDIR "@DRAGONGL_CONFDIR@"
 
 #endif

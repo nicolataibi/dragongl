@@ -23,6 +23,7 @@
  */
 
 #include "server_login.h"
+#include "dragongl_config.h"
 #include "alignment.h"
 #include "wire.h"
 #include "server_conn.h"
@@ -245,8 +246,10 @@ bool load_server_secrets(const char *gate_file, const char *dm_file) {
         return false;
     }
     if (rc == 0) {
-        fprintf(stderr, "[SYS] No server password: set DRAGONGL_SERVER_PASSWORD or use "
-                        "--password-file <file>.\n");
+        fprintf(stderr,
+                "[SYS] No server password%s%s: set DRAGONGL_SERVER_PASSWORD or use "
+                "--password-file <file> (the systemd service: %s).\n",
+                err[0] ? " - " : "", err, DRAGONGL_CONFDIR "/server-password");
         return false;
     }
     if (err[0]) {
@@ -271,6 +274,7 @@ bool load_server_secrets(const char *gate_file, const char *dm_file) {
         server_log("SYS", "DM account disabled (no DM password configured).");
         return true;
     }
+    /*From here err holds a warning only (a file readable by others).*/
     if (err[0]) {
         fprintf(stderr, "[SYS] WARNING: %s\n", err);
     }

@@ -30,7 +30,6 @@ import re
 import selectors
 import shutil
 import signal
-import socket
 import ssl
 import struct
 import subprocess
@@ -68,10 +67,7 @@ def map_center():
     return w // 2, h // 2
 
 
-def free_port():
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
+free_port = dglproto.free_port
 
 
 def percentile(values, pct):
@@ -84,17 +80,23 @@ def percentile(values, pct):
 
 class Server:
     def __init__(self, binary, data, workdir):
-        self.port = free_port()
+        self._binary, self._data, self._workdir = binary, data, workdir
         self.log_path = os.path.join(workdir, "server.log")
         self._log = open(self.log_path, "a")
+        self._launch()
+
+    def _launch(self):
+        """Start the server on a new port (free_port() explains the choice)."""
+        self.port = free_port()
+        self._log.flush()
         self._start = os.path.getsize(self.log_path)
         env = dict(os.environ)
         env["DRAGONGL_SERVER_PASSWORD"] = SERVER_PASS
         env.pop("DRAGONGL_DM_PASSWORD", None)
         self.proc = subprocess.Popen(
-            [binary, "--port", str(self.port), "--data-dir", data,
-             "--state-dir", os.path.join(workdir, "state")],
-            cwd=workdir, env=env, stdout=self._log, stderr=subprocess.STDOUT)
+            [self._binary, "--port", str(self.port), "--data-dir", self._data,
+             "--state-dir", os.path.join(self._workdir, "state")],
+            cwd=self._workdir, env=env, stdout=self._log, stderr=subprocess.STDOUT)
 
     def log(self):
         with open(self.log_path, errors="replace") as f:
@@ -102,9 +104,16 @@ class Server:
             return f.read()
 
     def wait_ready(self, timeout=600):
+        """Wait for the server; a port taken by another listener before the
+        server bound it is retried on another one (self.port changes)."""
         deadline = time.monotonic() + timeout
+        attempts = 1
         while time.monotonic() < deadline:
             if self.proc.poll() is not None:
+                if dglproto.BIND_FAILED_MARK in self.log() and attempts < 5:
+                    attempts += 1
+                    self._launch()
+                    continue
                 raise RuntimeError("the server exited while starting:\n" + self.log()[-2000:])
             if READY_MARK in self.log():
                 return
