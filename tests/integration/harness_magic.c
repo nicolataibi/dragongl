@@ -182,9 +182,13 @@ int test_magic_care(void) {
     c->slot_body.blessing = BLESS_CURSED;
     c->slot_body.durability = 1;
     c->slot_body.quality = QUALITY_RUSTY;
+    /* Two Cursed effects after Invisible: removing the first moves the
+     * second into its slot, which is checked again. */
+    afflict(c, "Cursed");
     afflict(c, "Cursed");
     cast(c, "Remove Curse");
-    CHECK(c->slot_body.blessing == BLESS_NORMAL && !has(c, "Cursed") && said("2 curses lifted"),
+    CHECK(c->slot_body.blessing == BLESS_NORMAL && !has(c, "Cursed") && has(c, "Invisible") &&
+              said("3 curses lifted"),
           "remove curse");
     cast(c, "Fabricate");
     CHECK(c->slot_body.durability == item_database[armour].max_durability &&

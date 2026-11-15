@@ -1,3 +1,16 @@
+* Sun Nov 15 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.15.06
+- FIX: CodeQL cpp/loop-variable-changed (alerts #84 and #85): Remove
+  Curse (spell_utility.c) and client_reveal (server_combat.c) dropped
+  an effect by moving the last one into its slot and decrementing the
+  for counter in the body. Both are now while loops whose index
+  advances only past an effect that stays; the behaviour is unchanged.
+- TESTS: magic_care casts Remove Curse on two Cursed effects after an
+  Invisible one; melee_attack reveals a character with Poisoned and two
+  Invisible effects. Both check that the effect moved into a freed slot
+  is checked again and that the other effects stay.
+- DOCS: the comment on the melee attack sat above client_reveal; it is
+  back above perform_attack, and client_reveal has its own.
+
 * Sun Nov 15 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.15.05
 - SECURITY: the systemd unit reads the passwords as systemd credentials:
   /etc/dragongl/server-password and /etc/dragongl/dm-password, root-only

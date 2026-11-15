@@ -125,10 +125,15 @@ bool spell_remove_curse(SpellContext *ctx) {
             lifted++;
         }
     }
-    for (int i = 0; i < c->effect_count; i++) {
+    /*Swap-remove: the last effect takes the freed slot and is checked
+     * next, so the index advances only past an effect that stays.*/
+    int i = 0;
+    while (i < c->effect_count) {
         if (condition_from_name(c->effects[i].name) == COND_CURSED) {
-            c->effects[i--] = c->effects[--c->effect_count];
+            c->effects[i] = c->effects[--c->effect_count];
             lifted++;
+        } else {
+            i++;
         }
     }
     send_text_to_client(c->sock, "[MAGIC] %s: %d curse%s lifted.", ctx->sp->name, lifted,
