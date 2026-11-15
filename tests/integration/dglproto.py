@@ -10,6 +10,7 @@ protocol "dragongl/<version>".
 
 import hashlib
 import os
+import random
 import select
 import socket
 import ssl
@@ -28,6 +29,45 @@ for _m in SPEC.messages:
     globals()["MSG_" + _m["name"]] = _m["id"]
 
 HEADER = codec.HEADER  # version, type, length
+
+# Lines the server logs when it cannot listen on its port.
+BIND_FAILED_MARK = "Cannot bind to port"
+
+
+def _ephemeral_range():
+    try:
+        with open("/proc/sys/net/ipv4/ip_local_port_range") as f:
+            lo, hi = (int(v) for v in f.read().split())
+        return lo, hi
+    except (OSError, ValueError):
+        return 32768, 60999
+
+
+def free_port():
+    """A TCP port nobody listens on, for a test server.
+
+    The port comes from outside the ephemeral range of the kernel: a port
+    of that range that is free now can become the local port of any
+    outgoing connection (a test client, another suite running at the same
+    time) before the server binds it. Outside the range only another
+    listener can take it; ServerProcess.wait_ready() starts the server
+    again on another port if that happens."""
+    lo, hi = _ephemeral_range()
+    ranges = [(r0, r1) for r0, r1 in ((10000, lo - 1), (hi + 1, 65535)) if r1 - r0 >= 100]
+    for _ in range(200):
+        if not ranges:
+            break
+        r0, r1 = random.choice(ranges)
+        port = random.randint(r0, r1)
+        with socket.socket() as s:
+            try:
+                s.bind(("", port))
+            except OSError:
+                continue
+        return port
+    with socket.socket() as s:  # no room outside the range: any free port
+        s.bind(("", 0))
+        return s.getsockname()[1]
 
 
 def header(msg_type, length, version=PROTOCOL_VERSION):

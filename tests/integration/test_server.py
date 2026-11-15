@@ -43,10 +43,8 @@ SANITIZER_MARKS = ("ERROR: AddressSanitizer", "WARNING: ThreadSanitizer",
                    "ERROR: LeakSanitizer")
 
 
-def free_port():
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
+free_port = dglproto.free_port
+BIND_ATTEMPTS = 5
 
 
 def open_fds(pid):
@@ -78,20 +76,40 @@ class ServerProcess:
 
     def __init__(self, workdir, port, env=None, extra_args=()):
         self.workdir = workdir
-        self.port = port
+        self.env = server_env() if env is None else env
+        self.extra_args = extra_args
         self.log_path = os.path.join(workdir, "server.log")
         self._log = open(self.log_path, "a")
+        self._launch(port)
+
+    def _launch(self, port):
+        self.port = port
+        self._log.flush()
         # A restart appends to the same log: only look past this point.
         self._log_start = os.path.getsize(self.log_path)
         self.proc = subprocess.Popen(
-            server_command(workdir, port, extra_args),
-            cwd=workdir, env=server_env() if env is None else env,
+            server_command(self.workdir, port, self.extra_args),
+            cwd=self.workdir, env=self.env,
             stdout=self._log, stderr=subprocess.STDOUT)
 
+    def _log_since_start(self):
+        with open(self.log_path, errors="replace") as f:
+            f.seek(self._log_start)
+            return f.read()
+
     def wait_ready(self, timeout):
+        """Wait for the server to accept players. A port another process
+        took before the server bound it is not the test's failure: the
+        server is started again on another port (self.port changes)."""
         deadline = time.monotonic() + timeout
+        attempts = 1
         while time.monotonic() < deadline:
             if self.proc.poll() is not None:
+                if (dglproto.BIND_FAILED_MARK in self._log_since_start()
+                        and attempts < BIND_ATTEMPTS):
+                    attempts += 1
+                    self._launch(free_port())
+                    continue
                 raise RuntimeError("server exited during start-up:\n" + self.log_tail())
             with open(self.log_path, errors="replace") as f:
                 f.seek(self._log_start)

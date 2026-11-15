@@ -27,6 +27,12 @@
   /usr/share/dragongl/tools); their man pages take the command names.
 - TESTS: test_empty_password_files_mean_not_set (server_network) runs
   the server the way the unit does with missing password files.
+- FIX: the integration tests and the load test could fail at random with
+  "Cannot bind to port" (seen once in the Fedora CI job): the port of a
+  test server was free when chosen in the ephemeral range of the kernel,
+  where any outgoing connection can take it before the server binds.
+  dglproto.free_port() chooses outside that range, and a server that
+  still finds its port taken is started again on another one.
 - DOCS: INSTALL, README, SECURITY, BUILD and dragongl_server(1) describe
   the credentials and the firewalld service; docs/PACKAGING.md answers
   the questions a reviewer may ask.
