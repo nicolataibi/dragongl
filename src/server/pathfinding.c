@@ -79,11 +79,10 @@ static inline bool tile_is_walkable(const Map *map, int x, int y) {
     if (x < 0 || x >= MAP_WIDTH || y < 0 || y >= MAP_HEIGHT) {
         return false;
     }
-    VoxelType v = map->data[0][y][x];
-    /*Walkable if it is open floor*/
-    return (v == VOXEL_FLOOR || v == VOXEL_DOOR || v == VOXEL_LAVA || v == VOXEL_WATER ||
-            v == VOXEL_SAND || v == VOXEL_GRASS || v == VOXEL_OBSIDIAN ||
-            v == VOXEL_MUSHROOM_GLOW || v == VOXEL_CRYSTAL_BLUE || v == VOXEL_CRYSTAL_PURPLE);
+    /*The rule of the players' steps: a monster goes where a character goes
+     * (it walked on stone floor and sand only: on the wood, mud, ash, ice
+     * and marble floors of most levels it found no path at all).*/
+    return voxel_passable(map->data[0][y][x]);
 }
 
 /*Node ordering: lower f first; on equal f, larger g first (deeper node).*/

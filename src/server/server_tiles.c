@@ -80,20 +80,10 @@ bool tile_walkable(const Floor *fl, int x, int y) {
     if (x < 1 || y < 1 || x >= MAP_WIDTH - 1 || y >= MAP_HEIGHT - 1) {
         return false;
     }
-    switch (fl->map.data[0][y][x]) {
-    case VOXEL_FLOOR:
-    case VOXEL_COBBLE:
-    case VOXEL_MARBLE:
-    case VOXEL_WOOD:
-    case VOXEL_GRASS:
-    case VOXEL_SAND:
-    case VOXEL_STAIRS_UP:
-    case VOXEL_STAIRS_DOWN:
-    case VOXEL_DOOR:
-        return true;
-    default:
-        return false; /*rock, wall, water, lava, traps... */
-    }
+    VoxelType v = fl->map.data[0][y][x];
+    /*Open ground of every biome (mud, ash and ice too), the stairs, a door;
+     * not rock, walls, water, lava, traps or minerals.*/
+    return voxel_is_ground(v) || v == VOXEL_STAIRS_UP || v == VOXEL_STAIRS_DOWN || v == VOXEL_DOOR;
 }
 
 bool tile_free(const Floor *fl, int x, int y) {

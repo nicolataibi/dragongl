@@ -35,6 +35,12 @@
  */
 void populate_dungeons(Game *game);
 
+/*The guardian of boss floor f in slot b: a creature of the floor's range
+ * that the data calls a boss (any creature of the range when none is),
+ * promoted to ARCH_BOSS on the free open ground nearest the centre.
+ * False, with b untouched, when the floor has no ground or no creature.*/
+bool spawn_floor_boss(Game *game, NPC *b, int f);
+
 /**
  * spawn_city_merchants - Generates city merchants (floor 0).
  */

@@ -489,19 +489,47 @@ void spawn_martial_archive(Game *game) {
     a_shop->restock_timer = 100;
 }
 
-/*A random tile a creature can stand on (any walkable ground, or stone
- * floor only), in 100 tries; false if none was found.*/
-static bool random_spawn_tile(Game *game, int f, bool floor_only, int *x, int *y) {
-    for (int tries = 0; tries < 100; tries++) {
-        int tx = rand() % MAP_WIDTH;
-        int ty = rand() % MAP_HEIGHT;
-        VoxelType v = game->world->floors[f].map.data[0][ty][tx];
-        bool ok = v == VOXEL_FLOOR;
-        if (!floor_only) {
-            ok = ok || v == VOXEL_WOOD || v == VOXEL_SAND || v == VOXEL_MUD || v == VOXEL_ICE ||
-                 v == VOXEL_GRASS || v == VOXEL_COBBLE || v == VOXEL_MARBLE || v == VOXEL_ASH;
+/*Tiles a creature must be able to reach from where it is placed.*/
+#define SPAWN_MIN_REGION 20
+
+/*True if at least SPAWN_MIN_REGION passable tiles join (x, y) in the four
+ * directions monsters walk: room walls drawn on the diagonal leave cells
+ * that only a diagonal touches, where a creature could never move.*/
+static bool spawn_region_open(const Floor *fl, int x, int y) {
+    int qx[SPAWN_MIN_REGION], qy[SPAWN_MIN_REGION];
+    int n = 0;
+    qx[n] = x;
+    qy[n++] = y;
+    for (int head = 0; head < n && n < SPAWN_MIN_REGION; head++) {
+        static const int dx[4] = {1, -1, 0, 0}, dy[4] = {0, 0, 1, -1};
+        for (int d = 0; d < 4 && n < SPAWN_MIN_REGION; d++) {
+            int nx = qx[head] + dx[d], ny = qy[head] + dy[d];
+            if (nx < 1 || ny < 1 || nx >= MAP_WIDTH - 1 || ny >= MAP_HEIGHT - 1 ||
+                !voxel_passable(fl->map.data[0][ny][nx])) {
+                continue;
+            }
+            bool seen = false;
+            for (int k = 0; k < n && !seen; k++) {
+                seen = qx[k] == nx && qy[k] == ny;
+            }
+            if (!seen) {
+                qx[n] = nx;
+                qy[n++] = ny;
+            }
         }
-        if (ok) {
+    }
+    return n >= SPAWN_MIN_REGION;
+}
+
+/*A random tile of open ground (voxel_is_ground) with nobody on it, from
+ * which a creature can walk away, in 200 tries; false if none was found.*/
+static bool random_spawn_tile(Game *game, int f, int *x, int *y) {
+    const Floor *fl = &game->world->floors[f];
+    for (int tries = 0; tries < 200; tries++) {
+        int tx = 1 + rand() % (MAP_WIDTH - 2);
+        int ty = 1 + rand() % (MAP_HEIGHT - 2);
+        if (voxel_is_ground(fl->map.data[0][ty][tx]) && fl->entity_grid[ty][tx] == 0 &&
+            spawn_region_open(fl, tx, ty)) {
             *x = tx;
             *y = ty;
             return true;
@@ -510,14 +538,24 @@ static bool random_spawn_tile(Game *game, int f, bool floor_only, int *x, int *y
     return false;
 }
 
-/*The bestiary entries whose floor range holds f; the caller frees the
- * array (NULL when *size is 0).*/
-static int *floor_monster_pool(int f, int *size) {
+static bool is_boss_template(const MonsterTemplate *m) {
+    return m->archetype && strcasecmp(m->archetype, "boss") == 0;
+}
+
+/*The bestiary entries whose floor range holds f: the guardians ("boss" in
+ * the data) for a boss floor, every other creature for the rest. When the
+ * range holds none of the kind, any creature of the range. The caller
+ * frees the array (NULL when *size is 0).*/
+static int *floor_monster_pool(int f, bool bosses, int *size) {
     int *pool = malloc((size_t)(bestiary_size > 0 ? bestiary_size : 1) * sizeof(int));
     *size = 0;
-    for (int bi = 0; pool && bi < bestiary_size; bi++) {
-        if (f >= bestiary_data[bi].floor_min && f <= bestiary_data[bi].floor_max) {
-            pool[(*size)++] = bi;
+    for (int pass = 0; pool && pass < 2 && *size == 0; pass++) {
+        for (int bi = 0; bi < bestiary_size; bi++) {
+            const MonsterTemplate *m = &bestiary_data[bi];
+            if (f >= m->floor_min && f <= m->floor_max &&
+                (pass == 1 || is_boss_template(m) == bosses)) {
+                pool[(*size)++] = bi;
+            }
         }
     }
     if (*size == 0) {
@@ -528,7 +566,8 @@ static int *floor_monster_pool(int f, int *size) {
 }
 
 /*Fields shared by every new NPC of the dungeon; activation comes last,
- * by the caller, once template and archetype are final.*/
+ * by the caller, once template and archetype are final. The tile is taken
+ * at once, so the next spawn does not land on it.*/
 static NPC *dungeon_npc(Game *game, int *npc_idx, int f, int x, int y) {
     NPC *n = &game->npcs[(*npc_idx)++];
     n->entity_id = game->next_id++;
@@ -536,26 +575,59 @@ static NPC *dungeon_npc(Game *game, int *npc_idx, int f, int x, int y) {
     n->x = n->spawn_x = x;
     n->y = n->spawn_y = y;
     n->respawn_timer = 0;
+    game->world->floors[f].entity_grid[y][x] = n->entity_id;
     return n;
 }
 
-/*The boss of a boss floor: a monster of the floor's pool with five times
- * its hit points and 50 more per floor, in the middle of the map.*/
-static void spawn_boss(Game *game, int *npc_idx, int f, const int *pool, int size) {
-    if (size <= 0 || *npc_idx >= MAX_NPCS) {
-        return;
+/*The nearest free open ground to (ax, ay), ring by ring up to radius; false
+ * if there is none.*/
+static bool free_ground_near(const Floor *fl, int ax, int ay, int radius, int *ox, int *oy) {
+    for (int r = 0; r <= radius; r++) {
+        for (int dy = -r; dy <= r; dy++) {
+            for (int dx = -r; dx <= r; dx++) {
+                int x = ax + dx, y = ay + dy;
+                if ((abs(dx) != r && abs(dy) != r) || x < 1 || y < 1 || x >= MAP_WIDTH - 1 ||
+                    y >= MAP_HEIGHT - 1) {
+                    continue;
+                }
+                if (voxel_is_ground(fl->map.data[0][y][x]) && fl->entity_grid[y][x] == 0 &&
+                    spawn_region_open(fl, x, y)) {
+                    *ox = x;
+                    *oy = y;
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+bool spawn_floor_boss(Game *game, NPC *b, int f) {
+    int size = 0;
+    int *pool = floor_monster_pool(f, true, &size);
+    int bx, by;
+    if (!pool || !free_ground_near(&game->world->floors[f], MAP_CENTER_X, MAP_CENTER_Y,
+                                   MAP_WIDTH / 2, &bx, &by)) {
+        free(pool);
+        return false;
     }
     int boss_id = pool[rand() % size];
-    int bx, by;
-    find_walkable_near(&game->world->floors[f], MAP_CENTER_X, MAP_CENTER_Y, &bx, &by);
-    NPC *b = dungeon_npc(game, npc_idx, f, bx, by);
+    free(pool);
+    memset(b, 0, sizeof(*b));
+    b->entity_id = game->next_id++;
+    b->floor_id = f;
+    b->x = b->spawn_x = bx;
+    b->y = b->spawn_y = by;
     b->archetype = ARCH_BOSS;
+    /*template_idx is what a restart and a respawn read the template from.*/
+    b->template_idx = boss_id;
     b->template = &bestiary_data[boss_id];
-    b->hp = b->template->hp_avg * 5 + (f * 50);
-    b->max_hp = b->hp;
     snprintf(b->custom_name, sizeof(b->custom_name), "Boss %s", b->template->name);
+    /*Five times the hit points and 50 more per floor: ai_init_npc.*/
     ai_init_npc(b, b->custom_name, b->floor_id);
+    game->world->floors[f].entity_grid[by][bx] = b->entity_id;
     npc_set_active(game, b, true);
+    return true;
 }
 
 /*100 monsters, 4 more per floor (at most 300), of the floor's pool.*/
@@ -564,12 +636,12 @@ static void spawn_monsters(Game *game, int *npc_idx, int f, const int *pool, int
     if (num_monsters > 300) {
         num_monsters = 300;
     }
-    for (int m = 0; m < num_monsters && *npc_idx < MAX_NPCS; m++) {
+    for (int m = 0; size > 0 && m < num_monsters && *npc_idx < MAX_NPCS; m++) {
         int px, py;
-        if (!random_spawn_tile(game, f, false, &px, &py)) {
+        if (!random_spawn_tile(game, f, &px, &py)) {
             continue;
         }
-        int t_id = size > 0 ? pool[rand() % size] : rand() % bestiary_size;
+        int t_id = pool[rand() % size];
         NPC *n = dungeon_npc(game, npc_idx, f, px, py);
         n->archetype = ARCH_MELEE; /*ai_init_npc refines it*/
         n->template_idx = t_id;
@@ -588,7 +660,7 @@ static void spawn_treasures(Game *game, int *npc_idx, int f) {
     int num_treasures = 15 + (f * 2);
     for (int i = 0; i < num_treasures && *npc_idx < MAX_NPCS; i++) {
         int lx, ly;
-        if (!random_spawn_tile(game, f, false, &lx, &ly)) {
+        if (!random_spawn_tile(game, f, &lx, &ly)) {
             continue;
         }
         NPC *s = dungeon_npc(game, npc_idx, f, lx, ly);
@@ -607,7 +679,8 @@ static void spawn_treasures(Game *game, int *npc_idx, int f) {
     }
 }
 
-/*A wandering merchant of a random trade, on a stone floor tile.*/
+/*A wandering merchant of a random trade, on open ground (it looked for
+ * stone floor only, which most biomes do not have: no merchant came).*/
 static void spawn_wandering_merchant(Game *game, int *npc_idx, int f) {
     static const struct {
         MerchantSpecialization spec;
@@ -619,7 +692,7 @@ static void spawn_wandering_merchant(Game *game, int *npc_idx, int f) {
         {PROVISIONER, "Walking Provisioner"}, {BLACK_MARKET, "Shadow Dealer"},
     };
     int lx, ly;
-    if (*npc_idx >= MAX_NPCS || !random_spawn_tile(game, f, true, &lx, &ly)) {
+    if (*npc_idx >= MAX_NPCS || !random_spawn_tile(game, f, &lx, &ly)) {
         return;
     }
     NPC *s = dungeon_npc(game, npc_idx, f, lx, ly);
@@ -642,16 +715,18 @@ static void spawn_wandering_merchant(Game *game, int *npc_idx, int f) {
 void populate_dungeons(Game *game) {
     int npc_idx = 11; // The 11 city merchants occupy slots 0-10
     for (int f = 1; f < MAX_FLOORS; f++) {
-        int pool_size = 0;
-        int *floor_pool = floor_monster_pool(f, &pool_size);
         if (f % 10 == 0) {
-            spawn_boss(game, &npc_idx, f, floor_pool, pool_size);
-        } else {
-            spawn_monsters(game, &npc_idx, f, floor_pool, pool_size);
-            spawn_treasures(game, &npc_idx, f);
-            if (f % 5 == 0) {
-                spawn_wandering_merchant(game, &npc_idx, f);
+            if (npc_idx < MAX_NPCS && spawn_floor_boss(game, &game->npcs[npc_idx], f)) {
+                npc_idx++;
             }
+            continue;
+        }
+        int pool_size = 0;
+        int *floor_pool = floor_monster_pool(f, false, &pool_size);
+        spawn_monsters(game, &npc_idx, f, floor_pool, pool_size);
+        spawn_treasures(game, &npc_idx, f);
+        if (f % 5 == 0) {
+            spawn_wandering_merchant(game, &npc_idx, f);
         }
         free(floor_pool);
     }

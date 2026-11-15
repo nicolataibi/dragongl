@@ -423,50 +423,27 @@ static bool cmd_dm_spawn_boss(Client *c, const char *cmd, Game *game) {
         }
     }
 
+    /*A dead guardian waiting for its respawn would come back as a second
+     * boss next to the new one: it stays dead.*/
+    for (int i = 0; i < MAX_NPCS; i++) {
+        NPC *dead = &game->npcs[i];
+        if (!dead->active && dead->archetype == ARCH_BOSS && !dead->is_ghost &&
+            dead->floor_id == target_floor && dead->respawn_timer >= 0) {
+            dead->respawn_timer = -1;
+        }
+    }
     NPC *b = npc_alloc(game);
     if (!b) {
         send_text_to_client(c->sock, "[DM] ERROR: No free NPC slots (MAX_NPCS reached).");
         return true;
     }
-
-    /*Look for a random monster suitable for the plan*/
-    int pool[1000];
-    int psize = 0;
-    for (int bi = 0; bi < bestiary_size; bi++) {
-        if (target_floor >= bestiary_data[bi].floor_min &&
-            target_floor <= bestiary_data[bi].floor_max) {
-            if (psize < 1000) {
-                pool[psize++] = bi;
-            }
-        }
-    }
-
-    if (psize == 0) {
-        send_text_to_client(
-            c->sock, "[DM] ERROR: No monsters in the bestiary are suitable for the %d floor.",
-            target_floor);
+    /*The same guardian a new world gets: drawn from the floor's bosses,
+     * on open ground near the centre.*/
+    if (!spawn_floor_boss(game, b, target_floor)) {
+        send_text_to_client(c->sock, "[DM] ERROR: floor %d has no free ground or no creature.",
+                            target_floor);
         return true;
     }
-
-    int boss_id = pool[rand() % psize];
-    memset(b, 0, sizeof(NPC));
-    /*active is set at the END of the setup, through npc_set_active: the
-   * floor caches need the final fields.*/
-    b->archetype = ARCH_BOSS;
-    b->entity_id = game->next_id++;
-    b->floor_id = target_floor;
-    /*Where a new world puts it: the walkable tile nearest the centre.*/
-    find_walkable_near(&game->world->floors[target_floor], MAP_CENTER_X, MAP_CENTER_Y, &b->x,
-                       &b->y);
-    b->spawn_x = b->x;
-    b->spawn_y = b->y;
-    b->respawn_timer = 0;
-    b->template = &bestiary_data[boss_id];
-    b->hp = b->template->hp_avg * 5 + (target_floor * 50);
-    b->max_hp = b->hp;
-    snprintf(b->custom_name, sizeof(b->custom_name), "Boss %s", b->template->name);
-    ai_init_npc(b, b->custom_name, b->floor_id);
-    npc_set_active(game, b, true);
 
     send_text_to_client(c->sock, "[DM] Boss %s (Entity %d) successfully spawned on floor %d!",
                         b->custom_name, b->entity_id, target_floor);
@@ -753,8 +730,9 @@ static bool cmd_dm_spawn(Client *c, const char *cmd, Game *game) {
     n->y = n->spawn_y = ty;
     n->template_idx = tid;
     n->template = &bestiary_data[tid];
-    n->hp = n->max_hp = n->template->hp_avg;
-    ai_attach_behavior(n);
+    /*Every statistic of the template (AC, damage, XP, gold, archetype),
+     * as a monster of a new world has: it had hit points only.*/
+    ai_init_npc(n, n->template->name, n->floor_id);
     fl->entity_grid[ty][tx] = n->entity_id;
     /*Activate only once the template is assigned: npc_set_active needs the
      * final fields.*/

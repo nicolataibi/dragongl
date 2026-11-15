@@ -44,7 +44,7 @@ target_link_libraries(dragongl_server_it PRIVATE Threads::Threads m PkgConfig::S
 # --- In-process harness: every server module but main_server.c ---
 add_executable(server_harness server_harness.c harness_spells.c harness_commands.c fixture.c
     harness_util.c harness_combat.c harness_world.c harness_items.c
-    harness_rounds.c harness_magic.c harness_spec.c
+    harness_rounds.c harness_magic.c harness_spec.c harness_worldgen.c
     ${DRAGONGL_SERVER_LIB_SRCS} ${DRAGONGL_SHARED_SRCS})
 target_include_directories(server_harness PRIVATE ${DGL_INCLUDES})
 # DRAGONGL_FAULT_INJECTION: the crash points of binfile_write_atomic().
@@ -116,6 +116,12 @@ foreach(t spec_aliases_and_directions spec_secret_passages spec_disarm_next_to_y
           spec_dm_commands)
     add_test(NAME ${t} COMMAND server_harness ${t} WORKING_DIRECTORY "${DGL_WORK}")
 endforeach()
+# The creatures of a new world, how they walk (harness_worldgen.c).
+foreach(t world_generation monsters_walk_every_biome dm_spawn_full_stats)
+    add_test(NAME ${t} COMMAND server_harness ${t} WORKING_DIRECTORY "${DGL_WORK}")
+endforeach()
+# A whole world of 100 floors: slow under the sanitizers.
+set_tests_properties(world_generation PROPERTIES TIMEOUT 900)
 
 # The Python codec of the protocol table against the generated vectors.
 add_test(NAME protocol_vectors
