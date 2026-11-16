@@ -1,3 +1,8 @@
+* Mon Nov 16 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.16.01
+- CODE QUALITY: npc_set_cell() no longer repeats the bounds check before
+  writing the entity_grid (the guard above already returns for a cell out
+  of the map); fixes the CodeQL alert cpp/constant-comparison (#90).
+
 * Sun Nov 15 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.15.09
 - COMBAT: the conditions of LORE.md act on both sides of an attack. A
   blinded or frightened attacker has disadvantage, an invisible one

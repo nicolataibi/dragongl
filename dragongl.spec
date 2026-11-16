@@ -8,7 +8,7 @@
         -DCMAKE_C_FLAGS="%{optflags}" -DCMAKE_EXE_LINKER_FLAGS="%{build_ldflags}"
 
 Name:           dragongl
-Version:        2026.11.15.09
+Version:        2026.11.16.01
 Release:        %autorelease
 Summary:        Multi-user 3D dungeon RPG: Vulkan client
 

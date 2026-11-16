@@ -267,9 +267,8 @@ static void npc_set_cell(Game *game, NPC *npc, int x, int y) {
     }
     npc->x = x;
     npc->y = y;
-    if (x >= 0 && x < MAP_WIDTH && y >= 0 && y < MAP_HEIGHT) {
-        game->world->floors[npc->floor_id].entity_grid[y][x] = npc->entity_id;
-    }
+    /*x and y are in bounds: the guard above already returned otherwise.*/
+    game->world->floors[npc->floor_id].entity_grid[y][x] = npc->entity_id;
 }
 
 /*Returns true if the cell (x,y) on the NPC's floor is out of bounds or
