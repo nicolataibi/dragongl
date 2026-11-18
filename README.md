@@ -27,7 +27,7 @@
 **Dragon GL** is a high-performance, 3D multi-user client-server dungeon exploration simulator and RPG engine. Built from the ground up in modern C11, the engine features a fully functional open Fantasy RPG mechanical core (d20 ruleset) and a real-time 3D client built on **Vulkan 1.3 (GPU-driven, dynamic rendering)**.
 
 - **Upstream Website:** [https://github.com/nicolataibi/dragongl](https://github.com/nicolataibi/dragongl)
-- **Fedora COPR Repository:** [https://copr.fedorainfracloud.org/coprs/nicolataibi/dragongl/](https://copr.fedorainfracloud.org/coprs/nicolataibi/dragongl/)
+- **Fedora COPR Repository:** [https://copr.fedorainfracloud.org/coprs/ntaibi/dragon-gl/](https://copr.fedorainfracloud.org/coprs/ntaibi/dragon-gl/)
 - **Author:** Nicola Taibi (assisted by Gemini, ChatGPT, Qwen, Gemma)
 - **Code License:** GPL-3.0-or-later
 - **Asset License:** CC BY 4.0 (Creative Commons Attribution 4.0 International)

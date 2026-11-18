@@ -1,3 +1,6 @@
+* Wed Nov 18 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.18.01
+- DOCS: README url to copr page not found fixed.
+
 * Mon Nov 16 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.16.01
 - CODE QUALITY: npc_set_cell() no longer repeats the bounds check before
   writing the entity_grid (the guard above already returns for a cell out
