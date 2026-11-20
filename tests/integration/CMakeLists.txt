@@ -123,7 +123,8 @@ endforeach()
 # Characters against monsters and with items (harness_interact.c).
 foreach(t interact_conditions interact_charm interact_reach interact_ranged
           interact_ability_and_quality interact_worn_bonuses interact_artifacts
-          interact_loot_full_backpack interact_ghosts interact_light)
+          interact_loot_full_backpack interact_ghosts interact_ghost_cap_and_respawn
+          interact_light)
     add_test(NAME ${t} COMMAND server_harness ${t} WORKING_DIRECTORY "${DGL_WORK}")
 endforeach()
 # A whole world of 100 floors: slow under the sanitizers.

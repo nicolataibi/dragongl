@@ -305,6 +305,17 @@ void client_seen_reset(int ci, int floor) {
     memset(g_client_seen_players[ci], 0, sizeof(g_client_seen_players[ci]));
     g_client_seen_floor[ci] = floor + 1;
 }
+
+void client_seen_forget_npc(int npc_i) {
+    if (npc_i < 0 || npc_i >= MAX_NPCS) {
+        return;
+    }
+    unsigned idx = (unsigned)npc_i;
+    uint8_t mask = (uint8_t)(~(1u << (idx & 7u)));
+    for (int ci = 0; ci < MAX_CLIENTS; ci++) {
+        g_client_seen_entities[ci][idx >> 3u] &= mask;
+    }
+}
 static inline void player_seen_set(int ci, int pi) {
     g_client_seen_players[ci][pi >> 3] |= (uint8_t)(1u << (pi & 7));
 }

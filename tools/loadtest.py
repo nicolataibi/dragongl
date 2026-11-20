@@ -333,6 +333,7 @@ def main():
 
     workdir = tempfile.mkdtemp(prefix="dgl-load-")
     failures = []
+    first_log = ""
     result = {"bots": args.bots, "seconds": args.seconds}
     server = Server(args.server, args.data, workdir)
     bots = []
@@ -363,6 +364,7 @@ def main():
             b.close()
         failures.extend(errors)
         log = server.log()
+        first_log = log
         if status is None:
             failures.append("the shutdown under load took more than %d s" %
                             limits["shutdown_seconds"])
@@ -446,6 +448,17 @@ def main():
             f.write("\n")
     for line in failures:
         print("loadtest: FAIL: " + line, file=sys.stderr)
+    if failures:
+        try:
+            src_log = first_log if first_log else server.log()
+            net_lines = [
+                ln for ln in src_log.splitlines()
+                if "disconnected:" in ln or "TLS " in ln or "refused:" in ln or "WARNING:" in ln
+            ]
+            for ln in net_lines[-20:]:
+                print("loadtest: server.log: " + ln, file=sys.stderr)
+        except OSError:
+            pass
     return 1 if failures else 0
 
 

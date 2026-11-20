@@ -73,6 +73,9 @@ void player_respawn_town(Game *game, Client *c) {
         game->world->floors[old_floor].entity_grid[c->y][c->x] = 0;
     }
     c->hp = c->max_hp;
+    c->hunger_level = 0;
+    c->exhaustion_level = 0;
+    c->effect_count = 0;
     c->floor_id = 0;
     c->x = MAP_CENTER_X + 1;
     c->y = MAP_CENTER_Y + 1;
@@ -288,6 +291,7 @@ static void player_hunger_round(Game *game, Client *c) {
         send_text_to_client(c->sock, "[SYSTEM] You're starving!");
         if (c->hp <= 0) {
             player_dies(game, c, "starved to death");
+            return;
         }
     }
     if (game->total_turns % 100 == 0) {

@@ -1394,6 +1394,7 @@ static const TestCase k_tests[] = {
     {"interact_artifacts", test_interact_artifacts},
     {"interact_loot_full_backpack", test_interact_loot_full_backpack},
     {"interact_ghosts", test_interact_ghosts},
+    {"interact_ghost_cap_and_respawn", test_interact_ghost_cap_and_respawn},
     {"interact_light", test_interact_light},
 };
 

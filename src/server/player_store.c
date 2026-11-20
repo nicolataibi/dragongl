@@ -421,6 +421,61 @@ int load_player_data(Client *c, const char *password) {
     return rc;
 }
 
+static void ghost_clear(Game *game, NPC *g) {
+    if (game->world && g->floor_id >= 0 && g->floor_id < MAX_FLOORS && g->x >= 0 &&
+        g->x < MAP_WIDTH && g->y >= 0 && g->y < MAP_HEIGHT &&
+        game->world->floors[g->floor_id].entity_grid[g->y][g->x] == g->entity_id) {
+        game->world->floors[g->floor_id].entity_grid[g->y][g->x] = 0;
+    }
+    g->hp = 0;
+    npc_set_active(game, g, false);
+    client_seen_forget_npc((int)(g - game->npcs));
+    g->is_ghost = false;
+    g->template = NULL;
+    g->respawn_timer = 0;
+}
+
+/* One active ghost per character, and at most MAX_TOMBSTONES ghosts in
+ * the world (matching the tombstone table): replace any earlier ghost of
+ * this character, or the oldest ghost when the cap is reached.*/
+static NPC *ghost_slot(Game *game, const Client *c) {
+    if (!game->npcs) {
+        return NULL;
+    }
+    NPC *reuse = NULL;
+    NPC *oldest = NULL;
+    int active_ghosts = 0;
+    for (int i = 0; i < MAX_NPCS; i++) {
+        NPC *n = &game->npcs[i];
+        if (!n->active || !n->is_ghost) {
+            continue;
+        }
+        if (ghost_is_of(n, c)) {
+            ghost_clear(game, n);
+            if (!reuse) {
+                reuse = n;
+            }
+            continue;
+        }
+        active_ghosts++;
+        if (!oldest || n->entity_id < oldest->entity_id) {
+            oldest = n;
+        }
+    }
+    if (reuse) {
+        return reuse;
+    }
+    if (active_ghosts >= MAX_TOMBSTONES && oldest) {
+        ghost_clear(game, oldest);
+        return oldest;
+    }
+    NPC *n = npc_alloc(game);
+    if (n) {
+        client_seen_forget_npc((int)(n - game->npcs));
+    }
+    return n;
+}
+
 void save_bones(Game *game, Client *c) {
     if (c->floor_id <= 0) {
         return;
@@ -430,18 +485,8 @@ void save_bones(Game *game, Client *c) {
     tombstone_create(game, c);
 
     /*--- 2. Create in-world NPC ghost (live ghost) ---*/
-    int ghost_slot = -1;
-    if (game->npcs) {
-        for (int i = 0; i < MAX_NPCS; i++) {
-            if (!game->npcs[i].active) {
-                ghost_slot = i;
-                break;
-            }
-        }
-    }
-
-    if (ghost_slot >= 0) {
-        NPC *g = &game->npcs[ghost_slot];
+    NPC *g = ghost_slot(game, c);
+    if (g) {
         memset(g, 0, sizeof(NPC));
         /*active is set at the END of the setup, through npc_set_active:
          * the floor caches need the final fields.*/

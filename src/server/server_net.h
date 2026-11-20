@@ -41,5 +41,8 @@ void notify_player_left_floor(Game *game, Client *c, int old_floor);
 void broadcast_player_state(Game *game, Client *c);
 
 void client_seen_reset(int ci, int floor);
+/* Clear the seen bit of one NPC slot across every client (when a slot is
+ * recycled for a new entity on the same floor).*/
+void client_seen_forget_npc(int npc_i);
 
 #endif
