@@ -1,3 +1,23 @@
+* Fri Nov 20 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.20.01
+- FIX: cap active ghosts in save_bones() to at most one per character and
+  MAX_TOMBSTONES globally, allocating through npc_alloc() so respawning
+  monsters are not overwritten and clearing recycled slots from the
+  per-client seen bitmap. Unbounded ghost accumulation near floor 1 stairs
+  could overflow CONN_TX_LIMIT (2 MiB) on a stair transition under long
+  64-client load tests.
+- FIX: reset hunger_level, exhaustion_level and active conditions in
+  player_respawn_town(), and stop player_hunger_round() after a starvation
+  death so characters resurrected in town do not re-enter an immediate
+  starvation loop or gain exhaustion after respawning.
+- FIX: remove duplicate state, entity and map chunk sends from
+  check_tile_events() on stair transitions (player_move() already sends
+  them once at the end of the step).
+- CI: tools/loadtest.py prints server disconnect, TLS, refusal and warning
+  lines from server.log on failure.
+- TESTS: interact_ghost_cap_and_respawn verifies per-character and global
+  ghost caps, respawn resets on starvation, and single map chunk delivery
+  on stairs.
+
 * Wed Nov 18 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.18.01
 - DOCS: README url to copr page not found fixed.
 

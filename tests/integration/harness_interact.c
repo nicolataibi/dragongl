@@ -20,6 +20,7 @@
 #include "server_loot.h"
 #include "server_move.h"
 #include "server_world.h"
+#include "wire.h"
 
 #include <string.h>
 
@@ -378,6 +379,96 @@ int test_interact_ghosts(void) {
     CHECK(!ghost->active && said("recovered your soul") && owner->gold == 77 &&
               owner->backpack_count == 1,
           "the owner's step did not lay the ghost to rest");
+    return 0;
+}
+
+static int count_active_ghosts(void) {
+    int n = 0;
+    for (int i = 0; i < MAX_NPCS; i++) {
+        if (g_game.npcs[i].active && g_game.npcs[i].is_ghost) {
+            n++;
+        }
+    }
+    return n;
+}
+
+/* Repeated deaths never multiply ghosts: at most one ghost per character
+ * and MAX_TOMBSTONES globally (never stealing a respawning monster's slot);
+ * starving to death resets hunger, exhaustion and conditions on respawn;
+ * taking stairs sends a single map chunk.*/
+int test_interact_ghost_cap_and_respawn(void) {
+    hx_reset_world();
+    remove_with_prefix("state-interact_ghost_cap_and_respawn/saves", "tombstone_");
+
+    /* A dead monster waiting to respawn must not be overwritten by a ghost.*/
+    NPC *dormant = monster(0, NULL, FLOOR, CX - 5, CY);
+    npc_set_active(&g_game, dormant, false);
+    dormant->respawn_timer = 50;
+
+    Client *c = hero(0, "repeater", FLOOR, CX, CY);
+    CHECK(c != NULL, "no player");
+    for (int k = 0; k < 3; k++) {
+        place(c, FLOOR, CX + k, CY);
+        save_bones(&g_game, c);
+    }
+    CHECK(count_active_ghosts() == 1, "expected 1 ghost for one character, got %d",
+          count_active_ghosts());
+    CHECK(g_game.world->floors[FLOOR].entity_grid[CY][CX] == 0 &&
+              g_game.world->floors[FLOOR].entity_grid[CY][CX + 1] == 0,
+          "earlier ghost tiles were not cleared");
+    CHECK(!dormant->is_ghost && dormant->respawn_timer == 50,
+          "ghost overwrote a respawning monster slot");
+
+    /* Distinct characters cap out at MAX_TOMBSTONES active ghosts.*/
+    for (int k = 0; k < MAX_TOMBSTONES + 5; k++) {
+        char name[32];
+        snprintf(name, sizeof(name), "ghost_%d", k);
+        copy_str(c->username, name, sizeof(c->username));
+        place(c, FLOOR, CX + (k % 10), CY + 2 + (k / 10));
+        save_bones(&g_game, c);
+    }
+    CHECK(count_active_ghosts() == MAX_TOMBSTONES, "expected %d active ghosts, got %d",
+          MAX_TOMBSTONES, count_active_ghosts());
+
+    /* Starving to death on a multiple-of-100 round resets hunger, exhaustion
+     * and active conditions on respawn in town.*/
+    copy_str(c->username, "starver", sizeof(c->username));
+    place(c, FLOOR, CX, CY);
+    c->hp = 2;
+    c->hunger_level = HUNGER_MAX;
+    c->exhaustion_level = 3;
+    afflict(c->effects, &c->effect_count, "Poisoned", 0);
+    g_game.total_turns = 99;
+    update_world(g_game.clients, &g_game);
+    CHECK(c->floor_id == 0 && c->hp == c->max_hp && c->hunger_level == 0 &&
+              c->exhaustion_level == 0 && c->effect_count == 0,
+          "respawn left floor=%d hp=%d hunger=%d exhaustion=%d effects=%d", c->floor_id, c->hp,
+          c->hunger_level, c->exhaustion_level, c->effect_count);
+
+    /* Stepping onto stairs down sends a single MSG_MAP_CHUNK (not two).*/
+    g_game.world->floors[0].map.data[0][CY][CX + 1] = VOXEL_STAIRS_DOWN;
+    g_game.world->floors[1].map.data[0][CY][CX + 1] = VOXEL_STAIRS_UP;
+    place(c, 0, CX, CY);
+    MsgMove east = {.dx = 1, .dy = 0};
+    c->last_action_ms = 0;
+    hush(c);
+    player_move(c, &east, g_test_clients, &g_game);
+    heard(c);
+    int map_chunks = 0;
+    size_t at = 0;
+    while (at + WIRE_HEADER_SIZE <= hx_out_len) {
+        MsgHeader h;
+        wire_read_header((const uint8_t *)hx_out + at, &h);
+        if (at + WIRE_HEADER_SIZE + h.length > hx_out_len) {
+            break;
+        }
+        if (h.type == MSG_MAP_CHUNK) {
+            map_chunks++;
+        }
+        at += WIRE_HEADER_SIZE + h.length;
+    }
+    CHECK(c->floor_id == 1 && map_chunks == 1, "stairs: floor=%d map_chunks=%d", c->floor_id,
+          map_chunks);
     return 0;
 }
 

@@ -19,6 +19,7 @@ int test_interact_worn_bonuses(void);
 int test_interact_artifacts(void);
 int test_interact_loot_full_backpack(void);
 int test_interact_ghosts(void);
+int test_interact_ghost_cap_and_respawn(void);
 int test_interact_light(void);
 
 #endif

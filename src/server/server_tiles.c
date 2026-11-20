@@ -261,13 +261,8 @@ void check_tile_events(Client *c, Game *game) {
             game->world->floors[c->floor_id].entity_grid[best_y][best_x] = c->entity_id;
         }
         client_track_explored_floor(c);
-        /*Arrival broadcast AFTER the landing position is set, so clients on
-    * the new floor see the player where he actually is*/
-        broadcast_player_state(game, c);
-        send_detailed_state(game, c);
-        send_map_chunk(c->sock, &game->world->floors[c->floor_id].map, c->x, c->y,
-                       INITIAL_VIEW_RADIUS);
-        broadcast_nearby_entities(c, game);
+        /*player_move() sends nearby entities, detailed state, arrival
+     * broadcast and the new floor's map chunk once the step finishes.*/
         save_player_data(c);
     } else if (vt == VOXEL_STAIRS_UP && c->floor_id > 0) {
         game->world->floors[c->floor_id].entity_grid[c->y][c->x] = 0;
@@ -296,13 +291,8 @@ void check_tile_events(Client *c, Game *game) {
             c->y = best_y;
             game->world->floors[c->floor_id].entity_grid[best_y][best_x] = c->entity_id;
         }
-        /*Arrival broadcast AFTER the landing position is set, so clients on
-    * the new floor see the player where he actually is*/
-        broadcast_player_state(game, c);
-        send_detailed_state(game, c);
-        send_map_chunk(c->sock, &game->world->floors[c->floor_id].map, c->x, c->y,
-                       INITIAL_VIEW_RADIUS);
-        broadcast_nearby_entities(c, game);
+        /*player_move() sends nearby entities, detailed state, arrival
+     * broadcast and the new floor's map chunk once the step finishes.*/
         save_player_data(c);
     }
 }
