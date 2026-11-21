@@ -120,6 +120,13 @@ typedef struct {
     int dice_bonus;
     Ability dice_add;     /*ability modifier added to the roll (ABILITY_NONE: none)*/
     bool cantrip_scaling; /*the dice multiply at caster level 5, 11 and 17*/
+    /*Cast with a higher slot: upcast_count dice of upcast_sides +
+     * upcast_bonus added to the roll for every upcast_per slot levels above
+     * the spell's (LORE.md, The Upcast Rule). upcast_per 0: no upcast.*/
+    int upcast_count;
+    int upcast_sides;
+    int upcast_bonus;
+    int upcast_per;
     DamageType damage_type;
     ConditionType condition; /*MAX_CONDITIONS = none*/
     /*Duration of the condition or buff; for a cloud, its lifetime (the

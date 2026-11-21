@@ -198,6 +198,7 @@ typedef struct {
     ItemInstance slot_rings[10];
     int light_turns_left, hunger_level, exhaustion_level;
     int spell_slots[MAX_SPELL_LEVEL + 1], spell_slots_max[MAX_SPELL_LEVEL + 1];
+    int cast_upcast; /*while 'cast' runs: slot levels above the spell's (not saved)*/
     ActiveEffect effects[MAX_EFFECTS_PER_ENTITY];
     int effect_count;
     // Bargaining system

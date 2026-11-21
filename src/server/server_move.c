@@ -210,12 +210,7 @@ static void step_onto(Client *c, int nx, int ny, int old_x, int old_y, Game *gam
         player_damage(c, 2, DAMAGE_UNTYPED);
         send_text_to_client(c->sock, "[DANGER] Moving reopens your wounds! You bleed heavily...");
         if (c->hp <= 0) {
-            server_log("DEATH", "%s bled to death during the movement.", c->username);
-            save_bones(game, c);
-            player_respawn_town(game, c);
-            send_text_to_client(
-                c->sock,
-                "[SYSTEM] You died! The Arcane has returned you to town without your equipment!");
+            player_dies(game, c, "bled to death during the movement");
         }
     }
     update_city_doors(game);

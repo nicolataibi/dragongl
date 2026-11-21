@@ -406,6 +406,87 @@ static void spawn_veins(Map *map, int floor_id) {
     }
 }
 
+/*map_connect_stairs (map.h): the search from the staircase up (1) and the
+ * one back from the staircase down (2).*/
+static unsigned char g_reach[MAP_HEIGHT][MAP_WIDTH];
+static int g_trail[MAP_WIDTH * MAP_HEIGHT];
+static int g_from[MAP_WIDTH * MAP_HEIGHT];
+
+/*The first tile of kind v; false if the floor has none.*/
+static bool find_voxel(const Map *map, VoxelType v, Point *at) {
+    for (int y = 0; y < MAP_HEIGHT; y++) {
+        for (int x = 0; x < MAP_WIDTH; x++) {
+            if (map->data[0][y][x] == v) {
+                at->x = x;
+                at->y = y;
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+bool map_connect_stairs(Map *map) {
+    static const int dx[4] = {1, -1, 0, 0}, dy[4] = {0, 0, 1, -1};
+    Point up, down;
+    if (!find_voxel(map, VOXEL_STAIRS_UP, &up) || !find_voxel(map, VOXEL_STAIRS_DOWN, &down)) {
+        return false;
+    }
+    memset(g_reach, 0, sizeof(g_reach));
+    int head = 0, tail = 0;
+    g_reach[up.y][up.x] = 1;
+    g_trail[tail++] = up.y * MAP_WIDTH + up.x;
+    while (head < tail) {
+        int x = g_trail[head] % MAP_WIDTH, y = g_trail[head] / MAP_WIDTH;
+        head++;
+        for (int d = 0; d < 4; d++) {
+            int nx = x + dx[d], ny = y + dy[d];
+            if (nx >= 0 && ny >= 0 && nx < MAP_WIDTH && ny < MAP_HEIGHT && !g_reach[ny][nx] &&
+                voxel_passable(map->data[0][ny][nx])) {
+                g_reach[ny][nx] = 1;
+                g_trail[tail++] = ny * MAP_WIDTH + nx;
+            }
+        }
+    }
+    if (g_reach[down.y][down.x]) {
+        return false;
+    }
+    /*From the stairs down, through anything inside the border, to the
+     * nearest tile reached (2: seen by this second search).*/
+    head = tail = 0;
+    g_reach[down.y][down.x] = 2;
+    g_from[down.y * MAP_WIDTH + down.x] = -1;
+    g_trail[tail++] = down.y * MAP_WIDTH + down.x;
+    int meet = -1;
+    while (head < tail && meet < 0) {
+        int at = g_trail[head++];
+        int x = at % MAP_WIDTH, y = at / MAP_WIDTH;
+        for (int d = 0; d < 4 && meet < 0; d++) {
+            int nx = x + dx[d], ny = y + dy[d];
+            if (nx < 1 || ny < 1 || nx >= MAP_WIDTH - 1 || ny >= MAP_HEIGHT - 1 ||
+                g_reach[ny][nx] == 2) {
+                continue;
+            }
+            g_from[ny * MAP_WIDTH + nx] = at;
+            if (g_reach[ny][nx] == 1) {
+                meet = ny * MAP_WIDTH + nx;
+            } else {
+                g_reach[ny][nx] = 2;
+                g_trail[tail++] = ny * MAP_WIDTH + nx;
+            }
+        }
+    }
+    for (int at = meet; at >= 0; at = g_from[at]) {
+        VoxelType *v = &map->data[0][at / MAP_WIDTH][at % MAP_WIDTH];
+        if (*v == VOXEL_WALL) {
+            *v = VOXEL_DOOR;
+        } else if (*v == VOXEL_ROCK) {
+            *v = VOXEL_COBBLE;
+        }
+    }
+    return meet >= 0;
+}
+
 void generate_procedural_dungeon(Map *map, int floor_id) {
     if (floor_id == 0) {
         generate_city(map);
@@ -448,4 +529,5 @@ void generate_procedural_dungeon(Map *map, int floor_id) {
     // PHASE 4: Biomes and Geological Veins (Streamers) Application
     apply_biome(map, floor_id);
     spawn_veins(map, floor_id);
+    (void)map_connect_stairs(map);
 }

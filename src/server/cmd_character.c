@@ -169,7 +169,7 @@ bool cmd_stats(Client *c, const char *cmd, Game *game) {
         }
     }
     if (has_slots) {
-        send_text_to_client(c->sock, "--- SPELL SLOT ---");
+        send_text_to_client(c->sock, "--- SPELL SLOTS ---");
         for (int s = 1; s <= MAX_SPELL_LEVEL; s++) {
             if (c->spell_slots_max[s] > 0) {
                 send_text_to_client(c->sock, "  Lvl%d: %d/%d", s, c->spell_slots[s],

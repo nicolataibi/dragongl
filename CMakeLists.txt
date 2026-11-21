@@ -180,14 +180,15 @@ if(DRAGONGL_BUILD_SERVER)
             DESTINATION ${CMAKE_INSTALL_DATADIR}/dragongl/data)
 
     # DM and balance tools (dm_pdf runs generate_pdf_map.py from here).
-    install(PROGRAMS tools/analyze_balance.py tools/generate_pdf_map.py
+    install(PROGRAMS tools/analyze_balance.py tools/analyze_log.py tools/generate_pdf_map.py
             DESTINATION ${CMAKE_INSTALL_DATADIR}/dragongl/tools)
-    # The two tools are commands too: dragongl-analyze-balance and
-    # dragongl-generate-pdf-map, relative symbolic links to the scripts,
-    # each with its man page.
+    # The three tools are commands too: dragongl-analyze-balance,
+    # dragongl-analyze-log and dragongl-generate-pdf-map, relative symbolic
+    # links to the scripts, each with its man page.
     file(RELATIVE_PATH DRAGONGL_TOOLS_FROM_BINDIR "${CMAKE_INSTALL_FULL_BINDIR}"
          "${CMAKE_INSTALL_FULL_DATADIR}/dragongl/tools")
     foreach(pair "dragongl-analyze-balance:analyze_balance.py"
+                 "dragongl-analyze-log:analyze_log.py"
                  "dragongl-generate-pdf-map:generate_pdf_map.py")
         string(REPLACE ":" ";" pair "${pair}")
         list(GET pair 0 cmd)

@@ -65,7 +65,7 @@ bool cmd_browse(Client *c, const char *cmd, Game *game) {
         return true;
     }
     const ItemTemplate *it = &item_database[shop->item_templates[target_item]];
-    send_text_to_client(c->sock, "[INFO] %s: %s", it->name, it->description);
+    send_text_to_client(c->sock, "[STORE] %s: %s", it->name, it->description);
     return true;
 }
 
@@ -104,25 +104,29 @@ static int shop_shelf_of(const MerchantData *m, int template_idx) {
     return -1;
 }
 
-/*Reactive economy: a shelf that is running out raises the price, up to
- * +50% when it is empty (1.0 for an item the merchant does not stock).*/
+/*Reactive economy (LORE.md): economy_modifier = 0.5 + 1.5 * (1 - stock /
+ * max_stock), half the cost on a full shelf, double on an empty one, within
+ * 0.5 and 2.0 (1.0 for an item the merchant does not stock).*/
 static float shop_scarcity(const MerchantData *m, int shelf) {
     if (shelf < 0 || m->item_stock_max[shelf] <= 0) {
         return 1.0f;
     }
     float supply = (float)m->item_stock[shelf] / (float)m->item_stock_max[shelf];
-    float modifier = 1.0f + (1.0f - supply) * 0.5f;
+    float modifier = 0.5f + 1.5f * (1.0f - supply);
     if (modifier < 0.5f) {
         return 0.5f;
     }
     return modifier > 2.0f ? 2.0f : modifier;
 }
 
-/*No bargain lets a player buy under SHOP_MIN_BUY_PCT of an item's cost or
- * sell over SHOP_MAX_SELL_PCT of it: with the first above the second,
- * buying and selling back never makes gold.*/
-#define SHOP_MIN_BUY_PCT  80
-#define SHOP_MAX_SELL_PCT 75
+/*No bargain lets a player buy under SHOP_MIN_BUY_PCT of an item's cost
+ * (the 0.5x of LORE.md, a full shelf or a haggle) or sell over
+ * SHOP_MAX_SELL_PCT of it: with the first above the second, buying from a
+ * full shelf and selling to an empty one never makes gold.*/
+#define SHOP_MIN_BUY_PCT  50
+#define SHOP_MAX_SELL_PCT 45
+_Static_assert(SHOP_MIN_BUY_PCT > SHOP_MAX_SELL_PCT, "buying and selling back would make gold");
+_Static_assert(SHOP_MIN_BUY_PCT == 50, "LORE.md: discounts down to 0.5x cost");
 
 /*What the player pays for the item on the shelf, haggled by multiplier.*/
 static uint64_t shop_buy_price(const MerchantData *m, int shelf, float multiplier) {
@@ -132,14 +136,17 @@ static uint64_t shop_buy_price(const MerchantData *m, int shelf, float multiplie
     return price < floor_price ? floor_price : price;
 }
 
-/*What the merchant pays for an item: half its cost, more if he is short
- * of it, haggled by multiplier.*/
+/*What the merchant pays for one item: half its cost, more if he is short
+ * of it, haggled by multiplier. A piece of a bundle of ammunition is worth
+ * its share of the bundle.*/
 static uint64_t shop_sell_value(const MerchantData *m, int template_idx, float multiplier) {
     uint64_t cost = item_database[template_idx].cost;
     uint64_t value = (uint64_t)((float)cost * 0.5f *
                                 shop_scarcity(m, shop_shelf_of(m, template_idx)) * multiplier);
     uint64_t cap = cost * SHOP_MAX_SELL_PCT / 100;
-    return value > cap ? cap : value;
+    value = value > cap ? cap : value;
+    int bundle = item_database[template_idx].bundle;
+    return bundle > 1 ? value / (uint64_t)bundle : value;
 }
 
 /*A shelf by number ("3") or by a part of the item's name; -1 if none.*/
@@ -187,18 +194,31 @@ static bool haggled_deal(const Client *c, const NPC *m, bool buying, int idx, in
  * new slot. False when the backpack is full.*/
 static bool backpack_add_bought(Client *c, int template_idx) {
     const ItemTemplate *it = &item_database[template_idx];
+    int pieces = it->bundle > 1 ? it->bundle : 1; /*a bundle of ammunition: all of it*/
+    int room = 0;
     for (int i = 0; it->max_stack > 1 && i < c->backpack_count; i++) {
-        if (c->backpack[i].template_idx == template_idx &&
-            c->backpack[i].stack_count < it->max_stack) {
-            c->backpack[i].stack_count++;
-            return true;
+        if (c->backpack[i].template_idx == template_idx) {
+            room += it->max_stack - c->backpack[i].stack_count;
         }
     }
-    if (c->backpack_count >= MAX_BACKPACK) {
+    if (room < pieces && c->backpack_count >= MAX_BACKPACK) {
         return false;
     }
-    /*Identified: the merchant vouches for the item.*/
-    item_instance_new(&c->backpack[c->backpack_count++], template_idx);
+    for (int i = 0; it->max_stack > 1 && pieces > 0 && i < c->backpack_count; i++) {
+        ItemInstance *s = &c->backpack[i];
+        if (s->template_idx == template_idx && s->stack_count < it->max_stack) {
+            int put =
+                it->max_stack - s->stack_count < pieces ? it->max_stack - s->stack_count : pieces;
+            s->stack_count += put;
+            pieces -= put;
+        }
+    }
+    if (pieces > 0) {
+        /*Identified: the merchant vouches for the item.*/
+        ItemInstance *s = &c->backpack[c->backpack_count++];
+        item_instance_new(s, template_idx);
+        s->stack_count = pieces;
+    }
     return true;
 }
 
@@ -223,7 +243,7 @@ bool cmd_buy(Client *c, const char *cmd, Game *game) {
     uint64_t final_cost = shop_buy_price(npc_shop_any(&game->pools, m), shelf, 1.0f);
     if (haggled_deal(c, m, true, shelf, template_idx)) {
         final_cost = c->pending_trade_price;
-        send_text_to_client(c->sock, "[SYSTEM] Apply the negotiated price: %lu gp.",
+        send_text_to_client(c->sock, "[SYSTEM] The negotiated price applies: %lu gp.",
                             (unsigned long)final_cost);
     }
     if (c->gold < final_cost) {
@@ -261,11 +281,12 @@ bool cmd_sell(Client *c, const char *cmd, Game *game) {
     uint64_t final_val = shop_sell_value(npc_shop_any(&game->pools, m), template_idx, 1.0f);
     if (haggled_deal(c, m, false, si, template_idx)) {
         final_val = c->pending_trade_price;
-        send_text_to_client(c->sock, "[SYSTEM] Apply the negotiated price: %lu gp.",
+        send_text_to_client(c->sock, "[SYSTEM] The negotiated price applies: %lu gp.",
                             (unsigned long)final_val);
     }
+    /*A shelf counts whole items: a single arrow is no bundle of twenty.*/
     int shelf = shop_shelf_of(npc_shop_any(&game->pools, m), template_idx);
-    if (shelf != -1) {
+    if (shelf != -1 && item_database[template_idx].bundle <= 1) {
         npc_shop_any(&game->pools, m)->item_stock[shelf]++;
     }
     c->gold += final_val;
@@ -331,7 +352,7 @@ bool cmd_haggle(Client *c, const char *cmd, Game *game) {
     int item_idx =
         is_buying ? shop_find_shelf(npc_shop_any(&game->pools, m), input) : backpack_find(c, input);
     if (is_buying && (item_idx == -1 || npc_shop_any(&game->pools, m)->item_stock[item_idx] <= 0)) {
-        send_text_to_client(c->sock, "[SHOP] Item not available for trading.");
+        send_text_to_client(c->sock, "[STORE] Item not available for trading.");
         return true;
     }
     if (item_idx == -1) {
@@ -345,7 +366,7 @@ bool cmd_haggle(Client *c, const char *cmd, Game *game) {
     } else {
         c->pending_trade_attempts = 1;
     }
-    send_text_to_client(c->sock, "[GAME] You try to bargain with %s... (Attempt %d)",
+    send_text_to_client(c->sock, "[STORE] You try to bargain with %s... (Attempt %d)",
                         npc_shop_any(&game->pools, m)->shop_name, c->pending_trade_attempts);
     float multiplier = haggle_roll(c, is_buying);
     uint64_t price = is_buying
@@ -426,7 +447,8 @@ bool cmd_identify(Client *c, const char *cmd, Game *game) {
 bool cmd_cure(Client *c, const char *cmd, Game *game) {
     (void)cmd;
     if (!nearby_merchant(c, game)) {
-        send_text_to_client(c->sock, "[ERROR] The healers are merchants: find one first.");
+        send_text_to_client(c->sock,
+                            "[ERROR] No merchant next to you: a merchant cures poison for 50gp.");
         return true;
     }
     if (c->gold < 50) {
@@ -451,15 +473,15 @@ bool cmd_cure(Client *c, const char *cmd, Game *game) {
 }
 
 //repair [slot|name] — repairs ONE equipped item or the slot.
-//Must be done on floor 0 near the Blacksmith (NPC with name "Blacksmith"
-//or ARCH_BLACKSMITH or any merchant on floor 0 as a fallback).
+//Must be done on floor 0 next to a merchant (any of them plays the
+//blacksmith, LORE.md "Combat Wear & The Blacksmith").
 bool cmd_repair(Client *c, const char *cmd, Game *game) {
     if (c->floor_id != 0) {
-        send_text_to_client(c->sock, "[ERROR] The Blacksmith is only found on floor 0 (city).");
+        send_text_to_client(c->sock, "[ERROR] Repairs are made in the town (floor 0).");
         return true;
     }
     if (!nearby_merchant(c, game)) {
-        send_text_to_client(c->sock, "[ERROR] You must be next to the Blacksmith to repair.");
+        send_text_to_client(c->sock, "[ERROR] You must be next to a merchant to repair.");
         return true;
     }
     /*Optional argument: one slot ("body", "hand_r") or part of the name
@@ -510,8 +532,8 @@ bool cmd_repair(Client *c, const char *cmd, Game *game) {
         items_repaired++;
         char rep_buf[128];
         get_full_item_name(sls[i], rep_buf, sizeof(rep_buf));
-        send_text_to_client(c->sock, "[BLACKSMITH] Fixed: %s for %d gp. Durab. now %d/%d.", rep_buf,
-                            item_cost, sls[i]->durability, max_dur);
+        send_text_to_client(c->sock, "[BLACKSMITH] Repaired %s for %d gp: durability %d/%d.",
+                            rep_buf, item_cost, sls[i]->durability, max_dur);
     }
     if (items_repaired == 0 && total_cost == 0) {
         send_text_to_client(c->sock,
@@ -529,11 +551,11 @@ bool cmd_repair(Client *c, const char *cmd, Game *game) {
 bool cmd_uncurse(Client *c, const char *cmd, Game *game) {
     (void)cmd;
     if (c->floor_id != 0) {
-        send_text_to_client(c->sock, "[ERROR] The Cleric is only on floor 0 (city).");
+        send_text_to_client(c->sock, "[ERROR] Curses are lifted in the town (floor 0).");
         return true;
     }
     if (!nearby_merchant(c, game)) {
-        send_text_to_client(c->sock, "[ERROR] You must be next to the Cleric to remove a curse.");
+        send_text_to_client(c->sock, "[ERROR] You must be next to a merchant to remove a curse.");
         return true;
     }
     if (c->gold < 200) {
@@ -655,20 +677,8 @@ void print_merchant_inventory(Client *c, const MerchantData *shop) {
             }
         }
 
-        /* --- Reactive economy (dynamic prices) --- */
-        float supply = 1.0f;
-        if (shop->item_stock_max[j] > 0) {
-            supply = (float)shop->item_stock[j] / (float)shop->item_stock_max[j];
-        }
-        //+50% price if empty stock, up to -50% if double stock
-        float economy_modifier = 1.0f + (1.0f - supply) * 0.5f;
-        if (economy_modifier < 0.5f) {
-            economy_modifier = 0.5f;
-        }
-        if (economy_modifier > 2.0f) {
-            economy_modifier = 2.0f;
-        }
-        uint64_t dynamic_cost = (uint64_t)((float)it->cost * economy_modifier);
+        /*The price 'buy' asks (reactive economy, shop_buy_price).*/
+        uint64_t dynamic_cost = shop_buy_price(shop, j, 1.0f);
 
         char cost_str[16];
         snprintf(cost_str, sizeof(cost_str), "%lu gp", (unsigned long)dynamic_cost);

@@ -82,7 +82,7 @@ foreach(t trade_offer_revalidated_on_accept trade_moves_item_and_gold
           floor_walk_matches_scan entity_lookup player_move
           spell_attack spell_save_area spell_cone_and_line spell_conditions spell_self
           spell_cloud spell_special_and_terrain spell_refusals spell_every_effect
-          shop_no_arbitrage shop_needs_a_merchant wear_cursed_stays merchant_restocks
+          shop_no_arbitrage ammunition_bundles shop_reactive_prices shop_needs_a_merchant wear_cursed_stays merchant_restocks
           boss_floor_is_playable dm_spawn_and_place numeric_arguments
           tunnel_keeps_the_border floors_without_characters_sleep
           swarm_splits_into_free_slots autosave_in_steps metrics_and_telemetry)
@@ -107,7 +107,7 @@ foreach(t player_rounds global_event world_respawns monster_minds dm_reports sta
     add_test(NAME ${t} COMMAND server_harness ${t} WORKING_DIRECTORY "${DGL_WORK}")
 endforeach()
 # Spells of exploration and support, allies, invisibility (harness_magic.c).
-foreach(t magic_exploration magic_care magic_allies magic_invisibility)
+foreach(t magic_exploration magic_care magic_allies magic_invisibility magic_upcast)
     add_test(NAME ${t} COMMAND server_harness ${t} WORKING_DIRECTORY "${DGL_WORK}")
 endforeach()
 # Every command against docs/COMMANDS.md (harness_spec.c).
@@ -118,7 +118,7 @@ foreach(t spec_aliases_and_directions spec_secret_passages spec_disarm_next_to_y
     add_test(NAME ${t} COMMAND server_harness ${t} WORKING_DIRECTORY "${DGL_WORK}")
 endforeach()
 # The creatures of a new world, how they walk (harness_worldgen.c).
-foreach(t world_generation monsters_walk_every_biome dm_spawn_full_stats)
+foreach(t world_generation monsters_walk_every_biome floors_traversable dm_spawn_full_stats)
     add_test(NAME ${t} COMMAND server_harness ${t} WORKING_DIRECTORY "${DGL_WORK}")
 endforeach()
 # Characters against monsters and with items (harness_interact.c).
@@ -131,8 +131,9 @@ endforeach()
 # Magic items do what their description says (harness_magicitems.c).
 foreach(t magic_items_kinds magic_items_abilities magic_items_defence magic_items_resistance
           magic_items_potions magic_items_charges magic_items_world magic_items_weapons magic_items_hud
-          monster_defences monster_blows monster_magic spell_weapon_riders
-          class_hit_dice class_saves)
+          monster_defences monster_blows monster_magic spell_weapon_riders boss_hit_points
+          class_hit_dice class_saves
+    class_spell_slots)
     add_test(NAME ${t} COMMAND server_harness ${t} WORKING_DIRECTORY "${DGL_WORK}")
 endforeach()
 # A whole world of 100 floors: slow under the sanitizers.
@@ -143,6 +144,12 @@ add_test(NAME protocol_vectors
          COMMAND ${Python3_EXECUTABLE} -m unittest -v test_protocol_vectors
          WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
 set_tests_properties(protocol_vectors PROPERTIES ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1")
+
+# tools/analyze_log.py on hand-written logs.
+add_test(NAME analyze_log
+         COMMAND ${Python3_EXECUTABLE} -m unittest -v test_analyze_log
+         WORKING_DIRECTORY "${DGL_ROOT}/tools")
+set_tests_properties(analyze_log PROPERTIES ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1")
 
 add_test(NAME server_network
          COMMAND ${Python3_EXECUTABLE} -m unittest -v test_server

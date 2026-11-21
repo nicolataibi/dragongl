@@ -14,5 +14,6 @@ int test_magic_exploration(void);
 int test_magic_care(void);
 int test_magic_allies(void);
 int test_magic_invisibility(void);
+int test_magic_upcast(void);
 
 #endif

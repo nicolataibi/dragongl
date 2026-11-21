@@ -414,6 +414,9 @@ static void test_contrast(void) {
     /* Tags of the server pick a colour; anything else is ordinary text. */
     CHECK(hud_message_color("[COMBAT] You hit the rat") == HUD_DAMAGE_OUT, "combat");
     CHECK(hud_message_color("[ERROR] No such item") == HUD_DANGER, "error");
+    CHECK(hud_message_color("[STATE] You are poisoned") == HUD_WARN, "state");
+    CHECK(hud_message_color("[GLOBAL EVENT] Invasion") == HUD_WARN, "global event");
+    CHECK(hud_message_color("[LEVEL] *** YOU HAVE RISEN") == HUD_GOLD, "level up");
     CHECK(hud_message_color("You see nothing") == HUD_TEXT, "plain");
     CHECK(hud_message_color("") == HUD_TEXT, "empty");
 }

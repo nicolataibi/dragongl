@@ -63,6 +63,10 @@ Checks
   load [SECONDS]  tools/loadtest.py (Release server): 64 TLS clients play for
                   SECONDS (default 60), then a shutdown under load and a
                   restart, against the "load" limits of the same file
+  play [SECONDS]  tools/playtest.py (Release server): a character of every
+                  class plays down the dungeon for SECONDS (default 300);
+                  fails on a command with no answer, a character stuck, a
+                  closed connection or a server that exits
   ascii           tools/check_ascii.py: the string literals of the sources and
                   the game data are ASCII (the HUD font draws nothing else)
   links           tools/check_links.py: links between the Markdown files, their
@@ -307,6 +311,16 @@ check_load() {
     ok "within tests/bench_limits.json (numbers in ${OUT#"$ROOT"/}/release/load.json)"
 }
 
+check_play() {
+    local seconds=${1:-300}
+    section "playtest (a character of every class, ${seconds}s)"
+    build_release
+    PYTHONDONTWRITEBYTECODE=1 python3 "$ROOT/tools/playtest.py" \
+        --server "$OUT/release/dragongl_server_it" --seconds "$seconds" ||
+        die "the playtest found a problem"
+    ok "no character stuck, every command answered"
+}
+
 check_fuzz() {
     local seconds=${1:-60}
     section "fuzzing (libFuzzer, ${seconds}s per target)"
@@ -412,6 +426,9 @@ main() {
         load)
             if [[ ${2:-} =~ ^[0-9]+$ ]]; then checks+=("load:$2"); shift; else checks+=(load:60); fi
             ;;
+        play)
+            if [[ ${2:-} =~ ^[0-9]+$ ]]; then checks+=("play:$2"); shift; else checks+=(play:300); fi
+            ;;
         all) checks+=(format protocol deps tidy data spelling ascii links commands man coverage metrics tsan repro fuzz:30) ;;
         format | format-fix | tidy | data | deps | spelling | metrics | protocol | coverage | tsan | bench | \
             commands | commands-fix | man | repro | links | links-external | ascii)
@@ -446,6 +463,7 @@ main() {
         man) check_man ;;
         repro) check_repro ;;
         load:*) check_load "${c#load:}" ;;
+        play:*) check_play "${c#play:}" ;;
         fuzz:*) check_fuzz "${c#fuzz:}" ;;
         esac
     done

@@ -98,7 +98,10 @@ HudColor hud_message_color(const char *line) {
         {"[LOOT]", HUD_GOLD},         {"[TRADE]", HUD_GOLD},    {"[STORE]", HUD_GOLD},
         {"[VICTORY]", HUD_GOLD},      {"[MAGIC]", HUD_MAGIC},   {"[RITUAL]", HUD_MAGIC},
         {"[CHAT]", HUD_NAME},         {"[PARTY]", HUD_NAME},    {"[MSG]", HUD_NAME},
-        {"[WARNING]", HUD_WARN},      {"[EVENT]", HUD_WARN},    {"[STATUS]", HUD_WARN},
+        {"[WARNING]", HUD_WARN},      {"[EVENT]", HUD_WARN},    {"[STATE]", HUD_WARN},
+        {"[GLOBAL EVENT]", HUD_WARN}, {"[CURSE]", HUD_WARN},    {"[LEVEL]", HUD_GOLD},
+        {"[ITEM]", HUD_MAGIC},        {"[KI]", HUD_MAGIC},      {"[BLACKSMITH]", HUD_GOLD},
+        {"[ALCHEMIST]", HUD_GOLD},    {"[CLERIC]", HUD_GOLD},   {"[TEMPLE]", HUD_GOLD},
     };
     for (size_t i = 0; i < sizeof(k_tags) / sizeof(k_tags[0]); i++) {
         if (strncmp(line, k_tags[i].tag, strlen(k_tags[i].tag)) == 0) {

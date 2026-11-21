@@ -48,6 +48,7 @@ void get_full_item_name(const ItemInstance *inst, char *buf, size_t max_len);
 void damage_item(ItemInstance *it, int amt);
 int get_xp_threshold(int level);
 void check_level_up(Client *c);
+void class_spell_slots(ClassType cls, int level, int slots_max[MAX_SPELL_LEVEL + 1]);
 void give_starting_gear(Client *c);
 
 /* --- player_store.c --- */

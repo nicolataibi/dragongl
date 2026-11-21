@@ -8,7 +8,7 @@
         -DCMAKE_C_FLAGS="%{optflags}" -DCMAKE_EXE_LINKER_FLAGS="%{build_ldflags}"
 
 Name:           dragongl
-Version:        2026.11.21.07
+Version:        2026.11.21.19
 Release:        %autorelease
 Summary:        Multi-user 3D dungeon RPG: Vulkan client
 
@@ -220,9 +220,11 @@ ctest --test-dir %{_vpath_builddir}-integration --output-on-failure %{?_smp_mfla
 %license LICENSE.txt
 %dir %{_datadir}/%{name}
 %{_bindir}/dragongl-analyze-balance
+%{_bindir}/dragongl-analyze-log
 %{_bindir}/dragongl-generate-pdf-map
 %{_datadir}/%{name}/tools/
 %{_mandir}/man1/dragongl-analyze-balance.1*
+%{_mandir}/man1/dragongl-analyze-log.1*
 %{_mandir}/man1/dragongl-generate-pdf-map.1*
 
 

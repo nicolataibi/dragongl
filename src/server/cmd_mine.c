@@ -170,7 +170,7 @@ bool cmd_tunnel(Client *c, const char *cmd, Game *game) {
     }
     /*The outermost ring of rock is the edge of the world: it is never dug.*/
     if (tx < 1 || tx >= MAP_WIDTH - 1 || ty < 1 || ty >= MAP_HEIGHT - 1) {
-        send_text_to_client(c->sock, "[SYSTEM] Beyond borders.");
+        send_text_to_client(c->sock, "[SYSTEM] Beyond the edge of the map.");
         return true;
     }
     if (!find_digging_tool(c)) {
@@ -191,7 +191,7 @@ bool cmd_tunnel(Client *c, const char *cmd, Game *game) {
         send_detailed_state(game, c);
         send_text_to_client(
             c->sock,
-            "[MINE] Extract the glowing mushrooms and absorb their life essence (+15 HP).");
+            "[MINE] You extract the glowing mushrooms and absorb their life essence (+15 HP).");
     } else if (vt == VOXEL_WALL || vt == VOXEL_ROCK) {
         mine_rock(game, c, f, tx, ty);
     } else if (digging_down && (vt == VOXEL_MUD || vt == VOXEL_SAND || vt == VOXEL_ASH ||

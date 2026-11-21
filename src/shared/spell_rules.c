@@ -72,15 +72,26 @@ static int amount_extra(const SpellEffect *e, const SpellCaster *c) {
     return e->dice_bonus + (e->dice_add != ABILITY_NONE ? spell_ability_mod(c, e->dice_add) : 0);
 }
 
+/*How many times the upcast dice and bonus apply.*/
+static int upcast_steps(const SpellEffect *e, const SpellCaster *c) {
+    return e->upcast_per > 0 && c->upcast > 0 ? c->upcast / e->upcast_per : 0;
+}
+
 int spell_roll_amount(const SpellEffect *e, const SpellCaster *c, bool crit) {
     int count = spell_dice_count(e, c->level) * (crit ? 2 : 1);
     int total = (count > 0 && e->dice_sides > 0) ? rules_roll_dice(count, e->dice_sides) : 0;
-    total += amount_extra(e, c);
+    int steps = upcast_steps(e, c);
+    if (steps > 0 && e->upcast_count > 0) {
+        total += rules_roll_dice(steps * e->upcast_count * (crit ? 2 : 1), e->upcast_sides);
+    }
+    total += amount_extra(e, c) + steps * e->upcast_bonus;
     return total < 0 ? 0 : total;
 }
 
 double spell_average_amount(const SpellEffect *e, const SpellCaster *c) {
+    int steps = upcast_steps(e, c);
     double avg = spell_dice_count(e, c->level) * (e->dice_sides + 1) / 2.0;
+    avg += steps * (e->upcast_count * (e->upcast_sides + 1) / 2.0 + e->upcast_bonus);
     avg += amount_extra(e, c);
     return avg < 0.0 ? 0.0 : avg;
 }

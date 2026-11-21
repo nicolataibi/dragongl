@@ -338,7 +338,7 @@ bool cmd_invite(Client *c, const char *cmd, Game *game) {
             copy_str(game->clients[i].pending_invite, c->username,
                      sizeof(game->clients[i].pending_invite));
             send_text_to_client(game->clients[i].sock,
-                                "[PARTY] %s has invited you to his party! Type 'join' to accept.",
+                                "[PARTY] %s has invited you to their party! Type 'join' to accept.",
                                 c->username);
             send_text_to_client(c->sock, "[PARTY] Invitation sent to %s.", target_name);
             found = true;
@@ -379,7 +379,8 @@ bool cmd_join(Client *c, const char *cmd, Game *game) {
                          sizeof(game->clients[i].party_leader));
                 copy_str(c->party_leader, game->clients[i].username, sizeof(c->party_leader));
             }
-            send_text_to_client(c->sock, "[PARTY] You have joined %s' party!", c->party_leader);
+            send_text_to_client(c->sock, "[PARTY] You have joined the party of %s!",
+                                c->party_leader);
             send_text_to_client(game->clients[i].sock, "[PARTY] %s has joined the party!",
                                 c->username);
             c->pending_invite[0] = '\0';
@@ -435,7 +436,7 @@ bool cmd_party(Client *c, const char *cmd, Game *game) {
             c->sock, "[PARTY] You are not in any party. Create one by inviting: invite <name>");
         return true;
     }
-    send_text_to_client(c->sock, "=== PARTY MEMBERS (Leaders: %s) ===", c->party_leader);
+    send_text_to_client(c->sock, "=== PARTY MEMBERS (Leader: %s) ===", c->party_leader);
     for (int i = 0; i < MAX_CLIENTS; i++) {
         if (game->clients[i].active &&
             strcmp(game->clients[i].party_leader, c->party_leader) == 0) {
@@ -512,7 +513,7 @@ bool cmd_offer(Client *c, const char *cmd, Game *game) {
         }
     }
     if (!t || strcmp(t->trading_with, c->username) != 0) {
-        send_text_to_client(c->sock, "[TRADE] The other player canceled or disconnected.");
+        send_text_to_client(c->sock, "[TRADE] The other player cancelled or disconnected.");
         c->trading_with[0] = '\0';
         return true;
     }
@@ -574,7 +575,7 @@ bool cmd_accept(Client *c, const char *cmd, Game *game) {
         }
     }
     if (!t || strcmp(t->trading_with, c->username) != 0) {
-        send_text_to_client(c->sock, "[TRADE] The other player canceled or disconnected.");
+        send_text_to_client(c->sock, "[TRADE] The other player cancelled or disconnected.");
         c->trading_with[0] = '\0';
         return true;
     }
@@ -610,7 +611,7 @@ bool cmd_cancel(Client *c, const char *cmd, Game *game) {
     }
     for (int i = 0; i < MAX_CLIENTS; i++) {
         if (game->clients[i].active && strcmp(game->clients[i].username, c->trading_with) == 0) {
-            send_text_to_client(game->clients[i].sock, "[TRADE] %s canceled the trade.",
+            send_text_to_client(game->clients[i].sock, "[TRADE] %s cancelled the trade.",
                                 c->username);
             game->clients[i].trading_with[0] = '\0';
             break;

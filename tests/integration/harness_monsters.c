@@ -20,6 +20,7 @@
 #include "server_internal.h"
 #include "spell_cast.h"
 #include "spells.h"
+#include "ai.h"
 
 #include <string.h>
 
@@ -255,5 +256,32 @@ int test_spell_weapon_riders(void) {
     CHECK(m->hp < 500 && rules_has_condition_t(m->effects, m->effect_count, COND_FRIGHTENED),
           "the smite: HP %d, frightened %d", m->hp,
           rules_has_condition_t(m->effects, m->effect_count, COND_FRIGHTENED));
+    return 0;
+}
+
+/* LORE.md, Dynamic Scaling: a boss has HP = Base_HP * (1 + (floor / 10) *
+ * 0.5), half its base more for each block of 10 floors. */
+int test_boss_hit_points(void) {
+    int t = -1;
+    for (int i = 0; i < bestiary_size && t < 0; i++) {
+        if (bestiary_data[i].hp_avg >= 20) {
+            t = i;
+        }
+    }
+    CHECK(t >= 0, "no monster");
+    static const struct {
+        int floor, times2; /* the multiplier, doubled */
+    } k_rows[] = {{10, 3}, {20, 4}, {50, 7}, {100, 12}};
+    for (size_t r = 0; r < sizeof(k_rows) / sizeof(k_rows[0]); r++) {
+        NPC n;
+        memset(&n, 0, sizeof(n));
+        n.template_idx = t;
+        n.template = &bestiary_data[t];
+        n.archetype = ARCH_BOSS;
+        ai_init_npc(&n, "Boss", k_rows[r].floor);
+        int want = bestiary_data[t].hp_avg * k_rows[r].times2 / 2;
+        CHECK(n.archetype == ARCH_BOSS && n.hp == want && n.max_hp == want,
+              "floor %d: %d HP, not %d", k_rows[r].floor, n.hp, want);
+    }
     return 0;
 }

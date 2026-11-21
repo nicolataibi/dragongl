@@ -89,29 +89,37 @@ static AmmoKind item_ammo_kind(const char *name, bool is_ammo) {
     return AMMO_NONE;
 }
 
-/*Weapons and ammunition: damage dice and the weapon properties.*/
-static void item_weapon(ItemTemplate *t, const ItemJson *j) {
-    bool is_ammo = false;
-    if (j->name) {
-        if (cJSON_IsString(j->name)) {
-            if (data_strcasestr(j->name->valuestring, "arrow")) {
-                is_ammo = true;
-            }
-            if (data_strcasestr(j->name->valuestring, "bolt")) {
-                is_ammo = true;
-            }
-            if (data_strcasestr(j->name->valuestring, "bullet")) {
-                is_ammo = true;
-            }
-            if (data_strcasestr(j->name->valuestring, "needle")) {
-                is_ammo = true;
-            }
+/*True for a bundle of ammunition: its name starts with what it holds
+ * ("Arrows (20)", "Crossbow Bolts (20)", "Sling Bullets (20)", "Blowgun
+ * Needles (50)"). A word inside a name is no ammunition: the Hammer of
+ * Thunderbolts is a maul.*/
+static bool is_ammo_name(const char *name) {
+    static const char *const k_heads[] = {"arrow", "crossbow bolt", "sling bullet",
+                                          "blowgun needle"};
+    for (size_t i = 0; i < sizeof(k_heads) / sizeof(k_heads[0]); i++) {
+        if (strncasecmp(name, k_heads[i], strlen(k_heads[i])) == 0) {
+            return true;
         }
     }
+    return false;
+}
+
+/*The pieces of a bundle, the number between brackets of its name (1 when
+ * there is none).*/
+static int bundle_of(const char *name) {
+    const char *open = strrchr(name, '(');
+    int n = open ? str_to_int(open + 1) : 0;
+    return n > 1 && n <= 100 ? n : 1;
+}
+
+/*Weapons and ammunition: damage dice and the weapon properties.*/
+static void item_weapon(ItemTemplate *t, const ItemJson *j) {
     const char *name = (j->name && cJSON_IsString(j->name)) ? j->name->valuestring : "";
+    bool is_ammo = is_ammo_name(name);
     if (is_ammo) {
         t->category = ITEM_AMMO;
-        t->max_stack = 20;
+        t->bundle = bundle_of(name);
+        t->max_stack = t->bundle > 20 ? t->bundle : 20;
         t->weight = 0.05f;
         t->ammo = item_ammo_kind(name, true);
     } else {
@@ -423,6 +431,7 @@ static void item_category(ItemTemplate *t, const ItemJson *j) {
 
 static void item_defaults(ItemTemplate *t) {
     t->category = ITEM_MISC;
+    t->bundle = 1;
     t->str_bonus = 0;
     t->dex_bonus = 0;
     t->con_bonus = 0;

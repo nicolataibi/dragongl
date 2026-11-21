@@ -1329,6 +1329,7 @@ static const TestCase k_tests[] = {
     {"magic_care", test_magic_care},
     {"magic_allies", test_magic_allies},
     {"magic_invisibility", test_magic_invisibility},
+    {"magic_upcast", test_magic_upcast},
     {"full_backpack_roundtrip", test_full_backpack_roundtrip},
     {"partial_backpack_roundtrip", test_partial_backpack_roundtrip},
     {"trade_offer_revalidated_on_accept", test_trade_offer_revalidated_on_accept},
@@ -1361,6 +1362,8 @@ static const TestCase k_tests[] = {
     {"spell_refusals", test_spell_refusals},
     {"spell_every_effect", test_spell_every_effect},
     {"shop_no_arbitrage", test_shop_no_arbitrage},
+    {"ammunition_bundles", test_ammunition_bundles},
+    {"shop_reactive_prices", test_shop_reactive_prices},
     {"shop_needs_a_merchant", test_shop_needs_a_merchant},
     {"wear_cursed_stays", test_wear_cursed_stays},
     {"merchant_restocks", test_merchant_restocks},
@@ -1387,6 +1390,7 @@ static const TestCase k_tests[] = {
     {"spec_dm_commands", test_spec_dm_commands},
     {"world_generation", test_world_generation},
     {"monsters_walk_every_biome", test_monsters_walk_every_biome},
+    {"floors_traversable", test_floors_traversable},
     {"dm_spawn_full_stats", test_dm_spawn_full_stats},
     {"interact_conditions", test_interact_conditions},
     {"interact_charm", test_interact_charm},
@@ -1412,8 +1416,10 @@ static const TestCase k_tests[] = {
     {"monster_blows", test_monster_blows},
     {"monster_magic", test_monster_magic},
     {"spell_weapon_riders", test_spell_weapon_riders},
+    {"boss_hit_points", test_boss_hit_points},
     {"class_hit_dice", test_class_hit_dice},
     {"class_saves", test_class_saves},
+    {"class_spell_slots", test_class_spell_slots},
 };
 
 int main(int argc, char **argv) {

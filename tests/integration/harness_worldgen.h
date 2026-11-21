@@ -12,6 +12,7 @@
 
 int test_world_generation(void);
 int test_monsters_walk_every_biome(void);
+int test_floors_traversable(void);
 int test_dm_spawn_full_stats(void);
 
 #endif

@@ -197,9 +197,15 @@ static void look_underfoot(Client *c, Game *game, char *buf, size_t cap) {
 }
 
 /*The eight sectors of the look table: 0=N, 1=NE, 2=E, 3=SE, 4=S, 5=SW,
- * 6=W, 7=NW.*/
+ * 6=W, 7=NW. What shows the same (the tiles of a fountain, two goblins
+ * equally hurt) is one entry: how many, and the nearest.*/
+#define LOOK_ENTRIES 24
 typedef struct {
-    char text[8][256];
+    char label[64];
+    int nearest, count;
+} LookEntry;
+typedef struct {
+    LookEntry entry[8][LOOK_ENTRIES];
     int count[8];
 } LookSectors;
 
@@ -219,9 +225,39 @@ static int look_sector(int dx, int dy) {
 }
 
 static void sector_add(LookSectors *s, int sector, const char *what, int steps) {
-    buf_add(s->text[sector], sizeof(s->text[sector]), "%s%s (%dp)",
-            s->count[sector] > 0 ? ", " : "", what, steps);
-    s->count[sector]++;
+    LookEntry *e = s->entry[sector];
+    for (int i = 0; i < s->count[sector]; i++) {
+        if (strcmp(e[i].label, what) == 0) {
+            e[i].count++;
+            e[i].nearest = steps < e[i].nearest ? steps : e[i].nearest;
+            return;
+        }
+    }
+    if (s->count[sector] < LOOK_ENTRIES) {
+        LookEntry *n = &e[s->count[sector]++];
+        copy_str(n->label, what, sizeof(n->label));
+        n->nearest = steps;
+        n->count = 1;
+    }
+}
+
+static int nearest_first(const void *a, const void *b) {
+    const LookEntry *x = a, *y = b;
+    return x->nearest != y->nearest ? x->nearest - y->nearest : strcmp(x->label, y->label);
+}
+
+/*One row of the table: the nearest first, "Sacred-Fountain x14 (3p)".*/
+static void sector_text(LookSectors *s, int sector, char *out, size_t cap) {
+    LookEntry *e = s->entry[sector];
+    qsort(e, (size_t)s->count[sector], sizeof(e[0]), nearest_first);
+    out[0] = '\0';
+    for (int i = 0; i < s->count[sector]; i++) {
+        char count[16] = "";
+        if (e[i].count > 1) {
+            snprintf(count, sizeof(count), " x%d", e[i].count);
+        }
+        buf_add(out, cap, "%s%s%s (%dp)", i > 0 ? ", " : "", e[i].label, count, e[i].nearest);
+    }
 }
 
 /*How a creature or an item shows in the look table.*/
@@ -235,7 +271,9 @@ static void look_npc_label(const Game *game, const NPC *n, char *out, size_t cap
     } else if (n->is_ghost) {
         snprintf(out, cap, "Remains-%s", n->custom_name);
     } else {
-        snprintf(out, cap, "%s", n->template ? n->template->name : "Entity");
+        /*LORE.md: look identifies the monsters and their HP.*/
+        snprintf(out, cap, "%s HP:%d/%d", n->template ? n->template->name : "Entity", n->hp,
+                 n->max_hp);
     }
 }
 
@@ -304,25 +342,23 @@ bool cmd_look(Client *c, const char *cmd, Game *game) {
                 dist > (float)vis_rad) {
                 continue;
             }
-            int sector = look_sector(dx, dy);
-            if (strlen(sectors.text[sector]) <= 180) { /*a full row takes no more*/
-                look_cell(c, game, &sectors, sector, nx, ny, (int)roundf(dist));
-            }
+            look_cell(c, game, &sectors, look_sector(dx, dy), nx, ny, (int)roundf(dist));
         }
     }
 
     static const char *const rule =
         "+--------+-------------------------------------------------------------+";
-    send_text_to_client(c->sock, "[INSPECTION] Illuminated View Range: %d Steps (%d Floor)",
-                        vis_rad, c->floor_id);
+    send_text_to_client(c->sock, "[INSPECTION] Sight: %d tiles (floor %d)", vis_rad, c->floor_id);
     send_text_to_client(c->sock, "[UNDER FEET] Position (%d, %d): %s", c->x, c->y, feet_buf);
     send_text_to_client(c->sock, "%s", rule);
     send_text_to_client(c->sock, "| %-6s | %-59s |", "SECTOR",
                         "DETECTIONS IN THE ILLUMINATED AREA");
     send_text_to_client(c->sock, "%s", rule);
     for (int s = 0; s < 8; s++) {
+        char row[256];
+        sector_text(&sectors, s, row, sizeof(row));
         send_text_to_client(c->sock, "| %-6s | %-59.59s |", sector_names[s],
-                            sectors.count[s] == 0 ? "Free" : sectors.text[s]);
+                            sectors.count[s] == 0 ? "Free" : row);
     }
     send_text_to_client(c->sock, "%s", rule);
     return true;
@@ -350,7 +386,7 @@ bool cmd_fountain(Client *c, const char *cmd, Game *game) {
             send_detailed_state(game, c); //Sync HP with the HUD client
             send_text_to_client(
                 c->sock,
-                "[SYSTEM] Drink the water from the sacred fountain and feel your wounds magically heal!");
+                "[SYSTEM] You drink the water of the sacred fountain and feel your wounds magically heal!");
         } else {
             send_text_to_client(c->sock, "[ERROR] You are not near any healing fountains.");
         }
@@ -389,7 +425,7 @@ bool cmd_statue(Client *c, const char *cmd, Game *game) {
                                 c); //Sync spell slots, hunger and exhaustion with the HUD client
             send_text_to_client(
                 c->sock,
-                "[SYSTEM] Meditate at the foot of the crystal monument. Your spirit is renewed, chasing away fatigue, hunger and recharging your spells!");
+                "[SYSTEM] You meditate at the foot of the crystal monument. Your spirit is renewed, chasing away fatigue, hunger and recharging your spells!");
         } else {
             send_text_to_client(c->sock, "[ERROR] You are not near any crystal statues.");
         }
@@ -538,15 +574,15 @@ static void disarm_success(Client *c, Floor *f, Trap *t, const DisarmCheck *k) {
     if (k->roll == 20) {
         xp_reward *= 2;
         send_text_to_client(
-            c->sock, "[DISARMS] CRITICAL SUCCESS! [%s] (Roll: 20 Nat + Mod: %d = %d vs DC: %d)",
+            c->sock, "[DISARM] CRITICAL SUCCESS! [%s] (Roll: 20 Nat + Mod: %d = %d vs DC: %d)",
             k->method, k->mod, k->total, k->dc);
         send_text_to_client(
-            c->sock, "[DISARMS] With extraordinary skill you dismantle the trap safely (+%d XP)!",
+            c->sock, "[DISARM] With extraordinary skill you dismantle the trap safely (+%d XP)!",
             xp_reward);
     } else {
-        send_text_to_client(c->sock, "[DISARMS] SUCCESS! [%s] (Roll: %d + Mod: %d = %d vs DC: %d)",
+        send_text_to_client(c->sock, "[DISARM] SUCCESS! [%s] (Roll: %d + Mod: %d = %d vs DC: %d)",
                             k->method, k->roll, k->mod, k->total, k->dc);
-        send_text_to_client(c->sock, "[DISARMS] You successfully neutralize the trap (+%d XP).",
+        send_text_to_client(c->sock, "[DISARM] You successfully neutralize the trap (+%d XP).",
                             xp_reward);
     }
     c->xp += xp_reward;
@@ -555,7 +591,7 @@ static void disarm_success(Client *c, Floor *f, Trap *t, const DisarmCheck *k) {
         c->gold += (uint64_t)gold_salvage;
         send_text_to_client(
             c->sock,
-            "[RECOVERY] Extract valuable materials and alchemical resources from the mechanism (+%lu Gold Coins)!",
+            "[RECOVERY] You extract valuable materials and alchemical resources from the mechanism (+%lu Gold Coins)!",
             (unsigned long)gold_salvage);
     }
 }
@@ -563,7 +599,7 @@ static void disarm_success(Client *c, Floor *f, Trap *t, const DisarmCheck *k) {
 /*A fumble: the trap fires on the player as if he had stepped on it.*/
 static void disarm_backfire(Client *c, Trap *t, const DisarmCheck *k, Game *game) {
     send_text_to_client(c->sock,
-                        "[DISARMS] CATASTROPHIC FAILURE! [%s] (Roll: %d + Mod: %d = %d vs DC: %d)",
+                        "[DISARM] CATASTROPHIC FAILURE! [%s] (Roll: %d + Mod: %d = %d vs DC: %d)",
                         k->method, k->roll, k->mod, k->total, k->dc);
     send_text_to_client(c->sock, "[DANGER] An execution error triggers the trap!");
     bool has_shield = ((c->slot_hand_r.template_idx != -1 &&
@@ -623,11 +659,11 @@ bool cmd_disarm(Client *c, const char *cmd, Game *game) {
     } else if (k.roll == 1 || k.total <= k.dc - 5) {
         disarm_backfire(c, t, &k, game);
     } else {
-        send_text_to_client(c->sock, "[DISARMS] FAILURE! [%s] (Roll: %d + Mod: %d = %d vs DC: %d)",
+        send_text_to_client(c->sock, "[DISARM] FAILURE! [%s] (Roll: %d + Mod: %d = %d vs DC: %d)",
                             k.method, k.roll, k.mod, k.total, k.dc);
         send_text_to_client(
             c->sock,
-            "[DISARMS] The attempt fails, but you retreat in time before triggering the mechanism.");
+            "[DISARM] The attempt fails, but you retreat in time before triggering the mechanism.");
     }
     return true;
 }
@@ -733,7 +769,7 @@ bool cmd_open(Client *c, const char *cmd, Game *game) {
     /*Bounds: at the map edge tx/ty can step outside the array.*/
     /*The outermost ring of rock is the edge of the world: it is never dug.*/
     if (tx < 1 || tx >= MAP_WIDTH - 1 || ty < 1 || ty >= MAP_HEIGHT - 1) {
-        send_text_to_client(c->sock, "[SYSTEM] Beyond borders.");
+        send_text_to_client(c->sock, "[SYSTEM] Beyond the edge of the map.");
         return true;
     }
     Floor *f = &game->world->floors[c->floor_id];
@@ -777,7 +813,7 @@ bool cmd_close(Client *c, const char *cmd, Game *game) {
     int ty = c->y + dy;
     /*The outermost ring of rock is the edge of the world: it is never dug.*/
     if (tx < 1 || tx >= MAP_WIDTH - 1 || ty < 1 || ty >= MAP_HEIGHT - 1) {
-        send_text_to_client(c->sock, "[SYSTEM] Beyond borders.");
+        send_text_to_client(c->sock, "[SYSTEM] Beyond the edge of the map.");
         return true;
     }
     Floor *f = &game->world->floors[c->floor_id];

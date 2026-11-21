@@ -384,7 +384,7 @@ int test_dm_reports(void) {
     boss->effects[boss->effect_count++] =
         (ActiveEffect){"Poisoned", EVENT_ON_TURN_START, MOD_ADDITIVE, 0, 4, false};
     run(c, "dm_boss 10");
-    CHECK(said("BOSS #1") && said("[DM] AC :") && said("L2:1/3") && said("Dagger") &&
+    CHECK(said("BOSS #1") && said("[DM] AC:") && said("L2:1/3") && said("Dagger") &&
               said("Active Effects (1)") && said("Total active bosses on Floor 10: 1"),
           "the boss report misses something");
     loot[0].template_idx = -1;

@@ -156,6 +156,15 @@ bool load_or_generate_world(Game *game) {
     }
 
     if (world_ok && npcs_ok) {
+        /*A world generated before the stairs were connected may hold a
+         * floor whose stairs down cannot be reached.*/
+        int opened = 0;
+        for (int f = 1; f < MAX_FLOORS; f++) {
+            opened += map_connect_stairs(&game->world->floors[f].map);
+        }
+        if (opened > 0) {
+            server_log("SYS", "Opened the way to the stairs down on %d floor(s).", opened);
+        }
         /*Re-bind what is not stored: the template pointer (from template_idx)
      * and the behavior derived from the archetype.*/
         for (int i = 0; i < MAX_NPCS; i++) {

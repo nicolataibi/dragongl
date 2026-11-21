@@ -41,6 +41,7 @@
 #include "server_log.h"
 #include "server_tiles.h"
 #include "server_combat.h"
+#include <limits.h>
 
 /*Energy threshold for NPC action in the Speed/Tick System*/
 #define ENERGY_THRESHOLD 10
@@ -220,6 +221,15 @@ static void update_global_event(Game *game, Client *clients) {
             game->event.type = 0;
         }
     }
+}
+
+void player_killed(Game *game, Client *c, const char *by) {
+    c->hp = 0;
+    clog_death(c->username, by, c->floor_id);
+    server_log("DEATH", "%s was killed by %s on floor %d (%d,%d).", c->username, by, c->floor_id,
+               c->x, c->y);
+    save_bones(game, c);
+    player_respawn_town(game, c);
 }
 
 /*A death by hunger or by a condition: the bones stay, the character
@@ -507,6 +517,29 @@ NPC *npc_spawn_item(Game *game, int floor_id, int x, int y, const ItemInstance *
     /*Nothing of the slot's previous tenant may show through.*/
     n->is_ghost = false;
     n->gold_drop = 0;
+    n->custom_name[0] = '\0';
+    n->effect_count = 0;
+    npc_set_active(game, n, true);
+    game->world->floors[floor_id].entity_grid[y][x] = n->entity_id;
+    return n;
+}
+
+NPC *npc_spawn_gold(Game *game, int floor_id, int x, int y, uint64_t gold) {
+    NPC *n = npc_alloc(game);
+    if (!n || gold == 0 || gold > INT_MAX) {
+        return NULL;
+    }
+    n->entity_id = game->next_id++;
+    n->floor_id = floor_id;
+    n->x = x;
+    n->y = y;
+    n->archetype = ARCH_GOLD;
+    n->template_idx = -1;
+    n->template = NULL; /*never respawns*/
+    n->respawn_timer = -1;
+    n->hp = n->max_hp = 9999;
+    n->gold_drop = (int)gold;
+    n->is_ghost = false;
     n->custom_name[0] = '\0';
     n->effect_count = 0;
     npc_set_active(game, n, true);

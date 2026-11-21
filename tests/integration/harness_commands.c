@@ -16,6 +16,7 @@
 #include "server_entities.h"
 #include "ai.h"
 #include "persist.h"
+#include "player.h"
 #include "server_internal.h"
 #include "server_metrics.h"
 #include "server_spawn.h"
@@ -195,6 +196,101 @@ int test_shop_no_arbitrage(void) {
     return 0;
 }
 
+/* Ammunition comes in bundles: "Arrows (20)" is twenty arrows on a
+ * purchase, each sold for its share; a word inside a name makes no
+ * ammunition (the Hammer of Thunderbolts is a maul). A ranger starts with
+ * arrows on the belt. */
+int test_ammunition_bundles(void) {
+    int arrows = -1, needles = -1, hammer = -1;
+    for (int i = 0; i < item_database_size; i++) {
+        const char *n = item_database[i].name;
+        arrows = strcmp(n, "Arrows (20)") == 0 ? i : arrows;
+        needles = strcmp(n, "Blowgun Needles (50)") == 0 ? i : needles;
+        hammer = strcmp(n, "Hammer of Thunderbolts") == 0 ? i : hammer;
+    }
+    CHECK(arrows >= 0 && needles >= 0 && hammer >= 0, "missing items");
+    CHECK(item_database[arrows].category == ITEM_AMMO && item_database[arrows].bundle == 20 &&
+              item_database[arrows].ammo == AMMO_ARROW,
+          "arrows: category %d, bundle %d", (int)item_database[arrows].category,
+          item_database[arrows].bundle);
+    CHECK(item_database[needles].bundle == 50 && item_database[needles].max_stack >= 50,
+          "needles: bundle %d, stack %d", item_database[needles].bundle,
+          item_database[needles].max_stack);
+    CHECK(item_database[hammer].category == ITEM_WEAPON &&
+              item_database[hammer].damage_dice_count > 0 && item_database[hammer].bundle == 1,
+          "the Hammer of Thunderbolts is no weapon");
+
+    Client *c = adventurer();
+    CHECK(c != NULL, "no player");
+    /* Dear needles, so a piece's share is not rounded to nothing. */
+    uint64_t needle_cost = item_database[needles].cost;
+    item_database[needles].cost = 400;
+    merchant_at(CX + 1, CY, needles, 10);
+    c->backpack_count = 0;
+    c->gold = 1000;
+    run(c, "buy 1");
+    run(c, "buy 1");
+    CHECK(c->backpack_count == 2 && c->backpack[0].stack_count == 50 &&
+              c->backpack[1].stack_count == 50,
+          "two bundles: %d slot(s), %d needles", c->backpack_count, c->backpack[0].stack_count);
+    uint64_t spent = 1000 - c->gold;
+    for (int i = 0; i < 120 && c->backpack_count > 0; i++) {
+        run(c, "sell 1");
+    }
+    item_database[needles].cost = needle_cost;
+    CHECK(c->backpack_count == 0, "needles left after selling them all");
+    CHECK(spent >= 400 && c->gold < 1000 && c->gold > 1000 - spent, "bought %lu gp, now %lu gp",
+          (unsigned long)spent, (unsigned long)c->gold);
+
+    c->class_id = CLASS_RANGER;
+    c->backpack_count = 0;
+    for (int b = 0; b < MAX_BELT; b++) {
+        c->belt[b].template_idx = -1;
+        c->belt[b].stack_count = 0;
+    }
+    give_starting_gear(c);
+    CHECK(c->belt[0].template_idx == arrows && c->belt[0].stack_count == 20,
+          "the ranger has no arrows on the belt");
+    return 0;
+}
+
+/* LORE.md, Reactive Economy: economy_modifier = 0.5 + 1.5 * (1 - stock /
+ * max_stock): half the cost on a full shelf, double on an empty one; the
+ * list shows the price 'buy' asks. */
+int test_shop_reactive_prices(void) {
+    Client *c = adventurer();
+    int sword = item_of(ITEM_WEAPON, 1000);
+    CHECK(c && sword >= 0, "no player or no weapon worth 1000 gp");
+    uint64_t cost = item_database[sword].cost;
+    NPC *m = merchant_at(CX + 1, CY, sword, 4);
+    MerchantData *shop = npc_shop_any(&g_game.pools, m);
+    c->gold = cost * 10;
+    c->backpack_count = 0;
+    run(c, "list");
+    char price[48];
+    snprintf(price, sizeof(price), "%lu gp |", (unsigned long)(cost / 2));
+    CHECK(said(price), "the list does not show half the cost (%s) on a full shelf", price);
+    uint64_t before = c->gold;
+    run(c, "buy 1");
+    CHECK(before - c->gold == cost / 2, "a full shelf sold for %lu, not %lu",
+          (unsigned long)(before - c->gold), (unsigned long)(cost / 2));
+    shop->item_stock[0] = 1; /* 1 of 4: 0.5 + 1.5 x 3/4 = 1.625 */
+    before = c->gold;
+    run(c, "buy 1");
+    uint64_t want = (uint64_t)((float)cost * 1.625f);
+    CHECK(before - c->gold == want, "a scarce shelf sold for %lu, not %lu",
+          (unsigned long)(before - c->gold), (unsigned long)want);
+    run(c, "buy 1");
+    CHECK(said("sold out"), "an empty shelf sold");
+    /* Sold to a merchant short of it, an item pays at most 45% of its
+     * cost, under the half the cheapest purchase costs. */
+    before = c->gold;
+    run(c, "sell 1");
+    CHECK(c->gold - before == cost * 45 / 100, "an empty shelf paid %lu",
+          (unsigned long)(c->gold - before));
+    return 0;
+}
+
 int test_shop_needs_a_merchant(void) {
     Client *c = adventurer();
     int sword = item_of(ITEM_WEAPON, 50);
@@ -318,11 +414,11 @@ int test_tunnel_keeps_the_border(void) {
     c->x = 1;
     fl->entity_grid[c->y][c->x] = c->entity_id;
     run(c, "tunnel w");
-    CHECK(said("Beyond borders"), "no refusal at the edge of the map");
+    CHECK(said("Beyond the edge of the map"), "no refusal at the edge of the map");
     CHECK(fl->map.data[0][c->y][0] == VOXEL_ROCK, "the edge of the map was dug");
     fl->map.data[0][c->y][2] = VOXEL_ROCK;
     run(c, "tunnel e");
-    CHECK(!said("Beyond borders"), "an inner tile was taken for the edge");
+    CHECK(!said("Beyond the edge of the map"), "an inner tile was taken for the edge");
     return 0;
 }
 

@@ -224,7 +224,7 @@ int test_search_and_disarm(void) {
     run(c, "disarm salvage");
     CHECK(!t->active && c->xp > xp && c->gold > gold && said("CRITICAL SUCCESS"),
           "salvaging failed");
-    CHECK(said("Extract valuable materials"), "no salvage");
+    CHECK(said("extract valuable materials"), "no salvage");
     CHECK(g_game.world->floors[FLOOR].map.data[0][CY][CX + 1] == VOXEL_FLOOR, "trap still drawn");
 
     /* A fumble fires the trap on the player. */
@@ -259,7 +259,21 @@ int test_look_and_examine(void) {
     run(c, "look");
     CHECK(said("[UNDER FEET] Position (60, 60)"), "no position");
     CHECK(said("| N      |") && said(m->template->name), "the goblin north is not seen");
+    char hp[48];
+    snprintf(hp, sizeof(hp), "%s HP:%d/%d (2p)", m->template->name, m->hp, m->max_hp);
+    CHECK(said(hp), "the goblin's hit points are not shown (%s)", hp);
     CHECK(said("| SW     | Free"), "an empty sector is not free");
+
+    /* What shows the same is one entry, how many and the nearest; the
+     * nearest entries come first. */
+    static const int k_crystal[3][2] = {{-2, 2}, {-3, 2}, {-2, 3}}; /* 3, 4 and 4 tiles */
+    for (int k = 0; k < 3; k++) {
+        g_game.world->floors[FLOOR].map.data[0][CY + k_crystal[k][1]][CX + k_crystal[k][0]] =
+            VOXEL_CRYSTAL_BLUE;
+    }
+    g_game.world->floors[FLOOR].map.data[0][CY + 1][CX - 1] = VOXEL_TRAP;
+    run(c, "look");
+    CHECK(said("| SW     | Trap (1p), Crystal x3 (3p)"), "the crystals are not grouped");
 
     c->effects[c->effect_count++] =
         (ActiveEffect){"Blinded", EVENT_ON_TURN_START, MOD_ADDITIVE, 0, 2, false};
