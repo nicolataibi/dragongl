@@ -1407,6 +1407,7 @@ static const TestCase k_tests[] = {
     {"magic_items_charges", test_magic_items_charges},
     {"magic_items_world", test_magic_items_world},
     {"magic_items_weapons", test_magic_items_weapons},
+    {"magic_items_hud", test_magic_items_hud},
     {"monster_defences", test_monster_defences},
     {"monster_blows", test_monster_blows},
     {"monster_magic", test_monster_magic},

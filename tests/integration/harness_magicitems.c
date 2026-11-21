@@ -21,6 +21,7 @@
 #include "server_world.h"
 #include "spell_cast.h"
 #include "traps.h"
+#include "wire.h"
 
 #include <string.h>
 
@@ -491,5 +492,44 @@ int test_magic_items_world(void) {
     check_traps(c, &g_game);
     heard(c);
     CHECK(c->hp == 60 && said("float down"), "feather fall: HP %d", c->hp);
+    return 0;
+}
+
+/* The status_icons of the last MSG_STATE sent to the hero (slot 0). */
+static uint32_t last_status_icons(Client *c) {
+    static uint8_t buf[1 << 20];
+    static MsgState st;
+    send_detailed_state(&g_game, c);
+    size_t n = fx_output(0, (char *)buf, sizeof(buf));
+    uint32_t icons = 0xFFFFFFFFu;
+    for (size_t at = 0; at + WIRE_HEADER_SIZE <= n;) {
+        MsgHeader h;
+        wire_read_header(buf + at, &h);
+        if (at + WIRE_HEADER_SIZE + h.length > n) {
+            break;
+        }
+        if (h.type == MSG_STATE && wire_get_state(buf + at + WIRE_HEADER_SIZE, h.length, &st)) {
+            icons = st.status_icons;
+        }
+        at += WIRE_HEADER_SIZE + h.length;
+    }
+    return icons;
+}
+
+/* The HUD learns of fear, invisibility, haste and temporary hit points
+ * (status_icons bits 12, 14, 19, 20). */
+int test_magic_items_hud(void) {
+    hx_reset_world();
+    Client *c = hero(0, "shown", FLOOR, CX, CY);
+    CHECK(c != NULL, "no player");
+    CHECK(last_status_icons(c) == 0, "icons of a healthy hero: %#x",
+          (unsigned)last_status_icons(c));
+    player_add_condition(c, COND_FRIGHTENED, 5, 0);
+    use_new(c, "Potion of Invisibility");
+    use_new(c, "Potion of Speed");
+    use_new(c, "Potion of Heroism");
+    uint32_t icons = last_status_icons(c);
+    uint32_t want = (1u << 12) | (1u << 14) | (1u << 19) | (1u << 20);
+    CHECK((icons & want) == want, "icons %#x", (unsigned)icons);
     return 0;
 }

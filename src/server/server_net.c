@@ -17,6 +17,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 #include "server_net.h"
+#include "item_effects.h"
 #include "server_internal.h"
 #include "server_conn.h"
 #include "protocol.h"
@@ -142,11 +143,15 @@ void send_map_chunk(int sock, Map *map, int cx, int cy, int size) {
 }
 
 /*The bit of each condition in MsgState.status_icons (bit 10: exhausted,
- * bit 11: a book waits to be studied).*/
+ * bit 11: a book waits to be studied, bits 12-18 more conditions, bit 19:
+ * hasted, bit 20: temporary hit points).*/
 static uint32_t state_status_icons(Client *c) {
     static const ConditionType k_icons[] = {
         COND_POISONED, COND_BLINDED,  COND_PARALYZED, COND_STUNNED, COND_UNCONSCIOUS,
         COND_BURNING,  COND_BLEEDING, COND_PETRIFIED, COND_CURSED,  COND_FROZEN};
+    static const ConditionType k_more[] = {COND_FRIGHTENED, COND_CHARMED, COND_INVISIBLE,
+                                           COND_RESTRAINED, COND_PRONE,   COND_INCAPACITATED,
+                                           COND_SILENCED};
     uint32_t icons = 0;
     for (unsigned bit = 0; bit < sizeof(k_icons) / sizeof(k_icons[0]); bit++) {
         if (rules_has_condition_t(c->effects, c->effect_count, k_icons[bit])) {
@@ -158,6 +163,20 @@ static uint32_t state_status_icons(Client *c) {
     }
     if (c->needs_study) {
         icons |= 1u << 11;
+    }
+    for (unsigned k = 0; k < sizeof(k_more) / sizeof(k_more[0]); k++) {
+        if (rules_has_condition_t(c->effects, c->effect_count, k_more[k])) {
+            icons |= 1u << (12 + k);
+        }
+    }
+    if (player_hasted(c)) {
+        icons |= 1u << 19;
+    }
+    for (int i = 0; i < c->effect_count; i++) {
+        if (c->effects[i].trigger == EVENT_ON_TEMP_HP && c->effects[i].value > 0 &&
+            c->effects[i].duration_rounds > 0) {
+            icons |= 1u << 20;
+        }
     }
     return icons;
 }
