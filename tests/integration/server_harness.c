@@ -20,6 +20,7 @@
 #include "harness_spec.h"
 #include "harness_worldgen.h"
 #include "harness_interact.h"
+#include "harness_magicitems.h"
 #include "harness_rounds.h"
 #include "harness_spells.h"
 #include "harness_world.h"
@@ -1396,6 +1397,14 @@ static const TestCase k_tests[] = {
     {"interact_ghosts", test_interact_ghosts},
     {"interact_ghost_cap_and_respawn", test_interact_ghost_cap_and_respawn},
     {"interact_light", test_interact_light},
+    {"magic_items_kinds", test_magic_items_kinds},
+    {"magic_items_abilities", test_magic_items_abilities},
+    {"magic_items_defence", test_magic_items_defence},
+    {"magic_items_resistance", test_magic_items_resistance},
+    {"magic_items_potions", test_magic_items_potions},
+    {"magic_items_charges", test_magic_items_charges},
+    {"magic_items_world", test_magic_items_world},
+    {"magic_items_weapons", test_magic_items_weapons},
 };
 
 int main(int argc, char **argv) {

@@ -38,12 +38,13 @@ int find_carried(const Client *c, const char *query, bool *in_belt);
 void remove_carried(Client *c, int idx, bool in_belt);
 
 /*A new, identified, ordinary instance of the template: one unit, full
- * durability (a lantern full of oil), every charge of a wand.*/
+ * durability (a lantern full of oil), every charge of a wand, the damage
+ * type of a ring of resistance.*/
 void item_instance_new(ItemInstance *out, int template_idx);
 
-/*True if the item casts a spell from its charges (a wand); a scroll casts
- * one too, but once, and has no charges.*/
-bool item_is_wand(const ItemInstance *it);
+/*True if the item has charges that come back with a rest in town (a wand,
+ * a staff, a ring of evasion; not the beads of a necklace of fireballs).*/
+bool item_recharges(const ItemInstance *it);
 
 /*The ten single equipment slots, in the order of 'inventory', with the
  * names 'remove' and 'repair' accept for each ("head", "arm_r|right_arm|arm"...).*/

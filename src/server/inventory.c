@@ -22,6 +22,7 @@
  */
 
 #include "inventory.h"
+#include "item_effects.h"
 #include "strnum.h"
 #include <ctype.h>
 #include <string.h>
@@ -81,6 +82,7 @@ void item_instance_new(ItemInstance *out, int template_idx) {
         out->durability = 5000;
     }
     out->current_charges = t->max_charges;
+    item_roll_variant(out); /*a ring of resistance: the damage type*/
     out->stack_count = 1;
     out->is_identified = true;
     out->quality = QUALITY_NORMAL;
@@ -88,9 +90,9 @@ void item_instance_new(ItemInstance *out, int template_idx) {
     out->element = ELEM_NONE;
 }
 
-bool item_is_wand(const ItemInstance *it) {
-    return it->template_idx >= 0 && item_database[it->template_idx].cast_spell_idx >= 0 &&
-           item_database[it->template_idx].max_charges > 0;
+bool item_recharges(const ItemInstance *it) {
+    return it->template_idx >= 0 && item_database[it->template_idx].max_charges > 0 &&
+           !item_database[it->template_idx].no_recharge;
 }
 
 ItemInstance *equip_slot(Client *c, int i) {

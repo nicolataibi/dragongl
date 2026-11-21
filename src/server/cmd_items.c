@@ -31,6 +31,7 @@
 #include "strnum.h"
 #include "server_cmd.h"
 #include "server_internal.h"
+#include "item_effects.h"
 #include "player.h"
 #include "server_combat.h"
 #include "spell_cast.h"
@@ -498,6 +499,7 @@ static bool use_fuel(Client *c, const ItemTemplate *fuel) {
     return false;
 }
 
+/*Food: a ration heals a little and ends hunger.*/
 static void use_healing(Game *game, Client *c, const ItemTemplate *tmpl) {
     int healed = tmpl->heal_amount;
     c->hp = c->hp + healed > c->max_hp ? c->max_hp : c->hp + healed;
@@ -512,66 +514,122 @@ static void use_healing(Game *game, Client *c, const ItemTemplate *tmpl) {
                         healed, c->hp, c->max_hp);
 }
 
-/*A consumable that does not heal leaves a +2 effect for its duration.*/
-static void use_effect_item(Game *game, Client *c, const ItemTemplate *tmpl) {
-    item_use_vfx(game, c, tmpl->name);
-    ActiveEffect ef;
-    memset(&ef, 0, sizeof(ef));
-    ef.name = tmpl->name;
-    ef.trigger = EVENT_ON_TURN_START;
-    ef.mod_type = MOD_ADDITIVE;
-    ef.value = 2;
-    ef.duration_rounds = tmpl->duration_turns > 0 ? tmpl->duration_turns : 10;
-    if (rules_add_effect(c->effects, &c->effect_count, MAX_EFFECTS_PER_ENTITY, &ef)) {
-        send_text_to_client(c->sock, "[ITEM] You used %s. Effect active for %d rounds.", tmpl->name,
-                            ef.duration_rounds);
-    } else {
-        send_text_to_client(c->sock,
-                            "[ITEM] You used %s, but your magic-saturated body dispels the effect.",
-                            tmpl->name);
+/*An item with a body slot (a helm, a ring, a cloak, a staff in hand) casts
+ * its spell only while worn or held; a wand, a gem or a figurine works
+ * from the backpack.*/
+static bool needs_wearing(const ItemTemplate *t) {
+    switch (t->category) {
+    case ITEM_MISC:
+    case ITEM_CONSUMABLE:
+    case ITEM_FUEL:
+    case ITEM_BOOK:
+    case ITEM_AMMO:
+    case ITEM_LIGHT_SOURCE:
+        return false;
+    default:
+        return true;
     }
 }
 
-/*A scroll is read and used up; a wand spends one charge. Either casts its
- * spell as the reader would (no slot, no book, no spell known), and
- * nothing is spent when the spell does not go off.*/
-static void use_magic_item(Game *game, Client *c, int idx, bool in_belt) {
-    ItemInstance *it = in_belt ? &c->belt[idx] : &c->backpack[idx];
+static const char *magic_verb(const ItemTemplate *t) {
+    if (t->is_scroll) {
+        return "read";
+    }
+    if (t->is_potion) {
+        return "drink";
+    }
+    return t->max_charges > 0 && !needs_wearing(t) ? "zap" : "invoke";
+}
+
+/*Whether the item can cast now: not silenced for a scroll, worn for an
+ * item that must be, charges enough for its cost.*/
+static bool magic_item_ready(Client *c, const ItemInstance *it, const ItemTemplate *t,
+                             bool equipped) {
+    bool charged = t->max_charges > 0;
+    if (t->is_scroll && rules_has_condition_t(c->effects, c->effect_count, COND_SILENCED)) {
+        send_text_to_client(c->sock, "[ITEM] You are silenced: you cannot read %s aloud.", t->name);
+        return false;
+    }
+    if ((charged || t->at_will) && needs_wearing(t) && !equipped) {
+        send_text_to_client(c->sock, "[ITEM] Wear or hold %s to use its magic.", t->name);
+        return false;
+    }
+    if (charged && it->current_charges < t->charge_cost) {
+        send_text_to_client(c->sock,
+                            t->no_recharge ? "[ITEM] %s is spent: its magic is gone."
+                                           : "[ITEM] %s has no charges left: rest in town to "
+                                             "recharge it.",
+                            t->name);
+        return false;
+    }
+    return true;
+}
+
+/*An item that casts its spell as the user would (no slot, no book, no
+ * spell known): a scroll is read and a potion drunk (used up), a wand or a
+ * charged item spends its charges, an at-will item nothing. Nothing is
+ * spent when the spell does not go off. idx < 0: the item is equipped.*/
+static void use_magic_item(Game *game, Client *c, ItemInstance *it, int idx, bool in_belt) {
     const ItemTemplate *t = &item_database[it->template_idx];
     const SpellTemplate *sp = &spell_database[t->cast_spell_idx];
-    bool wand = t->max_charges > 0;
-    if (!client_can_act(c)) {
+    bool equipped = idx < 0;
+    if (!client_can_act(c) || !magic_item_ready(c, it, t, equipped)) {
         return;
     }
-    if (!wand && rules_has_condition_t(c->effects, c->effect_count, COND_SILENCED)) {
-        send_text_to_client(c->sock, "[ITEM] You are silenced: you cannot read %s aloud.", t->name);
-        return;
-    }
-    if (wand && it->current_charges <= 0) {
-        send_text_to_client(c->sock, "[ITEM] %s has no charges left: rest in town to recharge it.",
-                            t->name);
-        return;
-    }
-    send_text_to_client(c->sock, wand ? "[ITEM] You zap %s: %s!" : "[ITEM] You read %s: %s!",
-                        t->name, sp->name);
+    send_text_to_client(c->sock, "[ITEM] You %s %s: %s!", magic_verb(t), t->name, sp->name);
     if (!spell_cast(c, sp, game)) {
         return;
     }
-    it = in_belt ? &c->belt[idx] : &c->backpack[idx];
-    if (wand) {
-        it->current_charges--;
+    if (!equipped) {
+        it = in_belt ? &c->belt[idx] : &c->backpack[idx];
+    }
+    if (t->max_charges > 0) {
+        it->current_charges -= t->charge_cost;
         send_text_to_client(c->sock, "[ITEM] %s: %d of %d charges left.", t->name,
                             it->current_charges, t->max_charges);
-    } else {
+    } else if (!t->at_will) {
         consume_one(c, idx, in_belt);
     }
     send_detailed_state(game, c);
 }
 
+/*A consumable without a spell: its "use" effects, food, lamp oil; a
+ * potion whose magic has no hold in the dungeon (water breathing, flying)
+ * is kept. Used up only when it worked.*/
+static void use_consumable(Game *game, Client *c, int idx, bool in_belt, const ItemTemplate *t) {
+    if (t->use.any) {
+        item_use_vfx(game, c, t->name);
+        if (!item_use_apply(game, c, t)) {
+            return;
+        }
+        if (c->hp <= 0) {
+            consume_one(c, idx, in_belt);
+            player_dies(game, c, "was killed by a potion");
+            return;
+        }
+    } else if (t->category == ITEM_FUEL) {
+        if (!use_fuel(c, t)) {
+            return;
+        }
+    } else if (t->heal_amount > 0) {
+        use_healing(game, c, t);
+    } else if (t->is_potion) {
+        send_text_to_client(
+            c->sock, "[ITEM] The magic of %s has no hold in the dungeon: you keep it.", t->name);
+        return;
+    } else {
+        send_text_to_client(c->sock, "[ERROR] %s is not consumable or usable as fuel.", t->name);
+        return;
+    }
+    consume_one(c, idx, in_belt);
+    send_detailed_state(game, c); /*HP, inventory and hunger to the HUD at once*/
+}
+
 /*use <n|item> (quaff, read, eat, zap: the same command): a potion, food,
- * oil, a scroll or a wand from the backpack or the belt. 'eat' alone looks
- * for a ration. The ritual words (study, pray, awaken, ...) learn from a
- * book, inside the temple of the class.*/
+ * oil, a scroll or a wand from the backpack or the belt, or the magic of a
+ * worn item ('use helm'). 'eat' alone looks for a ration. The ritual words
+ * (study, pray, awaken, ...) learn from a book, inside the temple of the
+ * class.*/
 bool cmd_use(Client *c, const char *cmd, Game *game) {
     bool is_eat_cmd = (strcmp(cmd, "eat") == 0 || strncmp(cmd, "eat ", 4) == 0 ||
                        strcmp(cmd, "e") == 0 || strncmp(cmd, "e ", 2) == 0);
@@ -587,11 +645,19 @@ bool cmd_use(Client *c, const char *cmd, Game *game) {
     const char *ritual = ritual_word_of(cmd);
     bool in_belt = false;
     int idx = find_carried(c, input, &in_belt);
+    ItemInstance *it = NULL;
     if (idx == -1) {
-        send_text_to_client(c->sock, "[ERROR] Item not found in inventory (use name or number).");
+        it = ritual ? NULL : find_equipped(c, input);
+        if (!it || item_database[it->template_idx].cast_spell_idx < 0) {
+            send_text_to_client(c->sock,
+                                it ? "[ERROR] What you wear has no power to use."
+                                   : "[ERROR] Item not found in inventory (use name or number).");
+            return true;
+        }
+        use_magic_item(game, c, it, -1, false);
         return true;
     }
-    ItemInstance *it = in_belt ? &c->belt[idx] : &c->backpack[idx];
+    it = in_belt ? &c->belt[idx] : &c->backpack[idx];
     ItemTemplate *tmpl = &item_database[it->template_idx];
     if (!it->is_identified) {
         send_text_to_client(c->sock, "[ERROR] You must first identify this object.");
@@ -608,24 +674,9 @@ bool cmd_use(Client *c, const char *cmd, Game *game) {
         return true;
     }
     if (tmpl->cast_spell_idx >= 0) {
-        use_magic_item(game, c, idx, in_belt);
+        use_magic_item(game, c, it, idx, in_belt);
         return true;
     }
-    if (tmpl->category != ITEM_CONSUMABLE && tmpl->category != ITEM_FUEL) {
-        send_text_to_client(c->sock, "[ERROR] %s is not consumable or usable as fuel.", tmpl->name);
-        return true;
-    }
-    if (tmpl->category == ITEM_FUEL) {
-        if (!use_fuel(c, tmpl)) {
-            return true;
-        }
-    } else if (tmpl->heal_amount > 0) {
-        use_healing(game, c, tmpl);
-    } else {
-        use_effect_item(game, c, tmpl);
-    }
-    consume_one(c, idx, in_belt);
-    send_detailed_state(game,
-                        c); //Instantly sync HP, inventory and Vitality (hunger) with the HUD client
+    use_consumable(game, c, idx, in_belt, tmpl);
     return true;
 }

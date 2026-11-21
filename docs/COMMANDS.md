@@ -55,7 +55,7 @@ backpack, the goods of a merchant, the things on the ground); where
 | `remove <slot\|item>` | `unequip`, `takeoff` | Take off an equipped or belted item. |
 | `belt <n>` |  | Move an item from the backpack to the belt, where it is at hand. |
 | `unbelt [n\|item]` |  | Move an item from the belt back to the backpack. |
-| `use <n\|item>` | `quaff`, `q`, `read`, `r`, `eat`, `e`, `zap`, `z` | Use an item: drink a potion, read a scroll (its spell, once), eat, zap a wand (one charge). |
+| `use <n\|item>` | `quaff`, `q`, `read`, `r`, `eat`, `e`, `zap`, `z` | Use an item: drink a potion or apply an oil, read a scroll (its spell, once), eat, zap a wand (its charges), or cast the spell of a worn item by its name ('use helm'). |
 | `drop <n>` | `d` | Drop an item of the backpack on the ground. |
 | `throw <n\|item> [n\|s\|e\|w]` | `v` | Throw one item: 5 tiles, 8 for ammunition; without a direction, at the nearest creature in a straight line. It lands where its flight ends. |
 | `shoot [n\|s\|e\|w]` | `fire` | Shoot the bow, crossbow, sling or blowgun you hold (ammunition from the belt) at the first creature that way within its range and your sight; without a direction, at the nearest one in a straight line. |

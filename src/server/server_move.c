@@ -27,6 +27,7 @@
  */
 
 #include "server_move.h"
+#include "item_effects.h"
 #include "ai.h"
 #include "server_internal.h"
 #include "server_combat.h"
@@ -206,7 +207,7 @@ static void step_onto(Client *c, int nx, int ny, int old_x, int old_y, Game *gam
    * fixed 5 ticks/s in update_world(), whatever the players do.*/
 
     if (rules_has_condition_t(c->effects, c->effect_count, COND_BLEEDING)) {
-        c->hp -= 2;
+        player_damage(c, 2, DAMAGE_UNTYPED);
         send_text_to_client(c->sock, "[DANGER] Moving reopens your wounds! You bleed heavily...");
         if (c->hp <= 0) {
             server_log("DEATH", "%s bled to death during the movement.", c->username);
@@ -228,8 +229,8 @@ void player_move(Client *c, const MsgMove *m, Client *clients, Game *game) {
     int old_floor = c->floor_id;
 
     long long now_ms = get_time_ms();
-    if (now_ms - c->last_action_ms < 200) {
-        return; /*at most 5 actions per second*/
+    if (now_ms - c->last_action_ms < (player_hasted(c) ? 100 : 200)) {
+        return; /*at most 5 steps per second, 10 when hasted (boots of speed)*/
     }
     c->last_action_ms = now_ms;
 

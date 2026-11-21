@@ -23,6 +23,8 @@
 #include <stdbool.h>
 #include <string.h>
 
+#include "rules.h"
+
 /*Maximum number of spells that a magic book can explicitly list.*/
 #define MAX_BOOK_SPELLS 64
 
@@ -62,6 +64,71 @@ typedef enum {
 /*The ammunition a ranged weapon shoots, or that an ammunition item is.*/
 typedef enum { AMMO_NONE = 0, AMMO_ARROW, AMMO_BOLT, AMMO_BULLET, AMMO_NEEDLE } AmmoKind;
 
+/*Dice written "2d4+2" (or a plain number: count 0, the bonus alone).*/
+typedef struct {
+    int count, sides, bonus;
+} ItemDice;
+
+/*What an item does while it is worn or held (a weapon or a staff in a
+ * hand), or merely carried when `carried` is set (Ioun stones, the
+ * Luckstone, belts: things with no body slot). The "worn" object of
+ * data/items.json; LORE.md, "Magic items", tells the rules.
+ * Damage types and conditions are bit masks (1 << DamageType,
+ * 1 << ConditionType).*/
+typedef struct {
+    bool any;           /*the item has worn effects at all*/
+    bool carried;       /*works from the backpack or the belt too*/
+    int ability_set[6]; /*STR..CHA: the score is at least this (0: none)*/
+    int ability_add[6]; /*STR..CHA: added to the score...*/
+    int ability_max;    /*...up to this (0: no limit)*/
+    int ac;             /*armour class*/
+    int ac_unarmored;   /*armour class with no armour and no shield*/
+    int unarmored_base; /*base armour class with no armour (+ DEX modifier)*/
+    int saves;          /*every saving throw*/
+    int attack, damage; /*a weapon: its own attack and damage rolls*/
+    int ranged_damage;  /*damage of the shots of any ranged weapon*/
+    int spell_dc, spell_attack;
+    int darkvision; /*sight in the dark, in tiles*/
+    uint32_t resist, immune, immune_conditions;
+    bool resist_random;      /*one damage type, rolled for each item...*/
+    uint32_t resist_choices; /*...among these (0: the d10 table of resistance)*/
+    ItemDice regen;          /*hit points regained...*/
+    int regen_rounds;        /*...every this many rounds*/
+    bool haste, displacement, see_invisible, spell_save_advantage, gas_save_advantage;
+    bool feather_fall, evasion, sustenance, crit_immune;
+    int immune_spell;        /*a spell that has no effect (-1: none)*/
+    ItemDice on_hit;         /*a weapon: extra dice on every hit...*/
+    DamageType on_hit_type;  /*...of this type*/
+    bool on_hit_charge;      /*...spending a charge (none left: no extra)*/
+    ItemDice on_crit;        /*a weapon: extra dice on a critical hit...*/
+    DamageType on_crit_type; /*...of this type (MAX_DAMAGE_TYPES: the weapon's)*/
+    bool on_crit_temp_hp;    /*...that the wielder gains as temporary HP*/
+} ItemWorn;
+
+/*What a consumable does when it is used (drunk, applied, thrown): the
+ * "use" object of data/items.json. The timed parts last `rounds` rounds
+ * (times the roll of `rounds_dice` when it has one).*/
+typedef struct {
+    bool any;
+    ItemDice heal;
+    int temp_hp;
+    int rounds;
+    ItemDice rounds_dice;
+    int attack, damage, ac, saves, darkvision;
+    bool haste;
+    uint32_t resist;
+    bool resist_random;
+    uint32_t immune_conditions;
+    ConditionType condition; /*a condition (MAX_CONDITIONS: none)...*/
+    Ability save_ability;    /*...unless this saving throw (ABILITY_NONE: none)...*/
+    int save_dc;             /*...against this DC succeeds*/
+    ItemDice harm;           /*damage to the user...*/
+    DamageType harm_type;    /*...of this type*/
+    uint32_t cure;           /*conditions it ends*/
+    bool exhaustion;         /*it ends exhaustion*/
+    bool weapon;             /*an oil for the weapon in hand: needs one*/
+} ItemUse;
+
 typedef struct {
     const char *name;
     const char *description;
@@ -84,6 +151,16 @@ typedef struct {
     bool is_cursed;
     int cast_spell_idx;
     int max_charges;
+    /*The spell of an item: cast at will (no charge, nothing used up)
+     * from a worn or held item; each cast spends charge_cost charges;
+     * no_recharge: the charges never come back (a necklace's beads).*/
+    bool at_will;
+    bool no_recharge;
+    int charge_cost;
+    bool is_scroll; /*read aloud: silence prevents it*/
+    bool is_potion; /*drunk or applied: a potion or an oil*/
+    ItemWorn worn;
+    ItemUse use;
     /*Weapons: a ranged weapon's ammunition and normal range in tiles (5 ft
      * each, "ammunition (range 80/320)" -> 16); a finesse weapon hits with
      * the better of STR and DEX. Ammunition items: their kind.*/
@@ -146,6 +223,9 @@ static inline bool item_instance_equal(const ItemInstance *a, const ItemInstance
            a->artifact_dex_bonus == b->artifact_dex_bonus &&
            a->artifact_con_bonus == b->artifact_con_bonus;
 }
+/*"2d4+2", "1d6" or "15" into dice; false (out untouched) for anything else.*/
+bool item_parse_dice(const char *s, ItemDice *out);
+
 extern ItemTemplate *item_database;
 extern int item_database_size;
 

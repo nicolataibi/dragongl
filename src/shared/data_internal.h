@@ -25,6 +25,7 @@
 #include <stdbool.h>
 
 #include "cJSON.h"
+#include "items.h"
 
 /*Case-insensitive strstr.*/
 const char *data_strcasestr(const char *haystack, const char *needle);
@@ -35,5 +36,9 @@ cJSON *parse_json_file(const char *filepath);
 int get_spell_idx_by_name(const char *name);
 /*Loads data/items.json into item_database (the spells must be loaded).*/
 bool load_items_json(const char *filepath);
+
+/*The "worn" and "use" effects of one item of items.json and the fields of
+ * its spell (at_will, no_recharge, charge_cost): data_item_effects.c.*/
+void item_parse_effects(ItemTemplate *t, const cJSON *item);
 
 #endif /* DATA_INTERNAL_H */

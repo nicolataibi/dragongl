@@ -195,13 +195,24 @@ bool cmd_stats(Client *c, const char *cmd, Game *game) {
     return true;
 }
 
-/*A wand carried in the backpack or on the belt gets all its charges back.*/
+/*A charged item carried in the backpack, on the belt or worn (a staff in
+ * hand, a ring) gets all its charges back.*/
 static int recharge_wands(Client *c) {
     int recharged = 0;
-    for (int i = 0; i < c->backpack_count + MAX_BELT; i++) {
-        ItemInstance *it =
-            i < c->backpack_count ? &c->backpack[i] : &c->belt[i - c->backpack_count];
-        if (item_is_wand(it) && it->current_charges < item_database[it->template_idx].max_charges) {
+    int carried = c->backpack_count + MAX_BELT;
+    for (int i = 0; i < carried + EQUIP_SLOT_COUNT + 10; i++) {
+        ItemInstance *it = NULL;
+        if (i < c->backpack_count) {
+            it = &c->backpack[i];
+        } else if (i < carried) {
+            it = &c->belt[i - c->backpack_count];
+        } else if (i < carried + EQUIP_SLOT_COUNT) {
+            it = equip_slot(c, i - carried);
+        } else {
+            it = &c->slot_rings[i - carried - EQUIP_SLOT_COUNT];
+        }
+        if (item_recharges(it) &&
+            it->current_charges < item_database[it->template_idx].max_charges) {
             it->current_charges = item_database[it->template_idx].max_charges;
             recharged++;
         }
@@ -220,7 +231,7 @@ bool cmd_rest(Client *c, const char *cmd, Game *game) {
         int wands = recharge_wands(c);
         send_detailed_state(game, c); //Sync HP and spell slots with the HUD client
         if (wands > 0) {
-            send_text_to_client(c->sock, "[SYSTEM] Rested. %d wand%s recharged.", wands,
+            send_text_to_client(c->sock, "[SYSTEM] Rested. %d magic item%s recharged.", wands,
                                 wands == 1 ? "" : "s");
         } else {
             send_text_to_client(c->sock, "[SYSTEM] Rested.");

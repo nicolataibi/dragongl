@@ -625,7 +625,11 @@ void print_merchant_inventory(Client *c, const MerchantData *shop) {
             snprintf(stat_info, sizeof(stat_info), "+%d AC", it->ac_bonus);
         } else if (it->category == ITEM_CONSUMABLE) {
             strcpy(type_info, "Consum.");
-            if (it->heal_amount > 0) {
+            const ItemDice *h = &it->use.heal;
+            if (h->count > 0) {
+                snprintf(stat_info, sizeof(stat_info), "Heal %dd%d%+d", h->count, h->sides,
+                         h->bonus);
+            } else if (it->heal_amount > 0) {
                 snprintf(stat_info, sizeof(stat_info), "Heal %d HP", it->heal_amount);
             }
         } else if (it->category == ITEM_RING) {
@@ -643,7 +647,7 @@ void print_merchant_inventory(Client *c, const MerchantData *shop) {
         }
 
         if (it->str_bonus > 0 || it->dex_bonus > 0 || it->con_bonus > 0 || it->int_bonus > 0 ||
-            it->wis_bonus > 0 || it->cha_bonus > 0) {
+            it->wis_bonus > 0 || it->cha_bonus > 0 || it->worn.any) {
             if (strcmp(stat_info, "-") == 0) {
                 copy_str(stat_info, "Magic", sizeof(stat_info));
             } else {

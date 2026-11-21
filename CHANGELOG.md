@@ -1,3 +1,71 @@
+* Sat Nov 21 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.21.01
+- ITEMS: magic items do what their description says, as far as the game
+  has the rule (LORE.md, "Magic items"). data/items.json says it: "worn"
+  for what an item does worn, held or carried, "use" for a consumable,
+  "cast_spell" with "at_will", "max_charges", "charge_cost" and
+  "no_recharge" for its spell; the schema and check_data.py check them.
+  Items with no game mechanic (flying, swimming, languages, stealth)
+  stay descriptive and are listed in LORE.md.
+- ITEMS: abilities. "Your Strength score is 19" (Gauntlets of Ogre Power,
+  Headband of Intellect, Amulet of Health) raises a lower score and never
+  lowers a higher one; "+2, to a maximum of 20" (Ioun stones, Belt of
+  Dwarvenkind) adds up to 20; the Ring of Stupidity takes 2 INT. No bonus
+  comes from a word of the name any more (the Boots and Scimitar of Speed
+  gave +2 DEX, the Periapt of Health +2 CON).
+- ITEMS: armour class and saves. Protection +1 to AC and saves (cloak,
+  ring), the Luckstone and Robe of Stars +1 to saves, Bracers of Defense
+  +2 AC without armour or shield, Robe of the Archmagi base AC 15 + DEX
+  and +2 to spell DC and attacks, advantage against magic (mantle, ring of
+  spell turning, scarab, spellguard shield) and gases (necklace of
+  adaptation), magic armour's own AC, adamantine armour against critical
+  hits, the Cloak of Displacement. Every saving throw of a character
+  counts the abilities with the items and these bonuses (traps, monsters'
+  powers and the recovery from conditions used the bare scores).
+- ITEMS: resistance halves and immunity cancels the damage of its type,
+  and a warded condition does not take hold: rings of warmth, resistance
+  and fire elemental command, cloak of arachnida, brooch of shielding
+  (the Magic Missile has no effect), staffs of fire and frost, Frost
+  Brand, periapt of proof against poison, ring of free action, plate of
+  invulnerability, armour of resistance, dragon scale mail. Damage has a
+  type: a monster's blow is physical (a dragon's fire), traps deal the
+  damage of their kind, poison and burning poison and fire.
+- ITEMS: darkvision (goggles of night, robe of eyes), sight of the
+  invisible (robe of eyes, lantern of revealing), haste (boots of speed:
+  a step every 100 ms), regeneration (ring, Ioun stone), no hunger (Ioun
+  stone of sustenance), no harm from a fall (rings of feather falling and
+  air elemental command), the Ring of Evasion's charges, the Bracers of
+  Archery's +2 to shots.
+- ITEMS: magic weapons have their own bonus to attack and damage, extra
+  dice on a hit (Flame Tongue, Frost Brand, the staffs of withering and
+  striking spending a charge) or on a critical (vicious weapons, the sword
+  of sharpness, the mace of smiting, life-stealing swords that give it as
+  temporary hit points), against the target's resistances.
+- ITEMS: potions and oils. Healing heals its dice (2d4+2 to 10d4+20: it
+  was 20 to 120 fixed); Heroism, Speed, Invisibility, Growth, Diminution,
+  Gaseous Form, Resistance, Poison, Vitality, the oils of Sharpness and
+  Slipperiness, the dusts of Disappearance and of Sneezing and Choking do
+  what they say for their time (each gave +2 to nothing); Mind Reading,
+  Clairvoyance and Animal Friendship cast their spell. Temporary hit points
+  take damage first. A potion with no hold in the dungeon (water
+  breathing, flying) is kept. The oils are no lamp oil any more: only Oil
+  (flask) refills a lantern.
+- ITEMS: spells from items. At will (helms of comprehending languages and
+  telepathy, hat of disguise, rings of jumping, invisibility and
+  telekinesis, ...) or from charges with their cost (staffs of fire,
+  frost, power, swarming insects, charming, healing, the woodlands,
+  thunder and lightning; eyes of charming, medallion of thoughts,
+  necklace of fireballs, helm of teleportation, figurines, elemental
+  vessels, ...). An item with a slot casts only worn or held: 'use helm'
+  names the worn item. Every charged item carried or worn recharges at a
+  rest in town, except beads and gems.
+- ITEMS: where an item is worn follows its name: the Staff of Withering
+  was a ring, Ioun stones, the headband, circlets, goggles and robes could
+  not be worn; staffs are quarterstaffs and the Rod of Lordly Might a mace,
+  the Lantern of Revealing a lantern, the Ring of Stupidity a ring. The
+  wands-and-staffs shop sells the staffs, the magic shop the robes, the
+  alchemist the oils.
+- SPELLS: Cordon of Arrows deals 1d6, as described (2d4).
+
 * Fri Nov 20 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.20.01
 - FIX: cap active ghosts in save_bones() to at most one per character and
   MAX_TOMBSTONES globally, allocating through npc_alloc() so respawning

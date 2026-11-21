@@ -24,6 +24,9 @@ void spell_caster_of(Client *c, SpellCaster *out);
 /*Saving throw bonus of an NPC: +2, +1 every 10 floors (at most +9), +2
  * more for a boss.*/
 int npc_save_bonus(const NPC *n);
+/*How the NPC takes damage of this type: its template's immunities,
+ * resistances and vulnerabilities, else frozen (double) or petrified (half).*/
+DamageModifier npc_damage_mod(const NPC *n, DamageType type);
 
 /*A creature a player's spell can hit: alive, hostile (not a merchant,
  * treasure, gold pile, summoned or dominated ally).*/
