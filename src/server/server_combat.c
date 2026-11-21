@@ -272,6 +272,17 @@ static int attack_ability(const ItemTemplate *w, int str_score, int dex_score) {
     return str_score;
 }
 
+static const char *defence_verb(DamageModifier mod) {
+    switch (mod) {
+    case DMG_MOD_IMMUNITY:
+        return "is immune to";
+    case DMG_MOD_RESISTANCE:
+        return "resists";
+    default:
+        return "is vulnerable to";
+    }
+}
+
 /*Dice of a magic weapon's property, against the target's defences of
  * that type (none: as they fall).*/
 static int typed_dice(const NPC *t, const ItemDice *d, DamageType type) {
@@ -315,8 +326,9 @@ static int weapon_magic_damage(Client *c, const NPC *t, ItemInstance *weapon, co
 /*Damage of a hit: the weapon's dice (1d4 unarmed, doubled on a critical)
  * + the ability + the weapon's enchantment, quality and magic + the worn
  * bonuses (a ranged weapon's shots: the bracers of archery) and the
- * effects + 1d6 for an elemental weapon + the dice of a magic weapon, at
- * least 1; a frozen target takes double, a petrified one half. Tells the
+ * effects, at least 1, of the weapon's damage type against the target's
+ * resistances (frozen: double, petrified: half) + 1d6 for an elemental
+ * weapon and the dice of a magic weapon, each of its own type. Tells the
  * player and returns the damage dealt.*/
 static int strike_damage(Client *c, NPC *t, ItemInstance *weapon, const ItemTemplate *w,
                          int ability_score, bool is_crit) {
@@ -331,18 +343,24 @@ static int strike_damage(Client *c, NPC *t, ItemInstance *weapon, const ItemTemp
         (armed && w ? weapon->to_dam_bonus + item_quality_bonus(weapon) + w->worn.damage : 0) +
         (w && w->ammo != AMMO_NONE ? worn.ranged_damage : 0) + worn_bonus(c, true) +
         rules_event_bonus(c->effects, c->effect_count, EVENT_ON_DAMAGE);
-    int element_d = (armed && weapon->element != ELEM_NONE) ? rules_roll_dice(1, 6) : 0;
-    int d = roll_d + mod_d + element_d + weapon_magic_damage(c, t, weapon, w, is_crit);
-    if (d < 1) {
-        d = 1;
+    /*The blow is of the weapon's type (a fist, a staff: bludgeoning), the
+     * element of an elemental weapon of its own: each against the target's
+     * defences (LORE.md, "Monster defences and attacks").*/
+    DamageType type =
+        armed && w && w->damage_type < MAX_DAMAGE_TYPES ? w->damage_type : DMG_BLUDGEONING;
+    DamageModifier mod = npc_weapon_mod(t, type, armed && item_is_magic(weapon));
+    int blow = roll_d + mod_d;
+    int d = rules_calculate_damage(blow < 1 ? 1 : blow, mod);
+    int element_d = 0;
+    if (armed && weapon->element != ELEM_NONE) {
+        element_d = rules_calculate_damage(rules_roll_dice(1, 6),
+                                           npc_damage_mod(t, element_damage_type(weapon->element)));
     }
-    DamageModifier mod = DMG_MOD_NORMAL;
-    if (rules_has_condition_t(t->effects, t->effect_count, COND_FROZEN)) {
-        mod = DMG_MOD_VULNERABILITY;
-    } else if (rules_has_condition_t(t->effects, t->effect_count, COND_PETRIFIED)) {
-        mod = DMG_MOD_RESISTANCE;
+    d += element_d + weapon_magic_damage(c, t, weapon, w, is_crit);
+    if (mod != DMG_MOD_NORMAL) {
+        send_text_to_client(c->sock, "  > %s %s your %s blow!", npc_name(t), defence_verb(mod),
+                            damage_type_to_name(type));
     }
-    d = rules_calculate_damage(d, mod);
     t->hp -= d;
     send_text_to_client(c->sock,
                         is_crit ? "> BLOOD! A devastating blow [%dd%d: %d %+d (+%d elem) = %d"
@@ -478,6 +496,76 @@ void perform_ranged_attack(Client *c, NPC *t, Game *game) {
     player_strike(c, t, game, true);
 }
 
+/*A dragon's breath: the type of its blows, else fire.*/
+static DamageType npc_breath(const NPC *n) {
+    return n->template && n->template->attack_type < MAX_DAMAGE_TYPES ? n->template->attack_type
+                                                                      : DMG_FIRE;
+}
+
+/*The damage type of a monster's blows: its bestiary attack_type, else
+ * physical, a dragon's fire.*/
+static int npc_blow_type(const NPC *n) {
+    if (n->archetype == ARCH_DRAGON) {
+        return (int)npc_breath(n);
+    }
+    return n->template && n->template->attack_type < MAX_DAMAGE_TYPES
+               ? (int)n->template->attack_type
+               : DAMAGE_PHYSICAL;
+}
+
+/*How long the condition of a monster's hit lasts, and the saving throw
+ * that resists it.*/
+static Ability on_hit_save(ConditionType cond, int *rounds) {
+    switch (cond) {
+    case COND_POISONED:
+        *rounds = 10;
+        return ABILITY_CON;
+    case COND_FRIGHTENED:
+        *rounds = 5;
+        return ABILITY_WIS;
+    default: /*blinded, paralyzed, petrified*/
+        *rounds = 2;
+        return ABILITY_CON;
+    }
+}
+
+/*A monster's hit: its dice (doubled on a critical), frozen: double,
+ * petrified: half, of the type of its blows against the character's
+ * resistances; then the condition its description gives to a hit, unless a
+ * saving throw against 8 + its attack bonus. Returns the damage taken.*/
+static int npc_blow(NPC *n, Client *c, bool is_crit) {
+    int d = rules_roll_dice(n->damage_dice * (is_crit ? 2 : 1), n->damage_sides);
+    DamageModifier d_mod = DMG_MOD_NORMAL;
+    if (rules_has_condition_t(c->effects, c->effect_count, COND_FROZEN)) {
+        d_mod = DMG_MOD_VULNERABILITY;
+    } else if (rules_has_condition_t(c->effects, c->effect_count, COND_PETRIFIED)) {
+        d_mod = DMG_MOD_RESISTANCE;
+    }
+    int type = npc_blow_type(n);
+    d = player_damage(c, rules_calculate_damage(d, d_mod), type);
+    if (type >= 0) {
+        send_text_to_client(c->sock, "[COMBAT] You take %d %s damage!", d,
+                            damage_type_to_name((DamageType)type));
+    } else {
+        send_text_to_client(c->sock, "[COMBAT] You take %d damage!", d);
+    }
+    ConditionType cond = n->template ? n->template->on_hit : MAX_CONDITIONS;
+    if (cond >= MAX_CONDITIONS || c->hp <= 0) {
+        return d;
+    }
+    int rounds = 0;
+    Ability a = on_hit_save(cond, &rounds);
+    int dc = 8 + n->attack_bonus;
+    if (player_save(c, a, dc, SAVE_PLAIN, NULL)) {
+        send_text_to_client(c->sock, "[COMBAT] You resist (DC %d): you are not %s.", dc,
+                            condition_to_name(cond));
+    } else if (player_add_condition(c, cond, rounds, 0)) {
+        send_text_to_client(c->sock, "[STATE] %s's blow leaves you %s for %d rounds!", npc_name(n),
+                            condition_to_name(cond), rounds);
+    }
+    return d;
+}
+
 void perform_attack_npc(NPC *n, Client *c, Game *game) {
     if (!n || !c || !c->active || !c->authenticated) {
         return;
@@ -520,10 +608,10 @@ void perform_attack_npc(NPC *n, Client *c, Game *game) {
                             is_crit ? " [CRITICAL!]" : "");
     } else if (n->archetype == ARCH_DRAGON) {
         send_text_to_client(c->sock,
-                            "[DANGER] %s roars and envelops you in flame: "
+                            "[DANGER] %s roars and breathes %s at you: "
                             "1d20 [%d] %+d = %d (VS AC %d)%s",
-                            npc_name(n), roll_v, n_bonus, roll_v + n_bonus, p_ac,
-                            is_crit ? " [CRITICAL!]" : "");
+                            npc_name(n), damage_type_to_name(npc_breath(n)), roll_v, n_bonus,
+                            roll_v + n_bonus, p_ac, is_crit ? " [CRITICAL!]" : "");
     } else if (n->archetype == ARCH_BRUTE) {
         send_text_to_client(c->sock,
                             "[DANGER] %s raises his fists and delivers a "
@@ -548,23 +636,7 @@ void perform_attack_npc(NPC *n, Client *c, Game *game) {
     }
 
     if (hit) {
-        int dc = n->damage_dice;
-        if (is_crit) {
-            dc *= 2;
-        }
-        int d = rules_roll_dice(dc, n->damage_sides);
-
-        DamageModifier d_mod = DMG_MOD_NORMAL;
-        if (rules_has_condition_t(c->effects, c->effect_count, COND_FROZEN)) {
-            d_mod = DMG_MOD_VULNERABILITY;
-        } else if (rules_has_condition_t(c->effects, c->effect_count, COND_PETRIFIED)) {
-            d_mod = DMG_MOD_RESISTANCE;
-        }
-
-        d = rules_calculate_damage(d, d_mod);
-        /*A dragon's flame is fire; any other blow is physical.*/
-        d = player_damage(c, d, n->archetype == ARCH_DRAGON ? DMG_FIRE : DAMAGE_PHYSICAL);
-        send_text_to_client(c->sock, "[COMBAT] You take %d damage!", d);
+        int d = npc_blow(n, c, is_crit);
         send_combat_event(c->sock, COMBAT_EV_DAMAGE_TAKEN, c->entity_id, d);
         clog_attack(npc_name(n), c->username, roll_v, n_bonus, p_ac, true, is_crit, d);
         /*Wear: 3% of the hits received cost the armour a point.*/

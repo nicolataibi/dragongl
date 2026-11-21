@@ -53,6 +53,17 @@ typedef struct {
     bool damage_immunities[MAX_DAMAGE_TYPES];
     bool damage_vulnerabilities[MAX_DAMAGE_TYPES];
     bool condition_immunities[MAX_CONDITIONS];
+
+    /*What its description says it can do (LORE.md, "Monster defences and
+     * attacks"): advantage on saves against spells, the bludgeoning,
+     * piercing and slashing of a weapon that is not magic halved or
+     * stopped, the damage type of its blows (MAX_DAMAGE_TYPES: physical)
+     * and the condition a hit inflicts (MAX_CONDITIONS: none).*/
+    bool magic_resistance;
+    bool resist_nonmagical;
+    bool immune_nonmagical;
+    DamageType attack_type;
+    ConditionType on_hit;
 } MonsterTemplate;
 
 extern MonsterTemplate *bestiary_data;

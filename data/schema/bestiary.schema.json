@@ -202,6 +202,46 @@
                 "frozen"
               ]
             }
+          },
+          "attack_type": {
+            "enum": [
+              "acid",
+              "bludgeoning",
+              "cold",
+              "fire",
+              "force",
+              "lightning",
+              "necrotic",
+              "piercing",
+              "poison",
+              "psychic",
+              "radiant",
+              "slashing",
+              "thunder"
+            ],
+            "description": "damage type of its blows (none: physical; a dragon's: fire)"
+          },
+          "on_hit": {
+            "enum": [
+              "blinded",
+              "frightened",
+              "paralyzed",
+              "petrified",
+              "poisoned"
+            ],
+            "description": "condition a hit inflicts unless a saving throw against 8 + its attack bonus succeeds (LORE.md, Monster defences and attacks)"
+          },
+          "magic_resistance": {
+            "type": "boolean",
+            "description": "advantage on saving throws against spells"
+          },
+          "resist_nonmagical": {
+            "type": "boolean",
+            "description": "halves bludgeoning, piercing and slashing damage of a weapon that is not magic"
+          },
+          "immune_nonmagical": {
+            "type": "boolean",
+            "description": "no damage from the bludgeoning, piercing and slashing of a weapon that is not magic"
           }
         }
       }

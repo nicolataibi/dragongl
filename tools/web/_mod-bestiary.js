@@ -149,6 +149,9 @@ window.DGL_CFG = (() => {
           ${defRow('Immunities', m.damage_immunities, '#34d399')}
           ${defRow('Vulnerabilities', m.damage_vulnerabilities, '#f87171')}
           ${defRow('Condition immunities', m.condition_immunities, '#e2e8f0')}
+          ${kv('Blows', esc(m.attack_type || 'physical'))}
+          ${kv('Hit leaves', esc(m.on_hit || '—'))}
+          ${kv('Magic', [m.magic_resistance && 'magic resistance', m.resist_nonmagical && 'resists plain weapons', m.immune_nonmagical && 'immune to plain weapons'].filter(Boolean).join(', ') || '—')}
         </div>
         <div class="dsection"><h4>Description</h4>
           <p class="desc-text">${m.description ? keepBr(m.description) : dash}</p>
@@ -177,6 +180,14 @@ window.DGL_CFG = (() => {
         datalist: DAMAGETYPES, placeholder: 'poison, psychic …' },
       { id: 'condition_immunities', label: 'Condition immunities', type: 'list', full: true,
         datalist: CONDITIONS, placeholder: 'frightened, poisoned …' },
+      { id: 'attack_type', label: 'Attack damage type', type: 'select', emptyLabel: 'physical',
+        options: () => DAMAGETYPES.map(t => [t, t]) },
+      { id: 'on_hit', label: 'Condition on hit', type: 'select', emptyLabel: 'none',
+        options: () => ['blinded', 'frightened', 'paralyzed', 'petrified', 'poisoned'].map(t => [t, t]) },
+      { id: 'magic_resistance', label: 'Magic resistance', type: 'toggle',
+        hint: 'Advantage on saving throws against spells.' },
+      { id: 'resist_nonmagical', label: 'Resists non-magical weapons', type: 'toggle' },
+      { id: 'immune_nonmagical', label: 'Immune to non-magical weapons', type: 'toggle' },
       { id: 'description', label: 'Description', type: 'textarea', full: true,
         hint: 'Keep the “Type: …” prefix — the creature type badge is parsed from it. <br> line breaks are supported.' },
     ],
@@ -198,6 +209,12 @@ window.DGL_CFG = (() => {
       o.damage_immunities = splitList(d.damage_immunities);
       o.damage_vulnerabilities = splitList(d.damage_vulnerabilities);
       o.condition_immunities = splitList(d.condition_immunities);
+      for (const k of ['attack_type', 'on_hit']) {
+        if (d[k]) o[k] = d[k]; else delete o[k];
+      }
+      for (const k of ['magic_resistance', 'resist_nonmagical', 'immune_nonmagical']) {
+        if (d[k]) o[k] = true; else delete o[k];
+      }
       o.description = d.description;
     },
   };

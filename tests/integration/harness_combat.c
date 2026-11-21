@@ -181,7 +181,7 @@ int test_monster_attacks(void) {
         EntityArchetype arch;
         const char *line;
     } lines[] = {{ARCH_ASSASSIN, "slips into the shadows"},
-                 {ARCH_DRAGON, "envelops you in flame"},
+                 {ARCH_DRAGON, "breathes fire at you"},
                  {ARCH_BRUTE, "devastating blow"}};
     rules_force_d20(1);
     for (size_t i = 0; i < sizeof(lines) / sizeof(lines[0]); i++) {

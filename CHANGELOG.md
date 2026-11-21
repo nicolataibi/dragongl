@@ -1,3 +1,29 @@
+* Sat Nov 21 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.21.02
+- BESTIARY: monsters defend and strike as their description says
+  (LORE.md, "Monster Defences and Attacks"). The resistances, immunities,
+  vulnerabilities and condition immunities of bestiary.json were empty for
+  all 3903 monsters: they now carry what the Abilities of the description
+  name ("Cold Resistance", "Immunity to flames", "High physical
+  resistance", "Immune to fear"...), with the new fields magic_resistance,
+  resist_nonmagical, immune_nonmagical, attack_type and on_hit; the schema
+  and the Data Studio editor know them.
+- COMBAT: a character's blow has the damage type of his weapon (bare hands
+  and staffs bludgeoning), the 1d6 of an elemental weapon its element, and
+  each meets the monster's resistances, immunities and vulnerabilities
+  (only spells did); a weapon that is not magic is halved or stopped by a
+  monster that resists or is immune to it; the attack line tells it. The
+  magic weapons of items.json have their damage type (it was missing).
+- COMBAT: a monster's blows have the type of its description (fire,
+  cold, poison, necrotic...; a dragon's breath tells its own), and a hit of
+  a monster with a crippling power (petrifying or paralyzing touch,
+  venomous bite, frightful presence, blinding flash) leaves the character
+  Petrified, Paralyzed, Poisoned, Frightened or Blinded unless a saving
+  throw against 8 + its attack bonus.
+- MAGIC: magic resistance gives advantage on the saving throws against
+  spells; a monster immune to the Charmed condition cannot be charmed nor
+  dominated.
+- TRAPS: the fake door asks an INT saving throw, as described (WIS).
+
 * Sat Nov 21 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.21.01
 - ITEMS: magic items do what their description says, as far as the game
   has the rule (LORE.md, "Magic items"). data/items.json says it: "worn"

@@ -183,6 +183,14 @@ static void parse_monster(MonsterTemplate *m, const cJSON *monster) {
                MAX_DAMAGE_TYPES, damage_type_index);
     name_flags(cJSON_GetObjectItem(monster, "condition_immunities"), m->condition_immunities,
                MAX_CONDITIONS, condition_index);
+    m->magic_resistance = cJSON_IsTrue(cJSON_GetObjectItem(monster, "magic_resistance"));
+    m->resist_nonmagical = cJSON_IsTrue(cJSON_GetObjectItem(monster, "resist_nonmagical"));
+    m->immune_nonmagical = cJSON_IsTrue(cJSON_GetObjectItem(monster, "immune_nonmagical"));
+    const cJSON *atk = cJSON_GetObjectItem(monster, "attack_type");
+    m->attack_type =
+        cJSON_IsString(atk) ? damage_type_from_name(atk->valuestring) : MAX_DAMAGE_TYPES;
+    const cJSON *hit = cJSON_GetObjectItem(monster, "on_hit");
+    m->on_hit = cJSON_IsString(hit) ? condition_from_name(hit->valuestring) : MAX_CONDITIONS;
 }
 
 static bool load_bestiary_json(const char *filepath) {

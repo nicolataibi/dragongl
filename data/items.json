@@ -660,7 +660,7 @@
       "classification": "",
       "ac": "",
       "damage": "",
-      "damage_type": "",
+      "damage_type": "piercing",
       "properties": "",
       "cost": 100
     },
@@ -673,7 +673,7 @@
       "classification": "",
       "ac": "",
       "damage": "",
-      "damage_type": "",
+      "damage_type": "piercing",
       "properties": "",
       "cost": 100
     },
@@ -686,7 +686,7 @@
       "classification": "",
       "ac": "",
       "damage": "",
-      "damage_type": "",
+      "damage_type": "piercing",
       "properties": "",
       "cost": 100
     },
@@ -699,7 +699,7 @@
       "classification": "",
       "ac": "",
       "damage": "",
-      "damage_type": "",
+      "damage_type": "bludgeoning",
       "properties": "",
       "cost": 4
     },
@@ -2914,7 +2914,7 @@
       "classification": "Simple Melee Weapon",
       "ac": "",
       "damage": "1d4",
-      "damage_type": "",
+      "damage_type": "bludgeoning",
       "properties": "light",
       "cost": 35000,
       "material": "wood",
@@ -2931,7 +2931,7 @@
       "classification": "Simple Melee Weapon",
       "ac": "",
       "damage": "1d4",
-      "damage_type": "",
+      "damage_type": "piercing",
       "properties": "finesse | light | thrown (range 20/60)",
       "cost": 35000,
       "worn": {
@@ -2947,7 +2947,7 @@
       "classification": "Simple Melee Weapon",
       "ac": "",
       "damage": "1d6",
-      "damage_type": "",
+      "damage_type": "piercing",
       "properties": "thrown (range 30/120)",
       "cost": 35000,
       "worn": {
@@ -2963,7 +2963,7 @@
       "classification": "Simple Melee Weapon",
       "ac": "",
       "damage": "1d4",
-      "damage_type": "",
+      "damage_type": "slashing",
       "properties": "light",
       "cost": 35000,
       "worn": {
@@ -2979,7 +2979,7 @@
       "classification": "Simple Ranged Weapons",
       "ac": "",
       "damage": "1d6",
-      "damage_type": "",
+      "damage_type": "piercing",
       "properties": "ammunition (range 80/320) | two-handed ",
       "cost": 35000,
       "worn": {
@@ -2995,7 +2995,7 @@
       "classification": "Martial Melee Weapons",
       "ac": "",
       "damage": "1d8",
-      "damage_type": "",
+      "damage_type": "slashing",
       "properties": "versatile (1d10)",
       "cost": 35000,
       "worn": {
@@ -3011,7 +3011,7 @@
       "classification": "Martial Melee Weapons",
       "ac": "",
       "damage": "2d6",
-      "damage_type": "",
+      "damage_type": "slashing",
       "properties": "heavy | two-handed",
       "cost": 35000,
       "worn": {
@@ -3238,7 +3238,7 @@
       "classification": "Martial Melee Weapons",
       "ac": "",
       "damage": "1d7",
-      "damage_type": "",
+      "damage_type": "piercing",
       "properties": "thrown (range 20/60) | versatile (1d8) | requires attunement",
       "cost": 80000
     },
@@ -3313,7 +3313,7 @@
       "classification": "Martial Melee Weapons",
       "ac": "",
       "damage": "2d6",
-      "damage_type": "",
+      "damage_type": "slashing",
       "properties": "heavy | two-handed | requires attunement",
       "cost": 100000,
       "worn": {
@@ -3331,7 +3331,7 @@
       "classification": "Martial Melee Weapons",
       "ac": "",
       "damage": "1d6",
-      "damage_type": "",
+      "damage_type": "piercing",
       "properties": "finesse | light | requires attunement",
       "cost": 100000,
       "worn": {
@@ -3490,7 +3490,7 @@
       "classification": "Simple Melee Weapon",
       "ac": "",
       "damage": "1d6",
-      "damage_type": "",
+      "damage_type": "piercing",
       "properties": "thrown (range 30/120)",
       "cost": 150000
     },
@@ -3607,7 +3607,7 @@
       "classification": "Martial Melee Weapons",
       "ac": "",
       "damage": "2d6",
-      "damage_type": "",
+      "damage_type": "slashing",
       "properties": "requires attunement",
       "cost": 170000,
       "worn": {
@@ -3637,7 +3637,7 @@
       "classification": "Martial Melee Weapons",
       "ac": "",
       "damage": "1d6",
-      "damage_type": "",
+      "damage_type": "slashing",
       "properties": "finesse | light | requires attunement",
       "cost": 200000
     },
@@ -3650,7 +3650,7 @@
       "classification": "Martial Melee Weapons",
       "ac": "",
       "damage": "1d8",
-      "damage_type": "",
+      "damage_type": "piercing",
       "properties": "finesse | requires attunement",
       "cost": 200000
     },
@@ -3692,7 +3692,7 @@
       "classification": "Martial Melee Weapons",
       "ac": "",
       "damage": "1d8",
-      "damage_type": "",
+      "damage_type": "slashing",
       "properties": "versatile (1d10) | requires attunement",
       "cost": 200000
     },
@@ -3705,7 +3705,7 @@
       "classification": "Simple Melee Weapon",
       "ac": "",
       "damage": "1d4",
-      "damage_type": "",
+      "damage_type": "piercing",
       "properties": "finesse | light | thrown (range 20/60) | requires attunement",
       "cost": 200000
     },
@@ -3786,7 +3786,7 @@
       "classification": "Martial Melee Weapons",
       "ac": "",
       "damage": "2d6",
-      "damage_type": "",
+      "damage_type": "slashing",
       "properties": "heavy | two-handed | requires attunement",
       "cost": 220000,
       "worn": {
@@ -3819,7 +3819,7 @@
       "classification": "Simple Melee Weapon",
       "ac": "",
       "damage": "1d4",
-      "damage_type": "",
+      "damage_type": "piercing",
       "properties": "finesse | light | thrown (range 20/60)",
       "cost": 250000,
       "worn": {
@@ -4175,7 +4175,7 @@
       "classification": "Martial Ranged Weapons",
       "ac": "",
       "damage": "1d8",
-      "damage_type": "",
+      "damage_type": "piercing",
       "properties": "ammunition (range 150/600) | heavy | loading, two-handed | requires attunement",
       "cost": 350000
     },
@@ -4393,7 +4393,7 @@
       "classification": "Simple Melee Weapon",
       "ac": "",
       "damage": "1d4",
-      "damage_type": "",
+      "damage_type": "piercing",
       "properties": "finesse | light | thrown (range 20/60) | requires attunement",
       "cost": 500000,
       "worn": {
@@ -4914,7 +4914,7 @@
       "classification": "Martial Melee Weapons",
       "ac": "",
       "damage": "1d8",
-      "damage_type": "",
+      "damage_type": "slashing",
       "properties": "versatile (1d10)",
       "cost": 700000,
       "worn": {
@@ -4930,8 +4930,8 @@
       "rarity": "RARE",
       "classification": "",
       "ac": "",
-      "damage": "",
-      "damage_type": "",
+      "damage": "1d6",
+      "damage_type": "bludgeoning",
       "properties": "",
       "cost": 700000,
       "worn": {
@@ -4987,7 +4987,7 @@
       "classification": "Martial Melee Weapons",
       "ac": "",
       "damage": "1d8",
-      "damage_type": "",
+      "damage_type": "slashing",
       "properties": "versatile (1d10)",
       "cost": 800000,
       "worn": {
@@ -5039,8 +5039,8 @@
       "rarity": "RARE",
       "classification": "",
       "ac": "",
-      "damage": "",
-      "damage_type": "",
+      "damage": "1d6",
+      "damage_type": "bludgeoning",
       "properties": "requires attunement",
       "cost": 800000
     },
@@ -5052,8 +5052,8 @@
       "rarity": "RARE",
       "classification": "",
       "ac": "",
-      "damage": "",
-      "damage_type": "",
+      "damage": "1d6",
+      "damage_type": "bludgeoning",
       "properties": "requires attunement",
       "cost": 800000,
       "cast_spell": "Fear",
@@ -5067,8 +5067,8 @@
       "rarity": "VERY_RARE",
       "classification": "",
       "ac": "",
-      "damage": "",
-      "damage_type": "",
+      "damage": "1d8",
+      "damage_type": "slashing",
       "properties": "requires attunement",
       "cost": 800000,
       "worn": {
@@ -5410,8 +5410,8 @@
       "rarity": "RARE",
       "classification": "",
       "ac": "",
-      "damage": "",
-      "damage_type": "",
+      "damage": "1d8",
+      "damage_type": "radiant",
       "properties": "requires attunement",
       "cost": 1200000,
       "worn": {
@@ -5529,7 +5529,7 @@
       "classification": "Martial Melee Weapons",
       "ac": "",
       "damage": "2d6",
-      "damage_type": "",
+      "damage_type": "bludgeoning",
       "properties": "heavy | two-handed",
       "cost": 1600000,
       "worn": {
@@ -5655,7 +5655,7 @@
       "classification": "Martial Melee Weapons",
       "ac": "",
       "damage": "1d8",
-      "damage_type": "",
+      "damage_type": "bludgeoning",
       "properties": "versatile (1d10) | requires attunement by a dwarf",
       "cost": 1800000,
       "worn": {
@@ -5786,7 +5786,7 @@
       "classification": "Martial Melee Weapons",
       "ac": "",
       "damage": "1d6",
-      "damage_type": "",
+      "damage_type": "slashing",
       "properties": "finesse | light | requires attunement",
       "cost": 2400000,
       "worn": {
@@ -5803,7 +5803,7 @@
       "classification": "Martial Melee Weapons",
       "ac": "",
       "damage": "2d6",
-      "damage_type": "",
+      "damage_type": "slashing",
       "properties": "heavy | two-handed | requires attunement",
       "cost": 2400000,
       "worn": {
@@ -6343,7 +6343,7 @@
       "classification": "Martial Melee Weapons",
       "ac": "",
       "damage": "2d6",
-      "damage_type": "",
+      "damage_type": "slashing",
       "properties": "heavy | two-handed | requires attunement by a paladin",
       "cost": 16500000,
       "worn": {

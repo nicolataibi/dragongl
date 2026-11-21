@@ -155,3 +155,27 @@ ItemInstance *find_equipped(Client *c, const char *word) {
     }
     return NULL;
 }
+
+bool item_is_magic(const ItemInstance *it) {
+    if (it->template_idx < 0) {
+        return false;
+    }
+    const ItemTemplate *t = &item_database[it->template_idx];
+    return it->is_artifact || it->element != ELEM_NONE || it->to_hit_bonus > 0 ||
+           it->to_dam_bonus > 0 || t->worn.any || t->cast_spell_idx >= 0 || t->attack_bonus > 0;
+}
+
+DamageType element_damage_type(ItemElement e) {
+    switch (e) {
+    case ELEM_FLAMING:
+        return DMG_FIRE;
+    case ELEM_FROST:
+        return DMG_COLD;
+    case ELEM_SHOCKING:
+        return DMG_LIGHTNING;
+    case ELEM_POISONOUS:
+        return DMG_POISON;
+    default:
+        return MAX_DAMAGE_TYPES;
+    }
+}

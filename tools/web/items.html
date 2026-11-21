@@ -752,11 +752,16 @@ window.DGL_CFG = (() => {
       { id: 'ac', label: 'Armor class', type: 'text', placeholder: 'e.g. 11 + Dex' },
       { id: 'damage', label: 'Damage', type: 'text', placeholder: 'e.g. 1d6' },
       { id: 'damage_type', label: 'Damage type', type: 'text',
-        datalist: ['bludgeoning', 'piercing', 'slashing', 'fire', 'cold', 'acid', 'poison', 'thunder', 'psychic'] },
+        datalist: ['bludgeoning', 'piercing', 'slashing', 'acid', 'cold', 'fire', 'force', 'lightning',
+                   'necrotic', 'poison', 'psychic', 'radiant', 'thunder'] },
       { id: 'cost', label: 'Cost', type: 'number' },
       { id: 'material', label: 'Material', type: 'text', hint: 'Optional (read by the engine when present).' },
       { id: 'properties', label: 'Properties', type: 'list', full: true,
         placeholder: 'light, thrown, heavy …' },
+      { id: 'worn', label: 'Worn effects', type: 'json', full: true,
+        hint: 'What the item does worn, held or carried (LORE.md, Magic Items); empty: none.' },
+      { id: 'use', label: 'Use effects', type: 'json', full: true,
+        hint: 'What a consumable does when used; empty: none.' },
       { id: 'description', label: 'Description', type: 'textarea', full: true,
         hint: '<br> line breaks are supported and preserved.' },
     ],
@@ -773,6 +778,9 @@ window.DGL_CFG = (() => {
       o.cost = String(+d.cost || 0);
       o.material = d.material;
       o.properties = d.properties;
+      for (const k of ['worn', 'use']) {
+        if (d[k] === undefined) delete o[k]; else o[k] = d[k];
+      }
       o.description = d.description;
     },
   };

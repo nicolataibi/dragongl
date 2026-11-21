@@ -214,6 +214,9 @@ void item_parse_effects(ItemTemplate *t, const cJSON *item) {
     if (cJSON_IsObject(use)) {
         parse_use(&t->use, use);
     }
+    const cJSON *dtype = cJSON_GetObjectItem(item, "damage_type");
+    t->damage_type =
+        cJSON_IsString(dtype) ? damage_type_from_name(dtype->valuestring) : MAX_DAMAGE_TYPES;
     t->at_will = json_bool(item, "at_will");
     t->no_recharge = json_bool(item, "no_recharge");
     t->charge_cost = json_int(item, "charge_cost");

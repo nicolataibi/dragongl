@@ -96,8 +96,8 @@ static bool rider_lands(const SpellEffect *e, const SpellCaster *c, const SpellT
         return true; /*the effect's own roll already decided*/
     }
     int roll = 0;
-    o->saved =
-        rules_roll_save(t->save_bonus, spell_save_dc(e, c), false, t->save_disadvantage, &roll);
+    o->saved = rules_roll_save(t->save_bonus, spell_save_dc(e, c), t->save_advantage,
+                               t->save_disadvantage, &roll);
     if (o->roll == 0) {
         o->roll = roll;
     }
@@ -116,8 +116,8 @@ SpellOutcome spell_resolve(const SpellEffect *e, const SpellCaster *c, const Spe
                                               t->attack_disadvantage, &o.crit, &o.roll);
         break;
     case SPELL_ROLL_SAVE:
-        o.saved = rules_roll_save(t->save_bonus, spell_save_dc(e, c), false, t->save_disadvantage,
-                                  &o.roll);
+        o.saved = rules_roll_save(t->save_bonus, spell_save_dc(e, c), t->save_advantage,
+                                  t->save_disadvantage, &o.roll);
         o.landed = !o.saved;
         break;
     case SPELL_ROLL_AUTO:
