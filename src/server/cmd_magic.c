@@ -88,7 +88,7 @@ bool cmd_spells(Client *c, const char *cmd, Game *game) {
         send_text_to_client(
             c->sock,
             "[GRIMOIRE] You don't know any magic yet. "
-            "Find a magical book and study it with 'study <n>' (in your classroom temple).");
+            "Find a magical book and study it with 'study <n>' (in the temple of your class).");
     }
     return true;
 }
@@ -182,6 +182,21 @@ static int spell_and_target(const Client *c, const char *arg, const char **rest)
     return -1;
 }
 
+/*The slot a spell of level slv is cast with: its own level, else the
+ * lowest higher one left (LORE.md, The Upcast Rule); 0 for a cantrip, -1
+ * when none is left.*/
+static int slot_for(const Client *c, int slv) {
+    if (slv <= 0) {
+        return 0;
+    }
+    for (int s = slv; s <= MAX_SPELL_LEVEL; s++) {
+        if (c->spell_slots[s] > 0) {
+            return s;
+        }
+    }
+    return -1;
+}
+
 /*cast <spell> [target] or cast <book_idx> <spell_idx> [target]: the target
  * is part of the name of a creature; without it the nearest one.*/
 bool cmd_cast(Client *c, const char *cmd, Game *game) {
@@ -219,13 +234,25 @@ bool cmd_cast(Client *c, const char *cmd, Game *game) {
         return true;
     }
     int slv = sp->level;
-    if (slv > 0 && c->spell_slots[slv] <= 0) {
-        send_text_to_client(c->sock, "[MAGIC] No level %d slots left.", slv);
+    int slot = slot_for(c, slv);
+    if (slot < 0) {
+        send_text_to_client(c->sock, "[MAGIC] No slot of level %d or higher left.", slv);
         return true;
     }
+    if (slot > slv) {
+        send_text_to_client(c->sock,
+                            "[MAGIC] No level %d slot left: you cast %s with a level %d slot%s.",
+                            slv, sp->name, slot,
+                            sp->effect.upcast_per > 0 && (slot - slv) >= sp->effect.upcast_per
+                                ? ", and it grows stronger"
+                                : "");
+    }
     /*The slot is spent only when the spell goes off.*/
-    if (spell_cast_at(c, sp, game, target[0] ? target : NULL) && slv > 0) {
-        c->spell_slots[slv]--;
+    c->cast_upcast = slot - slv;
+    bool cast = spell_cast_at(c, sp, game, target[0] ? target : NULL);
+    c->cast_upcast = 0;
+    if (cast && slv > 0) {
+        c->spell_slots[slot]--;
     }
     return true;
 }

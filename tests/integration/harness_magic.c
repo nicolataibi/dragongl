@@ -350,3 +350,31 @@ int test_magic_invisibility(void) {
     CHECK(!has(c, "Invisible"), "an attack kept invisibility");
     return 0;
 }
+
+/* The Upcast Rule: with no slot of the spell's level, 'cast' spends the
+ * lowest higher one, and the spell gains its upcast (Heal: +10 HP a slot
+ * level above 6th). With no slot at all it refuses. */
+int test_magic_upcast(void) {
+    hx_reset_world();
+    Client *c = hero(0, "healer", FLOOR, CX, CY);
+    CHECK(c && learn(c, "Heal"), "no healer");
+    for (int l = 0; l <= MAX_SPELL_LEVEL; l++) {
+        c->spell_slots[l] = 0;
+    }
+    c->spell_slots[8] = 1;
+    c->max_hp = 500;
+    c->hp = 1;
+    cast(c, "Heal");
+    CHECK(said("with a level 8 slot, and it grows stronger") && c->spell_slots[8] == 0,
+          "the level 8 slot was not used");
+    CHECK(c->hp == 91, "healed to %d, not 1 + 70 + 2 x 10", c->hp);
+    cast(c, "Heal");
+    CHECK(said("No slot of level 6 or higher left") && c->hp == 91, "cast with no slot");
+    c->spell_slots[6] = 1;
+    c->spell_slots[7] = 1;
+    c->hp = 1;
+    cast(c, "Heal");
+    CHECK(!said("level 7 slot") && c->spell_slots[6] == 0 && c->spell_slots[7] == 1 && c->hp == 71,
+          "its own slot first: HP %d", c->hp);
+    return 0;
+}

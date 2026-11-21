@@ -30,6 +30,10 @@ void merchant_restock(MerchantData *shop);
 /*A character at 0 HP: logged ("<name> <how>."), his bones saved, back to
  * town without his equipment.*/
 void player_dies(Game *game, Client *c, const char *how);
+/*A death by a blow, a spell or a trap (by: what killed): the combat log
+ * and the server log record it, the bones stay, the character wakes up in
+ * town. The caller tells the player.*/
+void player_killed(Game *game, Client *c, const char *by);
 
 /*Hour and minute of the game day (1 round = 1 game minute).*/
 void get_game_time(Game *game, int *h, int *m);
@@ -76,6 +80,8 @@ NPC *npc_alloc(Game *game);
 /*An item lying on the ground at (x, y): the NPC that carries it (archetype
  * ARCH_TREASURE, registered on the entity grid), or NULL without a slot.*/
 NPC *npc_spawn_item(Game *game, int floor_id, int x, int y, const ItemInstance *item);
+/*A pile of gold on a free tile (a boss's bounty); NULL if no NPC slot.*/
+NPC *npc_spawn_gold(Game *game, int floor_id, int x, int y, uint64_t gold);
 
 /* Per-floor index of active NPCs — local queries (broadcast on a step,
  * aggro on an attack, swarm splits) iterate O(entities on the floor)

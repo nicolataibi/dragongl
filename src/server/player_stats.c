@@ -379,6 +379,66 @@ int get_xp_threshold(int level) {
     return thresholds[level - 1];
 }
 
+/*The highest slot level a class has at a character level: full casters
+ * a new one every 2 levels (L9 at 17), half casters every 2 from level 2
+ * (L5 at 10), the martial classes a new Ki level every 3 (L6 at 16).*/
+static int highest_slot_level(ClassType cls, int level) {
+    int top = MAX_SPELL_LEVEL;
+    int at = (level + 1) / 2;
+    switch (cls) {
+    case CLASS_PALADIN:
+    case CLASS_RANGER:
+        top = 5;
+        at = level / 2;
+        break;
+    case CLASS_FIGHTER:
+    case CLASS_MONK:
+    case CLASS_BARBARIAN:
+    case CLASS_ROGUE:
+        top = 6;
+        at = (level + 2) / 3;
+        break;
+    default:
+        break;
+    }
+    if (at < 1) {
+        at = 1;
+    }
+    return at > top ? top : at;
+}
+
+/*The slots of a class at a level (LORE.md, Starting Slots & Progression
+ * Rates): at level 1 a full caster has 4 of L1, 3 of L2 and 2 of L3, the
+ * fighter and the monk 3 Ki of L1, the barbarian and the rogue 2, the
+ * paladin and the ranger 1; every level after the first adds one slot of
+ * the highest level the class has then. A function of class and level
+ * only, so a loaded character gets the same slots as a new one.*/
+void class_spell_slots(ClassType cls, int level, int slots_max[MAX_SPELL_LEVEL + 1]) {
+    memset(slots_max, 0, sizeof(int) * (MAX_SPELL_LEVEL + 1));
+    switch (cls) {
+    case CLASS_PALADIN:
+    case CLASS_RANGER:
+        slots_max[1] = 1;
+        break;
+    case CLASS_BARBARIAN:
+    case CLASS_ROGUE:
+        slots_max[1] = 2;
+        break;
+    case CLASS_FIGHTER:
+    case CLASS_MONK:
+        slots_max[1] = 3;
+        break;
+    default:
+        slots_max[1] = 4;
+        slots_max[2] = 3;
+        slots_max[3] = 2;
+        break;
+    }
+    for (int lv = 2; lv <= level; lv++) {
+        slots_max[highest_slot_level(cls, lv)]++;
+    }
+}
+
 void check_level_up(Client *c) {
     if (c->level >= 20) {
         return;
@@ -399,40 +459,9 @@ void check_level_up(Client *c) {
         c->max_hp += hp_gain;
         c->hp = c->max_hp; // Heal to full on level up
 
-        //Magic/Ki: Unlock new spell slots based on class
-        int highest_spell_lvl = 1;
-        switch (c->class_id) {
-        case CLASS_PALADIN:
-        case CLASS_RANGER:
-            highest_spell_lvl = c->level / 2;
-            if (highest_spell_lvl > 5) {
-                highest_spell_lvl = 5;
-            }
-            break;
-        case CLASS_FIGHTER:
-        case CLASS_MONK:
-        case CLASS_BARBARIAN:
-        case CLASS_ROGUE:
-            /* Martial arts: all four classes unlock a new Ki tier every
-       * 3 character levels, up to L6, so the six tomes of every
-       * martial codex (sold at The Archive of a Thousand Battles)
-       * are learnable AND castable. */
-            highest_spell_lvl = (c->level + 2) / 3;
-            if (highest_spell_lvl > 6) {
-                highest_spell_lvl = 6;
-            }
-            break;
-        default:
-            highest_spell_lvl = (c->level + 1) / 2;
-            if (highest_spell_lvl > MAX_SPELL_LEVEL) {
-                highest_spell_lvl = MAX_SPELL_LEVEL;
-            }
-            break;
-        }
-        if (highest_spell_lvl < 1) {
-            highest_spell_lvl = 1;
-        }
-        c->spell_slots_max[highest_spell_lvl]++;
+        /*Magic/Ki: the slots of the new level (LORE.md, Starting Slots &
+         * Progression Rates).*/
+        class_spell_slots(c->class_id, c->level, c->spell_slots_max);
 
         //Reset all slots
         for (int i = 1; i <= MAX_SPELL_LEVEL; i++) {
@@ -445,7 +474,7 @@ void check_level_up(Client *c) {
         send_combat_event(c->sock, COMBAT_EV_LEVEL_UP, c->entity_id, c->level);
         send_text_to_client(c->sock,
                             "[LEVEL] Maximum HP increased by %d (Total: %d). "
-                            "Health and mana restored.",
+                            "Health and spell slots restored.",
                             hp_gain, c->max_hp);
         send_text_to_client(
             c->sock,
@@ -500,6 +529,17 @@ static void give_item_by_name(Client *c, const char *name) {
     item_instance_new(&c->backpack[c->backpack_count++], idx);
 }
 
+/*An item straight on the first free slot of the belt.*/
+static void give_belt_by_name(Client *c, const char *name) {
+    int idx = get_item_idx_by_name(name);
+    for (int b = 0; idx >= 0 && b < MAX_BELT; b++) {
+        if (c->belt[b].template_idx == -1) {
+            item_instance_new(&c->belt[b], idx);
+            return;
+        }
+    }
+}
+
 void give_starting_gear(Client *c) {
     switch (c->class_id) {
     case CLASS_BARBARIAN:
@@ -539,6 +579,7 @@ void give_starting_gear(Client *c) {
         break;
     case CLASS_RANGER:
         give_item_by_name(c, "Longbow");
+        give_belt_by_name(c, "Arrows (20)"); /*a bow shoots from the belt*/
         give_item_by_name(c, "Tracks of Nature");
         break;
     case CLASS_ROGUE:

@@ -254,11 +254,12 @@ Every quality gate of CI runs locally with one command; build trees go to `build
 | `fuzz [S]` | the libFuzzer targets of `tests/fuzz` (wire decoders, save-file readers, text commands), S seconds each (default 60), with seeds written by the targets themselves | a crash, leak or timeout; the input goes to `build-quality/fuzz/artifacts/` |
 | `bench` | `tests/integration/tick_bench` in a Release build: 600 rounds with 64 characters in a full world (one per floor, then all on one floor) and the autosave | a p99, or the longest autosave round, over `tests/bench_limits.json` |
 | `load [S]` | `tools/loadtest.py` with a Release server: 64 TLS clients walk to the dungeon and play for S seconds (default 60), the server is stopped under load and started again | a lost connection, round p99 or command p99 over the limits, a slow or failed shutdown, a character not saved |
+| `play [S]` | `tools/playtest.py` with a Release server: a character of every class plays for S seconds (default 300), down the dungeon on the map the server sends, fighting what is in the way and typing the commands a player types | a command with no answer in 5 s, a character that cannot move for 30 s away from a boss floor, a lost connection, an "Unrecognized command" for a command of its list, a server that exits or a sanitizer report |
 | `links` / `links-external` | `tools/check_links.py` (after its own tests): links between the Markdown files, `#anchors`, files of the tree named in backticks; `links-external` also fetches every http(s) link | a link to a file or heading that does not exist, a named file that is gone, a URL that does not answer |
 | `commands` / `commands-fix` | `dragongl_server --print-commands` against `docs/COMMANDS.md` | the file is not what the command table (`src/server/cmd_help.c`) gives (`commands-fix` writes it) |
 | `man` | the man pages as installed, through `mandoc -T lint -W warning` | any warning |
 | `repro` | two copies of the tree at different paths, RelWithDebInfo, installed | a file that differs, or one that names its build directory |
-| `all` | all of the above but `bench` and `load`, fuzzing 30 s per target | |
+| `all` | all of the above but `bench`, `load` and `play`, fuzzing 30 s per target | |
 
 ```bash
 tools/quality.sh format-fix         # before a commit that touches C code

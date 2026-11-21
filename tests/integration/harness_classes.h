@@ -12,5 +12,6 @@
 
 int test_class_hit_dice(void);
 int test_class_saves(void);
+int test_class_spell_slots(void);
 
 #endif

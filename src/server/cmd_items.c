@@ -334,12 +334,15 @@ typedef struct {
     int learned, locked, already;
 } StudyTally;
 
+/*LORE.md, Spellcaster Grimoires: level x 2 + level / 2 (cantrips 1): L1 at
+ * 2, L2 at 5, L3 at 7 ... L8 at 20; L9 (22) is past the level cap, and its
+ * slots power lower spells (The Upcast Rule).*/
 int spell_required_level(const SpellTemplate *sp) {
-    return sp->level > 0 ? sp->level * 2 : 1;
+    return sp->level > 0 ? sp->level * 2 + sp->level / 2 : 1;
 }
 
 /*One spell of the book: learned if the class may cast it and the
- * character has twice its level (cantrips: level 1).*/
+ * character has its required level (spell_required_level).*/
 static void study_spell(Client *c, const char *spell_name, StudyTally *tally) {
     int si = spell_index_named(spell_name);
     if (si < 0 || !(spell_database[si].class_mask & (1u << (int)c->class_id))) {
@@ -348,7 +351,7 @@ static void study_spell(Client *c, const char *spell_name, StudyTally *tally) {
     const SpellTemplate *sp = &spell_database[si];
     int required_level = spell_required_level(sp);
     if (c->level < required_level) {
-        send_text_to_client(c->sock, "  [-] %-30s  (requires PC Lv %d - LOCKED)", sp->name,
+        send_text_to_client(c->sock, "  [-] %-30s  (requires level %d - LOCKED)", sp->name,
                             required_level);
         tally->locked++;
     } else if (spell_known_get(c, si)) {
@@ -368,7 +371,7 @@ static void study_summary(Client *c, const StudyTally *t) {
     }
     if (t->learned > 0) {
         send_text_to_client(c->sock,
-                            "[RITUAL] You have learned %d new magic(s)! Use 'spells' to "
+                            "[RITUAL] You have learned %d new spell(s)! Use 'spells' to "
                             "see your updated library.",
                             t->learned);
     }
@@ -424,7 +427,7 @@ static void learn_from_book(Client *c, int number, ItemTemplate *tmpl, const cha
                             tmpl->name, temple->name, temple->ritual, number);
         return;
     }
-    send_text_to_client(c->sock, "[RITUAL] %s... '%s' (you are in %s, Lv PG %d):", temple->ritual,
+    send_text_to_client(c->sock, "[RITUAL] %s... '%s' (you are in %s, level %d):", temple->ritual,
                         tmpl->name, temple->name, c->level);
     StudyTally tally = {0, 0, 0};
     for (int i = 0; i < tmpl->book_spell_count; i++) {

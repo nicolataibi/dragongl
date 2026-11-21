@@ -236,7 +236,10 @@ static bool restore_inventory(Client *c, const SaveData *sd) {
     c->slot_feet = sd->s_feet;
     memcpy(c->slot_rings, sd->s_rings, sizeof(sd->s_rings));
     memcpy(c->spell_slots, sd->spell_slots, sizeof(sd->spell_slots));
-    memcpy(c->spell_slots_max, sd->spell_slots_max, sizeof(sd->spell_slots_max));
+    /*The maximum follows from class and level (the saves of older
+     * versions held 16 to 24 slots a level); the slots left are kept, up
+     * to it.*/
+    class_spell_slots(c->class_id, c->level, c->spell_slots_max);
     /*Every ItemInstance loaded from disk may carry a hostile template_idx
    * (used later as an item_database[] index): any slot that is neither
    * empty (-1) nor a valid database index is dropped.*/

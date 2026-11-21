@@ -82,8 +82,8 @@ void item_instance_new(ItemInstance *out, int template_idx) {
         out->durability = 5000;
     }
     out->current_charges = t->max_charges;
-    item_roll_variant(out); /*a ring of resistance: the damage type*/
-    out->stack_count = 1;
+    item_roll_variant(out);                           /*a ring of resistance: the damage type*/
+    out->stack_count = t->bundle > 1 ? t->bundle : 1; /*"Arrows (20)": 20 arrows*/
     out->is_identified = true;
     out->quality = QUALITY_NORMAL;
     out->blessing = BLESS_NORMAL;

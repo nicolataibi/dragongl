@@ -457,10 +457,10 @@ static void dm_boss_report(Client *c, const Game *game, const NPC *n, int ordina
     send_text_to_client(c->sock, "[DM] BOSS #%d - %s (NPC id %d)", ordinal, bname, n->entity_id);
     send_text_to_client(c->sock, "[DM] +======================= =======================+");
     send_text_to_client(c->sock, "[DM] Position: Floor %d X:%d Y:%d", n->floor_id, n->x, n->y);
-    send_text_to_client(c->sock, "[DM] Spawn : X:%d Y:%d", n->spawn_x, n->spawn_y);
+    send_text_to_client(c->sock, "[DM] Spawn: X:%d Y:%d", n->spawn_x, n->spawn_y);
     /*Combat statistics*/
-    send_text_to_client(c->sock, "[DM] HP : %d / %d", n->hp, n->max_hp);
-    send_text_to_client(c->sock, "[DM] AC : %d", n->ac);
+    send_text_to_client(c->sock, "[DM] HP: %d / %d", n->hp, n->max_hp);
+    send_text_to_client(c->sock, "[DM] AC: %d", n->ac);
     send_text_to_client(c->sock, "[DM] Attack: +%d Damage: %dd%d", n->attack_bonus, n->damage_dice,
                         n->damage_sides);
     send_text_to_client(c->sock, "[DM] XP: %d Gold: %d", n->xp_reward, n->gold_drop);
@@ -469,9 +469,9 @@ static void dm_boss_report(Client *c, const Game *game, const NPC *n, int ordina
     if (n->template) {
         const MonsterTemplate *t = n->template;
         send_text_to_client(c->sock, "[DM] Sight: %d Speed: %d", t->sight_range, t->speed);
-        send_text_to_client(c->sock, "[DM] Floors : %d-%d", t->floor_min, t->floor_max);
+        send_text_to_client(c->sock, "[DM] Floors: %d-%d", t->floor_min, t->floor_max);
         if (t->description && t->description[0] != '\0') {
-            send_text_to_client(c->sock, "[DM] Lore : %.120s", t->description);
+            send_text_to_client(c->sock, "[DM] Lore: %.120s", t->description);
         }
     }
     /*Active spell slots*/
@@ -658,7 +658,7 @@ static bool cmd_dm_merchant(Client *c, const char *cmd, Game *game) {
         send_text_to_client(c->sock, "[DM] Position: Floor %d X:%d Y:%d", game->npcs[i].floor_id,
                             game->npcs[i].x, game->npcs[i].y);
         /*Stats (a merchant usually doesn't fight, but we show it anyway)*/
-        send_text_to_client(c->sock, "[DM] HP : %d / %d", game->npcs[i].hp, game->npcs[i].max_hp);
+        send_text_to_client(c->sock, "[DM] HP: %d / %d", game->npcs[i].hp, game->npcs[i].max_hp);
         send_text_to_client(c->sock, "[DM] Restock timer: %d",
                             npc_shop_any(&game->pools, &game->npcs[i])->restock_timer);
 

@@ -23,6 +23,7 @@ typedef struct {
     Ability spell_ability;   /*class_spell_ability() of the caster's class*/
     int dc_bonus;            /*added to the save DC (magic items: robe of the archmagi)*/
     int attack_bonus;        /*added to the spell attack bonus (staff of power...)*/
+    int upcast;              /*slot levels above the spell's level of the slot spent*/
 } SpellCaster;
 
 typedef struct {
@@ -57,8 +58,9 @@ int spell_save_dc(const SpellEffect *e, const SpellCaster *c);
 int spell_attack_bonus(const SpellCaster *c);
 /*Number of dice at this caster level (cantrips: x2 at 5, x3 at 11, x4 at 17).*/
 int spell_dice_count(const SpellEffect *e, int level);
-/*A roll of the effect's dice + bonus + dice_add modifier (never below 0);
- * crit doubles the dice.*/
+/*A roll of the effect's dice + bonus + dice_add modifier, + the upcast
+ * dice and bonus of the caster's upcast (never below 0); crit doubles the
+ * dice.*/
 int spell_roll_amount(const SpellEffect *e, const SpellCaster *c, bool crit);
 /*Average of spell_roll_amount (no crit), for reports.*/
 double spell_average_amount(const SpellEffect *e, const SpellCaster *c);

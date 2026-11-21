@@ -138,6 +138,12 @@ void world_init(World *world);
  * Uses rand(): the caller seeds the RNG. */
 void floor_init(Floor *floor, int floor_id);
 void generate_procedural_dungeon(Map *map, int floor_id);
+/*The staircase down reached on foot from the staircase up: when walls,
+ * rock or a room without a way out cut them apart, the shortest way from
+ * the staircase down to the ground reached is opened (a wall becomes a
+ * door, rock a cobbled tunnel). True if a way was opened. A new floor
+ * gets it, and so does every floor of a world loaded from disk.*/
+bool map_connect_stairs(Map *map);
 
 /* Angle in radians of shop slot 0..10 on the ring of floor 0 (map.c,
  * generate_city). The server places the shop doors and merchants with the

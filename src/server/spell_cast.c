@@ -45,6 +45,7 @@ void spell_caster_of(Client *c, SpellCaster *out) {
     out->level = c->level > 0 ? c->level : 1;
     out->spell_ability = class_spell_ability(c->class_id);
     player_spell_item_bonus(c, &out->dc_bonus, &out->attack_bonus);
+    out->upcast = c->cast_upcast;
 }
 
 int npc_save_bonus(const NPC *n) {

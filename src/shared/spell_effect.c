@@ -183,6 +183,37 @@ static bool read_dice(Reader *r, SpellEffect *e, bool required) {
     return true;
 }
 
+/*"upcast": {"count", "sides", "bonus", "per"}: what a higher slot adds to
+ * the dice, for every "per" slot levels (1 or 2, default 1).*/
+static bool read_upcast(Reader *r, SpellEffect *e) {
+    const cJSON *u = cJSON_GetObjectItemCaseSensitive(r->obj, "upcast");
+    e->upcast_per = 0;
+    if (!u) {
+        return true;
+    }
+    if (!cJSON_IsObject(u)) {
+        return fail(r, "upcast", "not an object");
+    }
+    if (e->dice_count == 0 && e->dice_bonus == 0) {
+        return fail(r, "upcast", "no dice to add to");
+    }
+    Reader ur = {u, r->err, r->err_len};
+    e->upcast_per = 1;
+    if (!read_int(&ur, "count", false, 0, 20, &e->upcast_count) ||
+        !read_int(&ur, "sides", false, 0, 20, &e->upcast_sides) ||
+        !read_int(&ur, "bonus", false, 0, 100, &e->upcast_bonus) ||
+        !read_int(&ur, "per", false, 1, 2, &e->upcast_per)) {
+        return false;
+    }
+    if ((e->upcast_count == 0) != (e->upcast_sides == 0)) {
+        return fail(r, "upcast", "count and sides must be both zero or both positive");
+    }
+    if (e->upcast_count == 0 && e->upcast_bonus == 0) {
+        return fail(r, "upcast", "adds nothing");
+    }
+    return true;
+}
+
 static bool read_condition(Reader *r, SpellEffect *e, bool required) {
     const cJSON *v = cJSON_GetObjectItemCaseSensitive(r->obj, "condition");
     e->condition = MAX_CONDITIONS;
@@ -221,7 +252,7 @@ static bool read_kind_fields(Reader *r, SpellEffect *e) {
     e->cantrip_scaling = cJSON_IsTrue(scaling);
     if (!read_int(r, "dc", false, 5, 30, &e->dc) ||
         !read_dice(r, e, e->kind == SPELL_KIND_DAMAGE || e->kind == SPELL_KIND_HEAL) ||
-        !read_condition(r, e, e->kind == SPELL_KIND_CONDITION)) {
+        !read_upcast(r, e) || !read_condition(r, e, e->kind == SPELL_KIND_CONDITION)) {
         return false;
     }
     if (e->kind == SPELL_KIND_DAMAGE) {

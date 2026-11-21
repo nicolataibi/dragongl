@@ -132,7 +132,11 @@ void ai_init_npc(NPC *npc, const char *monster_name, int floor_id) {
     // --- Modify stats based on archetype ---
     switch (npc->archetype) {
     case ARCH_BOSS:
-        hp_base = (hp_base * 5) + (floor_id * 50);
+        /*LORE.md, Dynamic Scaling: HP = Base_HP * (1 + (floor_id / 10) * 0.5),
+         * half the base more for each block of 10 floors (x1.5 on floor 10,
+         * x6 on floor 100). It was 5 x the base + 50 a floor: 560 HP on
+         * floor 10, a hundred rounds of a level 3 fighter.*/
+        hp_base = hp_base * (2 + floor_id / 10) / 2;
         npc->ac += 2;
         npc->attack_bonus += 3;
         npc->damage_sides = 8;
@@ -644,10 +648,7 @@ AINodeStatus ai_mage_behavior(Game *game, NPC *npc, Client *clients, int num_cli
                                 "[COMBAT] The missiles strike you for %d force damage! (HP: %d/%d)",
                                 dmg, target->hp > 0 ? target->hp : 0, target->max_hp);
             if (target->hp <= 0) {
-                target->hp = 0;
-                clog_death(target->username, npc_name(npc), npc->floor_id);
-                save_bones(game, target);
-                player_respawn_town(game, target);
+                player_killed(game, target, npc_name(npc));
                 send_text_to_client(
                     target->sock,
                     "[SYSTEM] You died! The Arcane has returned you to town without your equipment!");

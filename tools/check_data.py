@@ -168,6 +168,8 @@ def effect_check(report, spells):
         e, where = sp["effect"], "spells[%d] %s" % (i, sp["name"])
         if e.get("cantrip_scaling") and sp["level"] != "cantrip":
             report.error(where, "cantrip_scaling on a level %s spell" % sp["level"])
+        if "upcast" in e and (sp["level"] == "cantrip" or "dice" not in e):
+            report.error(where, "upcast on a cantrip or a spell without dice")
         if "dc" in e and sp["school"] != "martial":
             report.error(where, "a fixed dc on a spell (only martial maneuvers have one)")
         if "save" in e and e.get("roll") != "save" and "condition" not in e:

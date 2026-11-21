@@ -412,8 +412,8 @@ static bool loot_artifact(Client *c, const NPC *killer, int fallback_idx, ItemIn
     char abuf[160];
     get_full_item_name(&art, abuf, sizeof(abuf));
     send_text_to_client(c->sock,
-                        "[*** ARTIFACT ***] %s has surrendered the legendary: %s"
-                        "-- FIRST AND ONLY IN THE WORLD!",
+                        "[*** ARTIFACT ***] %s has surrendered the legendary %s"
+                        " - the first and only one in the world!",
                         npc_name(killer), abuf);
     return true;
 }

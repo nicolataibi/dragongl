@@ -1,3 +1,141 @@
+* Sat Nov 21 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.21.19
+- LOG: every death of a character is in the server log, with what killed
+  it and where ("kael was killed by Goblin on floor 2 (40,51)"): the
+  blows and spells of monsters and the traps went only to the combat log
+  (player_killed() now does it once for all of them).
+- TOOLS: dragongl-analyze-log (tools/analyze_log.py, in dragongl-tools,
+  with its man page) sums up a server log, from a file or from
+  journalctl: failed or damaged saves, protocol violations, TLS failures,
+  sanitizer reports, a restart without a clean shutdown, then logins,
+  wrong passwords, disconnections by reason, deaths by cause and the last
+  performance line; --strict exits with status 1 on a problem. Its tests
+  (tools/test_analyze_log.py) run with the integration suite.
+
+* Sat Nov 21 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.21.18
+- LOOK: what shows the same in a direction is one entry, with how many
+  and the nearest ("Sacred-Fountain x45 (3p)"), and the nearest come
+  first: in the town square the rows were filled with the tiles of the
+  fountain, cut at 59 characters, and the shops and temples around never
+  showed. A monster shows its hit points, as LORE.md says ("Goblin
+  HP:7/30 (2p)").
+
+* Sat Nov 21 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.21.17
+- TESTS: tools/playtest.py (tools/quality.sh play [seconds]): a
+  character of every class logs in to a real server over TLS and plays
+  on its own, down the dungeon on the map the server sends (towards the
+  stairs, else towards the unknown), fighting what is in its way and
+  typing the commands a player types. It fails on a command with no
+  answer, a character that cannot move for 30 seconds away from a boss
+  floor, a lost connection, an unrecognized command of its list, a
+  server that exits or a sanitizer report. Five minutes of the twelve
+  classes find nothing of the kind.
+
+* Sat Nov 21 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.21.16
+- WORLD: the staircase down of every floor is reached on foot from the
+  staircase up (map_connect_stairs): rooms with walls on every side, rock
+  and lakes could cut them apart, and a player arrived in a closed room
+  or found the stairs down walled in (one floor in a world or two, as on
+  floor 2 of the default world, without a pickaxe a dead end). The
+  shortest way is opened (a wall becomes a door, rock a cobbled tunnel),
+  on a new world and on the floors of a world loaded from disk.
+- TESTS: floors_traversable walks every floor of a new world from the
+  town square and from each staircase up: a staircase down, the temples
+  of the town and every merchant must be reached.
+
+* Sat Nov 21 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.21.15
+- SHOPS: prices follow the reactive economy of LORE.md:
+  economy_modifier = 0.5 + 1.5 x (1 - stock / max_stock), half the cost
+  on a full shelf, double on an empty one (the game used 1.0 to 1.5).
+  No purchase costs less than 50% of the cost, haggled or not (the
+  0.5x of LORE.md; it was 80%), and a merchant pays at most 45% of it
+  (it was 75%): buying from a full shelf and selling to an empty one still
+  never makes gold, and a static assertion keeps it so.
+- SHOPS: 'list' shows the price 'buy' asks: it computed its own, without
+  the floor of the purchase.
+
+* Sat Nov 21 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.21.14
+- BOSSES: a boss has the hit points of LORE.md (Dynamic Scaling): its
+  base times 1 + (floor / 10) x 0.5, half the base more for each block of
+  10 floors (x1.5 on floor 10, x6 on floor 100). It had 5 times the base
+  and 50 more a floor: 560 to 680 HP on floor 10, where a balance model
+  of a level 3 fighter needs over a hundred rounds to win and dies in
+  fourteen (now six rounds to win).
+
+* Sat Nov 21 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.21.13
+- ITEMS: ammunition is the item whose name starts with what it holds
+  (Arrows, Crossbow Bolts, Sling Bullets, Blowgun Needles): any weapon
+  with "bolt", "arrow" or "needle" in its name was ammunition, and the
+  Hammer of Thunderbolts, a legendary maul, could not be wielded.
+- ITEMS: a bundle of ammunition is what its name says: buying Arrows (20)
+  gives twenty arrows (it gave one), Blowgun Needles (50) fifty; a single
+  piece sells for its share of the bundle and does not refill the shelf.
+- CLASSES: a ranger starts with Arrows (20) on the belt: his longbow had
+  nothing to shoot.
+
+* Sat Nov 21 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.21.12
+- BOSSES: a boss is defeated by the killer and whoever fights with him,
+  within 15 tiles of it, as LORE.md says (only players who personally
+  defeat the boss pass): every player of the floor got the trophy and
+  the stairs, an idle one at the other end of the map too.
+- BOSSES: the bounty (floor x 1000 gp) lies scattered in up to 10 piles
+  around the kill, as LORE.md says, for whoever picks it up; it went
+  straight into the purse of every player of the floor. It is paid when
+  the boss falls to someone who had not defeated it yet: a boss respawns
+  in 120 ticks, and its veterans could farm 10,000 to 100,000 gp a kill.
+
+* Sat Nov 21 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.21.11
+- SPELLS: a spell is learned at the level LORE.md gives (Spellcaster
+  Grimoires): spell level x 2 + level / 2, so L1 at 2, L2 at 5, L3 at 7,
+  L4 at 10 ... L8 at 20, and L9 (22) beyond the level cap, reserved to
+  expansions and artifacts (the game used level x 2: L9 at 18). The slots of
+  L9 still power lower spells (The Upcast Rule); 'lore' shows the new
+  levels.
+
+* Sat Nov 21 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.21.10
+- SPELLS: the Upcast Rule of LORE.md: with no slot of the spell's level
+  left, 'cast' spends the lowest higher one and says so (it refused); the
+  spell gains what its At Higher Levels text says about its dice or hit
+  points, now in the effect's "upcast" field of data/spells.json (58
+  spells: Magic Missile one more dart, Cure Wounds and Fireball one more
+  die, Spiritual Weapon one die every two levels, Heal 10 HP a level).
+- DATA: the schema, tools/check_data.py and the Data Studio know
+  "upcast"; the higher-level texts of Shatter and Wall of Ice lose their
+  typos (levei, ld8, "this spells using a spells slot").
+
+* Sat Nov 21 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.21.09
+- CLASSES: the starting spell slots are those of LORE.md (Starting Slots
+  & Progression Rates): a full caster 4 of L1, 3 of L2 and 2 of L3, the
+  fighter and the monk 3 Ki of L1, the barbarian and the rogue 2, the
+  paladin and the ranger 1 (every class had 16 to 24 slots of every
+  level it may cast). Each level still adds one slot of the highest level
+  the class has.
+- CLASSES: the slots are a function of class and level
+  (class_spell_slots), used by a new character, a level up and a login:
+  a character saved before gets the slots of its level, keeping the ones
+  it had spent.
+- DOCS: LORE.md shows the real progression of full casters, half casters
+  and martial classes (it showed a table of 5e that the game never had),
+  barbarians and rogues reach Ki L6, paladins and rangers have 1 slot at
+  level 1.
+
+* Sat Nov 21 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.21.08
+- MESSAGES: three messages joined two sentences without a space (the
+  boss defeated, the poisoned dart, the dart trap noticed); the traps
+  tagged Darkness, Spores and Antimagic [STATUS] where every other
+  condition says [STATE]; the DM reports put a space before the colon.
+- MESSAGES: wordings that read as orders or abbreviations now tell what
+  happens ("You drink the water...", "You extract...", "You dash in and
+  attack...", "Repaired ... durability 3/10", "requires level 5", "new
+  spell(s)", "Beyond the edge of the map"); the disarm tag is [DISARM],
+  the haggle and shop messages [STORE], "cancelled" everywhere.
+- SHOPS: repair, uncurse and cure said a Blacksmith, a Cleric or the
+  healers were needed, while any merchant serves (LORE.md, Combat Wear &
+  The Blacksmith): the messages and the command list of LORE.md say a
+  merchant, cure poison only for 50 gp.
+- HUD: the client colours the tags the server really sends: [STATE]
+  (it waited for [STATUS]), [GLOBAL EVENT], [CURSE], [LEVEL], [ITEM],
+  [KI] and the merchants' tags.
+
 * Sat Nov 21 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.21.07
 - HUD: the status panel shows Frightened, Charmed, Invisible, Restrained,
   Prone, Incapacitated and Silenced, the haste of boots or a potion of

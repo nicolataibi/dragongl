@@ -545,7 +545,7 @@ int test_spec_trade(void) {
     CHECK(a->trading_with[0] == '\0' && b->trading_with[0] == '\0' && said("Trade cancelled"),
           "cancel left a trade open");
     heard(b);
-    CHECK(said("anna canceled the trade"), "the other player was not told");
+    CHECK(said("anna cancelled the trade"), "the other player was not told");
     run(a, "cancel");
     CHECK(said("not in any trade"), "a second cancel");
     return 0;

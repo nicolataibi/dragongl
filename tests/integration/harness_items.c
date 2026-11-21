@@ -168,12 +168,21 @@ int test_books_and_lore(void) {
     run(c, "study 1");
     CHECK(said("you must go to floor 0, in Arcane Academy"), "studied outside the temple");
 
+    /* LORE.md: spell level x 2 + level / 2, cantrips at 1. */
+    static const int k_required[] = {1, 2, 5, 7, 10, 12, 15, 17, 20, 22};
+    for (int lv = 0; lv <= 9; lv++) {
+        SpellTemplate sp = {0};
+        sp.level = lv;
+        CHECK(spell_required_level(&sp) == k_required[lv], "a level %d spell at %d", lv,
+              spell_required_level(&sp));
+    }
+
     const TempleInfo *t = &TEMPLES[0];
     CHECK(t->cls == CLASS_WIZARD, "the first temple is not the wizards'");
     place(c, 0, (t->x0 + t->x1) / 2, (t->y0 + t->y1) / 2);
     c->level = 20;
     run(c, "study 1");
-    CHECK(said("*** LEARNED ***") && said("new magic(s)"), "nothing learned in the temple");
+    CHECK(said("*** LEARNED ***") && said("new spell(s)"), "nothing learned in the temple");
     run(c, "study 1");
     CHECK(said("already know all the accessible magic"), "learned twice");
 
@@ -261,7 +270,9 @@ int test_level_up_and_train(void) {
           "level %d, points %d, HP %d/%d", c->level, c->unspent_stat_points, c->hp, c->max_hp);
     CHECK(said("RISEN TO LEVEL 3") && said("Head to the Temple") && c->needs_study,
           "the level up is not told");
-    CHECK(c->spell_slots_max[1] + c->spell_slots_max[2] == 2, "no new slots");
+    CHECK(c->spell_slots_max[1] == 5 && c->spell_slots_max[2] == 4 && c->spell_slots_max[3] == 2,
+          "slots %d/%d/%d at level 3", c->spell_slots_max[1], c->spell_slots_max[2],
+          c->spell_slots_max[3]);
 
     run(c, "train");
     CHECK(said("Specify a stat"), "no usage");
@@ -297,13 +308,13 @@ int test_merchant_services(void) {
     run(c, "talk");
     CHECK(said("no merchant next to you"), "talked to nobody");
     run(c, "cure");
-    CHECK(said("find one first"), "cured without a merchant");
+    CHECK(said("merchant cures poison"), "cured without a merchant");
     run(c, "identify");
     CHECK(said("must be next to a merchant"), "identified without a merchant");
     run(c, "repair");
-    CHECK(said("must be next to the Blacksmith"), "repaired without a smith");
+    CHECK(said("next to a merchant to repair"), "repaired without a smith");
     run(c, "uncurse");
-    CHECK(said("must be next to the Cleric"), "uncursed without a cleric");
+    CHECK(said("next to a merchant to remove a curse"), "uncursed without a cleric");
 
     NPC *m = merchant(20, 0, CX + 1, CY);
     add_item_to_shop(npc_shop_any(&g_game.pools, m), heal, 5);
@@ -372,9 +383,9 @@ int test_merchant_services(void) {
 
     place(c, FLOOR, CX, CY);
     run(c, "repair");
-    CHECK(said("only found on floor 0"), "a smith in the dungeon");
+    CHECK(said("Repairs are made in the town"), "a smith in the dungeon");
     run(c, "uncurse");
-    CHECK(said("only on floor 0"), "a cleric in the dungeon");
+    CHECK(said("Curses are lifted in the town"), "a cleric in the dungeon");
     return 0;
 }
 

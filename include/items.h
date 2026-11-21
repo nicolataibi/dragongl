@@ -141,6 +141,7 @@ typedef struct {
     int ac_base;
     int max_durability;
     int max_stack;
+    int bundle; /*pieces one purchase gives: "Arrows (20)" 20, 1 for any other item*/
     bool needs_id;
     int heal_amount;
     int light_radius;

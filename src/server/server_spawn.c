@@ -636,7 +636,7 @@ bool spawn_floor_boss(Game *game, NPC *b, int f) {
     b->template_idx = boss_id;
     b->template = &bestiary_data[boss_id];
     snprintf(b->custom_name, sizeof(b->custom_name), "Boss %s", b->template->name);
-    /*Five times the hit points and 50 more per floor: ai_init_npc.*/
+    /*Half the base hit points more per block of 10 floors: ai_init_npc.*/
     ai_init_npc(b, b->custom_name, b->floor_id);
     game->world->floors[f].entity_grid[by][bx] = b->entity_id;
     npc_set_active(game, b, true);

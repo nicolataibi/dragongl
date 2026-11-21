@@ -78,7 +78,7 @@ static void collect(Game *game, Client *c, NPC *n) {
         npc_set_active(game, n, false);
         n->respawn_timer = 0;
     } else {
-        send_text_to_client(c->sock, "[SYSTEM] Open the chest and find something...");
+        send_text_to_client(c->sock, "[SYSTEM] You open the chest and find something...");
         drop_loot_from_monster(game, c, n);
         npc_set_active(game, n, false);
         n->respawn_timer = 100;
@@ -180,7 +180,7 @@ bool cmd_drop(Client *c, const char *cmd, Game *game) {
         send_text_to_client(c->sock, "[SYSTEM] Unable to drop item: too many items on the ground.");
         return true;
     }
-    send_text_to_client(c->sock, "[ACTION] You dropped: %s on the ground",
+    send_text_to_client(c->sock, "[ACTION] You dropped %s on the ground.",
                         item_database[item->template_idx].name);
     remove_carried(c, found_idx, in_belt);
     return true;

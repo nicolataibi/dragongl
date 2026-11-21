@@ -276,6 +276,35 @@
                   }
                 }
               },
+              "upcast": {
+                "type": "object",
+                "additionalProperties": false,
+                "description": "cast with a higher slot (LORE.md, The Upcast Rule): count dice of sides + bonus added to the roll for every per slot levels above the spell's level",
+                "properties": {
+                  "count": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 20
+                  },
+                  "sides": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 20
+                  },
+                  "bonus": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 100
+                  },
+                  "per": {
+                    "enum": [
+                      1,
+                      2
+                    ],
+                    "description": "slot levels for one step (default 1)"
+                  }
+                }
+              },
               "damage_type": {
                 "enum": [
                   "acid",

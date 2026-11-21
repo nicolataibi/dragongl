@@ -26,6 +26,7 @@
 #include "server.h"
 #include "player.h"
 #include "server_loot.h"
+#include "server_tiles.h"
 
 // Define LOOT_DROP_CHANCE here since it is used in perform_attack -> drop_loot_from_monster
 // NOTE: canonical value is defined in server_internal.h — do NOT redefine here.
@@ -85,8 +86,8 @@ static void award_kill_xp(Game *game, Client *c, const NPC *t, int xp_gained, in
             m->xp += xp_gained;
             check_level_up(m);
             if (m != c) {
-                send_text_to_client(m->sock, "[PARTY] Receive %d XP for killing %s.", xp_gained,
-                                    npc_name(t));
+                send_text_to_client(m->sock, "[PARTY] You receive %d XP for the death of %s.",
+                                    xp_gained, npc_name(t));
             }
         }
     }
@@ -126,7 +127,8 @@ int npc_killed(Game *game, Client *c, NPC *t, const char *by) {
         send_text_to_client(c->sock, "[VICTORY] %s falls to your %s! (+%d XP)", npc_name(t), by,
                             xp_gained);
     } else {
-        send_text_to_client(c->sock, "[VICTORY] With a fatal blow, you take %s' life! (+%d XP)",
+        send_text_to_client(c->sock,
+                            "[VICTORY] With a fatal blow, you take the life of %s! (+%d XP)",
                             npc_name(t), xp_gained);
     }
     if (game->event.type == 1 && t->floor_id == game->event.floor_id && t->template &&
@@ -377,8 +379,7 @@ static void announce_attack(Client *c, const NPC *t, const ItemTemplate *w, bool
         send_text_to_client(c->sock, "[ACTION] You shoot %s point-blank (disadvantage)!",
                             npc_name(t));
     } else if (w && w->category == ITEM_WEAPON) {
-        send_text_to_client(c->sock, "[ACTION] Quickly dash and launch an attack against %s!",
-                            npc_name(t));
+        send_text_to_client(c->sock, "[ACTION] You dash in and attack %s!", npc_name(t));
     } else {
         send_text_to_client(c->sock, "[ACTION] You attack %s with your bare hands!", npc_name(t));
     }
@@ -642,9 +643,7 @@ void perform_attack_npc(NPC *n, Client *c, Game *game) {
         /*Wear: 3% of the hits received cost the armour a point.*/
         wear_item(c, &c->slot_body, 3, "armor");
         if (c->hp <= 0) {
-            clog_death(c->username, npc_name(n), c->floor_id);
-            save_bones(game, c);
-            player_respawn_town(game, c);
+            player_killed(game, c, npc_name(n));
             send_text_to_client(
                 c->sock,
                 "[SYSTEM] You died! The Arcane has returned you to town without your equipment!");
@@ -656,47 +655,98 @@ void perform_attack_npc(NPC *n, Client *c, Game *game) {
     }
 }
 
-/*Design note (§2.6): boss rewards (gold + bosses_defeated flag + stairs
- * unlock) are SHARED by every player present on the floor, not scaled to
- * individual contribution. This is an intentional "shared progression"
- * decision for the co-op LAN setting (a boss floor is a party gate), but
- * it is documented here on purpose: change it if per-player rewards are
- * ever wanted.*/
-/*DESIGN NOTE: the reward is SHARED floor-wide, on purpose. Every active
- * client on the boss' floor gets the gold and the bosses_defeated flag
- * (the stairs stay sealed for the whole floor until the boss is down,
- * so "defeating the boss" is a floor-level gate, not a personal one —
- * rewarding the whole floor keeps party play consistent: anyone who
- * fought next to the killer also benefits). The killer argument is
- * therefore intentionally unused; if this ever becomes a solo-quest
- * game mode, scale the reward to the contributor here.*/
-void handle_boss_death(Game *game, Client *c, NPC *boss) {
-    (void)c;
-    /*A ghost (save_bones) fights as a boss but is not the boss of its
-     * floor: killing it opens nothing and pays nothing.*/
-    if (!boss || boss->archetype != ARCH_BOSS || boss->is_ghost) {
-        return;
+/*How far from a boss a player takes part in its defeat: its chamber.*/
+#define BOSS_WITNESS_RADIUS 15
+
+/*The players who defeat a boss (LORE.md, Boss Encounter System): the
+ * killer and whoever is in the fight with him, within BOSS_WITNESS_RADIUS
+ * of the boss; a player elsewhere on the floor has not defeated it.*/
+static bool boss_witness(const Client *p, const Client *killer, const NPC *boss) {
+    if (!p->active || !p->authenticated || p->floor_id != boss->floor_id) {
+        return false;
     }
-    if (boss->floor_id > 0 && boss->floor_id % 10 == 0) {
-        int boss_index = (boss->floor_id / 10) - 1;
-        if (boss_index >= 0 && boss_index < 10) {
-            uint64_t gold_reward = (uint64_t)boss->floor_id * 1000U;
-            const char *boss_name = "Boss";
-            if (boss->custom_name[0] != '\0') {
-                boss_name = boss->custom_name;
-            } else if (boss->template) {
-                boss_name = boss->template->name;
-            }
-            for (int i = 0; i < MAX_CLIENTS; i++) {
-                if (game->clients[i].active && game->clients[i].floor_id == boss->floor_id) {
-                    game->clients[i].gold += gold_reward;
-                    game->clients[i].bosses_defeated |= (1u << boss_index);
-                    send_text_to_client(game->clients[i].sock,
-                                        "[HEROIC QUEST] Boss %s has been defeated!"
-                                        "You have obtained %lu gold and the stairs have unlocked!",
-                                        boss_name, gold_reward);
+    return p == killer || (abs(p->x - boss->x) <= BOSS_WITNESS_RADIUS &&
+                           abs(p->y - boss->y) <= BOSS_WITNESS_RADIUS);
+}
+
+/*The bounty of a boss, scattered in up to 10 piles of gold on the free
+ * tiles around the kill (LORE.md, Rewards & Trophies): whoever picks
+ * them up is paid. Returns the piles laid.*/
+static int scatter_bounty(Game *game, const NPC *boss, uint64_t gold) {
+    enum { PILES = 10 };
+    const Floor *fl = &game->world->floors[boss->floor_id];
+    int xs[PILES], ys[PILES], n = 0;
+    for (int r = 0; r <= 3 && n < PILES; r++) {
+        for (int dy = -r; dy <= r && n < PILES; dy++) {
+            for (int dx = -r; dx <= r && n < PILES; dx++) {
+                if ((abs(dx) == r || abs(dy) == r) && tile_free(fl, boss->x + dx, boss->y + dy)) {
+                    xs[n] = boss->x + dx;
+                    ys[n] = boss->y + dy;
+                    n++;
                 }
             }
+        }
+    }
+    int laid = 0;
+    for (int i = 0; i < n; i++) {
+        uint64_t share = gold / (uint64_t)n + (i == 0 ? gold % (uint64_t)n : 0U);
+        laid += npc_spawn_gold(game, boss->floor_id, xs[i], ys[i], share) != NULL;
+    }
+    return laid;
+}
+
+/*A boss of floor 10, 20 ... 100 is down. Its defeat is shared by the
+ * party in the fight (boss_witness), not by the whole floor: each of them
+ * gets the trophy and the stairs. The bounty, floor x 1000 gold, lies
+ * scattered around the kill, but only when the boss falls to someone who
+ * had not defeated it yet: a respawned boss (120 ticks) is the gate of the
+ * newcomers, not a mine of gold for the veterans.*/
+void handle_boss_death(Game *game, Client *c, NPC *boss) {
+    /*A ghost (save_bones) fights as a boss but is not the boss of its
+     * floor: killing it opens nothing and pays nothing.*/
+    if (!boss || boss->archetype != ARCH_BOSS || boss->is_ghost || boss->floor_id <= 0 ||
+        boss->floor_id % 10 != 0 || boss->floor_id / 10 > 10) {
+        return;
+    }
+    int boss_index = (boss->floor_id / 10) - 1;
+    uint32_t bit = 1u << boss_index;
+    const char *boss_name = "Boss";
+    if (boss->custom_name[0] != '\0') {
+        boss_name = boss->custom_name;
+    } else if (boss->template) {
+        boss_name = boss->template->name;
+    }
+    bool conquest = false;
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        if (boss_witness(&game->clients[i], c, boss) && !(game->clients[i].bosses_defeated & bit)) {
+            conquest = true;
+        }
+    }
+    uint64_t bounty = (uint64_t)boss->floor_id * 1000U;
+    if (conquest && scatter_bounty(game, boss, bounty) == 0) {
+        bounty = 0; /*no free tile around the kill*/
+    }
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        Client *p = &game->clients[i];
+        if (!boss_witness(p, c, boss)) {
+            continue;
+        }
+        p->bosses_defeated |= bit;
+        if (conquest && bounty > 0) {
+            send_text_to_client(p->sock,
+                                "[HEROIC QUEST] Boss %s has been defeated! Its bounty of %lu "
+                                "gold lies scattered around it, and the stairs have unlocked!",
+                                boss_name, (unsigned long)bounty);
+        } else if (conquest) {
+            send_text_to_client(p->sock,
+                                "[HEROIC QUEST] Boss %s has been defeated! The stairs have "
+                                "unlocked!",
+                                boss_name);
+        } else {
+            send_text_to_client(p->sock,
+                                "[HEROIC QUEST] Boss %s has been defeated again: the stairs "
+                                "are open to you.",
+                                boss_name);
         }
     }
 }

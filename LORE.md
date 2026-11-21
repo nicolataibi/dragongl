@@ -168,10 +168,10 @@ In a legendary world, beneath the ruins of an ancient arcane civilization, lies 
 - **Tactical Combat Log:** Real-time logging to `combat_log.json` for balance analysis.
 
 ### 5. Boss Encounter System & Progression
-- **Multiplayer Gating:** A formidable Boss appears every 10 floors (10, 20, 30...). Bosses seal the stairs leading to deeper depths; only players who personally defeat the boss are granted access to proceed.
+- **Multiplayer Gating:** A formidable Boss appears every 10 floors (10, 20, 30...). Bosses seal the stairs leading to deeper depths; only players who personally defeat the boss are granted access to proceed: the killer and whoever fights with him, within 15 tiles of the boss when it falls (a player elsewhere on the floor is not).
 - **Real-Time Respawn System:** If a boss has already been defeated and the floor is clear, the passage remains blocked for players lacking the defeat flag. The system will prompt them to await the boss's respawn (120 ticks) to earn their right of passage through combat.
 - **Dynamic Scaling:** Boss health scales progressively for each 10-floor block based on the formula `HP = Base_HP * (1 + (floor_id/10) * 0.5)`.
-- **Rewards & Trophies (HUD):** Defeating a boss scatters a generous bounty of gold across the map near the kill location. The server records the victory in the character's profile and updates the client's HUD by illuminating one of the 10 corresponding floor trophies.
+- **Rewards & Trophies (HUD):** Defeating a boss scatters a generous bounty of gold (floor × 1000 gp, in up to 10 piles) on the free tiles around the kill location, for whoever picks it up. The bounty is paid when the boss falls to at least one player who had not defeated it yet: a respawned boss killed again by veterans only opens the stairs. The server records the victory in the character's profile and updates the client's HUD by illuminating one of the 10 corresponding floor trophies.
 
 ### 6. Leveling & Attribute System
 - **Leveling Up:** Players advance from level 1 to 20, automatically gaining HP based on their hit dice (one roll of the class's Hit Die + CON modifier, at least 1: `1d12` for a Barbarian, `1d6` for a Wizard) and unlocking new spell tiers in their spellbooks.
@@ -500,7 +500,7 @@ Dragon GL is built with a classic text-console interface (in NetHack/Angband sty
 - **`status`** (or **`stats`**): View your complete character sheet including stats, modifiers, conditions, and AC.
 
 ### 🗺️ World Interaction & Temples
-- **`look`** (or **`l`**): Examine your surroundings with precision. Performs a radial scan of the 8 visible sectors (N, NE, E, SE, S, SW, W, NW) and the "Under your feet" tile, identifying monsters (and their HP), items, merchants, and terrain types in a tabular format.
+- **`look`** (or **`l`**): Examine your surroundings with precision. Performs a radial scan of the 8 visible sectors (N, NE, E, SE, S, SW, W, NW) and the "Under your feet" tile, identifying monsters (and their HP), items, merchants, and terrain types in a tabular format. Each row lists the nearest first, with its distance in steps, and what shows the same is counted once (*"Sacred-Fountain x14 (3p)"*).
 - **`examine`** (or **`ex`**): Performs a detailed geological analysis (1-tile radius). Ideal for miners: it reveals whether nearby rock walls or ground tiles contain extractable gold veins, silver, or precious crystals. Also checks if you possess the required mining tool.
 - **`fountain`**: Drink from a sacred fountain (Floor 0) to instantly restore your HP to full.
 - **`statue`** (or **`crystal`**): Meditate at your class crystal monument (Floor 0) to clear exhaustion, hunger, and restore all spell slots.
@@ -520,10 +520,10 @@ Dragon GL is built with a classic text-console interface (in NetHack/Angband sty
 - **`buy <n>`**: Purchase an item from a merchant.
 - **`sell <n>`**: Sell an item from your backpack to a merchant.
 - **`haggle buy/sell`**: Attempt to negotiate a better deal based on Charisma.
-- **`identify <n>`**: Identify an unknown magic item at a merchant/alchemist (100 gp).
-- **`repair <n>`**: Repair a damaged item or all equipped items at a blacksmith.
-- **`cure`**: Heal diseases and poisons at a temple.
-- **`uncurse`**: Remove curse from cursed equipment at a temple.
+- **`identify <n>`**: Identify an unknown magic item next to a merchant (100 gp).
+- **`repair <n>`**: Repair a damaged item or all equipped items next to a merchant of the town.
+- **`cure`**: Have poison cured next to a merchant (50 gp).
+- **`uncurse`**: Remove the curses of the equipment next to a merchant of the town (200 gp).
 
 ### 🔮 Magic & Rituals
 - **`spells`**: Lists all currently learned spells/prayers in your grimoire.
@@ -675,7 +675,7 @@ The complete world of Dragon GL is composed of discrete voxels. Every cell of ev
 
 - **Grid geometry.** A floor is a three-dimensional lattice of `VoxelType` cells with dimensions `MAP_WIDTH × MAP_HEIGHT × MAP_DEPTH` = `300 × 300 × 1` (the depth axis is reserved for future verticality and is not currently exercised). The world comprises `MAX_FLOORS = 101` floors: Floor 0 is the sanctuary city; Floors 1–100 constitute the dungeon.
 - **Server authority.** The master copy of the world resides on the server (`game->world`, of type `World`). Clients never mutate voxel state; they receive incremental map chunks (`send_map_chunk`, initial view radius `INITIAL_VIEW_RADIUS = 100`) purely for rendering and minimap display.
-- **Generation.** Initial topology is produced by `generate_procedural_dungeon()` in `src/shared/map.c`. Rooms are carved out of a `VOXEL_ROCK` substrate: perimeter cells become `VOXEL_WALL` (the four corners are deliberately retained as `VOXEL_ROCK` so that digging can never pierce the structure at a corner), interiors become `VOXEL_FLOOR`, and navigation (stairs), doors, liquids, flora, resources, and the themed decorations of the 21 room archetypes are then stamped on top.
+- **Generation.** Initial topology is produced by `generate_procedural_dungeon()` in `src/shared/map.c`. Rooms are carved out of a `VOXEL_ROCK` substrate: perimeter cells become `VOXEL_WALL` (the four corners are deliberately retained as `VOXEL_ROCK` so that digging can never pierce the structure at a corner), interiors become `VOXEL_FLOOR`, and navigation (stairs), doors, liquids, flora, resources, and the themed decorations of the 21 room archetypes are then stamped on top. Last, `map_connect_stairs()` makes sure the staircase down is reached on foot from the staircase up: when walls, rock or a room without a way out cut them apart, the shortest way is opened (a wall becomes a door, rock a cobbled tunnel). A world saved before this rule gets it at the next start of the server.
 - **Runtime mutation.** Voxel state is modified permanently during play by: mining (`tunnel`), door operation (`open`/`close`), terrain spells (Wall of Stone, Ice Storm, Transmute Rock), elemental area effects (§8.1), environmental traps (Flood, Ceiling Collapse, Stone Tomb), and trap detection/disarmal (`VOXEL_TRAP` markers).
 - **Persistence.** `persist_write_world()` stores every voxel cell (one byte each), every trap table and every crystal-respawn queue in `world.dat`, in the server state directory. The numeric values of the enumeration are part of the on-disk contract: renumbering or reordering `VoxelType` requires a new world format version.
 - **Textual dumps.** The map dump (format v2) encodes each tile as a two-digit hexadecimal voxel identifier — `00` (`VOXEL_ROCK`) through `1B` (`VOXEL_CRYSTAL_WHITE`) — and is consumed by `tools/generate_pdf_map.py` to render pixel-accurate paper maps.
@@ -1293,7 +1293,7 @@ Dragon GL implements a dynamic roguelike modifier system inspired by classics li
 *   **Armor Bonuses `[+AC]`:** Shields and armors can drop with augmented defensive properties (e.g., `Leather Armor [+2]`).
 *   **Elemental Suffixes:** High-tier weapons may roll elemental tags (`Flaming`, `Frost`, `Shocking`, `Poisonous`), causing them to inflict an additional `1d6` elemental damage on successful hits.
 *   **Quality & Blessing:** Items can roll structural qualities (from `Rusty` to `Masterwork`) and spiritual alignments (from `Cursed` to `Blessed`). Quality adds to a weapon's attack and damage rolls and to the armour class of armour and shields: Rusty -1, Normal 0, Fine +1, Masterwork +2.
-*   **Ranged Weapons:** Bows, crossbows, slings and blowguns shoot with `shoot [n|s|e|w]` at the first creature within the weapon's range (its normal range, 5 feet a tile) and the player's sight, spending their own ammunition from the belt (arrows, bolts, sling bullets, needles) and hitting with DEX; a shot at a neighbour has disadvantage. Finesse weapons hit with the better of STR and DEX, the others with STR.
+*   **Ranged Weapons:** Bows, crossbows, slings and blowguns shoot with `shoot [n|s|e|w]` at the first creature within the weapon's range (its normal range, 5 feet a tile) and the player's sight, spending their own ammunition from the belt (arrows, bolts, sling bullets, needles) and hitting with DEX; a shot at a neighbour has disadvantage. Ammunition is sold in bundles and a bundle is what its name says: *Arrows (20)* are twenty arrows, *Blowgun Needles (50)* fifty; a single piece sells for its share of the bundle. A ranger starts with a bundle of arrows on the belt. Finesse weapons hit with the better of STR and DEX, the others with STR.
 
 These modifiers apply in real-time during the `perform_attack` d20 combat calculations, providing an endless variety of exciting loot drops!
 
@@ -1301,7 +1301,7 @@ These modifiers apply in real-time during the `perform_attack` d20 combat calcul
 Inspired directly by *NetHack*, cursed items introduce a classic roguelike risk layer:
 *   **Cursed items bind to your body.** If you `remove` an identified cursed item, the server blocks the action: *"The object is shrouded in a malevolent aura! You cannot remove it!"*
 *   **Blind Wear (Meccanica 2 synergy):** Unidentified items can be worn at risk. The instant you equip them they are identified — but if they were cursed, you are now *trapped* wearing them!
-*   **Removal:** Use `uncurse` near a Cleric in the city (floor 0) for 200gp. This purifies all cursed items currently worn.
+*   **Removal:** Use `uncurse` next to a merchant in the city (floor 0), who performs the Cleric's rite, for 200gp. This purifies all cursed items currently worn.
 
 ### 7. Blind-Wear Identification System
 Inspired by *NetHack* and *Angband*, unidentified items (dropped by RARE+ monsters) show as `??? (unknown)` in your inventory. There are two ways to reveal them:
@@ -1418,31 +1418,73 @@ You can cast a **lower-level** spell using a **higher-level** slot to make it mo
 - *Cure Wounds* (L1) cast with an L3 slot → heals **significantly more HP**
 - *Magic Missile* (L1) cast with an L3 slot → fires **5 darts** instead of 3
 
-The game handles this mechanic automatically when you cast a spell with `cast` and only higher-level slots are available.
+The game handles this mechanic automatically when you cast a spell with `cast` and only higher-level slots are available: it spends the lowest one left and tells you (*"No level 1 slot left: you cast Cure Wounds with a level 3 slot, and it grows stronger"*). What a higher slot adds is what the spell's *At Higher Levels* text says about its dice or its hit points, written in the `upcast` field of its effect in `data/spells.json` (58 spells: one more die, or a fixed amount, for each slot level above, or for every two); a spell whose higher levels add targets, duration or anything else the dungeon has no rule for is cast as it is, and the higher slot is spent all the same.
 
 ##### Slot Progression by Level
 
-The number of slots is not fixed: it grows as your character levels up. A wizard at **level 1** starts with only `L1: 2/2`. At **level 5** they already have `L1: 4/4`, `L2: 3/3`, `L3: 2/2`. High levels (L6–L9) only unlock with characters above level 11.
+The number of slots grows as your character levels up. A wizard at **level 1** starts with `L1: 4/4`, `L2: 3/3`, `L3: 2/2` (see *Starting Slots & Progression Rates* below); every level after the first adds **one slot of the highest level the class has at that moment**, so the new level of slots opens with one and the levels past the cap keep adding to the highest.
+
+**Full casters** (Bard, Cleric, Druid, Sorcerer, Warlock, Wizard): a new spell level every 2 character levels, L9 at level 17.
 
 | PC Lv | L1 | L2 | L3 | L4 | L5 | L6 | L7 | L8 | L9 |
 |:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| 1 | 2 | — | — | — | — | — | — | — | — |
-| 2 | 3 | — | — | — | — | — | — | — | — |
-| 3 | 4 | 2 | — | — | — | — | — | — | — |
-| 4 | 4 | 3 | — | — | — | — | — | — | — |
-| 5 | 4 | 3 | 2 | — | — | — | — | — | — |
-| 6 | 4 | 3 | 3 | — | — | — | — | — | — |
-| 7 | 4 | 3 | 3 | 1 | — | — | — | — | — |
-| 8 | 4 | 3 | 3 | 2 | — | — | — | — | — |
-| 9 | 4 | 3 | 3 | 3 | 1 | — | — | — | — |
-| 10 | 4 | 3 | 3 | 3 | 2 | — | — | — | — |
-| 11 | 4 | 3 | 3 | 3 | 2 | 1 | — | — | — |
-| 13 | 4 | 3 | 3 | 3 | 2 | 1 | 1 | — | — |
-| 15 | 4 | 3 | 3 | 3 | 2 | 1 | 1 | 1 | — |
-| 17 | 4 | 3 | 3 | 3 | 2 | 1 | 1 | 1 | 1 |
-| 20 | 4 | 3 | 3 | 3 | 2 | 1 | 1 | 1 | 1 |
+| 1 | 4 | 3 | 2 | — | — | — | — | — | — |
+| 2 | 5 | 3 | 2 | — | — | — | — | — | — |
+| 3 | 5 | 4 | 2 | — | — | — | — | — | — |
+| 4 | 5 | 5 | 2 | — | — | — | — | — | — |
+| 5 | 5 | 5 | 3 | — | — | — | — | — | — |
+| 6 | 5 | 5 | 4 | — | — | — | — | — | — |
+| 7 | 5 | 5 | 4 | 1 | — | — | — | — | — |
+| 8 | 5 | 5 | 4 | 2 | — | — | — | — | — |
+| 9 | 5 | 5 | 4 | 2 | 1 | — | — | — | — |
+| 10 | 5 | 5 | 4 | 2 | 2 | — | — | — | — |
+| 11 | 5 | 5 | 4 | 2 | 2 | 1 | — | — | — |
+| 13 | 5 | 5 | 4 | 2 | 2 | 2 | 1 | — | — |
+| 15 | 5 | 5 | 4 | 2 | 2 | 2 | 2 | 1 | — |
+| 17 | 5 | 5 | 4 | 2 | 2 | 2 | 2 | 2 | 1 |
+| 20 | 5 | 5 | 4 | 2 | 2 | 2 | 2 | 2 | 4 |
 
-*Note: the table refers to the Wizard, who is the full caster. Bard, Cleric, Druid, Sorcerer follow the same progression. Paladin and Ranger (half-casters) start from level 2 and cap at L5.*
+**Half casters** (Paladin, Ranger): a new spell level every 2 character levels from level 2, up to L5 at level 10.
+
+| PC Lv | L1 | L2 | L3 | L4 | L5 |
+|:---:|:---:|:---:|:---:|:---:|:---:|
+| 1 | 1 | — | — | — | — |
+| 2 | 2 | — | — | — | — |
+| 3 | 3 | — | — | — | — |
+| 4 | 3 | 1 | — | — | — |
+| 5 | 3 | 2 | — | — | — |
+| 6 | 3 | 2 | 1 | — | — |
+| 7 | 3 | 2 | 2 | — | — |
+| 8 | 3 | 2 | 2 | 1 | — |
+| 9 | 3 | 2 | 2 | 2 | — |
+| 10 | 3 | 2 | 2 | 2 | 1 |
+| 11 | 3 | 2 | 2 | 2 | 2 |
+| 13 | 3 | 2 | 2 | 2 | 4 |
+| 15 | 3 | 2 | 2 | 2 | 6 |
+| 17 | 3 | 2 | 2 | 2 | 8 |
+| 20 | 3 | 2 | 2 | 2 | 11 |
+
+**Martial classes** (Fighter and Monk start with 3 Ki slots, Barbarian and Rogue with 2: one less on L1 than the table): a new Ki level every 3 character levels, up to L6 at level 16.
+
+| PC Lv | L1 | L2 | L3 | L4 | L5 | L6 |
+|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| 1 | 3 | — | — | — | — | — |
+| 2 | 4 | — | — | — | — | — |
+| 3 | 5 | — | — | — | — | — |
+| 4 | 5 | 1 | — | — | — | — |
+| 5 | 5 | 2 | — | — | — | — |
+| 6 | 5 | 3 | — | — | — | — |
+| 7 | 5 | 3 | 1 | — | — | — |
+| 8 | 5 | 3 | 2 | — | — | — |
+| 9 | 5 | 3 | 3 | — | — | — |
+| 10 | 5 | 3 | 3 | 1 | — | — |
+| 11 | 5 | 3 | 3 | 2 | — | — |
+| 13 | 5 | 3 | 3 | 3 | 1 | — |
+| 15 | 5 | 3 | 3 | 3 | 3 | — |
+| 17 | 5 | 3 | 3 | 3 | 3 | 2 |
+| 20 | 5 | 3 | 3 | 3 | 3 | 5 |
+
+A slot of a level higher than the spells you know is not wasted: it powers a lower spell (*The Upcast Rule*). The slots are a function of class and level: a character saved by an older version gets them recomputed when it logs in, keeping the ones it had spent.
 
 ##### Who Has Spell Slots?
 
@@ -1454,11 +1496,11 @@ The number of slots is not fixed: it grows as your character levels up. A wizard
 | 🎵 **Bard** | Full caster | L1–L9 | Magic through art |
 | ✝️ **Cleric** | Full caster | L1–L9 | Divine gift |
 | 🌿 **Druid** | Full caster | L1–L9 | Nature communion |
-| ⚔️ **Paladin** | Half-caster | L1–L5 | From level 2 |
-| 🏹 **Ranger** | Half-caster | L1–L5 | From level 2 |
+| ⚔️ **Paladin** | Half-caster | L1–L5 | 1 slot at level 1 |
+| 🏹 **Ranger** | Half-caster | L1–L5 | 1 slot at level 1 |
 | 🗡️ **Fighter** | Ki / Vital Energy | L1–L6 | Tactical Discipline — unlocks Combat Techniques |
-| 🪓 **Barbarian** | Ki / Vital Energy | L1–L4 | Primal Fury — fuels Rage bursts and Savage Strikes |
-| 🗝️ **Rogue** | Ki / Vital Energy | L1–L4 | Shadow Energy — powers Sneak Attacks and Cunning Tricks |
+| 🪓 **Barbarian** | Ki / Vital Energy | L1–L6 | Primal Fury — fuels Rage bursts and Savage Strikes |
+| 🗝️ **Rogue** | Ki / Vital Energy | L1–L6 | Shadow Energy — powers Sneak Attacks and Cunning Tricks |
 | 🥋 **Monk** | Ki / Vital Energy | L1–L6 | Ki — the purest martial life force, used for all Monk Arts |
 
 ##### Starting Slots & Progression Rates
@@ -4380,6 +4422,7 @@ economy_modifier = 0.5 + 1.5 * (1.0 - current_stock / max_stock)
 
 - **Full stock** → `modifier = 0.5x` (50% discount; the item is abundant).
 - **Empty stock** → `modifier = 2.0x` (doubled price; the item is scarce).
+- **Selling** pays half the item's cost times the same modifier, at most **45%** of the cost; no purchase, haggled or not, costs less than **50%**: buying from a full shelf and selling to an empty one never makes gold.
 - **Selling to a Merchant:** When a player sells an item, it **returns to the merchant's inventory**, increasing their stock and automatically lowering the price for future buyers. This creates a **shared micro-economy** across all players on the server.
 
 ### Haggling System (`haggle`)

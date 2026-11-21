@@ -17,6 +17,7 @@
 #include "pathfinding.h"
 #include "server_internal.h"
 #include "server_startup.h"
+#include "server_cmd.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -184,5 +185,151 @@ int test_dm_spawn_full_stats(void) {
     snprintf(line, sizeof(line), "dm_spawn %d %d %d", tid, CX + 5, CY);
     run(c, line);
     CHECK(said("Spawned"), "dm_spawn refused a mud floor");
+    return 0;
+}
+
+/* Tiles a player reaches on floor f from (x, y): every tile but walls,
+ * rock and merchants (a merchant is never killed nor pushed aside), the
+ * way step_onto() and bump_into() let him walk. */
+static unsigned char g_seen[MAP_HEIGHT][MAP_WIDTH];
+static int g_queue[MAP_WIDTH * MAP_HEIGHT];
+
+static void reach_from(int f, int x0, int y0) {
+    const Floor *fl = &g_game.world->floors[f];
+    memset(g_seen, 0, sizeof(g_seen));
+    static bool merchant[MAP_HEIGHT][MAP_WIDTH];
+    memset(merchant, 0, sizeof(merchant));
+    for (int i = 0; i < MAX_NPCS; i++) {
+        const NPC *n = &g_game.npcs[i];
+        if (n->active && n->floor_id == f && n->archetype == ARCH_MERCHANT) {
+            merchant[n->y][n->x] = true;
+        }
+    }
+    int head = 0, tail = 0;
+    g_seen[y0][x0] = 1;
+    g_queue[tail++] = y0 * MAP_WIDTH + x0;
+    while (head < tail) {
+        int x = g_queue[head] % MAP_WIDTH, y = g_queue[head] / MAP_WIDTH;
+        head++;
+        static const int dx[4] = {1, -1, 0, 0}, dy[4] = {0, 0, 1, -1};
+        for (int d = 0; d < 4; d++) {
+            int nx = x + dx[d], ny = y + dy[d];
+            if (nx < 0 || ny < 0 || nx >= MAP_WIDTH || ny >= MAP_HEIGHT || g_seen[ny][nx] ||
+                !voxel_passable(fl->map.data[0][ny][nx]) || merchant[ny][nx]) {
+                continue;
+            }
+            g_seen[ny][nx] = 1;
+            g_queue[tail++] = ny * MAP_WIDTH + nx;
+        }
+    }
+}
+
+/* The tiles of kind v on floor f that a player reaches (after reach_from)
+ * and the ones there are. */
+static void count_reached(int f, VoxelType v, int *reached, int *total) {
+    *reached = *total = 0;
+    for (int y = 0; y < MAP_HEIGHT; y++) {
+        for (int x = 0; x < MAP_WIDTH; x++) {
+            if (g_game.world->floors[f].map.data[0][y][x] == v) {
+                (*total)++;
+                *reached += g_seen[y][x];
+            }
+        }
+    }
+}
+
+/* No floor is a dead end: from the town square, and from every staircase
+ * up where a player arrives on a floor, a staircase down is reached on
+ * foot (the last floor has none); merchants and the temples of the town
+ * can be walked to. */
+int test_floors_traversable(void) {
+    const char *seed = getenv("DGL_WORLD_SEED");
+    if (seed) {
+        srand((unsigned int)strtoul(seed, NULL, 10));
+    }
+    generate_world(&g_game);
+    for (int f = 0; f < MAX_FLOORS; f++) {
+        const Floor *fl = &g_game.world->floors[f];
+        int starts = 0;
+        for (int y = 0; y < MAP_HEIGHT; y++) {
+            for (int x = 0; x < MAP_WIDTH; x++) {
+                bool start = f == 0 ? (x == MAP_CENTER_X && y == MAP_CENTER_Y)
+                                    : fl->map.data[0][y][x] == VOXEL_STAIRS_UP;
+                if (!start) {
+                    continue;
+                }
+                starts++;
+                reach_from(f, x, y);
+                int down = 0, downs = 0;
+                count_reached(f, VOXEL_STAIRS_DOWN, &down, &downs);
+                CHECK(f == MAX_FLOORS - 1 || down > 0,
+                      "floor %d: from (%d,%d) none of the %d stairs down is reached", f, x, y,
+                      downs);
+                if (f == 0) {
+                    for (int t = 0; t < TEMPLE_COUNT; t++) {
+                        int mx = (TEMPLES[t].x0 + TEMPLES[t].x1) / 2;
+                        int my = (TEMPLES[t].y0 + TEMPLES[t].y1) / 2;
+                        CHECK(g_seen[my][mx], "the %s is not reached from the square",
+                              TEMPLES[t].name);
+                    }
+                }
+            }
+        }
+        CHECK(starts > 0, "floor %d has no way in", f);
+    }
+    for (int i = 0; i < MAX_NPCS; i++) {
+        const NPC *n = &g_game.npcs[i];
+        if (!n->active || n->archetype != ARCH_MERCHANT) {
+            continue;
+        }
+        int f = n->floor_id;
+        int sx = MAP_CENTER_X, sy = MAP_CENTER_Y;
+        for (int y = 0; f > 0 && y < MAP_HEIGHT; y++) {
+            for (int x = 0; x < MAP_WIDTH; x++) {
+                if (g_game.world->floors[f].map.data[0][y][x] == VOXEL_STAIRS_UP) {
+                    sx = x;
+                    sy = y;
+                }
+            }
+        }
+        reach_from(f, sx, sy);
+        bool beside = false;
+        for (int d = 0; d < 4 && !beside; d++) {
+            static const int dx[4] = {1, -1, 0, 0}, dy[4] = {0, 0, 1, -1};
+            beside = g_seen[n->y + dy[d]][n->x + dx[d]] != 0;
+        }
+        CHECK(beside, "the merchant of floor %d (%d,%d) cannot be walked to", f, n->x, n->y);
+    }
+
+    /* A floor of an older world, its stairs down walled in: the way is
+     * opened (at load, server_startup.c), once. */
+    Map *m = &g_game.world->floors[3].map;
+    int ux = -1, uy = -1, sx = -1, sy = -1;
+    for (int y = 0; y < MAP_HEIGHT; y++) {
+        for (int x = 0; x < MAP_WIDTH; x++) {
+            if (m->data[0][y][x] == VOXEL_STAIRS_DOWN) {
+                sx = x;
+                sy = y;
+            } else if (m->data[0][y][x] == VOXEL_STAIRS_UP) {
+                ux = x;
+                uy = y;
+            }
+        }
+    }
+    CHECK(sx > 2 && sy > 2 && sx < MAP_WIDTH - 3 && sy < MAP_HEIGHT - 3 && ux >= 0,
+          "floor 3 without stairs inside the border");
+    for (int dy = -2; dy <= 2; dy++) {
+        for (int dx = -2; dx <= 2; dx++) {
+            if (abs(dx) == 2 || abs(dy) == 2) {
+                m->data[0][sy + dy][sx + dx] = (dx + dy) % 2 ? VOXEL_WALL : VOXEL_ROCK;
+            }
+        }
+    }
+    reach_from(3, ux, uy);
+    CHECK(!g_seen[sy][sx], "the ring does not wall the stairs in");
+    CHECK(map_connect_stairs(m), "no way opened");
+    reach_from(3, ux, uy);
+    CHECK(g_seen[sy][sx], "the stairs down are still walled in");
+    CHECK(!map_connect_stairs(m), "a way opened twice");
     return 0;
 }

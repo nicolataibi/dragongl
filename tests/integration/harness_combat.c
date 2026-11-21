@@ -251,38 +251,86 @@ int test_party_shares_xp(void) {
     heard(b);
     CHECK(gained == 50 && a->xp == 50 && b->xp == 50, "shares %d / %d / %d", gained, a->xp, b->xp);
     CHECK(away->xp == 0, "a member on another floor got experience");
-    CHECK(said("[PARTY] Receive 50 XP"), "the member was not told");
+    CHECK(said("[PARTY] You receive 50 XP"), "the member was not told");
     heard(a);
     CHECK(said("falls to your sword"), "the killer was not told how");
     a->party_leader[0] = b->party_leader[0] = away->party_leader[0] = '\0';
     return 0;
 }
 
-/* A boss rewards everyone on its floor; a skeleton counts for the event. */
+/* The gold of the piles within 3 tiles of (x, y) on floor f. */
+static uint64_t gold_around(int f, int x, int y) {
+    uint64_t sum = 0;
+    for (int i = 0; i < MAX_NPCS; i++) {
+        const NPC *n = &g_game.npcs[i];
+        if (n->active && n->archetype == ARCH_GOLD && n->floor_id == f && abs(n->x - x) <= 3 &&
+            abs(n->y - y) <= 3) {
+            sum += (uint64_t)n->gold_drop;
+        }
+    }
+    return sum;
+}
+
+/* A boss is defeated by the party in the fight, not by the whole floor:
+ * they get the trophy, and its bounty lies around the kill (LORE.md,
+ * Boss Encounter System); killed again by the same players it pays
+ * nothing. A skeleton counts for the event. */
 int test_boss_and_event_kills(void) {
     hx_reset_world();
     Client *a = hero(0, "slayer", 10, CX, CY);
     Client *b = hero(1, "witness", 10, CX + 5, CY);
     Client *c = hero(2, "elsewhere", FLOOR, CX, CY);
-    CHECK(a && b && c, "no players");
+    Client *d = hero(3, "faraway", 10, CX + 40, CY);
+    CHECK(a && b && c && d, "no players");
     NPC *boss = monster(10, NULL, 10, CX + 1, CY);
     boss->archetype = ARCH_BOSS;
     snprintf(boss->custom_name, sizeof(boss->custom_name), "Lord of Tests");
     uint64_t gold = a->gold;
+    uint64_t lying = gold_around(10, CX + 1, CY);
     npc_killed(&g_game, a, boss, NULL);
     heard(b);
-    CHECK(a->gold == gold + 10000 && b->gold == gold + 10000, "boss reward %lu / %lu",
+    CHECK(a->gold == gold && b->gold == gold, "the bounty went to the purses: %lu / %lu",
           (unsigned long)a->gold, (unsigned long)b->gold);
+    CHECK(gold_around(10, CX + 1, CY) == lying + 10000, "bounty on the ground: %lu",
+          (unsigned long)(gold_around(10, CX + 1, CY) - lying));
     CHECK((a->bosses_defeated & 1u) && (b->bosses_defeated & 1u), "boss flag not set");
-    CHECK(c->gold == gold && c->bosses_defeated == 0, "a player on another floor was paid");
-    CHECK(said("Boss Lord of Tests has been defeated"), "the floor was not told");
+    CHECK(c->bosses_defeated == 0, "a player on another floor got the trophy");
+    CHECK(d->bosses_defeated == 0, "a player far from the fight got the trophy");
+    CHECK(said("Boss Lord of Tests has been defeated! Its bounty of 10000 gold"),
+          "the party was not told");
+
+    /* A pile of the bounty is picked up like any other gold. */
+    NPC *pile = NULL;
+    for (int i = 0; i < MAX_NPCS && !pile; i++) {
+        NPC *n = &g_game.npcs[i];
+        if (n->active && n->archetype == ARCH_GOLD && n->floor_id == 10 &&
+            abs(n->x - (CX + 1)) <= 3 && abs(n->y - CY) <= 3) {
+            pile = n;
+        }
+    }
+    CHECK(pile != NULL, "no pile of the bounty");
+    uint64_t share = (uint64_t)pile->gold_drop;
+    place(b, 10, pile->x, pile->y + 1);
+    run(b, "get n");
+    CHECK(b->gold == gold + share && !pile->active, "the pile of %lu gp was not picked up",
+          (unsigned long)share);
+
+    /* The same party kills it again: the stairs, no gold. */
+    lying = gold_around(10, CX + 2, CY);
+    NPC *again = monster(11, NULL, 10, CX + 2, CY);
+    again->archetype = ARCH_BOSS;
+    npc_killed(&g_game, a, again, NULL);
+    heard(b);
+    CHECK(gold_around(10, CX + 2, CY) == lying, "a respawned boss paid the veterans again");
+    CHECK(said("defeated again"), "no word on the second kill");
 
     /* A boss killed by the environment still opens the floor. */
     a->bosses_defeated = b->bosses_defeated = 0;
-    NPC *again = monster(11, NULL, 10, CX + 2, CY);
-    again->archetype = ARCH_BOSS;
-    npc_killed(&g_game, NULL, again, NULL);
-    CHECK(a->bosses_defeated & 1u, "a boss killed by a trap gave nothing");
+    NPC *trap = monster(13, NULL, 10, CX + 2, CY);
+    trap->archetype = ARCH_BOSS;
+    npc_killed(&g_game, NULL, trap, NULL);
+    CHECK((a->bosses_defeated & 1u) && (b->bosses_defeated & 1u),
+          "a boss killed by a trap gave nothing");
 
     NPC *skel = monster(12, "Skeleton", FLOOR, CX + 1, CY);
     CHECK(skel->template && strcasestr(skel->template->name, "Skeleton"), "no skeleton");

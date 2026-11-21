@@ -1,0 +1,48 @@
+.\" Dragon GL - Copyright (C) 2026 Nicola Taibi
+.\" SPDX-License-Identifier: GPL-3.0-or-later
+.TH DRAGONGL-ANALYZE-LOG 1 "@DRAGONGL_RELEASE_DATE@" "Dragon GL @DRAGONGL_VERSION@" "User Commands"
+.SH NAME
+dragongl-analyze-log \- what happened on a Dragon GL server, from its log
+.SH SYNOPSIS
+.B dragongl-analyze-log
+[\fB\-\-strict\fR]
+[\fIlog\fR]
+.SH DESCRIPTION
+.B dragongl-analyze-log
+(the script
+.I analyze_log.py
+of the Dragon GL tools, in
+.IR @DRAGONGL_PKGDATADIR@/tools )
+reads the log of \fBdragongl_server\fR(1), the lines
+.I [HH:MM:SS] [CATEGORY] text
+it writes on its standard output (the journal, under systemd), from
+.I log
+or from the standard input, and reports:
+.TP
+.B problems
+WARNING and ERROR lines, failed saves, corrupted or unreadable saves,
+protocol violations, TLS and network failures, sanitizer reports, and a
+server started again without a clean shutdown; a few lines of each kind
+are shown.
+.TP
+.B players
+logins, new characters, wrong passwords and lockouts, refused
+connections, disconnections by reason, deaths by cause, levels gained.
+.TP
+.B server
+starts, clean shutdowns, autosaves and the last \fB[PERF]\fR line.
+.SH OPTIONS
+.TP
+.B \-\-strict
+Exit with status 1 when the log shows a problem (a cron job, a CI step).
+Without it the report is all and the status is 0.
+.SH EXAMPLES
+.TP
+.B journalctl \-u dragongl-server \-o cat \-\-since today | dragongl-analyze-log
+The log of today.
+.TP
+.B dragongl-analyze-log \-\-strict server.log
+A saved log; status 1 if it shows a problem.
+.SH SEE ALSO
+.BR dragongl_server (1),
+.BR dragongl-analyze-balance (1)

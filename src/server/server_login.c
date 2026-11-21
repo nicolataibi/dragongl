@@ -378,29 +378,9 @@ static void roll_abilities(Client *c) {
     c->cha = clamp_stat(rules_roll_dice(3, 6) + bonus[5]);
 }
 
-/*Slots of a new character: martial classes have level-1 slots only (for
- * their maneuvers), casters every level.*/
+/*Slots of a new character, all of them full.*/
 static void starting_spell_slots(Client *c) {
-    memset(c->spell_slots_max, 0, sizeof(c->spell_slots_max));
-    switch (c->class_id) {
-    case CLASS_PALADIN:
-    case CLASS_RANGER:
-        c->spell_slots_max[1] = 21;
-        break;
-    case CLASS_BARBARIAN:
-    case CLASS_ROGUE:
-        c->spell_slots_max[1] = 22;
-        break;
-    case CLASS_FIGHTER:
-    case CLASS_MONK:
-        c->spell_slots_max[1] = 23;
-        break;
-    default:
-        for (int s = 1; s <= 9; s++) {
-            c->spell_slots_max[s] = 25 - s;
-        }
-        break;
-    }
+    class_spell_slots(c->class_id, 1, c->spell_slots_max);
     for (int s = 1; s <= MAX_SPELL_LEVEL; s++) {
         c->spell_slots[s] = c->spell_slots_max[s];
     }

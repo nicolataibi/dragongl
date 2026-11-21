@@ -267,8 +267,57 @@ static void test_resolve_conditions(void) {
     rules_force_d20(0);
 }
 
+/*The Upcast Rule: a higher slot adds the upcast dice and bonus, once per
+ * slot level above (or per two), doubled dice on a critical hit.*/
+static void test_upcast(void) {
+    SpellEffect e;
+    char err[160] = "";
+    bool ok = parse("{\"kind\":\"damage\",\"target\":\"single\",\"range\":24,\"roll\":\"auto\","
+                    "\"dice\":{\"count\":3,\"sides\":4,\"bonus\":3},"
+                    "\"upcast\":{\"count\":1,\"sides\":4,\"bonus\":1},\"damage_type\":\"force\"}",
+                    &e, err, sizeof(err));
+    EXPECT(ok && e.upcast_count == 1 && e.upcast_sides == 4 && e.upcast_bonus == 1 &&
+               e.upcast_per == 1,
+           "magic missile: %s", err);
+    SpellCaster c = caster(5, 4);
+    EXPECT(spell_average_amount(&e, &c) == 3 * 2.5 + 3, "no upcast: %f",
+           spell_average_amount(&e, &c));
+    c.upcast = 2; /* a level 3 slot: 5 darts */
+    EXPECT(spell_average_amount(&e, &c) == 5 * 2.5 + 5, "two levels up: %f",
+           spell_average_amount(&e, &c));
+
+    SpellEffect w = four_damage(SPELL_ROLL_AUTO);
+    w.upcast_count = 1;
+    w.upcast_sides = 1;
+    w.upcast_per = 2;
+    c.upcast = 3; /* one step of two levels; the odd level adds nothing */
+    EXPECT(spell_roll_amount(&w, &c, false) == 5, "per two: %d", spell_roll_amount(&w, &c, false));
+    EXPECT(spell_roll_amount(&w, &c, true) == 10, "crit: %d", spell_roll_amount(&w, &c, true));
+    w.upcast_per = 0;
+    EXPECT(spell_roll_amount(&w, &c, false) == 4, "no upcast data, no bonus");
+
+    ok = parse("{\"kind\":\"heal\",\"target\":\"self\",\"range\":0,"
+               "\"dice\":{\"count\":0,\"sides\":0,\"bonus\":70},\"upcast\":{\"bonus\":10}}",
+               &e, err, sizeof(err));
+    EXPECT(ok && e.upcast_bonus == 10 && e.upcast_count == 0 && e.upcast_per == 1, "heal: %s", err);
+    expect_error("{\"kind\":\"heal\",\"target\":\"self\",\"range\":0,"
+                 "\"dice\":{\"count\":1,\"sides\":8},\"upcast\":{\"count\":1}}",
+                 "effect.upcast");
+    expect_error("{\"kind\":\"heal\",\"target\":\"self\",\"range\":0,"
+                 "\"dice\":{\"count\":1,\"sides\":8},\"upcast\":{\"per\":2}}",
+                 "effect.upcast");
+    expect_error("{\"kind\":\"heal\",\"target\":\"self\",\"range\":0,"
+                 "\"dice\":{\"count\":1,\"sides\":8},\"upcast\":{\"count\":1,\"sides\":8,"
+                 "\"per\":3}}",
+                 "effect.per");
+    expect_error("{\"kind\":\"special\",\"target\":\"self\",\"range\":0,\"handler\":\"blink\","
+                 "\"upcast\":{\"bonus\":1}}",
+                 "effect.upcast");
+}
+
 int main(void) {
     test_parse_valid();
+    test_upcast();
     test_parse_errors();
     test_numbers();
     test_resolve_attack();

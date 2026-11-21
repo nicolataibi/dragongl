@@ -669,6 +669,12 @@ window.DGL_CFG = (() => {
       if (e.dice.bonus) d += (d ? '+' : '') + e.dice.bonus;
       if (e.dice.add) d += `+${e.dice.add.toUpperCase()}`;
       p.push(d + (e.damage_type ? ` ${e.damage_type}` : '') + (e.kind === 'heal' ? ' HP' : ''));
+      if (e.upcast) {
+        const u = e.upcast;
+        let x = u.count ? `${u.count}d${u.sides}` : '';
+        if (u.bonus) x += (x ? '+' : '') + u.bonus;
+        p.push(`+${x} per ${u.per === 2 ? '2 slot levels' : 'slot level'}`);
+      }
     }
     if (e.stat) p.push(`+${e.value} ${e.stat}`);
     if (e.handler) p.push(`handler ${e.handler}`);

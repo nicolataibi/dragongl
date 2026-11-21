@@ -28,6 +28,7 @@
 
 #include "player.h"
 #include "server_tiles.h"
+#include "server_world.h"
 
 /*Passive perception (10 + WIS modifier) against the detection DC of a
  * trap within 2 tiles: a found floor trap becomes visible on the map.*/
@@ -45,7 +46,7 @@ static void trap_detect(Client *c, Trap *t, Floor *f) {
         if (abs(c->x - fire_x) <= 2 && abs(c->y - fire_y) <= 2) {
             if (passive_perc >= t->detection_dc) {
                 t->detected = true;
-                send_text_to_client(c->sock, "[SYSTEM] You notice a tiny hole in the wall..."
+                send_text_to_client(c->sock, "[SYSTEM] You notice a tiny hole in the wall... "
                                              "It looks like the launch tube of a dart trap!");
             }
         }
@@ -83,20 +84,17 @@ static void trap_dart_wall(Game *game, Client *c, Trap *t) {
             bool saved_poison = player_save(c, ABILITY_CON, poison_dc, SAVE_PLAIN, NULL);
             if (!saved_poison && player_add_condition(c, COND_POISONED, 4, 0)) {
                 send_text_to_client(
-                    c->sock, "[STATE] The poison on the dart enters your blood!"
+                    c->sock, "[STATE] The poison on the dart enters your blood! "
                              "You feel your strength abandon you... (Poisoned for 4 rounds)");
             } else if (saved_poison) {
                 send_text_to_client(c->sock,
                                     "[STATE] The poison burns, but your constitution holds!");
             }
             if (c->hp <= 0) {
-                c->hp = 0;
                 send_text_to_client(c->sock, "[DEATH] The poison reaches your heart. You fall...");
-                clog_death(c->username, "Poisoned dart", c->floor_id);
-                save_bones(game, c);
                 /*player_respawn_town() also tells the floor the player left
          * and re-syncs the client.*/
-                player_respawn_town(game, c);
+                player_killed(game, c, "Poisoned dart");
             }
         }
         t->active = false;
@@ -129,12 +127,8 @@ static void trap_spring_spear(Game *game, Client *c, Trap *t) {
                 send_text_to_client(c->sock, "[STATE] You're stuck on the wall! (Restrained 2r)");
             }
             if (c->hp <= 0) {
-                c->hp = 0;
                 send_text_to_client(c->sock, "[DEATH] Pierced by the spear, you have fallen.");
-                clog_death(c->username, "Spring spear", c->floor_id);
-                save_bones(game, c);
-                /*As for the dart wall: player_respawn_town() does it all.*/
-                player_respawn_town(game, c);
+                player_killed(game, c, "Spring spear");
             }
         }
         t->active = false;
@@ -174,14 +168,14 @@ static const TrapRule k_trap_rules[] = {
     {TRAP_QUICKSAND, ABILITY_STR, SAVE_PLAIN, DAMAGE_UNTYPED, COND_PRONE, 1,
      "[STATE] You've landed in quicksand!"},
     {TRAP_DARKNESS, ABILITY_CON, SAVE_MAGIC, DAMAGE_UNTYPED, COND_BLINDED, 2,
-     "[STATUS] You are blinded by darkness!"},
+     "[STATE] You are blinded by darkness!"},
     {TRAP_FALLING_FLOOR, ABILITY_DEX, SAVE_PLAIN, DMG_BLUDGEONING, MAX_CONDITIONS, 0, NULL},
     {TRAP_BOULDER, ABILITY_DEX, SAVE_PLAIN, DMG_BLUDGEONING, MAX_CONDITIONS, 0, NULL},
     {TRAP_PARALYZING_SPORES, ABILITY_CON, SAVE_GAS, DMG_POISON, COND_PARALYZED, 2,
-     "[STATUS] The spores paralyze you completely!"},
+     "[STATE] The spores paralyze you completely!"},
     {TRAP_CURSE_RUNE, ABILITY_WIS, SAVE_MAGIC, DMG_NECROTIC, MAX_CONDITIONS, 0, NULL},
     {TRAP_ANTIMAGIC_ZONE, ABILITY_NONE, SAVE_PLAIN, DMG_FORCE, COND_SILENCED, 5,
-     "[STATUS] The magic leaves you (Silenced for 5 rounds)!"},
+     "[STATE] The magic leaves you (Silenced for 5 rounds)!"},
     {TRAP_SLEEP_GAS, ABILITY_CON, SAVE_GAS, DAMAGE_UNTYPED, COND_UNCONSCIOUS, 3,
      "[STATE] The gas makes you lose consciousness..."},
     {TRAP_ILLUSION_MIRROR, ABILITY_WIS, SAVE_MAGIC, DMG_PSYCHIC, MAX_CONDITIONS, 0, NULL},
@@ -410,9 +404,7 @@ static void trap_fire(Client *c, Trap *t, Floor *f, Game *game) {
         trap_damage(game, c, t);
         trap_world_effect(c, t, game);
         if (c->hp <= 0) {
-            clog_death(c->username, "Trap", c->floor_id);
-            save_bones(game, c);
-            player_respawn_town(game, c);
+            player_killed(game, c, "Trap");
             send_text_to_client(
                 c->sock,
                 "[DEATH] You died from a trap... The Arcane has returned you to town without your equipment!");

@@ -11,6 +11,8 @@
 #define DRAGONGL_HARNESS_COMMANDS_H
 
 int test_shop_no_arbitrage(void);
+int test_ammunition_bundles(void);
+int test_shop_reactive_prices(void);
 int test_shop_needs_a_merchant(void);
 int test_wear_cursed_stays(void);
 int test_merchant_restocks(void);

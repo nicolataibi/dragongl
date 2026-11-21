@@ -227,6 +227,10 @@
           "count": 3,
           "sides": 6
         },
+        "upcast": {
+          "count": 1,
+          "sides": 6
+        },
         "damage_type": "fire"
       }
     },
@@ -326,6 +330,10 @@
         "roll": "attack",
         "dice": {
           "count": 3,
+          "sides": 8
+        },
+        "upcast": {
+          "count": 1,
           "sides": 8
         },
         "damage_type": "acid"
@@ -516,6 +524,10 @@
           "count": 1,
           "sides": 8,
           "add": "spell"
+        },
+        "upcast": {
+          "count": 1,
+          "sides": 8
         }
       }
     },
@@ -734,6 +746,10 @@
           "count": 3,
           "sides": 6
         },
+        "upcast": {
+          "count": 1,
+          "sides": 6
+        },
         "damage_type": "psychic"
       }
     },
@@ -832,6 +848,10 @@
         "roll": "attack",
         "save": "str",
         "dice": {
+          "count": 1,
+          "sides": 6
+        },
+        "upcast": {
           "count": 1,
           "sides": 6
         },
@@ -964,6 +984,9 @@
           "count": 1,
           "sides": 4,
           "bonus": 4
+        },
+        "upcast": {
+          "bonus": 5
         }
       }
     },
@@ -1256,6 +1279,10 @@
           "count": 4,
           "sides": 6
         },
+        "upcast": {
+          "count": 1,
+          "sides": 6
+        },
         "damage_type": "radiant"
       }
     },
@@ -1293,6 +1320,10 @@
           "count": 1,
           "sides": 10
         },
+        "upcast": {
+          "count": 1,
+          "sides": 10
+        },
         "damage_type": "piercing"
       }
     },
@@ -1326,6 +1357,10 @@
           "count": 1,
           "sides": 4,
           "add": "spell"
+        },
+        "upcast": {
+          "count": 1,
+          "sides": 4
         }
       }
     },
@@ -1360,6 +1395,10 @@
         "on_save": "half",
         "dice": {
           "count": 2,
+          "sides": 10
+        },
+        "upcast": {
+          "count": 1,
           "sides": 10
         },
         "damage_type": "fire"
@@ -1551,6 +1590,10 @@
           "count": 3,
           "sides": 10
         },
+        "upcast": {
+          "count": 1,
+          "sides": 10
+        },
         "damage_type": "necrotic"
       }
     },
@@ -1735,6 +1778,11 @@
           "count": 3,
           "sides": 4,
           "bonus": 3
+        },
+        "upcast": {
+          "count": 1,
+          "sides": 4,
+          "bonus": 1
         },
         "damage_type": "force"
       }
@@ -2058,6 +2106,10 @@
           "count": 2,
           "sides": 8
         },
+        "upcast": {
+          "count": 1,
+          "sides": 8
+        },
         "damage_type": "poison",
         "condition": "poisoned",
         "rounds": 1
@@ -2251,6 +2303,10 @@
         "roll": "attack",
         "save": "con",
         "dice": {
+          "count": 1,
+          "sides": 6
+        },
+        "upcast": {
           "count": 1,
           "sides": 6
         },
@@ -2615,6 +2671,10 @@
           "count": 2,
           "sides": 8
         },
+        "upcast": {
+          "count": 1,
+          "sides": 8
+        },
         "damage_type": "thunder"
       }
     },
@@ -2748,6 +2808,10 @@
           "count": 1,
           "sides": 12
         },
+        "upcast": {
+          "count": 1,
+          "sides": 12
+        },
         "damage_type": "lightning"
       }
     },
@@ -2817,6 +2881,9 @@
         "dice": {
           "count": 1,
           "sides": 4,
+          "bonus": 5
+        },
+        "upcast": {
           "bonus": 5
         }
       }
@@ -3036,6 +3103,10 @@
           "count": 2,
           "sides": 8,
           "add": "spell"
+        },
+        "upcast": {
+          "count": 1,
+          "sides": 8
         }
       }
     },
@@ -3102,6 +3173,11 @@
           "count": 1,
           "sides": 8,
           "add": "spell"
+        },
+        "upcast": {
+          "count": 1,
+          "sides": 8,
+          "per": 2
         },
         "damage_type": "force"
       }
@@ -3386,6 +3462,10 @@
           "count": 8,
           "sides": 8
         },
+        "upcast": {
+          "count": 1,
+          "sides": 8
+        },
         "damage_type": "necrotic"
       }
     },
@@ -3521,6 +3601,10 @@
           "count": 3,
           "sides": 10
         },
+        "upcast": {
+          "count": 1,
+          "sides": 10
+        },
         "damage_type": "lightning"
       }
     },
@@ -3584,6 +3668,10 @@
         "roll": "auto",
         "dice": {
           "count": 4,
+          "sides": 4
+        },
+        "upcast": {
+          "count": 2,
           "sides": 4
         },
         "damage_type": "slashing",
@@ -3971,6 +4059,10 @@
           "count": 8,
           "sides": 6
         },
+        "upcast": {
+          "count": 1,
+          "sides": 6
+        },
         "damage_type": "fire"
       }
     },
@@ -4131,6 +4223,10 @@
           "count": 4,
           "sides": 8
         },
+        "upcast": {
+          "count": 1,
+          "sides": 8
+        },
         "damage_type": "lightning"
       }
     },
@@ -4227,6 +4323,10 @@
           "count": 1,
           "sides": 4,
           "add": "spell"
+        },
+        "upcast": {
+          "count": 1,
+          "sides": 4
         }
       }
     },
@@ -4695,6 +4795,10 @@
           "count": 3,
           "sides": 8
         },
+        "upcast": {
+          "count": 1,
+          "sides": 8
+        },
         "damage_type": "radiant"
       }
     },
@@ -5010,6 +5114,10 @@
         "roll": "attack",
         "dice": {
           "count": 2,
+          "sides": 6
+        },
+        "upcast": {
+          "count": 1,
           "sides": 6
         },
         "damage_type": "radiant"
@@ -6365,6 +6473,10 @@
           "count": 12,
           "sides": 6
         },
+        "upcast": {
+          "count": 1,
+          "sides": 6
+        },
         "damage_type": "fire"
       }
     },
@@ -7253,6 +7365,10 @@
           "count": 8,
           "sides": 6
         },
+        "upcast": {
+          "count": 2,
+          "sides": 6
+        },
         "damage_type": "necrotic"
       }
     },
@@ -7319,6 +7435,10 @@
         "on_save": "half",
         "dice": {
           "count": 5,
+          "sides": 8
+        },
+        "upcast": {
+          "count": 1,
           "sides": 8
         },
         "damage_type": "poison",
@@ -7417,6 +7537,10 @@
         "on_save": "half",
         "dice": {
           "count": 8,
+          "sides": 8
+        },
+        "upcast": {
+          "count": 1,
           "sides": 8
         },
         "damage_type": "cold"
@@ -7774,6 +7898,10 @@
           "count": 10,
           "sides": 6,
           "bonus": 40
+        },
+        "upcast": {
+          "count": 3,
+          "sides": 6
         },
         "damage_type": "force"
       }
@@ -8246,6 +8374,11 @@
           "count": 3,
           "sides": 6
         },
+        "upcast": {
+          "count": 1,
+          "sides": 6,
+          "per": 2
+        },
         "damage_type": "fire"
       }
     },
@@ -8283,6 +8416,10 @@
           "count": 4,
           "sides": 6
         },
+        "upcast": {
+          "count": 1,
+          "sides": 6
+        },
         "damage_type": "fire"
       }
     },
@@ -8318,6 +8455,10 @@
         "on_save": "half",
         "dice": {
           "count": 2,
+          "sides": 6
+        },
+        "upcast": {
+          "count": 1,
           "sides": 6
         },
         "damage_type": "fire"
@@ -8574,6 +8715,10 @@
         "on_save": "half",
         "dice": {
           "count": 5,
+          "sides": 8
+        },
+        "upcast": {
+          "count": 1,
           "sides": 8
         },
         "damage_type": "thunder"
@@ -8900,6 +9045,10 @@
           "count": 2,
           "sides": 8
         },
+        "upcast": {
+          "count": 1,
+          "sides": 8
+        },
         "damage_type": "fire"
       }
     },
@@ -8933,6 +9082,9 @@
           "count": 0,
           "sides": 0,
           "bonus": 70
+        },
+        "upcast": {
+          "bonus": 10
         }
       }
     },
@@ -9035,6 +9187,10 @@
           "sides": 6,
           "bonus": 9
         },
+        "upcast": {
+          "count": 1,
+          "sides": 8
+        },
         "damage_type": "cold",
         "terrain": "ice"
       }
@@ -9071,6 +9227,10 @@
         "on_save": "half",
         "dice": {
           "count": 4,
+          "sides": 10
+        },
+        "upcast": {
+          "count": 1,
           "sides": 10
         },
         "damage_type": "piercing",
@@ -9231,6 +9391,10 @@
         "on_save": "half",
         "dice": {
           "count": 8,
+          "sides": 6
+        },
+        "upcast": {
+          "count": 1,
           "sides": 6
         },
         "damage_type": "lightning"
@@ -9418,6 +9582,10 @@
           "count": 3,
           "sides": 8,
           "add": "spell"
+        },
+        "upcast": {
+          "count": 1,
+          "sides": 8
         }
       }
     },
@@ -9609,6 +9777,10 @@
           "count": 2,
           "sides": 10
         },
+        "upcast": {
+          "count": 1,
+          "sides": 10
+        },
         "damage_type": "radiant",
         "rounds": 3
       }
@@ -9734,6 +9906,10 @@
         "on_save": "none",
         "dice": {
           "count": 4,
+          "sides": 10
+        },
+        "upcast": {
+          "count": 1,
           "sides": 10
         },
         "damage_type": "psychic",
@@ -10089,6 +10265,10 @@
           "count": 2,
           "sides": 6
         },
+        "upcast": {
+          "count": 2,
+          "sides": 6
+        },
         "damage_type": "fire"
       }
     },
@@ -10186,7 +10366,7 @@
       "name": "Shatter",
       "image": "shatter",
       "description": "A sudden loud ringing noise, painfully intense, erupts from a point of your choice within range. Each creature in a lO-foot-radius sphere centered on that point must make a Constitution saving throw. A creature takes 3d8 thunder damage on a failed save, or half as much damage on a successful one. A creature made of inorganic material such as stone, crystal, or metal has disadvantage on this saving throw.<br /><br />A nonmagical object that isn't being worn or carried also takes the damage if it's in the spell's area.",
-      "higher_levels": "When you cast this spell using a spell slot of 3rd levei or higher, the damage increases by ld8 for each slot level above 2nd.",
+      "higher_levels": "When you cast this spell using a spell slot of 3rd level or higher, the damage increases by 1d8 for each slot level above 2nd.",
       "level": "2",
       "school": "evocation",
       "classes": "sorcerer,warlock,wizard",
@@ -10213,6 +10393,10 @@
         "on_save": "half",
         "dice": {
           "count": 3,
+          "sides": 8
+        },
+        "upcast": {
+          "count": 1,
           "sides": 8
         },
         "damage_type": "thunder"
@@ -10632,6 +10816,10 @@
           "count": 3,
           "sides": 6
         },
+        "upcast": {
+          "count": 1,
+          "sides": 6
+        },
         "damage_type": "necrotic"
       }
     },
@@ -10669,6 +10857,10 @@
           "count": 5,
           "sides": 8
         },
+        "upcast": {
+          "count": 1,
+          "sides": 8
+        },
         "damage_type": "fire",
         "rounds": 3
       }
@@ -10677,7 +10869,7 @@
       "name": "Wall of Ice",
       "image": "wall-of-ice",
       "description": "You create a wall of ice on a solid surface within range. You can form it into a hemispherical dome or a sphere with a radius of up to 10 feet, or you can shape a flat surface made up of ten 10-foot-square panels. Each panel must be contiguous with another panel. In any form, the wall is 1 foot thick and lasts for the duration.<br /><br />If the wall cuts through a creature's space when it appears, the creature within its area is pushed to one side of the wall and must make a Dexterity saving throw. On a failed save, the creature takes 10d6 cold damage, or half as much damage on a successful save.<br /><br />The wall is an object that can be damaged and thus breached. It has AC 12 and 30 hit points per 10-foot section, and it is vulnerable to fire damage. Reducing a 10-foot section of wall to 0 hit points destroys it and leaves behind a sheet of frigid air in the space the wall occupied. A creature moving through the sheet of frigid air for the first time on a turn must make a Constitution saving throw. That creature takes 5d6 cold damage on a failed save, or half as much damage on a successful one.",
-      "higher_levels": "When you cast this spells using a spells slot of 7th level or higher, the damage the wall deals when it appears increases by 2d6, and the damage from passing through the sheet of frigid air increases by 1d6, for each slot level above 6th.",
+      "higher_levels": "When you cast this spell using a spell slot of 7th level or higher, the damage the wall deals when it appears increases by 2d6, and the damage from passing through the sheet of frigid air increases by 1d6, for each slot level above 6th.",
       "level": "6",
       "school": "evocation",
       "classes": "wizard",
@@ -10705,6 +10897,10 @@
         "on_save": "half",
         "dice": {
           "count": 10,
+          "sides": 6
+        },
+        "upcast": {
+          "count": 2,
           "sides": 6
         },
         "damage_type": "cold"
@@ -10810,6 +11006,10 @@
         "on_save": "half",
         "dice": {
           "count": 7,
+          "sides": 8
+        },
+        "upcast": {
+          "count": 1,
           "sides": 8
         },
         "damage_type": "piercing",
@@ -11069,6 +11269,10 @@
         "save": "dex",
         "on_save": "none",
         "dice": {
+          "count": 1,
+          "sides": 6
+        },
+        "upcast": {
           "count": 1,
           "sides": 6
         },
@@ -11533,6 +11737,10 @@
           "count": 1,
           "sides": 10
         },
+        "upcast": {
+          "count": 1,
+          "sides": 6
+        },
         "damage_type": "piercing"
       }
     },
@@ -11599,6 +11807,10 @@
         "save": "str",
         "on_save": "half",
         "dice": {
+          "count": 1,
+          "sides": 8
+        },
+        "upcast": {
           "count": 1,
           "sides": 8
         },
@@ -11744,6 +11956,10 @@
         "on_save": "half",
         "dice": {
           "count": 3,
+          "sides": 12
+        },
+        "upcast": {
+          "count": 1,
           "sides": 12
         },
         "damage_type": "bludgeoning"
@@ -12281,6 +12497,10 @@
           "count": 2,
           "sides": 6
         },
+        "upcast": {
+          "count": 1,
+          "sides": 6
+        },
         "damage_type": "bludgeoning",
         "rounds": 3
       }
@@ -12317,6 +12537,10 @@
         "on_save": "none",
         "dice": {
           "count": 10,
+          "sides": 4
+        },
+        "upcast": {
+          "count": 2,
           "sides": 4
         },
         "damage_type": "acid"
@@ -12387,6 +12611,10 @@
           "count": 4,
           "sides": 8
         },
+        "upcast": {
+          "count": 2,
+          "sides": 6
+        },
         "damage_type": "force"
       }
     },
@@ -12456,6 +12684,10 @@
         "on_save": "half",
         "dice": {
           "count": 10,
+          "sides": 6
+        },
+        "upcast": {
+          "count": 1,
           "sides": 6
         },
         "damage_type": "cold"
