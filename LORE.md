@@ -293,7 +293,7 @@ Monsters belonging to the swarm class (e.g., Slimes, Jellies, Molds, Spiders) us
 - **Visual Feedback:** A green burst particle effect (`broadcast_spell_vfx`) triggers at the clone's birth, signaling the division to nearby players.
 
 ### 8. Status Icons (Protocol)
-The server now sends a bitmask (`status_icons`) in the `MSG_STATE` message, allowing the client to display graphic icons for each active condition (e.g., a flame icon for Burning, a drop icon for Bleeding).
+The server now sends a bitmask (`status_icons`) in the `MSG_STATE` message, allowing the client to display graphic icons for each active condition (e.g., a flame icon for Burning, a drop icon for Bleeding). The HUD names them in the status panel: Poisoned, Blinded, Paralyzed, Stunned, Unconscious, Burning, Bleeding, Petrified, Cursed, Frozen, exhaustion and a book to study, then Frightened (AFRAID), Charmed, Invisible, Restrained (HELD), Prone, Incapacitated (DAZED), Silenced, the haste of boots or a potion of speed (HASTED) and temporary hit points (TEMP-HP).
 
 ---
 

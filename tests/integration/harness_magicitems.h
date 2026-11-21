@@ -20,5 +20,6 @@ int test_magic_items_potions(void);
 int test_magic_items_charges(void);
 int test_magic_items_world(void);
 int test_magic_items_weapons(void);
+int test_magic_items_hud(void);
 
 #endif

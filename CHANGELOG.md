@@ -1,3 +1,10 @@
+* Sat Nov 21 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.21.07
+- HUD: the status panel shows Frightened, Charmed, Invisible, Restrained,
+  Prone, Incapacitated and Silenced, the haste of boots or a potion of
+  speed and temporary hit points (status_icons bits 12 to 20): the
+  conditions that monsters, spells and potions now give were invisible
+  to the player.
+
 * Sat Nov 21 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.21.06
 - TESTS: a libFuzzer target for the parser of the item effects
   (tests/fuzz/fuzz_item_effects.c): any JSON item, seeded with every item

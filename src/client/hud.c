@@ -126,23 +126,28 @@ static int slot_rows(Hud *h, float x, float y, int first_row) {
     return rows;
 }
 
+/*The words of the bits of MsgState.status_icons (server_net.c,
+ * state_status_icons).*/
+#define STATUS_WORDS 21
+static const char *const k_status_words[STATUS_WORDS] = {
+    "POISON",    "BLIND",  "PARALYZED", "STUNNED",   "UNCONSCIOUS", "BURNING", "BLEEDING",
+    "PETRIFIED", "CURSED", "FROZEN",    "EXHAUSTED", "STUDYING",    "AFRAID",  "CHARMED",
+    "INVISIBLE", "HELD",   "PRONE",     "DAZED",     "SILENCED",    "HASTED",  "TEMP-HP"};
+
 /*Active conditions, as words. Returns the rows used.*/
 static int condition_rows(Hud *h, float x, float y, int first_row) {
-    static const char *const words[12] = {"POISON",      "BLIND",   "PARALYZED", "STUNNED",
-                                          "UNCONSCIOUS", "BURNING", "BLEEDING",  "PETRIFIED",
-                                          "CURSED",      "FROZEN",  "EXHAUSTED", "STUDYING"};
     char buf[STATUS_COLS + 1] = "";
     int rows = 0;
-    for (int k = 0; k < 12; k++) {
+    for (int k = 0; k < STATUS_WORDS; k++) {
         if (!(g_status_icons & (1u << k))) {
             continue;
         }
-        if (strlen(buf) + strlen(words[k]) + 1 > STATUS_COLS) {
+        if (strlen(buf) + strlen(k_status_words[k]) + 1 > STATUS_COLS) {
             row_text(h, x, y, first_row + rows++, buf, HUD_WARN);
             buf[0] = '\0';
         }
         size_t used = strlen(buf);
-        snprintf(buf + used, sizeof(buf) - used, "%s ", words[k]);
+        snprintf(buf + used, sizeof(buf) - used, "%s ", k_status_words[k]);
     }
     if (buf[0]) {
         row_text(h, x, y, first_row + rows++, buf, HUD_WARN);
@@ -159,7 +164,7 @@ static float status_panel(Hud *h) {
     for (int lvl = 1; lvl <= 9; lvl++) {
         slots += g_my_spell_slots_max[lvl] > 0;
     }
-    for (int k = 0; k < 12; k++) {
+    for (int k = 0; k < STATUS_WORDS; k++) {
         conds += (g_status_icons & (1u << k)) != 0;
     }
     /*Rows: 9 fixed, the slots (3 levels a row), the conditions (at least

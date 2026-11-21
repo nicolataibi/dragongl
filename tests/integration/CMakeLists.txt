@@ -130,7 +130,7 @@ foreach(t interact_conditions interact_charm interact_reach interact_ranged
 endforeach()
 # Magic items do what their description says (harness_magicitems.c).
 foreach(t magic_items_kinds magic_items_abilities magic_items_defence magic_items_resistance
-          magic_items_potions magic_items_charges magic_items_world magic_items_weapons
+          magic_items_potions magic_items_charges magic_items_world magic_items_weapons magic_items_hud
           monster_defences monster_blows monster_magic spell_weapon_riders
           class_hit_dice class_saves)
     add_test(NAME ${t} COMMAND server_harness ${t} WORKING_DIRECTORY "${DGL_WORK}")
