@@ -526,7 +526,14 @@ static bool npc_cannot_act(NPC *n) {
     return false;
 }
 
-/*A merchant restocks every 100 rounds.*/
+void merchant_restock(MerchantData *shop) {
+    for (int j = 0; j < shop->item_count; j++) {
+        shop->item_stock[j] = shop->item_stock_max[j];
+    }
+    shop->restock_timer = MERCHANT_RESTOCK_ROUNDS;
+}
+
+/*A merchant restocks every MERCHANT_RESTOCK_ROUNDS rounds.*/
 static void merchant_round(Game *game, NPC *n) {
     MerchantData *shop = npc_shop(&game->pools, n);
     if (!shop) {
@@ -536,10 +543,7 @@ static void merchant_round(Game *game, NPC *n) {
         shop->restock_timer--;
         return;
     }
-    for (int j = 0; j < shop->item_count; j++) {
-        shop->item_stock[j] = shop->item_stock_max[j];
-    }
-    shop->restock_timer = 100;
+    merchant_restock(shop);
 }
 
 /*Poison and bleeding cost an NPC 1 HP a round, fire 2. False if it died

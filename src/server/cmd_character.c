@@ -220,7 +220,25 @@ static int recharge_wands(Client *c) {
     return recharged;
 }
 
-/*rest: in town, every hit point, spell slot and wand charge back.*/
+/*While a character rests the merchants of the town restock (LORE.md,
+ * "Merchant Restocking"). Returns how many shops did.*/
+static int restock_town(Game *game) {
+    int shops = 0;
+    FloorIter walk = floor_iter(game, 0);
+    for (int i; (i = floor_iter_next(&walk)) >= 0;) {
+        NPC *n = &game->npcs[i];
+        MerchantData *shop =
+            n->active && n->archetype == ARCH_MERCHANT ? npc_shop(&game->pools, n) : NULL;
+        if (shop) {
+            merchant_restock(shop);
+            shops++;
+        }
+    }
+    return shops;
+}
+
+/*rest: in town, every hit point, spell slot and magic item charge back,
+ * and the shops restocked.*/
 bool cmd_rest(Client *c, const char *cmd, Game *game) {
     (void)cmd;
     if (c->floor_id == 0) {
@@ -229,6 +247,9 @@ bool cmd_rest(Client *c, const char *cmd, Game *game) {
             c->spell_slots[s] = c->spell_slots_max[s];
         }
         int wands = recharge_wands(c);
+        if (restock_town(game) > 0) {
+            send_text_to_client(c->sock, "[SYSTEM] The merchants of the town restock.");
+        }
         send_detailed_state(game, c); //Sync HP and spell slots with the HUD client
         if (wands > 0) {
             send_text_to_client(c->sock, "[SYSTEM] Rested. %d magic item%s recharged.", wands,

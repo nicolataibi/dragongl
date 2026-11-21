@@ -315,7 +315,7 @@ static int weapon_magic_damage(Client *c, const NPC *t, ItemInstance *weapon, co
         send_text_to_client(c->sock, "  > Your %s's magic bites on the critical: +%d damage!",
                             w->name, d);
         if (m->on_crit_temp_hp && d > 0) {
-            ActiveEffect e = {"Temporary HP", EVENT_ON_TEMP_HP, MOD_ADDITIVE, d, 600, false};
+            ActiveEffect e = {"Temporary HP", EVENT_ON_TEMP_HP, MOD_ADDITIVE, d, 100, false};
             rules_add_effect(c->effects, &c->effect_count, MAX_EFFECTS_PER_ENTITY, &e);
             send_text_to_client(c->sock, "[MAGIC] The stolen life gives you %d temporary HP.", d);
         }

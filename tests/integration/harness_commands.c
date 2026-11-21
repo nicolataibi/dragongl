@@ -238,6 +238,19 @@ int test_merchant_restocks(void) {
     CHECK(npc_shop_any(&g_game.pools, m)->item_stock[0] == 5, "stock %d after the restock time",
           npc_shop_any(&g_game.pools, m)->item_stock[0]);
     CHECK(m->active, "the merchant vanished");
+    CHECK(npc_shop_any(&g_game.pools, m)->restock_timer == MERCHANT_RESTOCK_ROUNDS,
+          "next restock in %d rounds, not 10 minutes",
+          npc_shop_any(&g_game.pools, m)->restock_timer);
+    /* A rest in town restocks the shops of the town at once. */
+    npc_set_active(&g_game, m, false);
+    m->floor_id = 0;
+    npc_set_active(&g_game, m, true);
+    npc_shop_any(&g_game.pools, m)->item_stock[0] = 0;
+    c->floor_id = 0; /*rest needs the town, nothing else*/
+    run(c, "rest");
+    CHECK(npc_shop_any(&g_game.pools, m)->item_stock[0] == 5 &&
+              said("merchants of the town restock"),
+          "the rest did not restock the town");
     return 0;
 }
 
