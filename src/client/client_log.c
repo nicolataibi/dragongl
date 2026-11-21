@@ -24,6 +24,7 @@
 #include "client_log.h"
 
 #include <pthread.h>
+#include <stdio.h>
 #include <string.h>
 
 static pthread_mutex_t g_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -32,9 +33,13 @@ static int g_head;  /*slot of the next line*/
 static int g_count; /*lines held*/
 static unsigned long g_total;
 
-void client_log_add(const char *text) {
-    pthread_mutex_lock(&g_lock);
-    char *dst = g_lines[g_head];
+static char g_epilogue[CLIENT_EPILOGUE_LINES][CLIENT_LOG_TEXT];
+static int g_epilogue_count;
+static bool g_epilogue_shown;
+
+/*text into dst, cut to CLIENT_LOG_TEXT - 1 bytes, '?' for what the font
+ * cannot draw.*/
+static void copy_printable(char *dst, const char *text) {
     size_t n = 0;
     for (; n < CLIENT_LOG_TEXT - 1 && text[n]; n++) {
         dst[n] = text[n];
@@ -43,6 +48,58 @@ void client_log_add(const char *text) {
         }
     }
     dst[n] = '\0';
+}
+
+bool client_epilogue_take(const char *text) {
+    static const char tag[] = "[EPILOGUE] ";
+    if (strncmp(text, tag, sizeof(tag) - 1) != 0) {
+        return false;
+    }
+    pthread_mutex_lock(&g_lock);
+    if (!g_epilogue_shown) {
+        g_epilogue_count = 0; /*a new epilogue, not the end of an old one*/
+    }
+    if (g_epilogue_count < CLIENT_EPILOGUE_LINES) {
+        copy_printable(g_epilogue[g_epilogue_count++], text + sizeof(tag) - 1);
+    }
+    g_epilogue_shown = true;
+    pthread_mutex_unlock(&g_lock);
+    return true;
+}
+
+bool client_epilogue_visible(void) {
+    pthread_mutex_lock(&g_lock);
+    bool shown = g_epilogue_shown;
+    pthread_mutex_unlock(&g_lock);
+    return shown;
+}
+
+void client_epilogue_close(void) {
+    pthread_mutex_lock(&g_lock);
+    g_epilogue_shown = false;
+    pthread_mutex_unlock(&g_lock);
+}
+
+int client_epilogue_count(void) {
+    pthread_mutex_lock(&g_lock);
+    int n = g_epilogue_count;
+    pthread_mutex_unlock(&g_lock);
+    return n;
+}
+
+bool client_epilogue_get(int i, char *out, size_t cap) {
+    pthread_mutex_lock(&g_lock);
+    bool ok = i >= 0 && i < g_epilogue_count && cap > 0;
+    if (ok) {
+        snprintf(out, cap, "%s", g_epilogue[i]);
+    }
+    pthread_mutex_unlock(&g_lock);
+    return ok;
+}
+
+void client_log_add(const char *text) {
+    pthread_mutex_lock(&g_lock);
+    copy_printable(g_lines[g_head], text);
     g_head = (g_head + 1) % CLIENT_LOG_LINES;
     if (g_count < CLIENT_LOG_LINES) {
         g_count++;

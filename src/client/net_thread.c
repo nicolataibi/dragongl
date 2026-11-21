@@ -308,6 +308,7 @@ static bool handle_frame(MsgType type, const uint8_t *p, size_t n) {
         }
         client_log_add(t.text);
         console_print_line(t.text);
+        (void)client_epilogue_take(t.text); /*shown on its own screen too*/
         return true;
     }
     case MSG_COMBAT_EVENT: {

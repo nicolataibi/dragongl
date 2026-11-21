@@ -463,6 +463,47 @@ static void help_panel(Hud *h, const ClientConfig *cfg) {
     }
 }
 
+/* --- the end of the game --------------------------------------------------------------- */
+
+/*The epilogue the server sent when the dungeon was conquered: its first
+ * line as the title, the others wrapped, over everything until Escape.*/
+static void epilogue_panel(Hud *h) {
+    enum { COLS = 60 };
+    int n = client_epilogue_count();
+    char line[CLIENT_LOG_TEXT];
+    int rows = 2; /*the blank row before the hint, the hint*/
+    for (int i = 0; i < n; i++) {
+        rows += client_epilogue_get(i, line, sizeof(line)) ? text_wrap_count(line, COLS) + 1 : 0;
+    }
+    float w = (float)COLS * h->cell_w + 2.0f * pad(h);
+    float ht = (float)rows * h->line_h + 2.0f * pad(h);
+    float x = (h->w - w) * 0.5f, y = (h->h - ht) * 0.5f;
+    if (y < MARGIN) {
+        y = MARGIN;
+    }
+    hud_quad(h, x, y, w, ht, HUD_PANEL, 1.0f);
+    hud_panel(h, x, y, w, ht);
+    x += pad(h);
+    y += pad(h);
+    int r = 0;
+    for (int i = 0; i < n; i++) {
+        if (!client_epilogue_get(i, line, sizeof(line))) {
+            continue;
+        }
+        const char *s = line;
+        while (*s) {
+            int next = 0;
+            int len = text_wrap_row(s, COLS, &next);
+            char row[COLS + 1];
+            snprintf(row, sizeof(row), "%.*s", len, s);
+            row_text(h, x, y, r++, row, i == 0 ? HUD_GOLD : HUD_TEXT);
+            s += next > 0 ? next : (int)strlen(s);
+        }
+        r++;
+    }
+    row_text(h, x, y, r, "Escape: close", HUD_DIM);
+}
+
 void hud_panels(Hud *h, const ClientUi *ui, const ClientConfig *cfg, float frame_ms) {
     status_panel(h);
     float below_map = minimap_panel(h);
@@ -480,5 +521,8 @@ void hud_panels(Hud *h, const ClientUi *ui, const ClientConfig *cfg, float frame
     }
     if (ui->show_help) {
         help_panel(h, cfg);
+    }
+    if (client_epilogue_visible()) {
+        epilogue_panel(h);
     }
 }

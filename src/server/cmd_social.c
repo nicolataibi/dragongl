@@ -28,6 +28,7 @@
 
 #include "strnum.h"
 #include "server_cmd.h"
+#include "server_conquest.h"
 #include "persist.h"
 #include "server_internal.h"
 #include "player.h"
@@ -45,12 +46,20 @@ typedef struct {
     int level;
     int xp;
     uint32_t bosses_defeated;
+    int64_t conquered_at; /*0: has not conquered the dungeon*/
 } LeaderboardEntry;
 
 static int compare_leaderboard(const void *a, const void *b) {
     const LeaderboardEntry *ea = (const LeaderboardEntry *)a;
     const LeaderboardEntry *eb = (const LeaderboardEntry *)b;
-    //Primary Sorting: Number of bosses defeated
+    /*The conquerors of the dungeon first, the earliest first.*/
+    if ((ea->conquered_at != 0) != (eb->conquered_at != 0)) {
+        return ea->conquered_at != 0 ? -1 : 1;
+    }
+    if (ea->conquered_at != eb->conquered_at) {
+        return ea->conquered_at < eb->conquered_at ? -1 : 1;
+    }
+    //Then: Number of bosses defeated
     int bosses_a = __builtin_popcount(ea->bosses_defeated);
     int bosses_b = __builtin_popcount(eb->bosses_defeated);
     if (bosses_b != bosses_a) {
@@ -114,6 +123,7 @@ static void leaderboard_rescan(void) {
         e->level = sd.level;
         e->xp = sd.xp;
         e->bosses_defeated = sd.bosses_defeated;
+        e->conquered_at = sd.conquered_at;
         auth_wipe(&sd, sizeof(sd));
     }
     closedir(d);
@@ -154,14 +164,26 @@ static void show_leaderboard(Game *game, Client *c) {
         e->level = p->level;
         e->xp = p->xp;
         e->bosses_defeated = p->bosses_defeated;
+        e->conquered_at = p->conquered_at;
     }
     qsort(entries, (size_t)n, sizeof(LeaderboardEntry), compare_leaderboard);
     send_text_to_client(c->sock, "=================== LEADERBOARD ===================");
+    int conquerors = 0;
+    for (int i = 0; i < n; i++) {
+        conquerors += entries[i].conquered_at != 0;
+    }
     for (int i = 0; i < n && i < 10; i++) {
         int bosses = __builtin_popcount(entries[i].bosses_defeated);
-        send_text_to_client(c->sock, "%d. %s (Level %d) - %d XP - %d Bosses Defeated", i + 1,
-                            entries[i].username, entries[i].level, entries[i].xp, bosses);
+        char conquest[40] = "";
+        if (entries[i].conquered_at != 0) {
+            char date[16];
+            conquest_date(entries[i].conquered_at, date, sizeof(date));
+            snprintf(conquest, sizeof(conquest), " - CONQUEROR %s", date);
+        }
+        send_text_to_client(c->sock, "%d. %s (Level %d) - %d XP - %d Bosses Defeated%s", i + 1,
+                            entries[i].username, entries[i].level, entries[i].xp, bosses, conquest);
     }
+    send_text_to_client(c->sock, "Conquerors of the dungeon: %d", conquerors);
     send_text_to_client(c->sock, "===================================================");
 }
 

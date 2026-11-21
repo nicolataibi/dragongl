@@ -180,7 +180,9 @@ static void do_action(GLFWwindow *window, ClientAction a, bool opened_by_char) {
         g_ui.show_help = !g_ui.show_help;
         break;
     case ACT_QUIT:
-        if (g_ui.show_help) {
+        if (client_epilogue_visible()) {
+            client_epilogue_close();
+        } else if (g_ui.show_help) {
             g_ui.show_help = false;
         } else {
             glfwSetWindowShouldClose(window, GLFW_TRUE);

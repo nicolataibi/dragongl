@@ -44,6 +44,18 @@ unsigned long client_log_total(void);
 bool client_log_get(int back, char *out, size_t cap);
 void client_log_clear(void);
 
+/*The epilogue of the game: the server sends it as lines "[EPILOGUE] ..."
+ * when the dungeon is conquered; the HUD shows them on a screen of their
+ * own until the player closes it. Written by the network thread, read by
+ * the render thread (the same lock).*/
+#define CLIENT_EPILOGUE_LINES 16
+/*True (and the line kept, without its tag) for a line of the epilogue.*/
+bool client_epilogue_take(const char *text);
+bool client_epilogue_visible(void);
+void client_epilogue_close(void);
+int client_epilogue_count(void);
+bool client_epilogue_get(int i, char *out, size_t cap);
+
 /*Where to break a text for a column of cols characters: the number of
  * characters of its first row (up to the last blank that fits, or cols
  * when a word is longer than the row). *next: offset of the row after it

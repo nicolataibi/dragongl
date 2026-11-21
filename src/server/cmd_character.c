@@ -26,6 +26,7 @@
  */
 
 #include "server_cmd.h"
+#include "server_conquest.h"
 #include "server_internal.h"
 #include "player.h"
 #include "inventory.h"
@@ -266,6 +267,10 @@ bool cmd_rest(Client *c, const char *cmd, Game *game) {
 bool cmd_save(Client *c, const char *cmd, Game *game) {
     (void)cmd;
     (void)game;
+    if (c->saves_sealed) {
+        conquest_refuse(c);
+        return true;
+    }
     save_player_data(c);
     send_text_to_client(c->sock, "[SYSTEM] Saved.");
     return true;

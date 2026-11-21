@@ -31,6 +31,7 @@
 #include "ai.h"
 #include "server_internal.h"
 #include "server_combat.h"
+#include "server_conquest.h"
 #include "server_world.h"
 #include "rules.h"
 #include "player.h"
@@ -155,6 +156,10 @@ static bool bump_into(Client *c, Floor *fl, int ent_id, int nx, int ny, Client *
             return true;
         }
         if (is_loot(n)) {
+            if (client_conquered(c)) {
+                conquest_refuse(c); /*a legend takes nothing (server_conquest.h)*/
+                return true;
+            }
             return pick_up_loot(game, c, n, fl, nx, ny);
         }
         /*One's own ghost is laid to rest ('retrieve'); anyone else's is a

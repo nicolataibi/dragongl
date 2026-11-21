@@ -27,6 +27,7 @@
  */
 
 #include "server_commands.h"
+#include "server_conquest.h"
 #include "server_cmd.h"
 #include "server_internal.h"
 #include "server_log.h"
@@ -188,6 +189,23 @@ static const CmdEntry COMMANDS[] = {
     {"close|c", "close ", cmd_close, NULL}, /*"c <n|s|e|w>" is above, before cast*/
 };
 
+/*What a legend may still do (server_conquest.h): look, talk and read,
+ * nothing that moves an item or gold, nothing that leads to the dungeon.*/
+static bool legend_may(CmdFn run) {
+    static const CmdFn k_allowed[] = {
+        cmd_help,      cmd_top,     cmd_event,  cmd_who,    cmd_msg,     cmd_say,
+        cmd_block,     cmd_unblock, cmd_blocks, cmd_look,   cmd_examine, cmd_stats,
+        cmd_inventory, cmd_spells,  cmd_lore,   cmd_save,   cmd_talk,    cmd_list,
+        cmd_browse,    cmd_party,   cmd_leave,  cmd_cancel,
+    };
+    for (size_t i = 0; i < sizeof(k_allowed) / sizeof(k_allowed[0]); i++) {
+        if (run == k_allowed[i]) {
+            return true;
+        }
+    }
+    return false;
+}
+
 const CmdEntry *cmd_commands(size_t *n) {
     *n = sizeof(COMMANDS) / sizeof(COMMANDS[0]);
     return COMMANDS;
@@ -202,6 +220,13 @@ void handle_text_cmd(Client *c, const char *cmd, Game *game) {
     }
     server_log("CMD", "%s: %s", c->username, cmd);
     size_t n = sizeof(COMMANDS) / sizeof(COMMANDS[0]);
+    if (client_conquered(c) && !c->is_dm) {
+        const CmdEntry *e = cmd_table_find_word(COMMANDS, n, cmd);
+        if (e && !legend_may(e->run)) {
+            conquest_refuse(c);
+            return;
+        }
+    }
     if (cmd_table_run(COMMANDS, n, c, cmd, game)) {
         return;
     }

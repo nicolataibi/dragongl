@@ -22,6 +22,7 @@
  * the city doors, and what happens on the tile a player steps on.
  */
 
+#include "server_conquest.h"
 #include "server_tiles.h"
 #include <math.h>
 
@@ -199,11 +200,9 @@ void check_tile_events(Client *c, Game *game) {
                                 "[DANGER] The ground is slippery! You fell to the ground!");
         }
     } else if (vt == VOXEL_STAIRS_DOWN) {
-        /*Floor boundary: there is no world below the last floor (the
-     * falling floor trap has the same guard).*/
-        if (c->floor_id >= MAX_FLOORS - 1) {
-            send_text_to_client(
-                c->sock, "[SYSTEM] The dungeon ends here: there is no floor below this one.");
+        /*A legend stays in the town (server_conquest.h).*/
+        if (client_conquered(c)) {
+            conquest_refuse(c);
             return;
         }
         if (c->floor_id > 0 && c->floor_id % 10 == 0) {
@@ -232,6 +231,18 @@ void check_tile_events(Client *c, Game *game) {
                 }
                 return;
             }
+        }
+        /*Below the last floor there is no world (the falling floor trap
+         * has the same guard): its boss defeated, its stairs are the end
+         * of the game.*/
+        if (c->floor_id >= MAX_FLOORS - 1) {
+            if (c->is_dm) {
+                send_text_to_client(
+                    c->sock, "[SYSTEM] The dungeon ends here: there is no floor below this one.");
+            } else {
+                conquest_complete(game, c);
+            }
+            return;
         }
         game->world->floors[c->floor_id].entity_grid[c->y][c->x] = 0;
         int old_floor = c->floor_id;

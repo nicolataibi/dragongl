@@ -335,10 +335,14 @@ typedef struct {
 } StudyTally;
 
 /*LORE.md, Spellcaster Grimoires: level x 2 + level / 2 (cantrips 1): L1 at
- * 2, L2 at 5, L3 at 7 ... L8 at 20; L9 (22) is past the level cap, and its
- * slots power lower spells (The Upcast Rule).*/
+ * 2, L2 at 5, L3 at 7 ... L8 at 20; L9 at 20 too, the level cap (the
+ * formula would ask 22, a level no character reaches).*/
 int spell_required_level(const SpellTemplate *sp) {
-    return sp->level > 0 ? sp->level * 2 + sp->level / 2 : 1;
+    if (sp->level <= 0) {
+        return 1;
+    }
+    int level = sp->level * 2 + sp->level / 2;
+    return level > 20 ? 20 : level;
 }
 
 /*One spell of the book: learned if the class may cast it and the

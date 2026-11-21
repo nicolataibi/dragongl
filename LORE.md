@@ -170,6 +170,7 @@ In a legendary world, beneath the ruins of an ancient arcane civilization, lies 
 ### 5. Boss Encounter System & Progression
 - **Multiplayer Gating:** A formidable Boss appears every 10 floors (10, 20, 30...). Bosses seal the stairs leading to deeper depths; only players who personally defeat the boss are granted access to proceed: the killer and whoever fights with him, within 15 tiles of the boss when it falls (a player elsewhere on the floor is not).
 - **Real-Time Respawn System:** If a boss has already been defeated and the floor is clear, the passage remains blocked for players lacking the defeat flag. The system will prompt them to await the boss's respawn (120 ticks) to earn their right of passage through combat.
+- **The Conquest of the Dungeon (the end of the game):** the boss of Floor 100 defeated, its staircase down is the end. The character is told of his victory, every player connected hears that he *"has conquered the dungeon"*, and the client shows the epilogue (*FLOOR 100 COMPLETED - DRAGON'S MAW CONQUERED*) on a screen of its own, closed with Escape. He finds himself in the town, saved one last time with the date of the conquest, as a legend: the dungeon is closed to him (the stairs, the transit spells), he can no longer save the game to play on, and he may still look around, talk, read his inventory and the leaderboard, but take, drop, trade, buy or sell nothing. Logging in again finds him so.
 - **Dynamic Scaling:** Boss health scales progressively for each 10-floor block based on the formula `HP = Base_HP * (1 + (floor_id/10) * 0.5)`.
 - **Rewards & Trophies (HUD):** Defeating a boss scatters a generous bounty of gold (floor × 1000 gp, in up to 10 piles) on the free tiles around the kill location, for whoever picks it up. The bounty is paid when the boss falls to at least one player who had not defeated it yet: a respawned boss killed again by veterans only opens the stairs. The server records the victory in the character's profile and updates the client's HUD by illuminating one of the 10 corresponding floor trophies.
 
@@ -474,7 +475,7 @@ python3 tools/analyze_balance.py /path/to/combat_log.json
 - **Server-Generated World Events:** The engine automatically and periodically triggers global "Invasion Events". If players on the same floor collaborate to kill a specified number of monsters within a time limit, everyone is rewarded with a shower of extra gold coins.
 - **Synchronous Trade System:** Players can securely trade gold and items using a two-phase State-Machine (mutual offer and acceptance), preventing scams or theft via ground drops.
 - **Soul Retrieval (Death System):** When a player dies, the save file is not reloaded but the mortal remains are temporarily lost. The entire backpack and gold are transformed into a Ghost NPC at the location of death. The player resurrects naked at the Sanctuary (Floor 0) and must venture down again, at their own risk, to defeat their own ghost (or the ghost of another unfortunate player) and regain possession of the loot.
-- **Global Leaderboard:** A `top` command allows checking the best players currently on the server based on accumulated Experience Points and defeated Bosses.
+- **Global Leaderboard:** A `top` command allows checking the best players currently on the server based on accumulated Experience Points and defeated Bosses. The conquerors of the dungeon come first, with the date of their conquest (*"CONQUEROR 2026-11-21"*), and the board counts them.
 - **Player Messaging:** Private messages (`msg`/`tell`/`whisper`), local floor chat (`say`/`shout`, 12-tile radius), an online player list (`who`), and a persistent per-player block list (`block`/`unblock`/`blocks`) with anti-spam rate limiting.
 
 ## ⌨️ Player Console Commands
@@ -1355,9 +1356,9 @@ A magic item does what its description says, as far as the game has the rule for
 
 Dragon GL features a rich library of magical tomes (categorized by spellcasting class) that contain up to **64 spells** each, for a total of **395 spells** available in the game. Every spell is gated individually behind a minimum player level, following a custom non-linear progression to ensure end-game challenge:
 
-> **`Required Player Level = (spell_level > 0) ? (spell_level × 2 + floor(spell_level / 2)) : 1`**  
+> **`Required Player Level = (spell_level > 0) ? min(20, spell_level × 2 + floor(spell_level / 2)) : 1`**  
 
-With this unique rule, Cantrips unlock at Level 1, 1st-level spells at Level 2, 2nd-level spells at Level 5, 3rd-level spells at Level 7, and so on. The pinnacle 8th-level spells unlock exactly at the Level 20 cap, while 9th-level spells (requiring level 22) are reserved for god-tier expansions or artifacts.
+With this unique rule, Cantrips unlock at Level 1, 1st-level spells at Level 2, 2nd-level spells at Level 5, 3rd-level spells at Level 7, and so on. The pinnacle 8th- and 9th-level spells both unlock at the Level 20 cap (the formula would ask level 22 for the 9th, a level no character reaches): the 9th-level spells are found only in the six *Artifact* tomes, which no shop sells.
 
 > ⚔️ **Game Note:** Books of LEGENDARY rarity and above cannot be purchased from shops. They must be found as loot drops in the deepest floors of the dungeon or obtained through legendary quests.
 
@@ -4295,7 +4296,7 @@ All spellcasting classes receive their Level 1–3 book as part of their startin
 
 #### 📖 Book Contents & Spell Progression
 
-Every spellcasting book contains **up to 64 spells ordered from lowest to highest spell level**. Individual spells are unlocked progressively as the player gains levels, using the custom progression formula `Required PG Level = (Spell Level × 2) + floor(Spell Level / 2)` — ensuring a balanced challenge up to the endgame.
+Every spellcasting book contains **up to 64 spells ordered from lowest to highest spell level**. Individual spells are unlocked progressively as the player gains levels, using the custom progression formula `Required PG Level = (Spell Level × 2) + floor(Spell Level / 2)`, at most 20 (the 9th level unlocks at the level cap) — ensuring a balanced challenge up to the endgame.
 
 ##### ⚡ **Wizard** *(Arcane Spellbooks)* — Full Progression Example
 
