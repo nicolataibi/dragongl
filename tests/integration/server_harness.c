@@ -1304,6 +1304,7 @@ static const TestCase k_tests[] = {
     {"party_shares_xp", test_party_shares_xp},
     {"boss_and_event_kills", test_boss_and_event_kills},
     {"death_and_tombstone", test_death_and_tombstone},
+    {"conquest_of_the_dungeon", test_conquest_of_the_dungeon},
     {"ghost_is_not_a_boss", test_ghost_is_not_a_boss},
     {"tombstone_expires", test_tombstone_expires},
     {"combat_log", test_combat_log},

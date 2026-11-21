@@ -31,7 +31,9 @@
 #include "login_worker.h"
 
 void save_player_data(Client *c) {
-    if (!c || !c->authenticated) {
+    /*A character who conquered the dungeon was saved at that moment, for
+     * good (server_conquest.c): what it does after is not kept.*/
+    if (!c || !c->authenticated || c->saves_sealed) {
         return;
     }
     char p[STATE_DIR_MAX + 64];
@@ -106,6 +108,7 @@ void save_player_data(Client *c) {
     memcpy(sd.known_spells, c->known_spells, sizeof(c->known_spells));
     /*--- Phase 6: Boss flags ---*/
     sd.bosses_defeated = c->bosses_defeated;
+    sd.conquered_at = c->conquered_at;
     sd.unspent_stat_points = c->unspent_stat_points;
     /*--- Messaging: block list ---*/
     memcpy(sd.blocked_players, c->blocked_players, sizeof(c->blocked_players));
@@ -346,6 +349,8 @@ static void restore_counters(Client *c, const SaveData *sd) {
     /* --- Grimoire --- */
     memcpy(c->known_spells, sd->known_spells, sizeof(sd->known_spells));
     c->bosses_defeated = sd->bosses_defeated;
+    c->conquered_at = sd->conquered_at > 0 ? sd->conquered_at : 0;
+    c->saves_sealed = c->conquered_at != 0;
     c->unspent_stat_points = sd->unspent_stat_points;
     if (c->unspent_stat_points < 0) {
         c->unspent_stat_points = 0;

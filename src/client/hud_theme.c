@@ -101,7 +101,8 @@ HudColor hud_message_color(const char *line) {
         {"[WARNING]", HUD_WARN},      {"[EVENT]", HUD_WARN},    {"[STATE]", HUD_WARN},
         {"[GLOBAL EVENT]", HUD_WARN}, {"[CURSE]", HUD_WARN},    {"[LEVEL]", HUD_GOLD},
         {"[ITEM]", HUD_MAGIC},        {"[KI]", HUD_MAGIC},      {"[BLACKSMITH]", HUD_GOLD},
-        {"[ALCHEMIST]", HUD_GOLD},    {"[CLERIC]", HUD_GOLD},   {"[TEMPLE]", HUD_GOLD},
+        {"[CONQUEST]", HUD_GOLD},     {"[EPILOGUE]", HUD_GOLD}, {"[ALCHEMIST]", HUD_GOLD},
+        {"[CLERIC]", HUD_GOLD},       {"[TEMPLE]", HUD_GOLD},
     };
     for (size_t i = 0; i < sizeof(k_tags) / sizeof(k_tags[0]); i++) {
         if (strncmp(line, k_tags[i].tag, strlen(k_tags[i].tag)) == 0) {

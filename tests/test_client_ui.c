@@ -360,6 +360,27 @@ static void test_log(void) {
     CHECK(strlen(line) == CLIENT_LOG_TEXT - 1, "long line: %zu", strlen(line));
 }
 
+/* The epilogue: lines tagged [EPILOGUE] are kept (without the tag) and
+ * shown until closed; a new conquest starts a new epilogue. */
+static void test_epilogue(void) {
+    char line[CLIENT_LOG_TEXT];
+    CHECK(!client_epilogue_take("[CONQUEST] You have conquered") && !client_epilogue_visible(),
+          "another tag is no epilogue");
+    CHECK(client_epilogue_take("[EPILOGUE] FLOOR 100 COMPLETED") &&
+              client_epilogue_take("[EPILOGUE] The sky opens.") && client_epilogue_visible(),
+          "epilogue not taken");
+    CHECK(client_epilogue_count() == 2 && client_epilogue_get(0, line, sizeof(line)) &&
+              strcmp(line, "FLOOR 100 COMPLETED") == 0 &&
+              !client_epilogue_get(2, line, sizeof(line)),
+          "epilogue lines");
+    client_epilogue_close();
+    CHECK(!client_epilogue_visible() && client_epilogue_count() == 2, "close");
+    CHECK(client_epilogue_take("[EPILOGUE] Again") && client_epilogue_count() == 1,
+          "a new epilogue kept the old lines");
+    client_epilogue_close();
+    CHECK(hud_message_color("[CONQUEST] legend has conquered") == HUD_GOLD, "conquest colour");
+}
+
 static void test_wrap(void) {
     int next = -1;
     CHECK(text_wrap_row("", 10, &next) == 0 && next == 0, "empty text");
@@ -429,6 +450,7 @@ int main(void) {
     test_config_file();
     test_ui_scale();
     test_log();
+    test_epilogue();
     test_wrap();
     test_contrast();
     if (g_failed) {

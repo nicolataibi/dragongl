@@ -245,6 +245,9 @@ typedef struct {
     uint32_t bosses_defeated; // Bitmask for defeated bosses
     bool needs_study;         // Indicator for level up study HUD
     int unspent_stat_points;  // Stat points to distribute
+    /*--- The end of the game (server_conquest.c) ---*/
+    int64_t conquered_at; /*when the dungeon was conquered (time_t), 0: not yet*/
+    bool saves_sealed;    /*conquered and saved once: nothing more is saved*/
 } Client;
 
 /*One ActiveEffect flattened to plain data for the save file: the
@@ -300,6 +303,7 @@ typedef struct {
     /*--- Messaging: Persistent block list ---*/
     char blocked_players[MAX_BLOCKED_PLAYERS][32]; /* Blocked players */
     int blocked_count;                             /*Number of entries in the list*/
+    int64_t conquered_at; /*the end of the game: when (time_t), 0: not yet*/
 } SaveData;
 
 /*--- known_spells bitfield helpers (defensive) ---

@@ -1,3 +1,27 @@
+* Sat Nov 21 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.21.21
+- END: the game has an end, the conquest of the dungeon (LORE.md, Boss
+  Encounter System). The boss of floor 100 defeated, its stairs down
+  tell the character of his victory, announce to every player connected
+  that he "has conquered the dungeon" and send the epilogue of LORE.md,
+  which the client shows on a screen of its own (Escape closes it); they
+  answered "The dungeon ends here" and nothing else.
+- END: the conqueror finds himself in the town, saved one last time with
+  the date of the conquest, as a legend: the dungeon is closed to him
+  (the stairs, the transit spells), nothing he does after is saved, and
+  he may look around, talk, read his inventory and the leaderboard but
+  take, drop, trade, buy or sell nothing (a character that is no longer
+  saved could otherwise give away its items again at every login).
+- END: 'top' lists the conquerors first, with the date of their
+  conquest, and counts them. The save keeps the date in a field at its
+  end: the saves written before it load as they did.
+
+* Sat Nov 21 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.21.20
+- SPELLS: the 9th-level spells are learned at level 20, the level cap,
+  like the 8th: the formula of LORE.md (level x 2 + level / 2) asked
+  level 22, which no character reaches, and the 9th-level slots of a full
+  caster never had a spell of their own. They are in the six Artifact
+  tomes (Archmage's Legacy, Celestial Canon...), which no shop sells.
+
 * Sat Nov 21 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.21.19
 - LOG: every death of a character is in the server log, with what killed
   it and where ("kael was killed by Goblin on floor 2 (40,51)"): the

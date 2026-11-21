@@ -131,6 +131,7 @@ set(DRAGONGL_SERVER_LIB_SRCS
     "${DRAGONGL_ROOT}/src/server/spell_router.c"
     "${DRAGONGL_ROOT}/src/server/spell_utility.c"
     "${DRAGONGL_ROOT}/src/server/tombstone.c"
+    "${DRAGONGL_ROOT}/src/server/server_conquest.c"
     "${DRAGONGL_ROOT}/src/server/server_tls.c"
     "${DRAGONGL_ROOT}/src/server/server_options.c"
 )

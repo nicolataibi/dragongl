@@ -42,7 +42,7 @@ backpack, the goods of a merchant, the things on the ground); where
 | `status` | `stats` | Your character sheet: abilities and modifiers, armour class, conditions. |
 | `train <str\|dex\|con\|int\|wis\|cha\|random>` |  | Spend a point earned at a level-up on an ability (the full name works too). |
 | `save` |  | Save your character now. |
-| `top` | `leaderboard` | The ranking of the players. |
+| `top` | `leaderboard` | The ranking of the players, the conquerors of the dungeon first. |
 | `event` |  | The global event in progress, if any. |
 | `help [topic\|command\|all]` | `?` | The topics; the commands of a topic; what one command does; every command. |
 

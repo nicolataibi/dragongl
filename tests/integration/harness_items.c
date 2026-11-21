@@ -168,8 +168,9 @@ int test_books_and_lore(void) {
     run(c, "study 1");
     CHECK(said("you must go to floor 0, in Arcane Academy"), "studied outside the temple");
 
-    /* LORE.md: spell level x 2 + level / 2, cantrips at 1. */
-    static const int k_required[] = {1, 2, 5, 7, 10, 12, 15, 17, 20, 22};
+    /* LORE.md: spell level x 2 + level / 2, cantrips at 1, the 9th level
+     * at the level cap (20). */
+    static const int k_required[] = {1, 2, 5, 7, 10, 12, 15, 17, 20, 20};
     for (int lv = 0; lv <= 9; lv++) {
         SpellTemplate sp = {0};
         sp.level = lv;
@@ -185,6 +186,17 @@ int test_books_and_lore(void) {
     CHECK(said("*** LEARNED ***") && said("new spell(s)"), "nothing learned in the temple");
     run(c, "study 1");
     CHECK(said("already know all the accessible magic"), "learned twice");
+
+    /* A level 20 wizard learns the 9th level from an Artifact tome. */
+    c->backpack_count = 0;
+    give(c, item_named("Archmage's Legacy"), 1);
+    run(c, "study 1");
+    int foresight = -1;
+    for (int i = 0; i < spell_database_size; i++) {
+        foresight = strcmp(spell_database[i].name, "Foresight") == 0 ? i : foresight;
+    }
+    CHECK(foresight >= 0 && spell_database[foresight].level == 9 && spell_known_get(c, foresight),
+          "Foresight (9th level) not learned at level 20");
 
     c->class_id = CLASS_FIGHTER;
     run(c, "drill 1");

@@ -90,7 +90,7 @@ foreach(t trade_offer_revalidated_on_accept trade_moves_item_and_gold
 endforeach()
 # Combat, loot, death and tombstones (harness_combat.c).
 foreach(t melee_attack weapons_and_arrows monster_attacks loot party_shares_xp
-          boss_and_event_kills death_and_tombstone ghost_is_not_a_boss tombstone_expires
+          boss_and_event_kills death_and_tombstone conquest_of_the_dungeon ghost_is_not_a_boss tombstone_expires
           combat_log)
     add_test(NAME ${t} COMMAND server_harness ${t} WORKING_DIRECTORY "${DGL_WORK}")
 endforeach()

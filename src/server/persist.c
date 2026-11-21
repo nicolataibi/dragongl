@@ -403,6 +403,8 @@ bool persist_write_player(const char *path, const SaveData *sd) {
     for (int i = 0; i < sd->blocked_count && i < MAX_BLOCKED_PLAYERS; i++) {
         bw_str(&w, sd->blocked_players[i], sizeof(sd->blocked_players[i]));
     }
+    /*Last, so that the saves written before it still load (no field: 0).*/
+    bw_u64(&w, (uint64_t)sd->conquered_at);
     return write_and_free(path, PERSIST_SAVE_MAGIC, PERSIST_SAVE_VERSION, &w);
 }
 
@@ -475,6 +477,11 @@ BinFileStatus persist_read_player(const char *path, SaveData *sd, char *why, siz
     sd->blocked_count = (int)br_count(&r, MAX_BLOCKED_PLAYERS);
     for (int i = 0; i < sd->blocked_count && !r.failed; i++) {
         br_str(&r, sd->blocked_players[i], sizeof(sd->blocked_players[i]));
+    }
+    /*The conquest of the dungeon: absent from the saves written before it.*/
+    if (!r.failed && r.pos < r.len) {
+        uint64_t at = br_u64(&r);
+        sd->conquered_at = at <= (uint64_t)INT64_MAX ? (int64_t)at : 0;
     }
     return finish_read(&r, buf, why, why_len);
 }

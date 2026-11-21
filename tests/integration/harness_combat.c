@@ -19,7 +19,12 @@
 #include "server_entities.h"
 #include "server_internal.h"
 #include "combat_log.h"
+#include "server_conquest.h"
+#include "binio.h"
+#include "persist.h"
+#include "server_tiles.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -508,5 +513,93 @@ int test_combat_log(void) {
     CHECK(strstr(buf, "\"type\":\"spell\"") && strstr(buf, "\"type\":\"save\""),
           "no spell or save: %s", buf);
     CHECK(strstr(buf, "Bob \\\"the\\\" Tab\\t"), "the name is not escaped: %s", buf);
+    return 0;
+}
+
+/* The end of the game: past the boss of floor 100 its stairs down are the
+ * conquest. The character is told and the server is told, he comes back to
+ * the town saved one last time with the date, then the dungeon, the items
+ * and the saves are closed to him; the leaderboard names him. */
+int test_conquest_of_the_dungeon(void) {
+    hx_reset_world();
+    Client *c = hero(0, "legend", 100, CX, CY);
+    Client *b = hero(1, "bystander", FLOOR, CX, CY);
+    CHECK(c && b, "no players");
+    g_game.world->floors[100].map.data[0][CY][CX] = VOXEL_STAIRS_DOWN;
+    c->bosses_defeated = 0;
+    check_tile_events(c, &g_game);
+    heard(c);
+    CHECK(c->floor_id == 100 && !client_conquered(c), "conquered without the last boss");
+
+    c->bosses_defeated = 0x3FFu;
+    c->gold = 777;
+    hush(b);
+    check_tile_events(c, &g_game);
+    heard(c);
+    CHECK(said("[CONQUEST] You have conquered the Dragon's Maw!") &&
+              said("[EPILOGUE] FLOOR 100 COMPLETED"),
+          "no victory, no epilogue");
+    CHECK(client_conquered(c) && c->saves_sealed && c->floor_id == 0, "not a legend in the town");
+    heard(b);
+    CHECK(said("[CONQUEST] legend has conquered the dungeon!"), "the others were not told");
+
+    /* Saved once, for good. */
+    c->gold = 1;
+    save_player_data(c);
+    static Client loaded;
+    memset(&loaded, 0, sizeof(loaded));
+    snprintf(loaded.username, sizeof(loaded.username), "%s", c->username);
+    char pwd[40];
+    snprintf(pwd, sizeof(pwd), "pw-%s", c->username);
+    CHECK(load_player_data(&loaded, pwd) == 1, "no reload");
+    CHECK(loaded.conquered_at == c->conquered_at && loaded.saves_sealed && loaded.gold == 777 &&
+              loaded.floor_id == 0,
+          "reloaded: conquered %lld, gold %lu, floor %d", (long long)loaded.conquered_at,
+          (unsigned long)loaded.gold, loaded.floor_id);
+
+    /* A save of the versions before the conquest (no field at its end)
+     * still loads, as a character who has not conquered. */
+    char path[STATE_DIR_MAX + 64];
+    CHECK(state_path(path, sizeof(path), "saves/%s.save", c->username), "no save path");
+    static uint8_t file[1 << 16];
+    FILE *f = fopen(path, "rb");
+    CHECK(f != NULL, "no save file");
+    size_t len = fread(file, 1, sizeof(file), f);
+    fclose(f);
+    CHECK(len > BINFILE_HEADER_SIZE + 8, "save too short");
+    len -= 8;
+    uint32_t payload = (uint32_t)(len - BINFILE_HEADER_SIZE);
+    uint32_t crc = crc32_data(file + BINFILE_HEADER_SIZE, payload);
+    for (int k = 0; k < 4; k++) {
+        file[8 + k] = (uint8_t)(payload >> (8 * k));
+        file[12 + k] = (uint8_t)(crc >> (8 * k));
+    }
+    f = fopen(path, "wb");
+    CHECK(f != NULL && fwrite(file, 1, len, f) == len, "cannot write the old save");
+    fclose(f);
+    memset(&loaded, 0, sizeof(loaded));
+    snprintf(loaded.username, sizeof(loaded.username), "%s", c->username);
+    CHECK(load_player_data(&loaded, pwd) == 1 && loaded.conquered_at == 0 && !loaded.saves_sealed &&
+              loaded.gold == 777,
+          "an old save does not load as before");
+
+    /* Closed: the stairs of the town, the items, the save; open: looking. */
+    g_game.world->floors[0].map.data[0][CY][CX] = VOXEL_STAIRS_DOWN;
+    place(c, 0, CX, CY);
+    check_tile_events(c, &g_game);
+    heard(c);
+    CHECK(c->floor_id == 0 && said("Your legend is written"), "a legend went down again");
+    run(c, "drop 1");
+    CHECK(said("Your legend is written"), "a legend dropped an item");
+    run(c, "save");
+    CHECK(said("Your legend is written") && !said("[SYSTEM] Saved."), "a legend saved");
+    run(c, "look");
+    CHECK(said("[INSPECTION]"), "a legend cannot look around");
+    /* The conqueror comes first, even after one with more levels. */
+    b->bosses_defeated = 0x3FFu;
+    b->level = c->level + 5;
+    run(c, "top");
+    CHECK(said("1. legend (Level") && said("CONQUEROR 2") && said("Conquerors of the dungeon: 1"),
+          "the leaderboard does not name the conqueror first");
     return 0;
 }
