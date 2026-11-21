@@ -2588,7 +2588,10 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 5000
+      "cost": 5000,
+      "use": {
+        "heal": "2d4+2"
+      }
     },
     {
       "name": "Feather Token Anchor",
@@ -2627,7 +2630,15 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 10000
+      "cost": 10000,
+      "use": {
+        "harm": "3d6",
+        "harm_type": "poison",
+        "condition": "poisoned",
+        "save": "con",
+        "dc": 13,
+        "rounds": 10
+      }
     },
     {
       "name": "Dust of Dryness (1 pellet)",
@@ -2653,7 +2664,10 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 15000
+      "cost": 15000,
+      "use": {
+        "heal": "4d4+4"
+      }
     },
     {
       "name": "Potion of Climbing",
@@ -2679,7 +2693,13 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 18000
+      "cost": 18000,
+      "use": {
+        "temp_hp": 10,
+        "attack": 2,
+        "saves": 2,
+        "rounds": 600
+      }
     },
     {
       "name": "Potion of Invisibility",
@@ -2692,7 +2712,11 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 18000
+      "cost": 18000,
+      "use": {
+        "condition": "invisible",
+        "rounds": 600
+      }
     },
     {
       "name": "Potion of Mind Reading",
@@ -2705,7 +2729,8 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 18000
+      "cost": 18000,
+      "cast_spell": "Detect Thoughts"
     },
     {
       "name": "Potion of Water Breathing",
@@ -2744,7 +2769,8 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 20000
+      "cost": 20000,
+      "cast_spell": "Animal Friendship"
     },
     {
       "name": "Feather Token Fan",
@@ -2783,7 +2809,12 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 27000
+      "cost": 27000,
+      "use": {
+        "damage": -2,
+        "rounds": 600,
+        "rounds_dice": "1d4"
+      }
     },
     {
       "name": "Potion of Growth",
@@ -2796,7 +2827,12 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 27000
+      "cost": 27000,
+      "use": {
+        "damage": 2,
+        "rounds": 600,
+        "rounds_dice": "1d4"
+      }
     },
     {
       "name": "Dust of Disappearance",
@@ -2809,7 +2845,12 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 30000
+      "cost": 30000,
+      "use": {
+        "condition": "invisible",
+        "rounds": 10,
+        "rounds_dice": "2d4"
+      }
     },
     {
       "name": "Potion of Gaseous Form",
@@ -2822,7 +2863,15 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 30000
+      "cost": 30000,
+      "use": {
+        "resist": [
+          "bludgeoning",
+          "piercing",
+          "slashing"
+        ],
+        "rounds": 600
+      }
     },
     {
       "name": "Potion of Resistance",
@@ -2835,7 +2884,13 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 30000
+      "cost": 30000,
+      "use": {
+        "resist": [
+          "random"
+        ],
+        "rounds": 600
+      }
     },
     {
       "name": "Universal Solvent",
@@ -2862,7 +2917,10 @@
       "damage_type": "",
       "properties": "light",
       "cost": 35000,
-      "material": "wood"
+      "material": "wood",
+      "worn": {
+        "on_crit": "2d6"
+      }
     },
     {
       "name": "Vicious Dagger",
@@ -2875,7 +2933,10 @@
       "damage": "1d4",
       "damage_type": "",
       "properties": "finesse | light | thrown (range 20/60)",
-      "cost": 35000
+      "cost": 35000,
+      "worn": {
+        "on_crit": "2d6"
+      }
     },
     {
       "name": "Vicious Javelin",
@@ -2888,7 +2949,10 @@
       "damage": "1d6",
       "damage_type": "",
       "properties": "thrown (range 30/120)",
-      "cost": 35000
+      "cost": 35000,
+      "worn": {
+        "on_crit": "2d6"
+      }
     },
     {
       "name": "Vicious Sickle",
@@ -2901,7 +2965,10 @@
       "damage": "1d4",
       "damage_type": "",
       "properties": "light",
-      "cost": 35000
+      "cost": 35000,
+      "worn": {
+        "on_crit": "2d6"
+      }
     },
     {
       "name": "Vicious Shortbow",
@@ -2914,7 +2981,10 @@
       "damage": "1d6",
       "damage_type": "",
       "properties": "ammunition (range 80/320) | two-handed ",
-      "cost": 35000
+      "cost": 35000,
+      "worn": {
+        "on_crit": "2d6"
+      }
     },
     {
       "name": "Vicious Battleaxe",
@@ -2927,7 +2997,10 @@
       "damage": "1d8",
       "damage_type": "",
       "properties": "versatile (1d10)",
-      "cost": 35000
+      "cost": 35000,
+      "worn": {
+        "on_crit": "2d6"
+      }
     },
     {
       "name": "Vicious Greatsword",
@@ -2940,7 +3013,10 @@
       "damage": "2d6",
       "damage_type": "",
       "properties": "heavy | two-handed",
-      "cost": 35000
+      "cost": 35000,
+      "worn": {
+        "on_crit": "2d6"
+      }
     },
     {
       "name": "Potion of Speed",
@@ -2953,7 +3029,12 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 40000
+      "cost": 40000,
+      "use": {
+        "haste": true,
+        "ac": 2,
+        "rounds": 10
+      }
     },
     {
       "name": "Sovereign Glue",
@@ -2979,7 +3060,9 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 40000
+      "cost": 40000,
+      "cast_spell": "Conjure Animals",
+      "max_charges": 1
     },
     {
       "name": "Horn of Blasting",
@@ -3005,7 +3088,10 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 45000
+      "cost": 45000,
+      "use": {
+        "heal": "8d4+8"
+      }
     },
     {
       "name": "Dust of Sneezing and Choking",
@@ -3018,7 +3104,13 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 48000
+      "cost": 48000,
+      "use": {
+        "condition": "incapacitated",
+        "save": "con",
+        "dc": 15,
+        "rounds": 50
+      }
     },
     {
       "name": "Necklace of Fireballs",
@@ -3031,7 +3123,10 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 300000
+      "cost": 300000,
+      "cast_spell": "Fireball",
+      "max_charges": 6,
+      "no_recharge": true
     },
     {
       "name": "Oil of Slipperiness",
@@ -3044,7 +3139,20 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 48000
+      "cost": 48000,
+      "use": {
+        "cure": [
+          "paralyzed",
+          "restrained",
+          "grappled"
+        ],
+        "immune_conditions": [
+          "paralyzed",
+          "restrained",
+          "grappled"
+        ],
+        "rounds": 4800
+      }
     },
     {
       "name": "Potion of Flying",
@@ -3070,7 +3178,10 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 50000
+      "cost": 50000,
+      "worn": {
+        "crit_immune": true
+      }
     },
     {
       "name": "Adamantine Breastplate",
@@ -3083,7 +3194,10 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 50000
+      "cost": 50000,
+      "worn": {
+        "crit_immune": true
+      }
     },
     {
       "name": "Helm of Comprehending Languages",
@@ -3096,7 +3210,9 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 50000
+      "cost": 50000,
+      "cast_spell": "Comprehend Languages",
+      "at_will": true
     },
     {
       "name": "Golden Lion",
@@ -3109,7 +3225,9 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 60000
+      "cost": 60000,
+      "cast_spell": "Conjure Animals",
+      "max_charges": 1
     },
     {
       "name": "Trident of Fish Command",
@@ -3148,7 +3266,10 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 96000
+      "cost": 96000,
+      "cast_spell": "Conjure Elemental",
+      "max_charges": 1,
+      "no_recharge": true
     },
     {
       "name": "Potion of Clairvoyance",
@@ -3161,7 +3282,8 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 96000
+      "cost": 96000,
+      "cast_spell": "Clairvoyance"
     },
     {
       "name": "Potion of Vitality",
@@ -3174,7 +3296,13 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 96000
+      "cost": 96000,
+      "use": {
+        "cure": [
+          "poisoned"
+        ],
+        "exhaustion": true
+      }
     },
     {
       "name": "Greatsword of Life-Stealing",
@@ -3187,7 +3315,12 @@
       "damage": "2d6",
       "damage_type": "",
       "properties": "heavy | two-handed | requires attunement",
-      "cost": 100000
+      "cost": 100000,
+      "worn": {
+        "on_crit": "3d6",
+        "on_crit_type": "necrotic",
+        "on_crit_temp_hp": true
+      }
     },
     {
       "name": "Shortsword of Life-Stealing",
@@ -3200,7 +3333,12 @@
       "damage": "1d6",
       "damage_type": "",
       "properties": "finesse | light | requires attunement",
-      "cost": 100000
+      "cost": 100000,
+      "worn": {
+        "on_crit": "3d6",
+        "on_crit_type": "necrotic",
+        "on_crit_temp_hp": true
+      }
     },
     {
       "name": "Eversmoking Bottle",
@@ -3226,7 +3364,11 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 100000
+      "cost": 100000,
+      "worn": {
+        "carried": true,
+        "sustenance": true
+      }
     },
     {
       "name": "Ring of Warmth",
@@ -3239,7 +3381,12 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 100000
+      "cost": 100000,
+      "worn": {
+        "resist": [
+          "cold"
+        ]
+      }
     },
     {
       "name": "Ivory Goat of Traveling",
@@ -3252,7 +3399,9 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 100000
+      "cost": 100000,
+      "cast_spell": "Conjure Animals",
+      "max_charges": 1
     },
     {
       "name": "Ioun Stone of Protection",
@@ -3265,7 +3414,11 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 120000
+      "cost": 120000,
+      "worn": {
+        "carried": true,
+        "ac": 1
+      }
     },
     {
       "name": "Potion of Supreme Healing",
@@ -3278,7 +3431,10 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 135000
+      "cost": 135000,
+      "use": {
+        "heal": "10d4+20"
+      }
     },
     {
       "name": "Chime of Opening",
@@ -3305,7 +3461,10 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 150000
+      "cost": 150000,
+      "worn": {
+        "ranged_damage": 2
+      }
     },
     {
       "name": "Circlet of Blasting",
@@ -3318,7 +3477,9 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 150000
+      "cost": 150000,
+      "cast_spell": "Scorching Ray",
+      "max_charges": 1
     },
     {
       "name": "Javelin of Lightning",
@@ -3344,7 +3505,9 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 150000
+      "cost": 150000,
+      "cast_spell": "Gust of Wind",
+      "max_charges": 1
     },
     {
       "name": "Goggles of Night",
@@ -3357,7 +3520,10 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 150000
+      "cost": 150000,
+      "worn": {
+        "darkvision": 12
+      }
     },
     {
       "name": "Horseshoes of a Zephyr",
@@ -3383,7 +3549,10 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 150000
+      "cost": 150000,
+      "worn": {
+        "gas_save_advantage": true
+      }
     },
     {
       "name": "Ring of Water Walking",
@@ -3440,7 +3609,11 @@
       "damage": "2d6",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 170000
+      "cost": 170000,
+      "worn": {
+        "on_crit": "4d6",
+        "on_crit_type": "slashing"
+      }
     },
     {
       "name": "Oil of Etherealness",
@@ -3492,7 +3665,10 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 200000
+      "cost": 200000,
+      "worn": {
+        "ac": 1
+      }
     },
     {
       "name": "Pipes of the Sewers",
@@ -3583,7 +3759,10 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 200000
+      "cost": 200000,
+      "worn": {
+        "feather_fall": true
+      }
     },
     {
       "name": "Staff of the Python",
@@ -3609,7 +3788,14 @@
       "damage": "2d6",
       "damage_type": "",
       "properties": "heavy | two-handed | requires attunement",
-      "cost": 220000
+      "cost": 220000,
+      "worn": {
+        "on_hit": "1d6",
+        "on_hit_type": "cold",
+        "resist": [
+          "fire"
+        ]
+      }
     },
     {
       "name": "Ioun Stone of Absorption",
@@ -3635,7 +3821,11 @@
       "damage": "1d4",
       "damage_type": "",
       "properties": "finesse | light | thrown (range 20/60)",
-      "cost": 250000
+      "cost": 250000,
+      "worn": {
+        "attack": 1,
+        "damage": 1
+      }
     },
     {
       "name": "Boots of Elvenkind",
@@ -3687,7 +3877,9 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 250000
+      "cost": 250000,
+      "cast_spell": "Jump",
+      "at_will": true
     },
     {
       "name": "Feather Token Bird",
@@ -3739,7 +3931,14 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 300000
+      "cost": 300000,
+      "worn": {
+        "carried": true,
+        "ability_add": {
+          "dex": 2
+        },
+        "ability_max": 20
+      }
     },
     {
       "name": "Ioun Stone of Fortitude",
@@ -3752,7 +3951,14 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 300000
+      "cost": 300000,
+      "worn": {
+        "carried": true,
+        "ability_add": {
+          "con": 2
+        },
+        "ability_max": 20
+      }
     },
     {
       "name": "Ioun Stone of Insight",
@@ -3765,7 +3971,14 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 300000
+      "cost": 300000,
+      "worn": {
+        "carried": true,
+        "ability_add": {
+          "wis": 2
+        },
+        "ability_max": 20
+      }
     },
     {
       "name": "Ioun Stone of Intellect",
@@ -3778,7 +3991,14 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 300000
+      "cost": 300000,
+      "worn": {
+        "carried": true,
+        "ability_add": {
+          "int": 2
+        },
+        "ability_max": 20
+      }
     },
     {
       "name": "Ioun Stone of Leadership",
@@ -3791,7 +4011,14 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 300000
+      "cost": 300000,
+      "worn": {
+        "carried": true,
+        "ability_add": {
+          "cha": 2
+        },
+        "ability_max": 20
+      }
     },
     {
       "name": "Ioun Stone of Strength",
@@ -3804,7 +4031,14 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 300000
+      "cost": 300000,
+      "worn": {
+        "carried": true,
+        "ability_add": {
+          "str": 2
+        },
+        "ability_max": 20
+      }
     },
     {
       "name": "Staff of Withering",
@@ -3817,7 +4051,13 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement by a cleric",
-      "cost": 300000
+      "cost": 300000,
+      "worn": {
+        "on_hit": "2d10",
+        "on_hit_type": "necrotic",
+        "on_hit_charge": true
+      },
+      "max_charges": 3
     },
     {
       "name": "Dimensional Shackles",
@@ -3843,7 +4083,9 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 300000
+      "cost": 300000,
+      "cast_spell": "Charm Person",
+      "max_charges": 3
     },
     {
       "name": "Medallion of Thoughts",
@@ -3856,7 +4098,9 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 300000
+      "cost": 300000,
+      "cast_spell": "Detect Thoughts",
+      "max_charges": 3
     },
     {
       "name": "Ring of Swimming",
@@ -3882,7 +4126,9 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 300000
+      "cost": 300000,
+      "cast_spell": "Conjure Animals",
+      "max_charges": 1
     },
     {
       "name": "Oil of Sharpness",
@@ -3895,7 +4141,13 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 320000
+      "cost": 320000,
+      "use": {
+        "attack": 3,
+        "damage": 3,
+        "rounds": 600,
+        "weapon": true
+      }
     },
     {
       "name": "Cloak of Protection",
@@ -3908,7 +4160,11 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 350000
+      "cost": 350000,
+      "worn": {
+        "ac": 1,
+        "saves": 1
+      }
     },
     {
       "name": "Oathbow",
@@ -3934,7 +4190,11 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 350000
+      "cost": 350000,
+      "worn": {
+        "ac": 1,
+        "saves": 1
+      }
     },
     {
       "name": "Boots of Speed",
@@ -3947,7 +4207,10 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 400000
+      "cost": 400000,
+      "worn": {
+        "haste": true
+      }
     },
     {
       "name": "Dragon Scale Mail",
@@ -3960,7 +4223,17 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 400000
+      "cost": 400000,
+      "worn": {
+        "ac": 1,
+        "resist_one_of": [
+          "acid",
+          "cold",
+          "fire",
+          "lightning",
+          "poison"
+        ]
+      }
     },
     {
       "name": "Elven Chain",
@@ -3973,7 +4246,10 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 400000
+      "cost": 400000,
+      "worn": {
+        "ac": 1
+      }
     },
     {
       "name": "Ioun Stone of Regeneration",
@@ -3986,7 +4262,12 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 400000
+      "cost": 400000,
+      "worn": {
+        "carried": true,
+        "regen": 15,
+        "regen_rounds": 600
+      }
     },
     {
       "name": "Iron Bands of Bilarro",
@@ -4066,7 +4347,9 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 400000
+      "cost": 400000,
+      "cast_spell": "Animal Friendship",
+      "max_charges": 3
     },
     {
       "name": "Luckstone",
@@ -4079,7 +4362,11 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 420000
+      "cost": 420000,
+      "worn": {
+        "carried": true,
+        "saves": 1
+      }
     },
     {
       "name": "Gem of Brightness",
@@ -4092,7 +4379,10 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 500000
+      "cost": 500000,
+      "cast_spell": "Light",
+      "max_charges": 50,
+      "no_recharge": true
     },
     {
       "name": "Flame Tongue Dagger",
@@ -4105,7 +4395,11 @@
       "damage": "1d4",
       "damage_type": "",
       "properties": "finesse | light | thrown (range 20/60) | requires attunement",
-      "cost": 500000
+      "cost": 500000,
+      "worn": {
+        "on_hit": "2d6",
+        "on_hit_type": "fire"
+      }
     },
     {
       "name": "Periapt of Wound Closure",
@@ -4131,7 +4425,11 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 500000
+      "cost": 500000,
+      "worn": {
+        "evasion": true
+      },
+      "max_charges": 3
     },
     {
       "name": "Ring of the Ram",
@@ -4170,7 +4468,12 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 500000
+      "cost": 500000,
+      "worn": {
+        "resist": [
+          "poison"
+        ]
+      }
     },
     {
       "name": "Cloak of Elvenkind",
@@ -4196,7 +4499,9 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 500000
+      "cost": 500000,
+      "cast_spell": "Disguise Self",
+      "at_will": true
     },
     {
       "name": "Horseshoes of Speed",
@@ -4235,7 +4540,10 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 500000
+      "cost": 500000,
+      "worn": {
+        "see_invisible": true
+      }
     },
     {
       "name": "Periapt of Health",
@@ -4261,7 +4569,15 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 500000
+      "cost": 500000,
+      "worn": {
+        "immune": [
+          "poison"
+        ],
+        "immune_conditions": [
+          "poisoned"
+        ]
+      }
     },
     {
       "name": "Slippers of Spider Climbing",
@@ -4287,7 +4603,9 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 500000
+      "cost": 500000,
+      "cast_spell": "Conjure Animals",
+      "max_charges": 1
     },
     {
       "name": "Wings of Flying",
@@ -4326,7 +4644,12 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 600000
+      "cost": 600000,
+      "worn": {
+        "resist": [
+          "random"
+        ]
+      }
     },
     {
       "name": "Breastplate of Resistance",
@@ -4339,7 +4662,12 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 600000
+      "cost": 600000,
+      "worn": {
+        "resist": [
+          "random"
+        ]
+      }
     },
     {
       "name": "Arrow-Catching Shield",
@@ -4365,7 +4693,14 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 600000
+      "cost": 600000,
+      "worn": {
+        "carried": true,
+        "ability_add": {
+          "con": 2
+        },
+        "ability_max": 20
+      }
     },
     {
       "name": "Bracers of Defense",
@@ -4379,7 +4714,10 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 600000
+      "cost": 600000,
+      "worn": {
+        "ac_unarmored": 2
+      }
     },
     {
       "name": "Ioun Stone of Reserve",
@@ -4418,7 +4756,9 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 600000
+      "cost": 600000,
+      "cast_spell": "Fear",
+      "max_charges": 3
     },
     {
       "name": "Ring of Resistance",
@@ -4431,7 +4771,12 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 600000
+      "cost": 600000,
+      "worn": {
+        "resist": [
+          "random"
+        ]
+      }
     },
     {
       "name": "Robe of Scintillating Colors",
@@ -4444,7 +4789,9 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 600000
+      "cost": 600000,
+      "cast_spell": "Hypnotic Pattern",
+      "max_charges": 3
     },
     {
       "name": "Scimitar of Speed",
@@ -4457,7 +4804,11 @@
       "damage": "1d6",
       "damage_type": "slashing",
       "properties": "requires attunement",
-      "cost": 600000
+      "cost": 600000,
+      "worn": {
+        "attack": 2,
+        "damage": 2
+      }
     },
     {
       "name": "Shield of Missile Attraction",
@@ -4522,7 +4873,9 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 600000
+      "cost": 600000,
+      "cast_spell": "Conjure Animals",
+      "max_charges": 1
     },
     {
       "name": "Ebony Fly",
@@ -4535,7 +4888,9 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 600000
+      "cost": 600000,
+      "cast_spell": "Conjure Animals",
+      "max_charges": 1
     },
     {
       "name": "Deck of Illusions",
@@ -4561,7 +4916,11 @@
       "damage": "1d8",
       "damage_type": "",
       "properties": "versatile (1d10)",
-      "cost": 700000
+      "cost": 700000,
+      "worn": {
+        "attack": 1,
+        "damage": 1
+      }
     },
     {
       "name": "Mace of Smiting",
@@ -4574,7 +4933,13 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 700000
+      "cost": 700000,
+      "worn": {
+        "attack": 1,
+        "damage": 1,
+        "on_crit": "2d6",
+        "on_crit_type": "bludgeoning"
+      }
     },
     {
       "name": "Brooch of Shielding",
@@ -4587,7 +4952,13 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 750000
+      "cost": 750000,
+      "worn": {
+        "resist": [
+          "force"
+        ],
+        "immune_spell": "Magic Missile"
+      }
     },
     {
       "name": "Amulet of Health",
@@ -4600,7 +4971,12 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 800000
+      "cost": 800000,
+      "worn": {
+        "ability_set": {
+          "con": 19
+        }
+      }
     },
     {
       "name": "Dragon Slayer Longsword",
@@ -4613,7 +4989,11 @@
       "damage": "1d8",
       "damage_type": "",
       "properties": "versatile (1d10)",
-      "cost": 800000
+      "cost": 800000,
+      "worn": {
+        "attack": 1,
+        "damage": 1
+      }
     },
     {
       "name": "Gauntlets of Ogre Power",
@@ -4626,7 +5006,12 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 800000
+      "cost": 800000,
+      "worn": {
+        "ability_set": {
+          "str": 19
+        }
+      }
     },
     {
       "name": "Headband of Intellect",
@@ -4639,7 +5024,12 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 800000
+      "cost": 800000,
+      "worn": {
+        "ability_set": {
+          "int": 19
+        }
+      }
     },
     {
       "name": "Mace of Disruption",
@@ -4665,7 +5055,9 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 800000
+      "cost": 800000,
+      "cast_spell": "Fear",
+      "max_charges": 3
     },
     {
       "name": "Nine Lives Stealer",
@@ -4678,7 +5070,11 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 800000
+      "cost": 800000,
+      "worn": {
+        "attack": 2,
+        "damage": 2
+      }
     },
     {
       "name": "Wand of Magic Missiles",
@@ -4721,7 +5117,9 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 800000
+      "cost": 800000,
+      "cast_spell": "Dimension Door",
+      "max_charges": 1
     },
     {
       "name": "Portable Hole",
@@ -4747,7 +5145,9 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 800000
+      "cost": 800000,
+      "cast_spell": "Conjure Elemental",
+      "max_charges": 1
     },
     {
       "name": "Brazier of Commanding Fire Elementals",
@@ -4760,7 +5160,9 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 800000
+      "cost": 800000,
+      "cast_spell": "Conjure Elemental",
+      "max_charges": 1
     },
     {
       "name": "Censer of Controlling Air Elementals",
@@ -4773,7 +5175,9 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 800000
+      "cost": 800000,
+      "cast_spell": "Conjure Elemental",
+      "max_charges": 1
     },
     {
       "name": "Stone of Controlling Earth Elementals",
@@ -4786,7 +5190,9 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 800000
+      "cost": 800000,
+      "cast_spell": "Conjure Elemental",
+      "max_charges": 1
     },
     {
       "name": "Bronze Griffon",
@@ -4799,7 +5205,9 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 800000
+      "cost": 800000,
+      "cast_spell": "Conjure Animals",
+      "max_charges": 1
     },
     {
       "name": "Broom of Flying",
@@ -4825,7 +5233,9 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 800000
+      "cost": 800000,
+      "cast_spell": "Conjure Animals",
+      "max_charges": 1
     },
     {
       "name": "Winged Boots",
@@ -4851,7 +5261,10 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 900000
+      "cost": 900000,
+      "worn": {
+        "ac": 2
+      }
     },
     {
       "name": "Staff of Thunder and Lightning",
@@ -4864,7 +5277,13 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 1000000
+      "cost": 1000000,
+      "worn": {
+        "attack": 2,
+        "damage": 2
+      },
+      "cast_spell": "Lightning Bolt",
+      "max_charges": 1
     },
     {
       "name": "Wand of Binding",
@@ -4920,7 +5339,12 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 1000000
+      "cost": 1000000,
+      "worn": {
+        "resist": [
+          "cold"
+        ]
+      }
     },
     {
       "name": "Folding Boat",
@@ -4946,7 +5370,9 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 1000000
+      "cost": 1000000,
+      "cast_spell": "Invisibility",
+      "at_will": true
     },
     {
       "name": "Ioun Stone of Awareness",
@@ -4972,7 +5398,9 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement by a bard",
-      "cost": 1200000
+      "cost": 1200000,
+      "cast_spell": "Charm Person",
+      "max_charges": 10
     },
     {
       "name": "Sun Blade",
@@ -4985,7 +5413,11 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 1200000
+      "cost": 1200000,
+      "worn": {
+        "attack": 2,
+        "damage": 2
+      }
     },
     {
       "name": "Helm of Telepathy",
@@ -4998,7 +5430,9 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 1200000
+      "cost": 1200000,
+      "cast_spell": "Detect Thoughts",
+      "at_will": true
     },
     {
       "name": "Carpet of Flying",
@@ -5024,7 +5458,11 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 1200000
+      "cost": 1200000,
+      "worn": {
+        "regen": "1d6",
+        "regen_rounds": 100
+      }
     },
     {
       "name": "Staff of Healing",
@@ -5037,7 +5475,9 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement by a bard",
-      "cost": 1300000
+      "cost": 1300000,
+      "cast_spell": "Cure Wounds",
+      "max_charges": 10
     },
     {
       "name": "Ring of Shooting Stars",
@@ -5050,7 +5490,9 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement outdoors at night",
-      "cost": 1400000
+      "cost": 1400000,
+      "cast_spell": "Faerie Fire",
+      "max_charges": 6
     },
     {
       "name": "Ioun Stone of Mastery",
@@ -5089,7 +5531,11 @@
       "damage": "2d6",
       "damage_type": "",
       "properties": "heavy | two-handed",
-      "cost": 1600000
+      "cost": 1600000,
+      "worn": {
+        "attack": 1,
+        "damage": 1
+      }
     },
     {
       "name": "Staff of Fire",
@@ -5102,7 +5548,15 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement by a druid",
-      "cost": 1600000
+      "cost": 1600000,
+      "worn": {
+        "resist": [
+          "fire"
+        ]
+      },
+      "cast_spell": "Fireball",
+      "max_charges": 10,
+      "charge_cost": 3
     },
     {
       "name": "Staff of Swarming Insects",
@@ -5115,7 +5569,10 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement by a bard",
-      "cost": 1600000
+      "cost": 1600000,
+      "cast_spell": "Insect Plague",
+      "max_charges": 10,
+      "charge_cost": 5
     },
     {
       "name": "Wand of Paralysis",
@@ -5182,7 +5639,12 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 1700000
+      "cost": 1700000,
+      "worn": {
+        "resist": [
+          "fire"
+        ]
+      }
     },
     {
       "name": "Dwarven Thrower",
@@ -5195,7 +5657,11 @@
       "damage": "1d8",
       "damage_type": "",
       "properties": "versatile (1d10) | requires attunement by a dwarf",
-      "cost": 1800000
+      "cost": 1800000,
+      "worn": {
+        "attack": 3,
+        "damage": 3
+      }
     },
     {
       "name": "Plate Armor of Invulnerability",
@@ -5208,7 +5674,14 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 1800000
+      "cost": 1800000,
+      "worn": {
+        "resist": [
+          "bludgeoning",
+          "piercing",
+          "slashing"
+        ]
+      }
     },
     {
       "name": "Ring of Free Action",
@@ -5221,7 +5694,13 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 2000000
+      "cost": 2000000,
+      "worn": {
+        "immune_conditions": [
+          "paralyzed",
+          "restrained"
+        ]
+      }
     },
     {
       "name": "Amulet of Proof Against Detection and Location",
@@ -5247,7 +5726,9 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 2000000
+      "cost": 2000000,
+      "cast_spell": "Conjure Animals",
+      "max_charges": 1
     },
     {
       "name": "Talisman of the Sphere",
@@ -5273,7 +5754,15 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 2100000
+      "cost": 2100000,
+      "worn": {
+        "attack": 3,
+        "damage": 3,
+        "on_hit": "1d6",
+        "on_hit_type": "force",
+        "on_hit_charge": true
+      },
+      "max_charges": 10
     },
     {
       "name": "Ring of Spell Storing",
@@ -5299,7 +5788,11 @@
       "damage": "1d6",
       "damage_type": "",
       "properties": "finesse | light | requires attunement",
-      "cost": 2400000
+      "cost": 2400000,
+      "worn": {
+        "attack": 3,
+        "damage": 3
+      }
     },
     {
       "name": "Defender Greatsword",
@@ -5312,7 +5805,11 @@
       "damage": "2d6",
       "damage_type": "",
       "properties": "heavy | two-handed | requires attunement",
-      "cost": 2400000
+      "cost": 2400000,
+      "worn": {
+        "attack": 3,
+        "damage": 3
+      }
     },
     {
       "name": "Ring of Water Elemental Command",
@@ -5338,7 +5835,9 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 2500000
+      "cost": 2500000,
+      "cast_spell": "Detect Magic",
+      "at_will": true
     },
     {
       "name": "Staff of Frost",
@@ -5351,7 +5850,15 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement by a druid",
-      "cost": 2600000
+      "cost": 2600000,
+      "worn": {
+        "resist": [
+          "cold"
+        ]
+      },
+      "cast_spell": "Cone of Cold",
+      "max_charges": 10,
+      "charge_cost": 5
     },
     {
       "name": "Rod of Lordly Might",
@@ -5364,7 +5871,11 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 2800000
+      "cost": 2800000,
+      "worn": {
+        "attack": 3,
+        "damage": 3
+      }
     },
     {
       "name": "Mantle of Spell Resistance",
@@ -5377,7 +5888,10 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 3000000
+      "cost": 3000000,
+      "worn": {
+        "spell_save_advantage": true
+      }
     },
     {
       "name": "Ring of Spell Turning",
@@ -5390,7 +5904,10 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 3000000
+      "cost": 3000000,
+      "worn": {
+        "spell_save_advantage": true
+      }
     },
     {
       "name": "Robe of Eyes",
@@ -5403,7 +5920,11 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 3000000
+      "cost": 3000000,
+      "worn": {
+        "darkvision": 24,
+        "see_invisible": true
+      }
     },
     {
       "name": "Ioun Stone of Greater Absorption",
@@ -5487,7 +6008,9 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 3200000
+      "cost": 3200000,
+      "cast_spell": "True Seeing",
+      "max_charges": 3
     },
     {
       "name": "Robe of the Archmagi",
@@ -5500,7 +6023,13 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement by a sorcerer",
-      "cost": 3400000
+      "cost": 3400000,
+      "worn": {
+        "unarmored_base": 15,
+        "spell_save_advantage": true,
+        "spell_dc": 2,
+        "spell_attack": 2
+      }
     },
     {
       "name": "Ring of Air Elemental Command",
@@ -5513,7 +6042,10 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 3500000
+      "cost": 3500000,
+      "worn": {
+        "feather_fall": true
+      }
     },
     {
       "name": "Scarab of Protection",
@@ -5526,7 +6058,11 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 3600000
+      "cost": 3600000,
+      "worn": {
+        "carried": true,
+        "spell_save_advantage": true
+      }
     },
     {
       "name": "Cubic Gate",
@@ -5552,7 +6088,14 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement by a druid",
-      "cost": 4400000
+      "cost": 4400000,
+      "worn": {
+        "attack": 2,
+        "damage": 2,
+        "spell_attack": 2
+      },
+      "cast_spell": "Animal Friendship",
+      "max_charges": 10
     },
     {
       "name": "Plate Armor of Etherealness",
@@ -5591,7 +6134,10 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 5000000
+      "cost": 5000000,
+      "worn": {
+        "spell_save_advantage": true
+      }
     },
     {
       "name": "Crystal Ball",
@@ -5604,7 +6150,9 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 5000000
+      "cost": 5000000,
+      "cast_spell": "Scrying",
+      "at_will": true
     },
     {
       "name": "Cloak of Displacement",
@@ -5617,7 +6165,10 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 6000000
+      "cost": 6000000,
+      "worn": {
+        "displacement": true
+      }
     },
     {
       "name": "Robe of Stars",
@@ -5630,7 +6181,12 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 6000000
+      "cost": 6000000,
+      "worn": {
+        "saves": 1
+      },
+      "cast_spell": "Magic Missile",
+      "max_charges": 6
     },
     {
       "name": "Talisman of Ultimate Evil",
@@ -5656,7 +6212,9 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 6400000
+      "cost": 6400000,
+      "cast_spell": "Teleport",
+      "max_charges": 3
     },
     {
       "name": "Talisman of Pure Good",
@@ -5695,7 +6253,9 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement",
-      "cost": 8000000
+      "cost": 8000000,
+      "cast_spell": "Telekinesis",
+      "at_will": true
     },
     {
       "name": "Rod of Security",
@@ -5721,7 +6281,17 @@
       "damage": "",
       "damage_type": "",
       "properties": "requires attunement by a sorcerer",
-      "cost": 9550000
+      "cost": 9550000,
+      "worn": {
+        "attack": 2,
+        "damage": 2,
+        "ac": 2,
+        "saves": 2,
+        "spell_attack": 2
+      },
+      "cast_spell": "Fireball",
+      "max_charges": 20,
+      "charge_cost": 5
     },
     {
       "name": "Obsidian Steed",
@@ -5734,7 +6304,9 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 12800000
+      "cost": 12800000,
+      "cast_spell": "Conjure Animals",
+      "max_charges": 1
     },
     {
       "name": "Decanter of Endless Water",
@@ -5773,7 +6345,11 @@
       "damage": "2d6",
       "damage_type": "",
       "properties": "heavy | two-handed | requires attunement by a paladin",
-      "cost": 16500000
+      "cost": 16500000,
+      "worn": {
+        "attack": 3,
+        "damage": 3
+      }
     },
     {
       "name": "Rags",
@@ -7062,7 +7638,10 @@
       "damage": "",
       "damage_type": "",
       "properties": "",
-      "cost": 15000
+      "cost": 15000,
+      "cast_spell": "Identify",
+      "max_charges": 6,
+      "no_recharge": true
     },
     {
       "name": "Ring of Stupidity",
@@ -7070,7 +7649,12 @@
       "category": "RING",
       "cost": 0,
       "is_cursed": true,
-      "material": "iron"
+      "material": "iron",
+      "worn": {
+        "ability_add": {
+          "int": -2
+        }
+      }
     },
     {
       "name": "Rat Skeleton",

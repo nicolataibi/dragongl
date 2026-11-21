@@ -21,6 +21,7 @@
 #include "combat_log.h"
 #include "pathfinding.h"
 #include "server_internal.h"
+#include "item_effects.h"
 #include "server_combat.h"
 #include "server_world.h"
 #include <stdlib.h>
@@ -630,12 +631,15 @@ AINodeStatus ai_mage_behavior(Game *game, NPC *npc, Client *clients, int num_cli
         if (npc->spell_slots[1] > 0) {
             send_text_to_client(target->sock, "[DANGER] The Mage casts 'Magic Missile' at you!");
             /*Magic Missile: 3 homing missiles, 1d4+1 force damage each,
-             * always hits (no attack roll, no AC).*/
+             * always hits (no attack roll, no AC); a brooch of shielding
+             * stops it.*/
             int dmg = 0;
             for (int m = 0; m < 3; m++) {
                 dmg += rules_roll_dice(1, 4) + 1;
             }
-            target->hp -= dmg;
+            dmg = player_spell_immune(target, "Magic Missile")
+                      ? 0
+                      : player_damage(target, dmg, DMG_FORCE);
             send_text_to_client(target->sock,
                                 "[COMBAT] The missiles strike you for %d force damage! (HP: %d/%d)",
                                 dmg, target->hp > 0 ? target->hp : 0, target->max_hp);
@@ -693,23 +697,14 @@ AINodeStatus ai_void_crawler_behavior(Game *game, NPC *npc, Client *clients, int
         // Phase 1: Enslave
         if (!npc_in_reach(npc, target) && d <= 5) {
             if (rand() % 4 == 0) {
-                int save_mod = rules_get_modifier(target->wis);
-                bool saved = rules_roll_save(save_mod, 14, false, false, NULL);
+                /*A power of the mind: magic, for the items that ward it.*/
+                bool saved = player_save(target, ABILITY_WIS, 14, SAVE_MAGIC, NULL);
                 if (!saved) {
                     send_text_to_client(target->sock,
                                         "[DANGER] The Boss enters your mind! You are Charmed!");
-                    /*The condition itself: the effect was named "Enslave",
-                     * which no rule knows, so the charm did nothing.*/
                     /*The value names the charmer: the character cannot attack
                      * it (LORE.md, Charmed), only it.*/
-                    ActiveEffect charm_effect = {condition_to_name(COND_CHARMED),
-                                                 EVENT_ON_TURN_START,
-                                                 MOD_ADDITIVE,
-                                                 npc->entity_id,
-                                                 3,
-                                                 false};
-                    rules_add_effect(target->effects, &target->effect_count, MAX_EFFECTS_PER_ENTITY,
-                                     &charm_effect);
+                    player_add_condition(target, COND_CHARMED, 3, npc->entity_id);
                     return AI_SUCCESS;
                 }
                 send_text_to_client(target->sock,
@@ -723,20 +718,11 @@ AINodeStatus ai_void_crawler_behavior(Game *game, NPC *npc, Client *clients, int
                 perform_attack_npc(npc, target, game);
             } else {
                 /*Mucus only: this option replaces the melee attack.*/
-                int save_mod = rules_get_modifier(target->con);
-                bool saved = rules_roll_save(save_mod, 14, false, false, NULL);
+                bool saved = player_save(target, ABILITY_CON, 14, SAVE_GAS, NULL);
                 if (!saved) {
                     send_text_to_client(target->sock,
                                         "[DANGER] You are engulfed by Mucus! You are Poisoned!");
-                    /*Poisoned, as told (it was "Mucous Cloud": no poison).*/
-                    ActiveEffect poison_effect = {condition_to_name(COND_POISONED),
-                                                  EVENT_ON_TURN_START,
-                                                  MOD_ADDITIVE,
-                                                  -2,
-                                                  3,
-                                                  false};
-                    rules_add_effect(target->effects, &target->effect_count, MAX_EFFECTS_PER_ENTITY,
-                                     &poison_effect);
+                    player_add_condition(target, COND_POISONED, 3, -2);
                 } else {
                     send_text_to_client(target->sock, "[DANGER] You dodge the Mucous Cloud!");
                 }

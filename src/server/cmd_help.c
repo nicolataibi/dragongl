@@ -96,8 +96,8 @@ static const CmdDoc COMMAND_DOCS[] = {
     {"unbelt", NULL, CMD_GROUP_ITEMS, "unbelt [n|item]",
      "Move an item from the belt back to the backpack."},
     {"use", "quaff|q|read|r|eat|e|zap|z", CMD_GROUP_ITEMS, "use <n|item>",
-     "Use an item: drink a potion, read a scroll (its spell, once), eat, zap a wand (one "
-     "charge)."},
+     "Use an item: drink a potion or apply an oil, read a scroll (its spell, once), eat, zap "
+     "a wand (its charges), or cast the spell of a worn item by its name ('use helm')."},
     {"drop", "d", CMD_GROUP_ITEMS, "drop <n>", "Drop an item of the backpack on the ground."},
     {"throw", "v", CMD_GROUP_ITEMS, "throw <n|item> [n|s|e|w]",
      "Throw one item: 5 tiles, 8 for ammunition; without a direction, at the nearest creature "

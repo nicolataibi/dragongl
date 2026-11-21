@@ -33,6 +33,7 @@
  */
 
 #include "server_world.h"
+#include "item_effects.h"
 #include "server_internal.h"
 #include "ai.h"
 #include "aoe.h"
@@ -223,7 +224,7 @@ static void update_global_event(Game *game, Client *clients) {
 
 /*A death by hunger or by a condition: the bones stay, the character
  * wakes up in town.*/
-static void player_dies(Game *game, Client *c, const char *how) {
+void player_dies(Game *game, Client *c, const char *how) {
     server_log("DEATH", "%s %s.", c->username, how);
     save_bones(game, c);
     player_respawn_town(game, c);
@@ -279,15 +280,21 @@ static void player_light_round(Client *c) {
     }
 }
 
-/*Hunger grows every round; a starving character loses 2 HP every other
- * round and gains a level of exhaustion every 100.*/
+/*Hunger grows every round (not for who carries an Ioun stone of
+ * sustenance); a starving character loses 2 HP every other round and gains
+ * a level of exhaustion every 100.*/
 static void player_hunger_round(Game *game, Client *c) {
+    WornTotals w;
+    player_worn(c, &w);
+    if (w.sustenance) {
+        return; /*an Ioun stone of sustenance: no need to eat*/
+    }
     c->hunger_level++;
     if (c->hunger_level < HUNGER_MAX) {
         return;
     }
     if (game->total_turns % 2 == 0) {
-        c->hp -= 2;
+        player_damage(c, 2, DAMAGE_UNTYPED);
         send_text_to_client(c->sock, "[SYSTEM] You're starving!");
         if (c->hp <= 0) {
             player_dies(game, c, "starved to death");
@@ -301,8 +308,9 @@ static void player_hunger_round(Game *game, Client *c) {
 }
 
 /*Each round a DC 12 saving throw ends a condition: Dexterity against the
- * flames, Strength against stone and ice, Constitution for the others. A
- * cursed character rolls with disadvantage.*/
+ * flames, Strength against stone and ice, Constitution for the others, with
+ * the save bonuses of the items. A cursed character rolls with
+ * disadvantage.*/
 static void player_condition_saves(Game *game, Client *c) {
     static const ConditionType k_conditions[] = {COND_PARALYZED, COND_STUNNED,  COND_UNCONSCIOUS,
                                                  COND_BURNING,   COND_BLEEDING, COND_PETRIFIED,
@@ -312,18 +320,15 @@ static void player_condition_saves(Game *game, Client *c) {
         if (!rules_has_condition_t(c->effects, c->effect_count, cond)) {
             continue;
         }
-        int ts, td, tc, ti, tw, th;
-        get_total_stats(c, &ts, &td, &tc, &ti, &tw, &th);
-        int score = tc;
+        Ability a = ABILITY_CON;
         if (cond == COND_BURNING) {
-            score = td;
+            a = ABILITY_DEX;
         } else if (cond == COND_PETRIFIED || cond == COND_FROZEN) {
-            score = ts;
+            a = ABILITY_STR;
         }
-        int mod = rules_get_modifier(score);
-        bool dis = rules_has_condition_t(c->effects, c->effect_count, COND_CURSED);
+        int mod = player_save_mod(c, a);
         int roll_v = 0;
-        bool success = rules_roll_save(mod, 12, false, dis, &roll_v);
+        bool success = player_save(c, a, 12, SAVE_PLAIN, &roll_v);
         clog_save(c->username, condition_to_name(cond), roll_v, mod, 12, success);
         if (success && player_drop_condition(c, cond)) {
             send_text_to_client(c->sock, "[SYSTEM] You have recovered from the %s state!",
@@ -333,17 +338,18 @@ static void player_condition_saves(Game *game, Client *c) {
     }
 }
 
-/*Poison and bleeding cost 1 HP a round, fire 2 (water puts it out).*/
+/*Poison and bleeding cost 1 HP a round, fire 2 (water puts it out): poison
+ * and fire damage, which resistance halves.*/
 static void player_periodic_damage(Game *game, Client *c) {
     static const struct {
         ConditionType cond;
-        int damage;
+        int damage, type;
         const char *feel, *death;
     } k_periodic[] = {
-        {COND_POISONED, 1, "[SYSTEM] Feel the poison coursing through your veins...",
+        {COND_POISONED, 1, DMG_POISON, "[SYSTEM] Feel the poison coursing through your veins...",
          "died from poison"},
-        {COND_BURNING, 2, "[SYSTEM] You are burning!", "burned to death"},
-        {COND_BLEEDING, 1, "[SYSTEM] You are bleeding...", "bled to death"},
+        {COND_BURNING, 2, DMG_FIRE, "[SYSTEM] You are burning!", "burned to death"},
+        {COND_BLEEDING, 1, DAMAGE_UNTYPED, "[SYSTEM] You are bleeding...", "bled to death"},
     };
     for (size_t k = 0; k < sizeof(k_periodic) / sizeof(k_periodic[0]); k++) {
         if (!rules_has_condition_t(c->effects, c->effect_count, k_periodic[k].cond)) {
@@ -357,8 +363,8 @@ static void player_periodic_damage(Game *game, Client *c) {
             }
             continue;
         }
-        c->hp -= k_periodic[k].damage;
         send_text_to_client(c->sock, "%s", k_periodic[k].feel);
+        player_damage(c, k_periodic[k].damage, k_periodic[k].type);
         if (c->hp <= 0) {
             player_dies(game, c, k_periodic[k].death);
         }
@@ -381,6 +387,7 @@ static void player_round(Game *game, Client *clients, int i) {
         send_detailed_state(game, c);
     }
     player_condition_saves(game, c);
+    player_items_round(game, c);
     if (game->total_turns % 10 == 0 &&
         rules_has_condition_t(c->effects, c->effect_count, COND_INVISIBLE)) {
         send_text_to_client(c->sock, "[SYSTEM] You are currently invisible.");

@@ -26,6 +26,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <strings.h>
 
 static MaterialType string_to_material_type(const char *str) {
     if (!str) {
@@ -185,45 +186,15 @@ static void item_armor(ItemTemplate *t, const ItemJson *j) {
     }
 }
 
-/*Potions and oils: what they heal or grant.*/
-static void item_potion(ItemTemplate *t, const ItemJson *j) {
-    bool is_oil = false;
-    if (j->name) {
-        if (cJSON_IsString(j->name)) {
-            if (data_strcasestr(j->name->valuestring, "oil")) {
-                if (!data_strcasestr(j->name->valuestring, "potion")) {
-                    is_oil = true;
-                }
-            }
-        }
-    }
-    if (is_oil) {
-        t->category = ITEM_FUEL;
-        t->duration_turns = 8000;
-        t->max_durability = 8000;
-        t->max_stack = 1;
-        t->weight = 1.0f;
-    } else {
-        t->category = ITEM_CONSUMABLE;
-        t->max_stack = 5;
-        t->weight = 1.0f;
-        t->needs_id = true;
-        if (j->name) {
-            if (cJSON_IsString(j->name)) {
-                if (data_strcasestr(j->name->valuestring, "Healing")) {
-                    if (data_strcasestr(j->name->valuestring, "Greater")) {
-                        t->heal_amount = 40;
-                    } else if (data_strcasestr(j->name->valuestring, "Superior")) {
-                        t->heal_amount = 80;
-                    } else if (data_strcasestr(j->name->valuestring, "Supreme")) {
-                        t->heal_amount = 120;
-                    } else {
-                        t->heal_amount = 20;
-                    }
-                }
-            }
-        }
-    }
+/*Potions and oils: drunk or applied, used up; what they do is their "use"
+ * object (data_item_effects.c). An oil is not lamp oil: only "Oil (flask)"
+ * of the adventuring gear refills a lantern.*/
+static void item_potion(ItemTemplate *t) {
+    t->category = ITEM_CONSUMABLE;
+    t->is_potion = true;
+    t->max_stack = 5;
+    t->weight = 1.0f;
+    t->needs_id = true;
 }
 
 /*Adventuring gear: light sources, food, fuel, tools.*/
@@ -348,49 +319,70 @@ static void item_book(ItemTemplate *t, const ItemJson *j) {
     }
 }
 
-/*Wondrous items: rings, amulets, wands and other magic.*/
+/*A staff (a magic quarterstaff) or the Rod of Lordly Might (a magic mace):
+ * a weapon held in a hand, 1d6 bludgeoning.*/
+static void item_staff(ItemTemplate *t) {
+    t->category = ITEM_WEAPON;
+    t->damage_dice_count = 1;
+    t->damage_dice_sides = 6;
+    t->max_durability = 100;
+    t->weight = 4.0f;
+}
+
+/*Where a wondrous item is worn, by its name: the first rule that matches.
+ * A name starts with the prefix, or contains the word.*/
+static const struct {
+    const char *word;
+    bool prefix;
+    ItemCategory category;
+    int durability;
+    float weight;
+} k_wondrous_slots[] = {
+    {"Horseshoes", false, ITEM_MISC, 0, 4.0f}, /*for a horse, not for the feet*/
+    {"Helm", true, ITEM_HEAD, 80, 2.0f},        {"Hat of", true, ITEM_HEAD, 0, 0.5f},
+    {"Crown", false, ITEM_HEAD, 0, 1.0f},       {"Circlet", true, ITEM_HEAD, 0, 0.5f},
+    {"Headband", true, ITEM_HEAD, 0, 0.5f},     {"Goggles", true, ITEM_HEAD, 0, 0.5f},
+    {"Eyes of", true, ITEM_HEAD, 0, 0.1f},      {"Amulet", true, ITEM_NECK, 0, 0.5f},
+    {"Brooch", true, ITEM_NECK, 0, 0.5f},       {"Necklace", true, ITEM_NECK, 0, 0.5f},
+    {"Periapt", true, ITEM_NECK, 0, 0.5f},      {"Medallion", true, ITEM_NECK, 0, 0.5f},
+    {"Cloak", true, ITEM_BACK, 0, 1.0f},        {"Cape", true, ITEM_BACK, 0, 1.0f},
+    {"Mantle", true, ITEM_BACK, 0, 1.0f},       {"Wings of", true, ITEM_BACK, 0, 1.0f},
+    {"Robe", true, ITEM_ARMOR, 0, 2.0f}, /*clothing: armour class 10 + DEX*/
+    {"Gloves", true, ITEM_HANDS, 80, 2.0f},     {"Gauntlets", true, ITEM_HANDS, 80, 2.0f},
+    {"Bracers", true, ITEM_BRACELET, 80, 1.0f}, {"Bracelet", false, ITEM_BRACELET, 60, 0.5f},
+    {"Bangle", false, ITEM_BRACELET, 60, 0.5f}, {"Boots", false, ITEM_FEET, 80, 2.0f},
+    {"Slippers", true, ITEM_FEET, 80, 2.0f},    {"Ring", true, ITEM_RING, 0, 0.1f},
+};
+
+/*Wondrous items: worn where their name says (a ring is a "Ring of ...":
+ * the Staff of Withering is no ring), staffs are quarterstaffs, the
+ * Lantern of Revealing is a lantern; the rest is carried (MISC).*/
 static void item_wondrous(ItemTemplate *t, const ItemJson *j) {
     t->needs_id = true;
     t->weight = 1.0f;
-    if (j->name) {
-        if (cJSON_IsString(j->name)) {
-            const char *n_str = j->name->valuestring;
-            if (data_strcasestr(n_str, "Helm") || data_strcasestr(n_str, "Hat") ||
-                data_strcasestr(n_str, "Crown")) {
-                t->category = ITEM_HEAD;
-                t->max_durability = 80;
-                t->weight = 2.0f;
-            } else if (data_strcasestr(n_str, "Amulet") || data_strcasestr(n_str, "Brooch") ||
-                       data_strcasestr(n_str, "Necklace") || data_strcasestr(n_str, "Periapt")) {
-                t->category = ITEM_NECK;
-                t->weight = 0.5f;
-            } else if (data_strcasestr(n_str, "Cloak") || data_strcasestr(n_str, "Cape") ||
-                       data_strcasestr(n_str, "Mantle")) {
-                t->category = ITEM_BACK;
-                t->weight = 1.0f;
-            } else if (data_strcasestr(n_str, "Gloves") || data_strcasestr(n_str, "Gauntlets")) {
-                t->category = ITEM_HANDS;
-                t->max_durability = 80;
-                t->weight = 2.0f;
-            } else if (data_strcasestr(n_str, "Bracers")) {
-                t->category = ITEM_BRACELET;
-                t->max_durability = 80;
-                t->weight = 1.0f;
-            } else if (data_strcasestr(n_str, "Bracelet") || data_strcasestr(n_str, "Bangle")) {
-                t->category = ITEM_BRACELET;
-                t->max_durability = 60;
-                t->weight = 0.5f;
-            } else if (data_strcasestr(n_str, "Boots") || data_strcasestr(n_str, "Slippers") ||
-                       data_strcasestr(n_str, "Shoes")) {
-                t->category = ITEM_FEET;
-                t->max_durability = 80;
-                t->weight = 2.0f;
-            } else if (data_strcasestr(n_str, "Ring")) {
-                t->category = ITEM_RING;
-                t->weight = 0.1f;
-            } else {
-                t->category = ITEM_MISC;
-            }
+    t->category = ITEM_MISC;
+    const char *n = (j->name && cJSON_IsString(j->name)) ? j->name->valuestring : "";
+    if (strncasecmp(n, "Staff of", 8) == 0 || strcasecmp(n, "Rod of Lordly Might") == 0) {
+        item_staff(t);
+        return;
+    }
+    if (strncasecmp(n, "Lantern", 7) == 0) {
+        t->category = ITEM_LIGHT_SOURCE;
+        t->light_radius = 12;
+        t->duration_turns = 8000;
+        t->max_durability = 8000;
+        t->weight = 2.0f;
+        return;
+    }
+    for (size_t i = 0; i < sizeof(k_wondrous_slots) / sizeof(k_wondrous_slots[0]); i++) {
+        const char *w = k_wondrous_slots[i].word;
+        bool hit = k_wondrous_slots[i].prefix ? strncasecmp(n, w, strlen(w)) == 0
+                                              : data_strcasestr(n, w) != NULL;
+        if (hit) {
+            t->category = k_wondrous_slots[i].category;
+            t->max_durability = k_wondrous_slots[i].durability;
+            t->weight = k_wondrous_slots[i].weight;
+            return;
         }
     }
 }
@@ -398,6 +390,7 @@ static void item_wondrous(ItemTemplate *t, const ItemJson *j) {
 /*Spell scrolls: a consumable that casts its cast_spell once when read.*/
 static void item_scroll(ItemTemplate *t) {
     t->category = ITEM_CONSUMABLE;
+    t->is_scroll = true;
     t->max_stack = 5;
     t->weight = 0.1f;
     t->needs_id = true;
@@ -412,13 +405,17 @@ static void item_category(ItemTemplate *t, const ItemJson *j) {
     } else if (strcmp(cat_str, "ARMOR") == 0) {
         item_armor(t, j);
     } else if (strcmp(cat_str, "POTIONS_OILS") == 0) {
-        item_potion(t, j);
+        item_potion(t);
     } else if (strcmp(cat_str, "ADVENTURING_GEAR") == 0) {
         item_gear(t, j);
     } else if (strcmp(cat_str, "BOOK") == 0) {
         item_book(t, j);
     } else if (strcmp(cat_str, "WONDROUS_ITEMS") == 0) {
         item_wondrous(t, j);
+    } else if (strcmp(cat_str, "RING") == 0) {
+        t->category = ITEM_RING;
+        t->needs_id = true;
+        t->weight = 0.1f;
     } else {
         t->category = ITEM_MISC;
     }
@@ -465,26 +462,6 @@ static void item_ac(ItemTemplate *t, const cJSON *ac) {
         t->ac_base = ac_val;
     } else if (t->category == ITEM_SHIELD || strchr(ac_str, '+')) {
         t->ac_bonus = ac_val;
-    }
-}
-
-/*The bonus an item's name promises: "... of Strength" gives +2 STR.*/
-static void item_name_bonuses(ItemTemplate *t, const char *name) {
-    const struct {
-        const char *word;
-        int *bonus;
-        int value;
-    } k_words[] = {
-        {"Strength", &t->str_bonus, 2},  {"Dexterity", &t->dex_bonus, 2},
-        {"Speed", &t->dex_bonus, 2},     {"Constitution", &t->con_bonus, 2},
-        {"Health", &t->con_bonus, 2},    {"Intelligence", &t->int_bonus, 2},
-        {"Wisdom", &t->wis_bonus, 2},    {"Charisma", &t->cha_bonus, 2},
-        {"Protection", &t->ac_bonus, 1},
-    };
-    for (size_t i = 0; i < sizeof(k_words) / sizeof(k_words[0]); i++) {
-        if (data_strcasestr(name, k_words[i].word)) {
-            *k_words[i].bonus = k_words[i].value;
-        }
     }
 }
 
@@ -561,9 +538,7 @@ static void parse_item(ItemTemplate *t, cJSON *item) {
             t->damage_dice_sides = dice[1];
         }
     }
-    if (cJSON_IsString(name)) {
-        item_name_bonuses(t, name->valuestring);
-    }
+    item_parse_effects(t, item);
     item_cost(t, cost);
 }
 

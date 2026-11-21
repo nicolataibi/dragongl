@@ -132,7 +132,7 @@
           "cast_spell": {
             "type": "string",
             "minLength": 1,
-            "description": "name of a spell in spells.json: a scroll casts it once and is used up, an item with max_charges casts it once per charge"
+            "description": "name of a spell in spells.json: a scroll or a potion casts it once and is used up, an item with max_charges casts it for charge_cost charges, an at_will item as often as wanted while worn"
           },
           "max_charges": {
             "type": "integer",
@@ -192,6 +192,26 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 10000
+          },
+          "worn": {
+            "$ref": "#/$defs/worn"
+          },
+          "use": {
+            "$ref": "#/$defs/use"
+          },
+          "at_will": {
+            "type": "boolean",
+            "description": "the cast_spell needs no charge (the item must be worn or held when it has a slot)"
+          },
+          "no_recharge": {
+            "type": "boolean",
+            "description": "the charges never come back (beads, a gem)"
+          },
+          "charge_cost": {
+            "type": "integer",
+            "minimum": 2,
+            "maximum": 20,
+            "description": "charges each cast spends (default 1)"
           }
         },
         "allOf": [
@@ -240,15 +260,55 @@
               "properties": {
                 "category": {
                   "not": {
-                    "const": "SCROLL"
+                    "enum": [
+                      "SCROLL",
+                      "POTIONS_OILS"
+                    ]
                   }
                 }
               }
             },
             "then": {
-              "required": [
-                "max_charges"
+              "oneOf": [
+                {
+                  "required": [
+                    "max_charges"
+                  ]
+                },
+                {
+                  "required": [
+                    "at_will"
+                  ]
+                }
               ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "category": {
+                  "enum": [
+                    "SCROLL",
+                    "POTIONS_OILS"
+                  ]
+                }
+              }
+            },
+            "then": {
+              "not": {
+                "anyOf": [
+                  {
+                    "required": [
+                      "max_charges"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "at_will"
+                    ]
+                  }
+                ]
+              }
             }
           },
           {
@@ -262,14 +322,452 @@
             "then": {
               "required": [
                 "cast_spell"
+              ]
+            }
+          },
+          {
+            "dependentRequired": {
+              "no_recharge": [
+                "max_charges"
               ],
-              "not": {
-                "required": [
-                  "max_charges"
-                ]
-              }
+              "charge_cost": [
+                "max_charges",
+                "cast_spell"
+              ]
             }
           }
+        ]
+      }
+    }
+  },
+  "$defs": {
+    "dice": {
+      "description": "dice (\"2d4+2\") or a plain number",
+      "oneOf": [
+        {
+          "type": "string",
+          "pattern": "^[0-9]+d[0-9]+([+-][0-9]+)?$"
+        },
+        {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000
+        }
+      ]
+    },
+    "damage_type": {
+      "enum": [
+        "acid",
+        "bludgeoning",
+        "cold",
+        "fire",
+        "force",
+        "lightning",
+        "necrotic",
+        "piercing",
+        "poison",
+        "psychic",
+        "radiant",
+        "slashing",
+        "thunder"
+      ]
+    },
+    "damage_types": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/damage_type"
+      }
+    },
+    "condition": {
+      "enum": [
+        "blinded",
+        "charmed",
+        "deafened",
+        "frightened",
+        "grappled",
+        "incapacitated",
+        "invisible",
+        "paralyzed",
+        "petrified",
+        "poisoned",
+        "prone",
+        "restrained",
+        "stunned",
+        "unconscious",
+        "burning",
+        "bleeding",
+        "cursed",
+        "frozen",
+        "silenced"
+      ]
+    },
+    "conditions": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/condition"
+      }
+    },
+    "abilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "str": {
+          "type": "integer",
+          "minimum": -10,
+          "maximum": 30
+        },
+        "dex": {
+          "type": "integer",
+          "minimum": -10,
+          "maximum": 30
+        },
+        "con": {
+          "type": "integer",
+          "minimum": -10,
+          "maximum": 30
+        },
+        "int": {
+          "type": "integer",
+          "minimum": -10,
+          "maximum": 30
+        },
+        "wis": {
+          "type": "integer",
+          "minimum": -10,
+          "maximum": 30
+        },
+        "cha": {
+          "type": "integer",
+          "minimum": -10,
+          "maximum": 30
+        }
+      }
+    },
+    "bonus": {
+      "type": "integer",
+      "minimum": -10,
+      "maximum": 10
+    },
+    "worn": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "description": "what the item does while worn or held (a weapon: its own attacks), or carried when \"carried\" is true; LORE.md, Magic items",
+      "properties": {
+        "carried": {
+          "type": "boolean",
+          "description": "works from the backpack or the belt (Ioun stones, belts, stones)"
+        },
+        "ability_set": {
+          "$ref": "#/$defs/abilities",
+          "description": "the score is at least this (\"your Strength score is 19\")"
+        },
+        "ability_add": {
+          "$ref": "#/$defs/abilities",
+          "description": "added to the score, up to ability_max"
+        },
+        "ability_max": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 30
+        },
+        "ac": {
+          "$ref": "#/$defs/bonus"
+        },
+        "ac_unarmored": {
+          "$ref": "#/$defs/bonus",
+          "description": "AC with no armour and no shield"
+        },
+        "unarmored_base": {
+          "type": "integer",
+          "minimum": 10,
+          "maximum": 20,
+          "description": "base AC (+ DEX) with no armour"
+        },
+        "saves": {
+          "$ref": "#/$defs/bonus"
+        },
+        "attack": {
+          "$ref": "#/$defs/bonus",
+          "description": "a weapon: its attack rolls"
+        },
+        "damage": {
+          "$ref": "#/$defs/bonus",
+          "description": "a weapon: its damage rolls"
+        },
+        "ranged_damage": {
+          "$ref": "#/$defs/bonus",
+          "description": "damage of every ranged weapon's shot"
+        },
+        "spell_dc": {
+          "$ref": "#/$defs/bonus"
+        },
+        "spell_attack": {
+          "$ref": "#/$defs/bonus"
+        },
+        "darkvision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50,
+          "description": "sight in the dark, in tiles (5 ft each)"
+        },
+        "resist": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "acid",
+              "bludgeoning",
+              "cold",
+              "fire",
+              "force",
+              "lightning",
+              "necrotic",
+              "piercing",
+              "poison",
+              "psychic",
+              "radiant",
+              "slashing",
+              "thunder",
+              "random"
+            ]
+          },
+          "description": "damage types halved; \"random\": one rolled per item on the d10 table"
+        },
+        "resist_one_of": {
+          "$ref": "#/$defs/damage_types",
+          "description": "one of these, rolled per item"
+        },
+        "immune": {
+          "$ref": "#/$defs/damage_types"
+        },
+        "immune_conditions": {
+          "$ref": "#/$defs/conditions"
+        },
+        "regen": {
+          "$ref": "#/$defs/dice"
+        },
+        "regen_rounds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000
+        },
+        "haste": {
+          "type": "boolean",
+          "description": "moves twice as fast"
+        },
+        "displacement": {
+          "type": "boolean",
+          "description": "attacks against the wearer have disadvantage"
+        },
+        "see_invisible": {
+          "type": "boolean"
+        },
+        "spell_save_advantage": {
+          "type": "boolean",
+          "description": "advantage on saves against magic"
+        },
+        "gas_save_advantage": {
+          "type": "boolean"
+        },
+        "feather_fall": {
+          "type": "boolean",
+          "description": "no damage from falls (pits, collapsing floors)"
+        },
+        "evasion": {
+          "type": "boolean",
+          "description": "a failed DEX save spends a charge to succeed"
+        },
+        "sustenance": {
+          "type": "boolean",
+          "description": "no hunger"
+        },
+        "crit_immune": {
+          "type": "boolean",
+          "description": "a critical hit against the wearer is a normal hit"
+        },
+        "immune_spell": {
+          "type": "string",
+          "minLength": 1,
+          "description": "a spell of spells.json that has no effect on the wearer"
+        },
+        "on_hit": {
+          "$ref": "#/$defs/dice",
+          "description": "a weapon: extra damage on every hit"
+        },
+        "on_hit_type": {
+          "$ref": "#/$defs/damage_type"
+        },
+        "on_hit_charge": {
+          "type": "boolean",
+          "description": "on_hit spends a charge (none left: no extra)"
+        },
+        "on_crit": {
+          "$ref": "#/$defs/dice",
+          "description": "a weapon: extra damage on a critical hit"
+        },
+        "on_crit_type": {
+          "$ref": "#/$defs/damage_type"
+        },
+        "on_crit_temp_hp": {
+          "type": "boolean",
+          "description": "the wielder gains on_crit as temporary hit points"
+        }
+      },
+      "dependentRequired": {
+        "ability_max": [
+          "ability_add"
+        ],
+        "regen_rounds": [
+          "regen"
+        ],
+        "regen": [
+          "regen_rounds"
+        ],
+        "on_hit_type": [
+          "on_hit"
+        ],
+        "on_hit_charge": [
+          "on_hit"
+        ],
+        "on_crit_type": [
+          "on_crit"
+        ],
+        "on_crit_temp_hp": [
+          "on_crit"
+        ]
+      }
+    },
+    "use": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "description": "what the item does when used (drunk, applied, thrown) and used up; LORE.md, Magic items",
+      "properties": {
+        "heal": {
+          "$ref": "#/$defs/dice"
+        },
+        "temp_hp": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        },
+        "rounds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100000,
+          "description": "duration of the timed parts (10 rounds = 1 minute)"
+        },
+        "rounds_dice": {
+          "$ref": "#/$defs/dice",
+          "description": "rounds is multiplied by this roll"
+        },
+        "attack": {
+          "$ref": "#/$defs/bonus"
+        },
+        "damage": {
+          "$ref": "#/$defs/bonus"
+        },
+        "ac": {
+          "$ref": "#/$defs/bonus"
+        },
+        "saves": {
+          "$ref": "#/$defs/bonus"
+        },
+        "darkvision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50
+        },
+        "haste": {
+          "type": "boolean"
+        },
+        "resist": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "acid",
+              "bludgeoning",
+              "cold",
+              "fire",
+              "force",
+              "lightning",
+              "necrotic",
+              "piercing",
+              "poison",
+              "psychic",
+              "radiant",
+              "slashing",
+              "thunder",
+              "random"
+            ]
+          }
+        },
+        "immune_conditions": {
+          "$ref": "#/$defs/conditions"
+        },
+        "condition": {
+          "$ref": "#/$defs/condition"
+        },
+        "save": {
+          "enum": [
+            "str",
+            "dex",
+            "con",
+            "int",
+            "wis",
+            "cha"
+          ],
+          "description": "a saving throw resists the condition"
+        },
+        "dc": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 30
+        },
+        "harm": {
+          "$ref": "#/$defs/dice",
+          "description": "damage to the user"
+        },
+        "harm_type": {
+          "$ref": "#/$defs/damage_type"
+        },
+        "cure": {
+          "$ref": "#/$defs/conditions"
+        },
+        "exhaustion": {
+          "type": "boolean",
+          "description": "ends exhaustion"
+        },
+        "weapon": {
+          "type": "boolean",
+          "description": "an oil for the weapon in hand: needs one"
+        }
+      },
+      "dependentRequired": {
+        "save": [
+          "dc",
+          "condition"
+        ],
+        "dc": [
+          "save"
+        ],
+        "harm_type": [
+          "harm"
+        ],
+        "harm": [
+          "harm_type"
+        ],
+        "rounds_dice": [
+          "rounds"
         ]
       }
     }

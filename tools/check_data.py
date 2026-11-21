@@ -10,8 +10,9 @@ Checks, in order:
   1. every file parses and validates against data/schema/<name>.schema.json
      (JSON Schema 2020-12, python3-jsonschema);
   2. references the engine resolves by name: the spells of every book and
-     the cast_spell of every item exist in spells.json (case-insensitive,
-     as data_loader.c and cmd_magic.c compare them);
+     the cast_spell and the worn immune_spell of every item exist in
+     spells.json (case-insensitive, as data_loader.c and cmd_magic.c
+     compare them);
   3. consistency: item and spell names are unique (case-insensitive), no
      two monster records are identical, floor_min <= floor_max, every book
      is for classes that may cast each of its spells, every spell is in at
@@ -123,6 +124,9 @@ def cross_check(report, docs):
         where = "items[%d] %s" % (i, it["name"])
         if "cast_spell" in it and it["cast_spell"].lower() not in by_name:
             report.error(where, "cast_spell %r is not in spells.json" % it["cast_spell"])
+        ward = it.get("worn", {}).get("immune_spell")
+        if ward is not None and ward.lower() not in by_name:
+            report.error(where, "worn.immune_spell %r is not in spells.json" % ward)
         if "spells" not in it:
             continue
         book_classes = {c for n, c in enumerate(CLASSES) if it["book_class_mask"] >> n & 1}

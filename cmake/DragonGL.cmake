@@ -63,6 +63,7 @@ set(DRAGONGL_SHARED_SRCS
     ${DRAGONGL_CJSON_SRCS}
     "${DRAGONGL_ROOT}/src/shared/data_loader.c"
     "${DRAGONGL_ROOT}/src/shared/data_items.c"
+    "${DRAGONGL_ROOT}/src/shared/data_item_effects.c"
     "${DRAGONGL_ROOT}/src/shared/binio.c"
     "${DRAGONGL_ROOT}/src/shared/histogram.c"
     "${DRAGONGL_ROOT}/src/shared/wire.c"
@@ -95,6 +96,7 @@ set(DRAGONGL_SERVER_LIB_SRCS
     "${DRAGONGL_ROOT}/src/server/server_traps.c"
     "${DRAGONGL_ROOT}/src/server/server_loot.c"
     "${DRAGONGL_ROOT}/src/server/player_stats.c"
+    "${DRAGONGL_ROOT}/src/server/item_effects.c"
     "${DRAGONGL_ROOT}/src/server/player_store.c"
     "${DRAGONGL_ROOT}/src/server/server_net.c"
     "${DRAGONGL_ROOT}/src/server/server_conn.c"

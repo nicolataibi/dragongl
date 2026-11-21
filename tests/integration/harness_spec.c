@@ -446,7 +446,8 @@ int test_spec_scrolls_and_wands(void) {
     CHECK(c->backpack[0].current_charges == 0, "rested in the dungeon");
     place(c, 0, CX, CY);
     run(c, "rest");
-    CHECK(c->backpack[0].current_charges == 7 && said("1 wand recharged"), "no recharge in town");
+    CHECK(c->backpack[0].current_charges == 7 && said("1 magic item recharged"),
+          "no recharge in town");
     return 0;
 }
 

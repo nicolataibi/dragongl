@@ -23,6 +23,7 @@
  */
 
 #include "inventory.h"
+#include "item_effects.h"
 #include "server_combat.h"
 #include "server_internal.h"
 
@@ -40,9 +41,35 @@ int clamp_stat(int v) {
     return v;
 }
 
+/*The abilities the active items change (item_effects.h): first what they
+ * add ("+2, to a maximum of 20": never lowering a higher score), then the
+ * scores they set ("your Strength score is 19": only if it was lower).*/
+static void worn_abilities(Client *c, int *score[6]) {
+    ItemInstance *items[MAX_ACTIVE_ITEMS];
+    int n = player_active_items(c, items);
+    for (int pass = 0; pass < 2; pass++) {
+        for (int i = 0; i < n; i++) {
+            const ItemWorn *w = &item_database[items[i]->template_idx].worn;
+            for (int a = 0; w->any && a < 6; a++) {
+                int add = w->ability_add[a];
+                int v = *score[a] + add;
+                if (pass == 0 && add > 0 && w->ability_max > 0 && v > w->ability_max) {
+                    v = *score[a] > w->ability_max ? *score[a] : w->ability_max;
+                }
+                if (pass == 0) {
+                    *score[a] = v;
+                } else if (w->ability_set[a] > *score[a]) {
+                    *score[a] = w->ability_set[a];
+                }
+            }
+        }
+    }
+}
+
 /*The abilities with what is worn: every equipment slot (the bracers of the
  * arms too) and ring adds its template's bonuses and an artifact its own
- * STR, DEX and CON.*/
+ * STR, DEX and CON; then the magic items raise or set them
+ * (worn_abilities).*/
 void get_total_stats(Client *c, int *ts, int *td, int *tc, int *ti, int *tw, int *th) {
     *ts = c->str;
     *td = c->dex;
@@ -69,6 +96,8 @@ void get_total_stats(Client *c, int *ts, int *td, int *tc, int *ti, int *tw, int
             *tc += s->artifact_con_bonus;
         }
     }
+    int *score[6] = {ts, td, tc, ti, tw, th};
+    worn_abilities(c, score);
 }
 
 // -----------------------------------------------------------------------
@@ -145,6 +174,10 @@ void get_full_item_name(const ItemInstance *inst, char *buf, size_t max_len) {
     } else if (tmpl->category == ITEM_FUEL) {
         snprintf(suffix, sizeof(suffix), " (%d light turns)",
                  tmpl->duration_turns > 0 ? tmpl->duration_turns : 300);
+    } else if (tmpl->worn.resist_random && inst->current_charges >= 1 &&
+               inst->current_charges <= MAX_DAMAGE_TYPES) {
+        snprintf(suffix, sizeof(suffix), " (%s)",
+                 damage_type_to_name((DamageType)(inst->current_charges - 1)));
     }
 
     snprintf(buf, max_len, "%s%s%s", prefix, tmpl->name, suffix);
@@ -179,16 +212,18 @@ float get_current_weight(Client *c) {
     return w;
 }
 
+/*Seconds between two steps: 0.2, more under a heavy load; haste (boots or
+ * potion of speed) halves it.*/
 float get_movement_cooldown(Client *c) {
     float w = get_current_weight(c);
     float limit = (float)c->str * 5.0f;
+    float cd = 0.2f;
     if (w > limit * 2.0f) {
-        return 1.0f;
+        cd = 1.0f;
+    } else if (w > limit) {
+        cd = 0.4f;
     }
-    if (w > limit) {
-        return 0.4f;
-    }
-    return 0.2f;
+    return player_hasted(c) ? cd / 2.0f : cd;
 }
 
 int get_equipped_mask(Client *c) {
@@ -260,7 +295,13 @@ int get_vision_radius(Client *c) {
             }
         }
     }
-    /*Light spells (Light, Darkvision, ...): the largest one counts.*/
+    /*Darkvision of the items (goggles of night...) and light spells (Light,
+     * Darkvision, ...): the largest one counts.*/
+    WornTotals w;
+    player_worn(c, &w);
+    if (w.darkvision > best_radius) {
+        best_radius = w.darkvision;
+    }
     for (int i = 0; i < c->effect_count; i++) {
         const ActiveEffect *e = &c->effects[i];
         if (e->trigger == EVENT_ON_LIGHT && e->duration_rounds > 0 && e->value > best_radius) {
@@ -298,7 +339,17 @@ int get_player_ac(Client *c) {
             bonus += t->ac_bonus + s->ac_bonus + quality;
         }
     }
-    int final_ac = (ac_b > 0 ? ac_b : 10 + rules_get_modifier(td)) + bonus;
+    /*Magic items: their AC, the AC some give only to who wears no armour
+     * and carries no shield, and the base AC of a robe of the archmagi.*/
+    WornTotals w;
+    player_worn(c, &w);
+    bool shield = (c->slot_hand_r.template_idx != -1 &&
+                   item_database[c->slot_hand_r.template_idx].category == ITEM_SHIELD) ||
+                  (c->slot_hand_l.template_idx != -1 &&
+                   item_database[c->slot_hand_l.template_idx].category == ITEM_SHIELD);
+    bonus += w.ac + (ac_b == 0 && !shield ? w.ac_unarmored : 0);
+    int unarmored = w.unarmored_base > 10 ? w.unarmored_base : 10;
+    int final_ac = (ac_b > 0 ? ac_b : unarmored + rules_get_modifier(td)) + bonus;
     if (rules_has_condition_t(c->effects, c->effect_count, COND_PETRIFIED)) {
         final_ac += 10;
     }

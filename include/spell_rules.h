@@ -21,6 +21,8 @@ typedef struct {
     int level;               /*character level, 1 or more*/
     int mods[ABILITY_COUNT]; /*ability modifiers (rules_get_modifier of the scores)*/
     Ability spell_ability;   /*class_spell_ability() of the caster's class*/
+    int dc_bonus;            /*added to the save DC (magic items: robe of the archmagi)*/
+    int attack_bonus;        /*added to the spell attack bonus (staff of power...)*/
 } SpellCaster;
 
 typedef struct {

@@ -34,13 +34,15 @@ static int first_item(bool (*ok)(const ItemTemplate *)) {
 }
 
 static bool is_healing(const ItemTemplate *t) {
-    return t->category == ITEM_CONSUMABLE && t->heal_amount > 0 && !strcasestr(t->name, "Ration");
+    return t->category == ITEM_CONSUMABLE && t->use.heal.count > 0;
 }
 static bool is_ration(const ItemTemplate *t) {
     return t->category == ITEM_CONSUMABLE && strcasestr(t->name, "Ration");
 }
+/* A potion of one timed condition, no saving throw (invisibility). */
 static bool is_effect_potion(const ItemTemplate *t) {
-    return t->category == ITEM_CONSUMABLE && t->heal_amount <= 0;
+    return t->is_potion && t->use.condition < MAX_CONDITIONS &&
+           t->use.save_ability == ABILITY_NONE && t->use.harm.count == 0;
 }
 static bool is_lantern(const ItemTemplate *t) {
     return t->category == ITEM_LIGHT_SOURCE && t->light_radius > 6 && t->max_durability > 0 &&
@@ -98,7 +100,7 @@ int test_use_items(void) {
     c->hp = 10;
     give(c, heal, 2);
     run(c, "use 1");
-    CHECK(c->hp > 10 && c->backpack[0].stack_count == 1 && said("recovered"), "no healing");
+    CHECK(c->hp > 10 && c->backpack[0].stack_count == 1 && said("recover"), "no healing");
 
     c->backpack_count = 0;
     c->hunger_level = 3;
@@ -111,7 +113,7 @@ int test_use_items(void) {
     CHECK(said("must first identify") && c->backpack_count == 1, "used an unknown item");
     c->backpack[0].is_identified = true;
     run(c, "use 1");
-    CHECK(c->effect_count == 1 && said("Effect active"), "no effect");
+    CHECK(c->effect_count == 1 && said("its magic lasts"), "no effect");
 
     c->backpack_count = 0;
     give(c, sword, 1);

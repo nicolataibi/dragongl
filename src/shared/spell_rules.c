@@ -53,11 +53,11 @@ int spell_save_dc(const SpellEffect *e, const SpellCaster *c) {
     if (e->dc > 0) {
         return e->dc;
     }
-    return 8 + spell_proficiency(c->level) + spell_ability_mod(c, ABILITY_SPELL);
+    return 8 + spell_proficiency(c->level) + spell_ability_mod(c, ABILITY_SPELL) + c->dc_bonus;
 }
 
 int spell_attack_bonus(const SpellCaster *c) {
-    return spell_proficiency(c->level) + spell_ability_mod(c, ABILITY_SPELL);
+    return spell_proficiency(c->level) + spell_ability_mod(c, ABILITY_SPELL) + c->attack_bonus;
 }
 
 int spell_dice_count(const SpellEffect *e, int level) {

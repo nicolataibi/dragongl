@@ -23,6 +23,7 @@
  */
 
 #include "server_traps.h"
+#include "item_effects.h"
 #include "server_internal.h"
 
 #include "player.h"
@@ -68,26 +69,23 @@ static void trap_dart_wall(Game *game, Client *c, Trap *t) {
     if (c->x == fire_x && c->y == fire_y) {
         send_text_to_client(c->sock, "[DANGER] CLACK! A poison dart shoots out of the wall at %s!",
                             dir_names[t->wall_dir]);
-        bool saved = rules_roll_save(rules_get_modifier(c->dex), t->save_dc, false, false, NULL);
+        bool saved = player_save(c, ABILITY_DEX, t->save_dc, SAVE_PLAIN, NULL);
         if (saved) {
             send_text_to_client(c->sock, "[SYSTEM] You throw yourself to the side! The dart grazes"
                                          " your ear and embeds itself in the wall.");
         } else {
-            int dmg_pierce = rules_roll_dice(t->damage_dice, t->damage_sides);
-            c->hp -= dmg_pierce;
+            int dmg_pierce =
+                player_damage(c, rules_roll_dice(t->damage_dice, t->damage_sides), DMG_PIERCING);
             send_text_to_client(c->sock, "[COMBAT] The dart hits you! %d piercing damage.",
                                 dmg_pierce);
-            //Secondary WITH save vs poison
+            //Secondary CON save vs poison
             int poison_dc = t->save_dc - 2;
-            bool saved_poison =
-                rules_roll_save(rules_get_modifier(c->con), poison_dc, false, false, NULL);
-            if (!saved_poison && c->effect_count < MAX_EFFECTS_PER_ENTITY) {
-                c->effects[c->effect_count++] =
-                    (ActiveEffect){"Poisoned", EVENT_ON_TURN_START, MOD_ADDITIVE, 0, 4, false};
+            bool saved_poison = player_save(c, ABILITY_CON, poison_dc, SAVE_PLAIN, NULL);
+            if (!saved_poison && player_add_condition(c, COND_POISONED, 4, 0)) {
                 send_text_to_client(
                     c->sock, "[STATE] The poison on the dart enters your blood!"
                              "You feel your strength abandon you... (Poisoned for 4 rounds)");
-            } else if (!saved_poison) {
+            } else if (saved_poison) {
                 send_text_to_client(c->sock,
                                     "[STATE] The poison burns, but your constitution holds!");
             }
@@ -118,18 +116,16 @@ static void trap_spring_spear(Game *game, Client *c, Trap *t) {
         send_text_to_client(c->sock,
                             "[DANGER] SHHKK! A spring-loaded spear pops out of the wall at %s!",
                             dn[t->wall_dir]);
-        bool sv = rules_roll_save(rules_get_modifier(c->dex), t->save_dc, false, false, NULL);
+        bool sv = player_save(c, ABILITY_DEX, t->save_dc, SAVE_PLAIN, NULL);
         if (sv) {
             send_text_to_client(c->sock,
                                 "[SYSTEM] Throw yourself to the ground! The spear grazes you!");
         } else {
-            int dmg = rules_roll_dice(t->damage_dice, t->damage_sides);
-            c->hp -= dmg;
+            int dmg =
+                player_damage(c, rules_roll_dice(t->damage_dice, t->damage_sides), DMG_PIERCING);
             send_text_to_client(c->sock, "[COMBAT] The spear pierces you! %d piercing damage.",
                                 dmg);
-            if (c->effect_count < MAX_EFFECTS_PER_ENTITY) {
-                c->effects[c->effect_count++] =
-                    (ActiveEffect){"Restrained", EVENT_ON_TURN_START, MOD_ADDITIVE, 0, 2, false};
+            if (player_add_condition(c, COND_RESTRAINED, 2, 0)) {
                 send_text_to_client(c->sock, "[STATE] You're stuck on the wall! (Restrained 2r)");
             }
             if (c->hp <= 0) {
@@ -147,31 +143,83 @@ static void trap_spring_spear(Game *game, Client *c, Trap *t) {
     }
 }
 
-/*The saving throw of the ability the trap targets (none: not saved).*/
-static bool trap_saving_throw(Client *c, const Trap *t) {
-    bool saved = false;
-    if (t->type == TRAP_PIT || t->type == TRAP_SPIKES || t->type == TRAP_BLADE ||
-        t->type == TRAP_WEB || t->type == TRAP_FALLING_FLOOR || t->type == TRAP_BOULDER ||
-        t->type == TRAP_FLOOD || t->type == TRAP_CEILING_COLLAPSE ||
-        t->type == TRAP_CRYSTAL_BURST) {
-        saved = rules_roll_save(rules_get_modifier(c->dex), t->save_dc, false, false, NULL);
-    } else if (t->type == TRAP_GAS || t->type == TRAP_POISON_NEEDLE || t->type == TRAP_LIGHTNING ||
-               t->type == TRAP_SILENCE || t->type == TRAP_DARKNESS ||
-               t->type == TRAP_PARALYZING_SPORES || t->type == TRAP_SLEEP_GAS ||
-               t->type == TRAP_GAS_VEIN || t->type == TRAP_HUNGER_CURSE) {
-        saved = rules_roll_save(rules_get_modifier(c->con), t->save_dc, false, false, NULL);
-    } else if (t->type == TRAP_QUICKSAND || t->type == TRAP_CRUSHER_WALL ||
-               t->type == TRAP_STONE_TOMB) {
-        saved = rules_roll_save(rules_get_modifier(c->str), t->save_dc, false, false, NULL);
-    } else if (t->type == TRAP_CURSE_RUNE || t->type == TRAP_ILLUSION_MIRROR ||
-               t->type == TRAP_INVERSION_RUNE || t->type == TRAP_FAKE_DOOR) {
-        saved = rules_roll_save(rules_get_modifier(c->wis), t->save_dc, false, false, NULL);
+/*What a floor trap asks and deals: the saving throw (ABILITY_NONE: none),
+ * whether it is a gas (an item may ward it) or magic (a rune), the type of
+ * its damage, and the condition it leaves (MAX_CONDITIONS: none) with its
+ * rounds and the message.*/
+typedef struct {
+    TrapType type;
+    Ability save;
+    SaveSource source;
+    int damage_type;
+    ConditionType cond;
+    int rounds;
+    const char *msg;
+} TrapRule;
+
+static const TrapRule k_trap_rules[] = {
+    {TRAP_PIT, ABILITY_DEX, SAVE_PLAIN, DMG_BLUDGEONING, MAX_CONDITIONS, 0, NULL},
+    {TRAP_SPIKES, ABILITY_DEX, SAVE_PLAIN, DMG_PIERCING, MAX_CONDITIONS, 0, NULL},
+    {TRAP_POISON_NEEDLE, ABILITY_CON, SAVE_PLAIN, DMG_PIERCING, COND_POISONED, 5,
+     "[STATE] You are poisoned!"},
+    {TRAP_GAS, ABILITY_CON, SAVE_GAS, DMG_POISON, COND_POISONED, 5, "[STATE] You are poisoned!"},
+    {TRAP_ACID, ABILITY_NONE, SAVE_PLAIN, DMG_ACID, MAX_CONDITIONS, 0, NULL},
+    {TRAP_WEB, ABILITY_DEX, SAVE_PLAIN, DAMAGE_UNTYPED, COND_RESTRAINED, 3,
+     "[STATE] You are held by the spider web!"},
+    {TRAP_BLADE, ABILITY_DEX, SAVE_PLAIN, DMG_SLASHING, COND_BLEEDING, 3,
+     "[STATE] You're bleeding!"},
+    {TRAP_SILENCE, ABILITY_CON, SAVE_MAGIC, DAMAGE_UNTYPED, COND_SILENCED, 2,
+     "[STATE] You are surrounded by magical silence!"},
+    {TRAP_LIGHTNING, ABILITY_CON, SAVE_PLAIN, DMG_LIGHTNING, MAX_CONDITIONS, 0, NULL},
+    {TRAP_QUICKSAND, ABILITY_STR, SAVE_PLAIN, DAMAGE_UNTYPED, COND_PRONE, 1,
+     "[STATE] You've landed in quicksand!"},
+    {TRAP_DARKNESS, ABILITY_CON, SAVE_MAGIC, DAMAGE_UNTYPED, COND_BLINDED, 2,
+     "[STATUS] You are blinded by darkness!"},
+    {TRAP_FALLING_FLOOR, ABILITY_DEX, SAVE_PLAIN, DMG_BLUDGEONING, MAX_CONDITIONS, 0, NULL},
+    {TRAP_BOULDER, ABILITY_DEX, SAVE_PLAIN, DMG_BLUDGEONING, MAX_CONDITIONS, 0, NULL},
+    {TRAP_PARALYZING_SPORES, ABILITY_CON, SAVE_GAS, DMG_POISON, COND_PARALYZED, 2,
+     "[STATUS] The spores paralyze you completely!"},
+    {TRAP_CURSE_RUNE, ABILITY_WIS, SAVE_MAGIC, DMG_NECROTIC, MAX_CONDITIONS, 0, NULL},
+    {TRAP_ANTIMAGIC_ZONE, ABILITY_NONE, SAVE_PLAIN, DMG_FORCE, COND_SILENCED, 5,
+     "[STATUS] The magic leaves you (Silenced for 5 rounds)!"},
+    {TRAP_SLEEP_GAS, ABILITY_CON, SAVE_GAS, DAMAGE_UNTYPED, COND_UNCONSCIOUS, 3,
+     "[STATE] The gas makes you lose consciousness..."},
+    {TRAP_ILLUSION_MIRROR, ABILITY_WIS, SAVE_MAGIC, DMG_PSYCHIC, MAX_CONDITIONS, 0, NULL},
+    {TRAP_FAKE_DOOR, ABILITY_WIS, SAVE_MAGIC, DAMAGE_UNTYPED, MAX_CONDITIONS, 0, NULL},
+    {TRAP_FLOOD, ABILITY_DEX, SAVE_PLAIN, DMG_BLUDGEONING, MAX_CONDITIONS, 0, NULL},
+    {TRAP_CEILING_COLLAPSE, ABILITY_DEX, SAVE_PLAIN, DMG_BLUDGEONING, MAX_CONDITIONS, 0, NULL},
+    {TRAP_CRUSHER_WALL, ABILITY_STR, SAVE_PLAIN, DMG_BLUDGEONING, MAX_CONDITIONS, 0, NULL},
+    {TRAP_GAS_VEIN, ABILITY_CON, SAVE_GAS, DMG_FIRE, COND_POISONED, 5, "[STATE] You are poisoned!"},
+    {TRAP_CRYSTAL_BURST, ABILITY_DEX, SAVE_PLAIN, DMG_PIERCING, MAX_CONDITIONS, 0, NULL},
+    {TRAP_INVERSION_RUNE, ABILITY_WIS, SAVE_MAGIC, DMG_PSYCHIC, MAX_CONDITIONS, 0, NULL},
+    {TRAP_STONE_TOMB, ABILITY_STR, SAVE_PLAIN, DMG_BLUDGEONING, MAX_CONDITIONS, 0, NULL},
+    {TRAP_HUNGER_CURSE, ABILITY_CON, SAVE_MAGIC, DMG_NECROTIC, COND_BLEEDING, 5,
+     "[STATE] A dark hunger slowly drains your life..."},
+};
+
+static const TrapRule *trap_rule(TrapType type) {
+    for (size_t i = 0; i < sizeof(k_trap_rules) / sizeof(k_trap_rules[0]); i++) {
+        if (k_trap_rules[i].type == type) {
+            return &k_trap_rules[i];
+        }
     }
-    return saved;
+    return NULL;
 }
 
-/*Damage of a trap that was not saved, and the condition it inflicts.*/
+/*The saving throw of the ability the trap targets (none: not saved), with
+ * the advantage of the items against gas or magic.*/
+static bool trap_saving_throw(Client *c, const Trap *t) {
+    const TrapRule *r = trap_rule(t->type);
+    if (!r || r->save == ABILITY_NONE) {
+        return false;
+    }
+    return player_save(c, r->save, t->save_dc, r->source, NULL);
+}
+
+/*Damage of a trap that was not saved, of its type (a ring of feather
+ * falling spares a fall), and the condition it inflicts.*/
 static void trap_damage(Game *game, Client *c, const Trap *t) {
+    const TrapRule *r = trap_rule(t->type);
     int dmg = rules_roll_dice(t->damage_dice, t->damage_sides);
 
     //Special effects traps
@@ -182,56 +230,24 @@ static void trap_damage(Game *game, Client *c, const Trap *t) {
             dmg *= 2;
         }
     }
-
-    c->hp -= dmg;
+    WornTotals w;
+    player_worn(c, &w);
+    if (w.feather_fall && (t->type == TRAP_PIT || t->type == TRAP_FALLING_FLOOR)) {
+        send_text_to_client(c->sock, "[MAGIC] You float down gently: the fall does not hurt.");
+        dmg = 0;
+    }
+    dmg = player_damage(c, dmg, r ? r->damage_type : DAMAGE_UNTYPED);
     send_text_to_client(c->sock, "[COMBAT] Take %d trap damage!", dmg);
 
     //Application of environmental conditions and special effects
-    if (c->effect_count < MAX_EFFECTS_PER_ENTITY) {
-        if (t->type == TRAP_POISON_NEEDLE || t->type == TRAP_GAS || t->type == TRAP_GAS_VEIN) {
-            c->effects[c->effect_count++] =
-                (ActiveEffect){"Poisoned", EVENT_ON_TURN_START, MOD_ADDITIVE, 0, 5, false};
-            send_text_to_client(c->sock, "[STATE] You are poisoned!");
-        } else if (t->type == TRAP_WEB) {
-            c->effects[c->effect_count++] =
-                (ActiveEffect){"Restrained", EVENT_ON_TURN_START, MOD_ADDITIVE, 0, 3, false};
-            send_text_to_client(c->sock, "[STATE] You are held by the spider web!");
-        } else if (t->type == TRAP_BLADE) {
-            c->effects[c->effect_count++] =
-                (ActiveEffect){"Bleeding", EVENT_ON_TURN_START, MOD_ADDITIVE, 0, 3, false};
-            send_text_to_client(c->sock, "[STATE] You're bleeding!");
-        } else if (t->type == TRAP_SILENCE) {
-            c->effects[c->effect_count++] =
-                (ActiveEffect){"Silenced", EVENT_ON_TURN_START, MOD_ADDITIVE, 0, 2, false};
-            send_text_to_client(c->sock, "[STATE] You are surrounded by magical silence!");
-        } else if (t->type == TRAP_QUICKSAND) {
-            c->effects[c->effect_count++] =
-                (ActiveEffect){"Prone", EVENT_ON_TURN_START, MOD_ADDITIVE, 0, 1, false};
-            send_text_to_client(c->sock, "[STATE] You've landed in quicksand!");
-        } else if (t->type == TRAP_DARKNESS) {
-            c->effects[c->effect_count++] =
-                (ActiveEffect){"Blinded", EVENT_ON_TURN_START, MOD_ADDITIVE, 0, 2, false};
-            send_text_to_client(c->sock, "[STATUS] You are blinded by darkness!");
-        } else if (t->type == TRAP_PARALYZING_SPORES) {
-            c->effects[c->effect_count++] =
-                (ActiveEffect){"Paralyzed", EVENT_ON_TURN_START, MOD_ADDITIVE, 0, 2, false};
-            send_text_to_client(c->sock, "[STATUS] The spores paralyze you completely!");
-        } else if (t->type == TRAP_SLEEP_GAS) {
-            c->effects[c->effect_count++] =
-                (ActiveEffect){"Unconscious", EVENT_ON_TURN_START, MOD_ADDITIVE, 0, 3, false};
-            send_text_to_client(c->sock, "[STATE] The gas makes you lose consciousness...");
-        } else if (t->type == TRAP_ANTIMAGIC_ZONE) {
-            c->effects[c->effect_count++] =
-                (ActiveEffect){"Silenced", EVENT_ON_TURN_START, MOD_ADDITIVE, 0, 5, false};
-            send_text_to_client(c->sock, "[STATUS] The magic leaves you (Silenced for 5 rounds)!");
-        } else if (t->type == TRAP_INVERSION_RUNE) {
-            c->effects[c->effect_count++] =
-                (ActiveEffect){"Confused", EVENT_ON_TURN_START, MOD_ADDITIVE, 0, 3, false};
+    if (r && r->cond < MAX_CONDITIONS) {
+        if (player_add_condition(c, r->cond, r->rounds, 0)) {
+            send_text_to_client(c->sock, "%s", r->msg);
+        }
+    } else if (t->type == TRAP_INVERSION_RUNE) {
+        ActiveEffect confused = {"Confused", EVENT_ON_TURN_START, MOD_ADDITIVE, 0, 3, false};
+        if (rules_add_effect(c->effects, &c->effect_count, MAX_EFFECTS_PER_ENTITY, &confused)) {
             send_text_to_client(c->sock, "[STATE] Your mind becomes dizzyingly confused!");
-        } else if (t->type == TRAP_HUNGER_CURSE) {
-            c->effects[c->effect_count++] =
-                (ActiveEffect){"Bleeding", EVENT_ON_TURN_START, MOD_ADDITIVE, 0, 5, false};
-            send_text_to_client(c->sock, "[STATE] A dark hunger slowly drains your life...");
         }
     }
 }

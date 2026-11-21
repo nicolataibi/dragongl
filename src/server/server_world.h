@@ -23,6 +23,10 @@
 #include "server_entities.h"
 #include "net.h"
 
+/*A character at 0 HP: logged ("<name> <how>."), his bones saved, back to
+ * town without his equipment.*/
+void player_dies(Game *game, Client *c, const char *how);
+
 /*Hour and minute of the game day (1 round = 1 game minute).*/
 void get_game_time(Game *game, int *h, int *m);
 

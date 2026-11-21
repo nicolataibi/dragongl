@@ -88,7 +88,13 @@ typedef enum {
     EVENT_ON_TURN_START,
     EVENT_ON_TURN_END,
     EVENT_ON_DEFEND, //Armor class of the bearer
-    EVENT_ON_LIGHT   //Sight radius of the bearer in the dark (the largest counts)
+    EVENT_ON_LIGHT,  //Sight radius of the bearer in the dark (the largest counts)
+    /*Appended (saved games keep the values above): the timed effects of
+     * magic items (LORE.md, "Magic items").*/
+    EVENT_ON_RESIST,  //value: mask of the damage types resisted (1 << DamageType)
+    EVENT_ON_IMMUNE,  //value: mask of the conditions the bearer is immune to
+    EVENT_ON_TEMP_HP, //value: temporary hit points left (damage takes them first)
+    EVENT_ON_HASTE    //the bearer moves twice as fast
 } RuleEventType;
 
 //Applicable modifier types

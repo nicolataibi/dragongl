@@ -84,6 +84,17 @@ static int get_item_idx_by_name(const char *name) {
  * @spec: Merchant specialization.
  *
  * Returns: true if the item belongs to the shop category.*/
+/*A staff or a rod held as a weapon, or a magic robe worn as clothing: the
+ * wands-and-staffs shop and the magic shop sell them, not the smith.*/
+static bool is_staff(const ItemTemplate *it) {
+    return it->category == ITEM_WEAPON &&
+           (strncmp(it->name, "Staff of", 8) == 0 || strncmp(it->name, "Rod of", 6) == 0);
+}
+
+static bool is_robe(const ItemTemplate *it) {
+    return it->category == ITEM_ARMOR && strncmp(it->name, "Robe", 4) == 0;
+}
+
 static bool is_item_matching_spec(int item_idx, MerchantSpecialization spec) {
     ItemTemplate *it = &item_database[item_idx];
     switch (spec) {
@@ -93,14 +104,15 @@ static bool is_item_matching_spec(int item_idx, MerchantSpecialization spec) {
         return (it->category == ITEM_WEAPON || it->category == ITEM_ARMOR ||
                 it->category == ITEM_SHIELD || it->category == ITEM_HEAD ||
                 it->category == ITEM_HANDS || it->category == ITEM_FEET ||
-                it->category == ITEM_AMMO);
+                it->category == ITEM_AMMO) &&
+               !is_staff(it) && !is_robe(it);
     case ALCHEMIST:
         return (it->category == ITEM_CONSUMABLE &&
-                (strstr(it->name, "Potion") || strstr(it->name, "Antitoxin"))) ||
+                (it->is_potion || strstr(it->name, "Antitoxin"))) ||
                it->category == ITEM_FUEL;
     case MAGIC_SHOP:
         return (it->category == ITEM_RING || it->category == ITEM_NECK ||
-                it->category == ITEM_BACK ||
+                it->category == ITEM_BACK || is_robe(it) ||
                 (it->category == ITEM_CONSUMABLE && it->needs_id && !strstr(it->name, "Ration")));
     case PROVISIONER:
         return (it->category == ITEM_LIGHT_SOURCE || it->category == ITEM_FUEL ||
@@ -112,7 +124,8 @@ static bool is_item_matching_spec(int item_idx, MerchantSpecialization spec) {
         return (it->category == ITEM_CONSUMABLE && strstr(it->name, "Scroll"));
     case WANDS_STAFFS:
         return (it->category == ITEM_MISC &&
-                (strstr(it->name, "Wand") || strstr(it->name, "Staff")));
+                (strstr(it->name, "Wand") || strstr(it->name, "Staff"))) ||
+               is_staff(it);
     case JEWELRY:
         return (it->category == ITEM_RING || it->category == ITEM_NECK);
     case BOOKS_MAGE:

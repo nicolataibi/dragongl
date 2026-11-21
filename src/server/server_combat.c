@@ -18,6 +18,8 @@
  */
 
 #include "server_combat.h"
+#include "item_effects.h"
+#include "spell_cast.h"
 #include "inventory.h"
 #include "server_internal.h"
 #include "server_world.h"
@@ -175,7 +177,8 @@ static void wear_item(Client *c, ItemInstance *it, int chance_pct, const char *w
 /*What the conditions of the attacker and of the target do to an attack
  * (LORE.md, status conditions): a blinded or frightened attacker has
  * disadvantage, an invisible one advantage; an invisible target imposes
- * disadvantage; a hit on a paralyzed, stunned or unconscious target is a
+ * disadvantage (not to who sees the invisible: a robe of eyes, a lantern
+ * of revealing); a hit on a paralyzed, stunned or unconscious target is a
  * critical; a petrified creature has +10 AC (a character's AC counts it
  * already, see get_player_ac).*/
 typedef struct {
@@ -184,11 +187,11 @@ typedef struct {
 } AttackSituation;
 
 static void attack_situation(ActiveEffect *att, int n_att, ActiveEffect *tgt, int n_tgt,
-                             bool target_is_npc, AttackSituation *s) {
+                             bool target_is_npc, bool sees_invisible, AttackSituation *s) {
     memset(s, 0, sizeof(*s));
     s->dis = rules_has_condition_t(att, n_att, COND_BLINDED) ||
              rules_has_condition_t(att, n_att, COND_FRIGHTENED) ||
-             rules_has_condition_t(tgt, n_tgt, COND_INVISIBLE);
+             (!sees_invisible && rules_has_condition_t(tgt, n_tgt, COND_INVISIBLE));
     s->adv = rules_has_condition_t(att, n_att, COND_INVISIBLE);
     s->auto_crit = rules_has_condition_t(tgt, n_tgt, COND_PARALYZED) ||
                    rules_has_condition_t(tgt, n_tgt, COND_STUNNED) ||
@@ -269,23 +272,67 @@ static int attack_ability(const ItemTemplate *w, int str_score, int dex_score) {
     return str_score;
 }
 
+/*Dice of a magic weapon's property, against the target's defences of
+ * that type (none: as they fall).*/
+static int typed_dice(const NPC *t, const ItemDice *d, DamageType type) {
+    int v = rules_roll_dice(d->count, d->sides) + d->bonus;
+    return type < MAX_DAMAGE_TYPES ? rules_calculate_damage(v, npc_damage_mod(t, type)) : v;
+}
+
+/*The extra damage of a magic weapon (data/items.json "worn"): its dice on
+ * every hit (a staff of withering spends a charge for them) and on a
+ * critical hit (a life-stealing sword gives them as temporary HP).*/
+static int weapon_magic_damage(Client *c, const NPC *t, ItemInstance *weapon, const ItemTemplate *w,
+                               bool is_crit) {
+    if (!w || !w->worn.any) {
+        return 0;
+    }
+    const ItemWorn *m = &w->worn;
+    int extra = 0;
+    if (m->on_hit.count > 0 && (!m->on_hit_charge || weapon->current_charges > 0)) {
+        if (m->on_hit_charge) {
+            weapon->current_charges--;
+        }
+        int d = typed_dice(t, &m->on_hit, m->on_hit_type);
+        extra += d;
+        send_text_to_client(c->sock, "  > Your %s strikes with magic: +%d %s damage!", w->name, d,
+                            damage_type_to_name(m->on_hit_type));
+    }
+    if (is_crit && m->on_crit.count > 0) {
+        int d = typed_dice(t, &m->on_crit, m->on_crit_type);
+        extra += d;
+        send_text_to_client(c->sock, "  > Your %s's magic bites on the critical: +%d damage!",
+                            w->name, d);
+        if (m->on_crit_temp_hp && d > 0) {
+            ActiveEffect e = {"Temporary HP", EVENT_ON_TEMP_HP, MOD_ADDITIVE, d, 600, false};
+            rules_add_effect(c->effects, &c->effect_count, MAX_EFFECTS_PER_ENTITY, &e);
+            send_text_to_client(c->sock, "[MAGIC] The stolen life gives you %d temporary HP.", d);
+        }
+    }
+    return extra;
+}
+
 /*Damage of a hit: the weapon's dice (1d4 unarmed, doubled on a critical)
- * + the ability + the weapon's enchantment and quality + the worn bonuses
- * and the effects + 1d6 for an elemental weapon, at least 1; a frozen
- * target takes double, a petrified one half. Tells the player and returns
- * the damage dealt.*/
-static int strike_damage(Client *c, NPC *t, const ItemInstance *weapon, const ItemTemplate *w,
+ * + the ability + the weapon's enchantment, quality and magic + the worn
+ * bonuses (a ranged weapon's shots: the bracers of archery) and the
+ * effects + 1d6 for an elemental weapon + the dice of a magic weapon, at
+ * least 1; a frozen target takes double, a petrified one half. Tells the
+ * player and returns the damage dealt.*/
+static int strike_damage(Client *c, NPC *t, ItemInstance *weapon, const ItemTemplate *w,
                          int ability_score, bool is_crit) {
     bool armed = weapon->template_idx != -1;
     int dc = (w ? w->damage_dice_count : 1) * (is_crit ? 2 : 1);
     int ds = w ? w->damage_dice_sides : 4;
     int roll_d = rules_roll_dice(dc, ds);
-    int mod_d = rules_get_modifier(ability_score) +
-                (armed ? weapon->to_dam_bonus + item_quality_bonus(weapon) : 0) +
-                worn_bonus(c, true) +
-                rules_event_bonus(c->effects, c->effect_count, EVENT_ON_DAMAGE);
+    WornTotals worn;
+    player_worn(c, &worn);
+    int mod_d =
+        rules_get_modifier(ability_score) +
+        (armed && w ? weapon->to_dam_bonus + item_quality_bonus(weapon) + w->worn.damage : 0) +
+        (w && w->ammo != AMMO_NONE ? worn.ranged_damage : 0) + worn_bonus(c, true) +
+        rules_event_bonus(c->effects, c->effect_count, EVENT_ON_DAMAGE);
     int element_d = (armed && weapon->element != ELEM_NONE) ? rules_roll_dice(1, 6) : 0;
-    int d = roll_d + mod_d + element_d;
+    int d = roll_d + mod_d + element_d + weapon_magic_damage(c, t, weapon, w, is_crit);
     if (d < 1) {
         d = 1;
     }
@@ -367,7 +414,8 @@ static void player_strike(Client *c, NPC *t, Game *game, bool shot) {
     }
     /*The situation before the attack reveals an invisible attacker.*/
     AttackSituation sit;
-    attack_situation(c->effects, c->effect_count, t->effects, t->effect_count, true, &sit);
+    attack_situation(c->effects, c->effect_count, t->effects, t->effect_count, true,
+                     player_sees_invisible(c), &sit);
     client_reveal(c);
     int ts, td, tc, ti, tw, th;
     get_total_stats(c, &ts, &td, &tc, &ti, &tw, &th);
@@ -375,8 +423,10 @@ static void player_strike(Client *c, NPC *t, Game *game, bool shot) {
     RuleContext ctx;
     memset(&ctx, 0, sizeof(ctx));
     ctx.type = EVENT_ON_ATTACK;
-    ctx.base_value = (w ? w->attack_bonus + weapon->to_hit_bonus + item_quality_bonus(weapon) : 0) +
-                     worn_bonus(c, false) + rules_get_modifier(ability) + (c->level / 2);
+    ctx.base_value =
+        (w ? w->attack_bonus + w->worn.attack + weapon->to_hit_bonus + item_quality_bonus(weapon)
+           : 0) +
+        worn_bonus(c, false) + rules_get_modifier(ability) + (c->level / 2);
     ctx.source_id = c->entity_id;
     ctx.target_id = t->entity_id;
     rules_apply_modifiers(&ctx, c->effects, c->effect_count);
@@ -444,11 +494,21 @@ void perform_attack_npc(NPC *n, Client *c, Game *game) {
         return;
     }
     AttackSituation sit;
-    attack_situation(n->effects, n->effect_count, c->effects, c->effect_count, false, &sit);
+    attack_situation(n->effects, n->effect_count, c->effects, c->effect_count, false, false, &sit);
+    /*A cloak of displacement: attacks against its wearer have disadvantage,
+     * unless he cannot move; adamantine armour turns a critical into a hit.*/
+    WornTotals worn;
+    player_worn(c, &worn);
+    if (worn.displacement && client_can_act(c)) {
+        sit.dis = true;
+    }
 
     bool hit = rules_roll_attack_detailed(n_bonus, p_ac, sit.adv, sit.dis, &is_crit, &roll_v);
     if (hit && sit.auto_crit) {
         is_crit = true;
+    }
+    if (worn.crit_immune) {
+        is_crit = false;
     }
 
     //Attack text contextual to the archetype
@@ -502,7 +562,8 @@ void perform_attack_npc(NPC *n, Client *c, Game *game) {
         }
 
         d = rules_calculate_damage(d, d_mod);
-        c->hp -= d;
+        /*A dragon's flame is fire; any other blow is physical.*/
+        d = player_damage(c, d, n->archetype == ARCH_DRAGON ? DMG_FIRE : DAMAGE_PHYSICAL);
         send_text_to_client(c->sock, "[COMBAT] You take %d damage!", d);
         send_combat_event(c->sock, COMBAT_EV_DAMAGE_TAKEN, c->entity_id, d);
         clog_attack(npc_name(n), c->username, roll_v, n_bonus, p_ac, true, is_crit, d);

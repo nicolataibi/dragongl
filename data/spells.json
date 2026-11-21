@@ -5042,8 +5042,8 @@
         "save": "dex",
         "on_save": "half",
         "dice": {
-          "count": 2,
-          "sides": 4
+          "count": 1,
+          "sides": 6
         },
         "damage_type": "piercing"
       }
