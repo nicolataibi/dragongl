@@ -225,3 +225,33 @@ int test_monster_magic(void) {
           mr_blind, plain_blind);
     return 0;
 }
+
+/* Hail of Thorns: the target and the creatures around it save or take the
+ * thorns (it was one attack on one target); Staggering Smite's hit
+ * frightens the target that fails its Wisdom save. */
+int test_spell_weapon_riders(void) {
+    hx_reset_world();
+    Client *c = hero(0, "ranger", FLOOR, CX, CY);
+    CHECK(c != NULL, "no player");
+    const SpellTemplate *hail = spell_named("Hail of Thorns");
+    const SpellTemplate *smite = spell_named("Staggering Smite");
+    CHECK(hail && smite, "no Hail of Thorns or Staggering Smite");
+    NPC *a = monster(10, NULL, FLOOR, CX + 4, CY);
+    NPC *b = monster(11, NULL, FLOOR, CX + 5, CY);
+    a->hp = a->max_hp = b->hp = b->max_hp = 500;
+    rules_force_d20(2); /* the saves fail */
+    spell_cast(c, hail, &g_game);
+    CHECK(a->hp < 500 && b->hp < 500, "the thorns: %d and %d HP", a->hp, b->hp);
+    a->active = b->active = false;
+    NPC *m = monster(12, NULL, FLOOR, CX + 1, CY);
+    m->hp = m->max_hp = 500;
+    m->ac = 1;
+    rules_force_d20(2); /* AC 1: the attack hits; the save fails */
+    spell_cast(c, smite, &g_game);
+    rules_force_d20(0);
+    heard(c);
+    CHECK(m->hp < 500 && rules_has_condition_t(m->effects, m->effect_count, COND_FRIGHTENED),
+          "the smite: HP %d, frightened %d", m->hp,
+          rules_has_condition_t(m->effects, m->effect_count, COND_FRIGHTENED));
+    return 0;
+}

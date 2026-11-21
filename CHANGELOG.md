@@ -1,3 +1,13 @@
+* Sat Nov 21 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.21.04
+- SPELLS: Hail of Thorns rains on the target and the creatures around it,
+  each with a Dexterity save for half (it was one spell attack on one
+  target); Staggering Smite's hit frightens the target that fails its
+  Wisdom save (it had no save, no effect beyond the damage).
+- DOCS: LORE.md tells what a spell becomes in the dungeon (What a Spell
+  Becomes in the Dungeon): the weapon spells, and the 47 spells whose
+  effect the game plays with a condition it has (Bane and Faerie Fire
+  Cursed, Silence and Counterspell Silenced, the walls Restrained...).
+
 * Sat Nov 21 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.21.03
 - TIME: LORE.md says what a round is (Time: Rounds): the 200 ms tick of
   the server, the game clock one minute a round, and the scale of the

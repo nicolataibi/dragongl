@@ -1409,6 +1409,7 @@ static const TestCase k_tests[] = {
     {"monster_defences", test_monster_defences},
     {"monster_blows", test_monster_blows},
     {"monster_magic", test_monster_magic},
+    {"spell_weapon_riders", test_spell_weapon_riders},
 };
 
 int main(int argc, char **argv) {

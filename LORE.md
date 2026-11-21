@@ -4354,6 +4354,15 @@ Spells of kind `special` name their handler in the record (`"handler": "blink"`)
 
 The `terrain` field leaves a mark on the map around the spell's origin, after its effect: **Wall of Stone** raises `VOXEL_WALL`, **Ice Storm** covers the ground with `VOXEL_ICE` (after its damage), **Transmute Rock** turns it to `VOXEL_MUD`. The caster's own cell always stays free.
 
+
+### What a Spell Becomes in the Dungeon
+
+A spell's description is the tabletop text; its `effect` is what the dungeon plays, with the rules the game has. Where they differ:
+
+- **Weapon spells.** The smites and strikes (*Searing*, *Thunderous*, *Wrathful*, *Blinding*, *Staggering Smite*, *Ensnaring Strike*) are a spell attack whose hit deals the extra dice, then the target's saving throw against the rider's condition; *Hail of Thorns* is the Dexterity save of the creatures around the target (half on a success); *Lightning Arrow* the attack alone (no half damage on a miss, no burst around); a spell leaves one condition, so *Legacy of the Shadow* leaves Bleeding, not Poisoned too.
+- **Effects the game plays with a condition it has.** Disadvantage, penalties and curses are **Cursed** (*Bane, Bestow Curse, Faerie Fire, Slow, Guild Protocol*); a forced will is **Charmed** (*Compelled Duel, Glibness, Perfect Bait, Zone of Truth*); fear, illusions and compulsions are **Frightened** (*Antipathy/Sympathy, Compulsion, Major Image, Mirage Arcane, Programmed Illusion, Thaumaturgy, Staggering Smite*); a lost turn is **Incapacitated** (*Confusion, Maze, Polymorph, True Polymorph, Stinking Cloud, Point Parry, Silent Order*) or **Stunned** (*Power Word Stun, Time Stop*); obscuring magic is **Blinded** (*Darkness, Fog Cloud, Control Weather*); walls, cages and entangling terrain are **Restrained** (*Forcecage, Grasping Vine, Hallucinatory Terrain, Levitate, Plant Growth, Resilient Sphere, Wall of Force, Wall of Stone, Wall of Water*) and *Earthbind* **Grappled**; wind and water knock **Prone** (*Control Water, Control Winds, Gust, Gust of Wind, Shape Water*); *Ray of Enfeeblement* is **Poisoned**; what stops spellcasting is **Silenced** (*Antimagic Field, Counterspell, Silence*).
+- **Durations** follow *Time: Rounds*; areas are in tiles (5 feet each).
+
 ---
 
 ## 💰 Reactive Economy (Supply-Demand System)

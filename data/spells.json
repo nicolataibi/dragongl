@@ -1283,9 +1283,12 @@
       },
       "effect": {
         "kind": "damage",
-        "target": "single",
-        "range": 1,
-        "roll": "attack",
+        "target": "circle",
+        "range": 24,
+        "radius": 1,
+        "roll": "save",
+        "save": "dex",
+        "on_save": "half",
         "dice": {
           "count": 1,
           "sides": 10
@@ -10312,7 +10315,10 @@
           "count": 4,
           "sides": 6
         },
-        "damage_type": "psychic"
+        "damage_type": "psychic",
+        "save": "wis",
+        "condition": "frightened",
+        "rounds": 1
       }
     },
     {
