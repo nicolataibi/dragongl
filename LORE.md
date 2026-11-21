@@ -149,7 +149,7 @@ In a legendary world, beneath the ruins of an ancient arcane civilization, lies 
 ### 2. Open RPG Ruleset Implementation
 - **True RNG & Polyhedral Dice:** Comprehensive math engine for **d4, d6, d8, d10, d12, and d20**.
 - **Modern RPG Mechanics:** Native support for Advantage/Disadvantage, AC calculations, and Proficiency bonuses.
-- **Leveling (1–20):** Automatic advancement with HP gains (`1d8 + CON`) and spell tier unlocks.
+- **Leveling (1–20):** Automatic advancement with HP gains (the hit die of the class + CON) and spell tier unlocks.
 - **Magic System:** Spellcasting with verbal/somatic/material components and dynamic DC calculations.
 
 ### 3. Augmented Reality (AR) Interface & HUD
@@ -174,7 +174,8 @@ In a legendary world, beneath the ruins of an ancient arcane civilization, lies 
 - **Rewards & Trophies (HUD):** Defeating a boss scatters a generous bounty of gold across the map near the kill location. The server records the victory in the character's profile and updates the client's HUD by illuminating one of the 10 corresponding floor trophies.
 
 ### 6. Leveling & Attribute System
-- **Leveling Up:** Players advance from level 1 to 20, automatically gaining HP based on their hit dice (`1d8 + CON`) and unlocking new spell tiers in their spellbooks.
+- **Leveling Up:** Players advance from level 1 to 20, automatically gaining HP based on their hit dice (one roll of the class's Hit Die + CON modifier, at least 1: `1d12` for a Barbarian, `1d6` for a Wizard) and unlocking new spell tiers in their spellbooks.
+- **Saving Throws:** A character adds his proficiency bonus (+2 at level 1, +3 at 5, +4 at 9, +5 at 13, +6 at 17) to the saving throws his class lists under *Saves* (a Fighter's Strength and Constitution, a Wizard's Intelligence and Wisdom).
 - **Attribute Points (Stat Training):** At every level up, the player earns **3 unspent stat points**. These can be assigned via the `train <stat>` command (e.g., `train str`, `train dex`) or allocated randomly via `train random`.
 - **Retroactive Constitution:** True to tabletop rules, if investing a point in Constitution (`con`) increases your CON modifier, your Maximum HP and Current HP will be retroactively increased by an amount equal to your total level.
 - **Save Compatibility:** Unspent stat points are seamlessly serialized and restored from the binary `.save` files without breaking compatibility with existing characters.

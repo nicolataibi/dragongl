@@ -390,8 +390,9 @@ void check_level_up(Client *c) {
         c->level++;
         leveled = true;
 
-        // d8 class hit dice approximation
-        int hp_gain = rules_roll_dice(1, 8) + rules_get_modifier(c->con);
+        /*The hit die of the class (LORE.md: d12 barbarian ... d6 wizard).*/
+        int die = c->class_id >= 0 && c->class_id < CLASS_COUNT ? CLASSES[c->class_id].hit_die : 8;
+        int hp_gain = rules_roll_dice(1, die) + rules_get_modifier(c->con);
         if (hp_gain < 1) {
             hp_gain = 1;
         }

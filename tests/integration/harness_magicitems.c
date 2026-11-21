@@ -150,12 +150,13 @@ int test_magic_items_defence(void) {
     hx_reset_world();
     Client *c = hero(0, "warded", FLOOR, CX, CY);
     CHECK(c != NULL, "no player");
-    CHECK(get_player_ac(c) == 12 && player_save_mod(c, ABILITY_CON) == 2, "naked: AC %d",
+    /* WIS: the barbarian has no proficiency in it. */
+    CHECK(get_player_ac(c) == 12 && player_save_mod(c, ABILITY_WIS) == 2, "naked: AC %d",
           get_player_ac(c));
     put_on(c, "Cloak of Protection");
-    CHECK(get_player_ac(c) == 13 && player_save_mod(c, ABILITY_CON) == 3,
+    CHECK(get_player_ac(c) == 13 && player_save_mod(c, ABILITY_WIS) == 3,
           "cloak of protection: AC %d, save %+d", get_player_ac(c),
-          player_save_mod(c, ABILITY_CON));
+          player_save_mod(c, ABILITY_WIS));
     put_on(c, "Bracers of Defense");
     CHECK(get_player_ac(c) == 15, "bracers of defense unarmoured: AC %d", get_player_ac(c));
     int shield = item_of(ITEM_SHIELD);

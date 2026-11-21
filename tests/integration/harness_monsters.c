@@ -12,6 +12,7 @@
 #include "harness_util.h"
 
 #include "bestiary.h"
+#include "classes.h"
 #include "inventory.h"
 #include "item_effects.h"
 #include "items.h"
@@ -156,8 +157,9 @@ int test_monster_blows(void) {
     hero(0, "target", FLOOR, CX, CY);
     m = monster_where(11, poisons);
     CHECK(m != NULL, "no venomous monster");
-    m->attack_bonus = 5; /* DC 13 */
-    c->con = 1;          /* 15 - 5 = 10: the save fails */
+    m->attack_bonus = 5;        /* DC 13 */
+    c->class_id = CLASS_WIZARD; /* no proficiency in CON saves */
+    c->con = 1;                 /* 15 - 5 = 10: the save fails */
     perform_attack_npc(m, c, &g_game);
     heard(c);
     CHECK(rules_has_condition_t(c->effects, c->effect_count, COND_POISONED) &&

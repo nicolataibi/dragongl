@@ -22,6 +22,7 @@
 #include "harness_interact.h"
 #include "harness_magicitems.h"
 #include "harness_monsters.h"
+#include "harness_classes.h"
 #include "harness_rounds.h"
 #include "harness_spells.h"
 #include "harness_world.h"
@@ -1410,6 +1411,8 @@ static const TestCase k_tests[] = {
     {"monster_blows", test_monster_blows},
     {"monster_magic", test_monster_magic},
     {"spell_weapon_riders", test_spell_weapon_riders},
+    {"class_hit_dice", test_class_hit_dice},
+    {"class_saves", test_class_saves},
 };
 
 int main(int argc, char **argv) {

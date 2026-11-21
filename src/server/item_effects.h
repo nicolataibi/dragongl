@@ -68,8 +68,9 @@ uint32_t item_resist_mask(ItemInstance *it);
 /*Rolls the random resistance of a new item (no-op for the others).*/
 void item_roll_variant(ItemInstance *it);
 
-/*Modifier of a saving throw: the ability (items included), the save
- * bonuses of the items and of the effects.*/
+/*Modifier of a saving throw: the ability (items included), the
+ * proficiency bonus when the class is proficient in it, the save bonuses
+ * of the items and of the effects.*/
 int player_save_mod(Client *c, Ability a);
 /*A saving throw against dc; disadvantage when cursed, advantage from the
  * items against magic or gas. A failed DEX save spends a charge of a
