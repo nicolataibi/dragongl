@@ -90,12 +90,16 @@ typedef enum {
     SPEC_COUNT
 } MerchantSpecialization;
 
+/*Rounds between two restocks of a shop: 10 real-time minutes at 5 rounds a
+ * second (LORE.md, "Merchant Restocking").*/
+#define MERCHANT_RESTOCK_ROUNDS 3000
+
 typedef struct {
     int item_templates[MAX_SHOP_ITEMS];
     int item_stock[MAX_SHOP_ITEMS];
     int item_stock_max[MAX_SHOP_ITEMS];
     int item_count;
-    int restock_timer;
+    int restock_timer; /*rounds to the next restock*/
     char shop_name[64];
     MerchantSpecialization spec;
 } MerchantData;

@@ -1,3 +1,16 @@
+* Sat Nov 21 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.21.03
+- TIME: LORE.md says what a round is (Time: Rounds): the 200 ms tick of
+  the server, the game clock one minute a round, and the scale of the
+  durations of spells and magic items (1 minute 10 rounds, an hour or
+  more 100).
+- SHOPS: merchants restock every 3000 rounds, the 10 real-time minutes of
+  LORE.md (100 rounds: every 20 seconds), and a rest in town restocks the
+  shops of the town at once, as described.
+- ITEMS: the durations of potions, oils and dusts follow the scale of the
+  spells (Heroism, Invisibility, Growth, Gaseous Form, Resistance, the oils
+  of Sharpness and Slipperiness 100 rounds: they lasted 600 to 4800); the
+  temporary HP of a life-stealing sword last 100 rounds.
+
 * Sat Nov 21 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.21.02
 - BESTIARY: monsters defend and strike as their description says
   (LORE.md, "Monster Defences and Attacks"). The resistances, immunities,

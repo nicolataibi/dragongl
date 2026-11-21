@@ -23,6 +23,10 @@
 #include "server_entities.h"
 #include "net.h"
 
+/*Every ware of the shop back to its full stock; the next restock in
+ * MERCHANT_RESTOCK_ROUNDS rounds.*/
+void merchant_restock(MerchantData *shop);
+
 /*A character at 0 HP: logged ("<name> <how>."), his bones saved, back to
  * town without his equipment.*/
 void player_dies(Game *game, Client *c, const char *how);

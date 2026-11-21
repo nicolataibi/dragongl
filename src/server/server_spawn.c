@@ -374,7 +374,7 @@ void spawn_city_merchants(Game *game) {
     m->template = &bestiary_data[0];
     MerchantData *m_shop = open_shop(game, m, BLACK_MARKET, "The Shadow's Edge");
     fill_shop_by_specialization(m_shop, 40);
-    m_shop->restock_timer = 100;
+    m_shop->restock_timer = MERCHANT_RESTOCK_ROUNDS;
 }
 
 void spawn_magic_shops(Game *game) {
@@ -404,7 +404,7 @@ void spawn_magic_shops(Game *game) {
     m->template = &bestiary_data[0];
     MerchantData *m_shop = open_shop(game, m, MAGIC_SHOP, "Xanthus's Arcane Curios");
     fill_shop_by_specialization(m_shop, 20);
-    m_shop->restock_timer = 100;
+    m_shop->restock_timer = MERCHANT_RESTOCK_ROUNDS;
 
     //6: Sanctum of Prayers - Sister Elara
     NPC *p = &game->npcs[6];
@@ -420,7 +420,7 @@ void spawn_magic_shops(Game *game) {
     p->template = &bestiary_data[0];
     MerchantData *p_shop = open_shop(game, p, MAGIC_SHOP, "Sister Elara's Sanctum");
     fill_shop_by_specialization(p_shop, 20);
-    p_shop->restock_timer = 100;
+    p_shop->restock_timer = MERCHANT_RESTOCK_ROUNDS;
 
     // 7: Catalyst Emporium - Master Malchor
     NPC *c = &game->npcs[7];
@@ -436,7 +436,7 @@ void spawn_magic_shops(Game *game) {
     c->template = &bestiary_data[0];
     MerchantData *c_shop = open_shop(game, c, ALCHEMIST, "Master Malchor's Reagents");
     fill_shop_by_specialization(c_shop, 20);
-    c_shop->restock_timer = 100;
+    c_shop->restock_timer = MERCHANT_RESTOCK_ROUNDS;
 
     // 8: Arcane Bookshop (books for mages, warlocks, etc.)
     NPC *r = &game->npcs[8];
@@ -452,7 +452,7 @@ void spawn_magic_shops(Game *game) {
     r->template = &bestiary_data[0];
     MerchantData *r_shop = open_shop(game, r, BOOKS_MAGE, "The Arcane Library");
     fill_shop_by_specialization(r_shop, 100);
-    r_shop->restock_timer = 100;
+    r_shop->restock_timer = MERCHANT_RESTOCK_ROUNDS;
 
     // 9: Temple Library (books of clerics, druids, etc.)
     NPC *b = &game->npcs[9];
@@ -468,7 +468,7 @@ void spawn_magic_shops(Game *game) {
     b->template = &bestiary_data[0];
     MerchantData *b_shop = open_shop(game, b, BOOKS_PRIEST, "Temple Library");
     fill_shop_by_specialization(b_shop, 100);
-    b_shop->restock_timer = 100;
+    b_shop->restock_timer = MERCHANT_RESTOCK_ROUNDS;
 }
 
 /* =========================================================================
@@ -499,7 +499,7 @@ void spawn_martial_archive(Game *game) {
     a->template = &bestiary_data[0];
     MerchantData *a_shop = open_shop(game, a, BOOKS_MARTIAL, "The Archive of a Thousand Battles");
     fill_shop_by_specialization(a_shop, 100);
-    a_shop->restock_timer = 100;
+    a_shop->restock_timer = MERCHANT_RESTOCK_ROUNDS;
 }
 
 /*Tiles a creature must be able to reach from where it is placed.*/
@@ -717,7 +717,7 @@ static void spawn_wandering_merchant(Game *game, int *npc_idx, int f) {
     s->max_hp = 1;
     int trade = rand() % 8;
     MerchantData *s_shop = open_shop(game, s, k_trades[trade].spec, k_trades[trade].shop_name);
-    s_shop->restock_timer = 100;
+    s_shop->restock_timer = MERCHANT_RESTOCK_ROUNDS;
     npc_set_active(game, s, true); /*merchant: no floor-cache effect*/
     fill_shop_by_specialization(s_shop, f);
 }
