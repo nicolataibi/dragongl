@@ -161,6 +161,9 @@ typedef struct {
     bool is_potion; /*drunk or applied: a potion or an oil*/
     ItemWorn worn;
     ItemUse use;
+    /*A weapon's damage type (MAX_DAMAGE_TYPES: none given; a weapon then
+     * strikes as bludgeoning).*/
+    DamageType damage_type;
     /*Weapons: a ranged weapon's ammunition and normal range in tiles (5 ft
      * each, "ammunition (range 80/320)" -> 16); a finesse weapon hits with
      * the better of STR and DEX. Ammunition items: their kind.*/

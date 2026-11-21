@@ -83,6 +83,21 @@ DamageModifier npc_damage_mod(const NPC *n, DamageType type) {
     return DMG_MOD_NORMAL;
 }
 
+DamageModifier npc_weapon_mod(const NPC *n, DamageType type, bool magic) {
+    DamageModifier mod = npc_damage_mod(n, type);
+    bool physical = type == DMG_BLUDGEONING || type == DMG_PIERCING || type == DMG_SLASHING;
+    if (!physical || magic || !n->template || mod == DMG_MOD_IMMUNITY) {
+        return mod;
+    }
+    if (n->template->immune_nonmagical) {
+        return DMG_MOD_IMMUNITY;
+    }
+    if (n->template->resist_nonmagical && mod == DMG_MOD_NORMAL) {
+        return DMG_MOD_RESISTANCE;
+    }
+    return mod;
+}
+
 static bool npc_has(const NPC *n, ConditionType cond) {
     return rules_has_condition_t((ActiveEffect *)n->effects, n->effect_count, cond);
 }
@@ -93,6 +108,7 @@ static SpellTargetInfo npc_target_info(const NPC *n, const SpellEffect *e, const
     t.ac = n->ac;
     t.save_bonus = npc_save_bonus(n);
     t.save_disadvantage = npc_has(n, COND_CURSED);
+    t.save_advantage = n->template && n->template->magic_resistance;
     t.attack_advantage = npc_has(n, COND_RESTRAINED) || npc_has(n, COND_PARALYZED) ||
                          npc_has(n, COND_STUNNED) || npc_has(n, COND_UNCONSCIOUS) ||
                          npc_has(n, COND_BLINDED);

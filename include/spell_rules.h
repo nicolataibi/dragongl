@@ -29,6 +29,7 @@ typedef struct {
     int ac;
     int save_bonus;            /*added to each of its saving throws*/
     bool save_disadvantage;    /*e.g. cursed*/
+    bool save_advantage;       /*magic resistance*/
     bool attack_advantage;     /*attacks against it have advantage*/
     bool attack_disadvantage;  /*e.g. the caster is blinded*/
     DamageModifier damage_mod; /*against the spell's damage type*/

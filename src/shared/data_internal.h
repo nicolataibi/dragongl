@@ -37,8 +37,9 @@ int get_spell_idx_by_name(const char *name);
 /*Loads data/items.json into item_database (the spells must be loaded).*/
 bool load_items_json(const char *filepath);
 
-/*The "worn" and "use" effects of one item of items.json and the fields of
- * its spell (at_will, no_recharge, charge_cost): data_item_effects.c.*/
+/*The "worn" and "use" effects of one item of items.json, the fields of its
+ * spell (at_will, no_recharge, charge_cost) and its damage type:
+ * data_item_effects.c.*/
 void item_parse_effects(ItemTemplate *t, const cJSON *item);
 
 #endif /* DATA_INTERNAL_H */

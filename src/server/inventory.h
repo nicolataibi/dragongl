@@ -46,6 +46,12 @@ void item_instance_new(ItemInstance *out, int template_idx);
  * a staff, a ring of evasion; not the beads of a necklace of fireballs).*/
 bool item_recharges(const ItemInstance *it);
 
+/*True if a weapon is magic (an artifact, an elemental or enchanted one, a
+ * magic item of items.json): it hurts monsters that only magic hurts.*/
+bool item_is_magic(const ItemInstance *it);
+/*The damage type of a weapon's element (MAX_DAMAGE_TYPES: none).*/
+DamageType element_damage_type(ItemElement e);
+
 /*The ten single equipment slots, in the order of 'inventory', with the
  * names 'remove' and 'repair' accept for each ("head", "arm_r|right_arm|arm"...).*/
 #define EQUIP_SLOT_COUNT 10

@@ -424,7 +424,21 @@ static bool mind_save(const SpellContext *ctx, int *dc) {
     SpellCaster sc;
     spell_caster_of(ctx->caster, &sc);
     *dc = spell_save_dc(&ctx->sp->effect, &sc);
-    return rules_roll_save(npc_save_bonus(ctx->target), *dc, false, false, NULL);
+    const NPC *n = ctx->target;
+    return rules_roll_save(npc_save_bonus(n), *dc, n->template && n->template->magic_resistance,
+                           false, NULL);
+}
+
+/*A creature immune to the Charmed condition (its description says so)
+ * cannot be charmed nor dominated: true after telling the caster.*/
+static bool charm_immune(const SpellContext *ctx) {
+    const NPC *n = ctx->target;
+    if (!n->template || !n->template->condition_immunities[COND_CHARMED]) {
+        return false;
+    }
+    send_text_to_client(ctx->caster->sock, "[MAGIC] %s cannot be charmed: %s has no effect.",
+                        npc_name(n), ctx->sp->name);
+    return true;
 }
 
 static void mind_effect(NPC *tgt, const char *name, int rounds) {
@@ -445,6 +459,9 @@ static bool handle_charm_person(SpellContext *ctx) {
     NPC *tgt = ctx->target;
     if (!tgt) {
         send_text_to_client(c->sock, "[MAGIC] %s: no target in range.", ctx->sp->name);
+        return true;
+    }
+    if (charm_immune(ctx)) {
         return true;
     }
     int dc = 0;
@@ -471,6 +488,9 @@ static bool handle_dominate_monster(SpellContext *ctx) {
     NPC *tgt = ctx->target;
     if (!tgt) {
         send_text_to_client(c->sock, "[MAGIC] %s: no target in range.", ctx->sp->name);
+        return true;
+    }
+    if (charm_immune(ctx)) {
         return true;
     }
     int dc = 0;

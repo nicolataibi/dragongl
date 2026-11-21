@@ -27,6 +27,10 @@ int npc_save_bonus(const NPC *n);
 /*How the NPC takes damage of this type: its template's immunities,
  * resistances and vulnerabilities, else frozen (double) or petrified (half).*/
 DamageModifier npc_damage_mod(const NPC *n, DamageType type);
+/*The same against a weapon's blow: a weapon that is not magic does not
+ * hurt a monster immune to it and does half to one that resists it
+ * (bludgeoning, piercing and slashing only).*/
+DamageModifier npc_weapon_mod(const NPC *n, DamageType type, bool magic);
 
 /*A creature a player's spell can hit: alive, hostile (not a merchant,
  * treasure, gold pile, summoned or dominated ally).*/

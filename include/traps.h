@@ -52,7 +52,7 @@ typedef enum {
     TRAP_FLOOD,             //7x7 flooding with VOXEL_WATER (DEX save)
     TRAP_CEILING_COLLAPSE,  //Ceiling Collapse 5x5 with VOXEL_ROCK (DEX save)
     TRAP_CRUSHER_WALL,      //Potato Masher Walls (STR save, massive damage)
-    TRAP_GAS_VEIN,          //Explosive vein on ash (WITH save, fire)
+    TRAP_GAS_VEIN,          //Explosive vein on ash or mud (CON save, fire)
     TRAP_CRYSTAL_BURST,     //Exploding Crystal (DEX save, Piercing area)
     TRAP_INVERSION_RUNE,    // INVERSION RUNE (WIS save, Confused 3r)
     TRAP_STONE_TOMB,        //Stone Tomb: VOXEL_WALL walls around (STR save)
