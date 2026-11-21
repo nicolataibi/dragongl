@@ -1,3 +1,12 @@
+* Sat Nov 21 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.21.05
+- CLASSES: a level up gains the hit die of the class + CON, as the
+  classes of LORE.md say (d12 barbarian, d10 fighter, paladin and ranger,
+  d8 bard, cleric, druid, monk, rogue and warlock, d6 sorcerer and wizard):
+  every class gained 1d8.
+- CLASSES: a character adds his proficiency bonus (+2 to +6 with the
+  level) to the saving throws his class lists (a fighter's STR and CON, a
+  wizard's INT and WIS): no save had it.
+
 * Sat Nov 21 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.21.04
 - SPELLS: Hail of Thorns rains on the target and the creatures around it,
   each with a Dexterity save for half (it was one spell attack on one

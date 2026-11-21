@@ -26,6 +26,8 @@
 #include "player.h"
 #include "server_internal.h"
 #include "spells.h"
+#include "classes.h"
+#include "spell_rules.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -167,6 +169,18 @@ static bool has_trigger(const Client *c, RuleEventType trigger) {
     return false;
 }
 
+/*True if the character's class is proficient in the saves of a (LORE.md,
+ * the classes: "Saves").*/
+static bool save_proficient(const Client *c, Ability a) {
+    if (c->class_id < 0 || c->class_id >= CLASS_COUNT) {
+        return false;
+    }
+    const ClassTemplate *k = &CLASSES[c->class_id];
+    const int prof[ABILITY_COUNT] = {k->str_save, k->dex_save, k->con_save,
+                                     k->int_save, k->wis_save, k->cha_save};
+    return a >= ABILITY_STR && a < ABILITY_COUNT && prof[a];
+}
+
 int player_save_mod(Client *c, Ability a) {
     int s[ABILITY_COUNT];
     get_total_stats(c, &s[ABILITY_STR], &s[ABILITY_DEX], &s[ABILITY_CON], &s[ABILITY_INT],
@@ -174,6 +188,9 @@ int player_save_mod(Client *c, Ability a) {
     WornTotals w;
     player_worn(c, &w);
     int mod = (a >= ABILITY_STR && a < ABILITY_COUNT) ? rules_get_modifier(s[a]) : 0;
+    if (save_proficient(c, a)) {
+        mod += spell_proficiency(c->level);
+    }
     return mod + w.saves + rules_event_bonus(c->effects, c->effect_count, EVENT_ON_SAVE);
 }
 

@@ -45,7 +45,7 @@ target_link_libraries(dragongl_server_it PRIVATE Threads::Threads m PkgConfig::S
 add_executable(server_harness server_harness.c harness_spells.c harness_commands.c fixture.c
     harness_util.c harness_combat.c harness_world.c harness_items.c
     harness_rounds.c harness_magic.c harness_spec.c harness_worldgen.c harness_interact.c
-    harness_magicitems.c harness_monsters.c
+    harness_magicitems.c harness_monsters.c harness_classes.c
     ${DRAGONGL_SERVER_LIB_SRCS} ${DRAGONGL_SHARED_SRCS})
 target_include_directories(server_harness PRIVATE ${DGL_INCLUDES})
 # DRAGONGL_FAULT_INJECTION: the crash points of binfile_write_atomic().
@@ -131,7 +131,8 @@ endforeach()
 # Magic items do what their description says (harness_magicitems.c).
 foreach(t magic_items_kinds magic_items_abilities magic_items_defence magic_items_resistance
           magic_items_potions magic_items_charges magic_items_world magic_items_weapons
-          monster_defences monster_blows monster_magic spell_weapon_riders)
+          monster_defences monster_blows monster_magic spell_weapon_riders
+          class_hit_dice class_saves)
     add_test(NAME ${t} COMMAND server_harness ${t} WORKING_DIRECTORY "${DGL_WORK}")
 endforeach()
 # A whole world of 100 floors: slow under the sanitizers.
