@@ -11,6 +11,7 @@
 #   fuzz_wire      one protocol frame -> the decoder of its type (wire.c)
 #   fuzz_persist   a save-file payload -> the reader of its kind (persist.c)
 #   fuzz_text_cmd  a MSG_TEXT_CMD payload -> handle_text_cmd()
+#   fuzz_item_effects  an item of items.json -> its worn/use effects (data_item_effects.c)
 # DGL_FUZZ_SEEDS=<dir> ./<target> writes the seed corpus of a target from
 # the encoders of this tree and exits.
 cmake_minimum_required(VERSION 3.16)
@@ -42,6 +43,7 @@ add_link_options(-fsanitize=fuzzer,address,undefined)
 set(FUZZ_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
 set(FIXTURE_DIR "${DRAGONGL_ROOT}/tests/integration")
 set(FUZZ_INCLUDES ${DRAGONGL_ROOT}/include ${DRAGONGL_ROOT}/src/server ${FIXTURE_DIR} ${FUZZ_DIR}
+    ${DRAGONGL_ROOT}/src/shared
     "${CMAKE_CURRENT_BINARY_DIR}/generated")
 
 # The wire decoders need only the protocol code.
@@ -50,7 +52,7 @@ add_executable(fuzz_wire fuzz_wire.c fuzz_common.c
 target_include_directories(fuzz_wire PRIVATE ${FUZZ_INCLUDES})
 
 # The readers and the commands run inside the in-process server fixture.
-foreach(t fuzz_persist fuzz_text_cmd)
+foreach(t fuzz_persist fuzz_text_cmd fuzz_item_effects)
     add_executable(${t} ${t}.c fuzz_common.c ${FIXTURE_DIR}/fixture.c
         ${DRAGONGL_SERVER_LIB_SRCS} ${DRAGONGL_SHARED_SRCS})
     target_include_directories(${t} PRIVATE ${FUZZ_INCLUDES})

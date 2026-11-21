@@ -316,7 +316,7 @@ check_fuzz() {
     # Saves written by the targets go to a private directory: tmpfs if any.
     local tmp="${TMPDIR:-/tmp}"
     [[ -d /dev/shm && -w /dev/shm ]] && tmp=/dev/shm
-    for t in fuzz_wire fuzz_persist fuzz_text_cmd; do
+    for t in fuzz_wire fuzz_persist fuzz_text_cmd fuzz_item_effects; do
         rm -rf "${d:?}/seeds/$t"
         DGL_FUZZ_SEEDS="$d/seeds/$t" TMPDIR="$tmp" "$d/build/$t" >/dev/null 2>&1 ||
             die "$t: cannot write its seeds"
