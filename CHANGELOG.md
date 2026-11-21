@@ -1,3 +1,9 @@
+* Sat Nov 21 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.21.06
+- TESTS: a libFuzzer target for the parser of the item effects
+  (tests/fuzz/fuzz_item_effects.c): any JSON item, seeded with every item
+  of items.json that has effects or a spell, must keep its masks, dice and
+  enums in range; tools/quality.sh fuzz runs it with the others.
+
 * Sat Nov 21 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.21.05
 - CLASSES: a level up gains the hit die of the class + CON, as the
   classes of LORE.md say (d12 barbarian, d10 fighter, paladin and ranger,
