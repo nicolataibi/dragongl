@@ -1,3 +1,10 @@
+* Sat Nov 21 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.21.22
+- CI: tools/quality.sh bench measures once more a run over the limits,
+  and fails when both are: on a shared runner the main branch failed with
+  the spread p99 at 134 ms (limit 50) and its p50 at 4 ms, where the same
+  tree had measured 11.5 and 11.75 ms twice an hour before; a few rounds
+  of a stalled machine are not a slower game.
+
 * Sat Nov 21 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.21.21
 - END: the game has an end, the conquest of the dungeon (LORE.md, Boss
   Encounter System). The boss of floor 100 defeated, its stairs down
