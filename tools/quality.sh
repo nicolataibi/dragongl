@@ -67,9 +67,11 @@ Checks
                   tests/integration/campaign_sim (Release): a bot of every
                   class plays the whole game, in process, for ROUNDS rounds
                   of the world of seed 1 (default 150000, about 8 hours of
-                  play); fails when no character conquers the dungeon. The
-                  report: how deep each class went, its deaths, where it
-                  stopped
+                  play), the server stopped and started again every 20000
+                  rounds (a clean stop and a crash in turn); fails when no
+                  character conquers the dungeon or a clean restart changes
+                  a character or a floor. The report: how deep each class
+                  went, its deaths, where it stopped
   play [SECONDS]  tools/playtest.py (Release server): a character of every
                   class plays down the dungeon for SECONDS (default 300);
                   fails on a command with no answer, a character stuck, a
@@ -334,9 +336,12 @@ check_campaign() {
     local run="$OUT/release/campaign-run"
     rm -rf "$run"
     mkdir -p "$run"
-    (cd "$run" && "$OUT/release/campaign_sim" "$rounds" 1 "$OUT/release/campaign.json") ||
-        die "no character conquered the dungeon in $rounds rounds"
-    ok "the dungeon can be conquered (numbers in ${OUT#"$ROOT"/}/release/campaign.json)"
+    local rc=0
+    (cd "$run" && DGL_CAMPAIGN_RESTART=20000 "$OUT/release/campaign_sim" "$rounds" 1 \
+        "$OUT/release/campaign.json") || rc=$?
+    [ "$rc" -ne 3 ] || die "a clean restart of the server changed a character or a floor"
+    [ "$rc" -eq 0 ] || die "no character conquered the dungeon in $rounds rounds"
+    ok "the dungeon can be conquered, across restarts (numbers in ${OUT#"$ROOT"/}/release/campaign.json)"
 }
 
 check_play() {

@@ -120,7 +120,7 @@ foreach(t magic_exploration magic_care magic_allies magic_invisibility magic_upc
 endforeach()
 # Every command against docs/COMMANDS.md (harness_spec.c).
 foreach(t spec_aliases_and_directions spec_secret_passages spec_disarm_next_to_you spec_throw
-          spec_status_sheet spec_cast_target spec_study_word spec_lore_and_fill
+          spec_status_sheet spec_armour_and_dex spec_cast_target spec_study_word spec_lore_and_fill
           spec_scrolls_and_wands spec_merchant_next_to_you spec_trade spec_retrieve
           spec_dm_commands)
     add_test(NAME ${t} COMMAND server_harness ${t} WORKING_DIRECTORY "${DGL_WORK}")

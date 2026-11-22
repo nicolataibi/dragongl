@@ -443,6 +443,7 @@ static void item_defaults(ItemTemplate *t) {
     t->attack_bonus = 0;
     t->ac_bonus = 0;
     t->ac_base = 0;
+    t->ac_dex_max = 0;
     t->max_durability = 0;
     t->max_stack = 1;
     t->needs_id = false;
@@ -453,11 +454,22 @@ static void item_defaults(ItemTemplate *t) {
     t->weight = 1.0f;
 }
 
+/*How much of the DEX modifier an armour whose "ac" adds "+ Dex" takes:
+ * all of it for a light armour, at most +2 for a medium one (the Open RPG
+ * ruleset; LORE.md, Armour Class).*/
+#define AC_DEX_ALL    99
+#define AC_DEX_MEDIUM 2
+
 /*"ac": "14 + Dex modifier" is the base of an armor, "+2" the bonus of a
  * shield or of anything else that writes a plus.*/
-static void item_ac(ItemTemplate *t, const cJSON *ac) {
+static void item_ac(ItemTemplate *t, const cJSON *ac, const cJSON *classification) {
     if (!cJSON_IsString(ac)) {
         return;
+    }
+    if (t->category == ITEM_ARMOR && data_strcasestr(ac->valuestring, "dex")) {
+        bool medium = cJSON_IsString(classification) &&
+                      data_strcasestr(classification->valuestring, "Medium");
+        t->ac_dex_max = medium ? AC_DEX_MEDIUM : AC_DEX_ALL;
     }
     const char *ac_str = ac->valuestring;
     int ac_val = 0;
@@ -539,7 +551,7 @@ static void parse_item(ItemTemplate *t, cJSON *item) {
         ItemJson j = {item, name, desc, category, classification, ac, damage, properties, cost};
         item_category(t, &j);
     }
-    item_ac(t, ac);
+    item_ac(t, ac, classification);
     if (cJSON_IsString(damage)) {
         int dice[2] = {0, 0};
         if (scan_ints(damage->valuestring, 'd', 2, dice) == 2) {

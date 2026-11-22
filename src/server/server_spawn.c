@@ -239,6 +239,10 @@ static void fill_provisioner_floor0(MerchantData *m) {
         {"Tinderbox", 10},
         {"Grappling Hook", 3},
         {"Crowbar", 3},
+        /*The tools 'tunnel' needs: a trap (Stone Tomb, Ceiling Collapse)
+         * or a spell can wall up the way to the stairs for good.*/
+        {"Pick, Miner's", 5},
+        {"Shovel", 5},
         {"Thieves' Tools", 2},
         {"Healer's Kit", 5},
         {"Antitoxin (vial)", 5},
@@ -253,7 +257,12 @@ static void fill_provisioner_floor0(MerchantData *m) {
         {"Dagger", 5},
         {"Quarterstaff", 3},
         {"Sling", 3},
+        /*Every kind of ammunition, always: the Iron Anvil stocks at random,
+         * and a ranger once found no arrows in three worlds of ten.*/
+        {"Arrows (20)", 10},
+        {"Crossbow Bolts (20)", 10},
         {"Sling Bullets (20)", 10},
+        {"Blowgun Needles (50)", 10},
     };
     m->item_count = 0;
     for (size_t i = 0; i < sizeof(k_stock) / sizeof(k_stock[0]); i++) {

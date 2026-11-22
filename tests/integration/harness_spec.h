@@ -15,6 +15,7 @@ int test_spec_secret_passages(void);
 int test_spec_disarm_next_to_you(void);
 int test_spec_throw(void);
 int test_spec_status_sheet(void);
+int test_spec_armour_and_dex(void);
 int test_spec_cast_target(void);
 int test_spec_study_word(void);
 int test_spec_lore_and_fill(void);

@@ -139,6 +139,7 @@ typedef struct {
     int attack_bonus;
     int ac_bonus;
     int ac_base;
+    int ac_dex_max; /*the DEX modifier a body armour adds: 0 heavy, 2 medium, light all of it*/
     int max_durability;
     int max_stack;
     int bundle; /*pieces one purchase gives: "Arrows (20)" 20, 1 for any other item*/
