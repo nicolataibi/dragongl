@@ -65,6 +65,8 @@
 #define PERSIST_TOMB_VERSION  1
 #define PERSIST_ART_MAGIC     0x54524144u /* "DART" */
 #define PERSIST_ART_VERSION   1
+#define PERSIST_JRNL_MAGIC    0x4C4E524Au /* "JRNL" */
+#define PERSIST_JRNL_VERSION  1
 
 /* --- State directory ------------------------------------------------------- */
 
@@ -116,6 +118,11 @@ bool persist_write_tombstone(const char *path, const Tombstone *t);
 BinFileStatus persist_read_tombstone(const char *path, Tombstone *t, char *why, size_t why_len);
 
 bool persist_write_flags(const char *path, const bool *flags, int count);
+
+/*A list of entity ids (ground_journal.h): at most cap are read, *n of them.*/
+bool persist_write_ids(const char *path, const int32_t *ids, int n);
+BinFileStatus persist_read_ids(const char *path, int32_t *ids, int cap, int *n, char *why,
+                               size_t why_len);
 BinFileStatus persist_read_flags(const char *path, bool *flags, int count, char *why,
                                  size_t why_len);
 

@@ -56,7 +56,7 @@
 #define LOOT_DROP_CHANCE 60
 
 // Tombstone system
-void tombstone_create(Game *game, Client *c);
+Tombstone *tombstone_create(Game *game, Client *c);
 void tombstone_list(Game *game, Client *c);
 bool tombstone_pickup(Game *game, Client *c);
 /*'retrieve': what the player's own tombstone on his floor holds, wherever

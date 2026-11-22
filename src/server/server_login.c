@@ -120,6 +120,18 @@ static bool character_online(const Client *clients, const char *username) {
     return false;
 }
 
+/*True if the character is in the world without a connection, after
+ * leaving in a fight (main_server.c).*/
+static bool character_lingers(const Client *clients, const char *username) {
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        if (clients[i].active && clients[i].linger_until_ms > 0 &&
+            strcmp(clients[i].username, username) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
 /*TCP keepalive: a client that vanished without closing (power loss,
  * dropped Wi-Fi) is detected after ~90 s, its slot freed and its
  * character saved and released for the next login.*/
@@ -320,7 +332,12 @@ static void login_begin(Client *clients, int i, MsgLogin *ml) {
     //the same character independently (the last save wins), which
     //duplicates items. The live session keeps the character.
     if (character_online(clients, ml->username)) {
-        reject_login(&clients[i], i, "Character already online.", false);
+        reject_login(&clients[i], i,
+                     character_lingers(clients, ml->username)
+                         ? "Your character left in a fight: it is still in the world for a few "
+                           "seconds."
+                         : "Character already online.",
+                     false);
         return;
     }
 

@@ -490,7 +490,7 @@ void save_bones(Game *game, Client *c) {
     }
 
     /*--- 1. Create the Tombstone BEFORE emptying your inventory ---*/
-    tombstone_create(game, c);
+    Tombstone *t = tombstone_create(game, c);
 
     /*--- 2. Create in-world NPC ghost (live ghost) ---*/
     NPC *g = ghost_slot(game, c);
@@ -569,5 +569,12 @@ void save_bones(Game *game, Client *c) {
     c->slot_feet.template_idx = -1;
     for (int i = 0; i < 10; i++) {
         c->slot_rings[i].template_idx = -1;
+    }
+    /*--- 4. The emptied character first, then the tombstone: a crash in
+     * between loses the belongings, it never gives them twice (in the save
+     * of the character and in the tombstone). ---*/
+    save_player_data(c);
+    if (t) {
+        tombstone_save(t);
     }
 }

@@ -33,6 +33,8 @@
 /*Keep the protocol constant in sync with the server enum*/
 _Static_assert(BOOKS_MARTIAL == SHOP_SPEC_BOOKS_MARTIAL,
                "SHOP_SPEC_BOOKS_MARTIAL must equal MerchantSpecialization::BOOKS_MARTIAL");
+#include "server_cmd.h"
+#include "server_combat.h"
 #include "server_commands.h"
 #include "server_move.h"
 #include "spell_router.h"
@@ -68,34 +70,55 @@ static void flush_all_clients(Client *clients) {
     }
 }
 
+/*The character leaves the world: saved, out of the grid and of the floor
+ * of the others, the slot free.*/
+static void client_leaves(Game *game, Client *c) {
+    if (c->authenticated) {
+        social_client_gone(c, game);
+        save_player_data(c);
+        if (c->floor_id >= 0 && c->floor_id < MAX_FLOORS && c->x >= 0 && c->x < MAP_WIDTH &&
+            c->y >= 0 && c->y < MAP_HEIGHT) {
+            int *cell = &game->world->floors[c->floor_id].entity_grid[c->y][c->x];
+            if (*cell == c->entity_id) {
+                *cell = 0;
+            }
+            notify_player_left_floor(game, c, c->floor_id);
+        }
+    }
+    c->sock = -1;
+    c->active = false;
+    c->authenticated = false;
+    c->is_dm = false;
+    c->linger_until_ms = 0;
+}
+
 /*Remove every connection marked for removal during this iteration. This
  * is the ONLY place a client slot is closed: saving, the "left floor"
  * notice and the grid cleanup happen once, in one order, and no send path
- * ever disconnects a client synchronously.*/
+ * ever disconnects a client synchronously. A character in a fight stays
+ * in the world, without a connection, for COMBAT_LINGER_MS (LORE.md,
+ * Leaving in a Fight): leaving does not save him from a lost battle.*/
 static void reap_dropped_clients(Game *game, Client *clients) {
+    long long now = get_time_ms();
     for (int i = 0; i < MAX_CLIENTS; i++) {
-        if (!clients[i].active || !conn_dropping(i)) {
+        Client *c = &clients[i];
+        if (client_linger_over(c, now)) {
+            server_log("NET", "'%s' leaves the world after the fight.", c->username);
+            client_leaves(game, c);
             continue;
         }
-        Client *c = &clients[i];
+        if (!c->active || !conn_dropping(i)) {
+            continue;
+        }
         server_log("NET", "Client %d ('%s', %s) disconnected: %s", i,
                    c->authenticated ? c->username : "-", conn_peer_ip(i), conn_drop_reason(i));
-        if (c->authenticated) {
-            save_player_data(c);
-            if (c->floor_id >= 0 && c->floor_id < MAX_FLOORS && c->x >= 0 && c->x < MAP_WIDTH &&
-                c->y >= 0 && c->y < MAP_HEIGHT) {
-                int *cell = &game->world->floors[c->floor_id].entity_grid[c->y][c->x];
-                if (*cell == c->entity_id) {
-                    *cell = 0;
-                }
-                notify_player_left_floor(game, c, c->floor_id);
-            }
-        }
         conn_close(i); /*a queued MSG_AUTH_FAIL first, then close_notify*/
-        c->sock = -1;
-        c->active = false;
-        c->authenticated = false;
-        c->is_dm = false;
+        if (client_linger(c, now)) {
+            server_log("NET", "'%s' left in a fight: stays %d s in the world.", c->username,
+                       COMBAT_LINGER_MS / 1000);
+            continue;
+        }
+        client_leaves(game, c);
     }
 }
 
@@ -106,8 +129,8 @@ static void reap_dropped_clients(Game *game, Client *clients) {
 static void update_interest(int epoll_fd, Client *clients) {
     static uint32_t current[MAX_CLIENTS];
     for (int i = 0; i < MAX_CLIENTS; i++) {
-        if (!clients[i].active) {
-            current[i] = 0;
+        if (!clients[i].active || clients[i].sock < 0) {
+            current[i] = 0; /*free, or a character lingering after a fight*/
             continue;
         }
         uint32_t want = EPOLLRDHUP | (clients[i].login_pending ? 0u : EPOLLIN) |

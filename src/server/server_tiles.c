@@ -31,12 +31,15 @@
 #include "player.h"
 #include "server_log.h"
 
-void sync_entity_grid(Game *game) {
+void sync_entity_grid_floors(Game *game, const bool rebuild[MAX_FLOORS]) {
     if (!game->world) {
         return;
     }
     for (int f = 0; f < MAX_FLOORS; f++) {
-        memset(game->world->floors[f].entity_grid, 0, sizeof(game->world->floors[f].entity_grid));
+        if (rebuild[f]) {
+            memset(game->world->floors[f].entity_grid, 0,
+                   sizeof(game->world->floors[f].entity_grid));
+        }
     }
     if (game->clients) {
         for (int i = 0; i < MAX_CLIENTS; i++) {
@@ -47,7 +50,7 @@ void sync_entity_grid(Game *game) {
        * dm_place) must never index the world out of bounds — this runs
        * on every round tick and would corrupt the heap.*/
             int f = game->clients[i].floor_id;
-            if (f < 0 || f >= MAX_FLOORS) {
+            if (f < 0 || f >= MAX_FLOORS || !rebuild[f]) {
                 continue;
             }
             if (game->clients[i].x < 0 || game->clients[i].x >= MAP_WIDTH ||
@@ -64,7 +67,7 @@ void sync_entity_grid(Game *game) {
                 continue;
             }
             int f = game->npcs[i].floor_id;
-            if (f < 0 || f >= MAX_FLOORS) {
+            if (f < 0 || f >= MAX_FLOORS || !rebuild[f]) {
                 continue;
             }
             if (game->npcs[i].x < 0 || game->npcs[i].x >= MAP_WIDTH || game->npcs[i].y < 0 ||
@@ -75,6 +78,14 @@ void sync_entity_grid(Game *game) {
                 game->npcs[i].entity_id;
         }
     }
+}
+
+void sync_entity_grid(Game *game) {
+    bool all[MAX_FLOORS];
+    for (int f = 0; f < MAX_FLOORS; f++) {
+        all[f] = true;
+    }
+    sync_entity_grid_floors(game, all);
 }
 
 bool tile_walkable(const Floor *fl, int x, int y) {

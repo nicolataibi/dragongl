@@ -61,6 +61,14 @@ target_include_directories(tick_bench PRIVATE ${DGL_INCLUDES})
 target_compile_definitions(tick_bench PRIVATE DGL_TEST_DATA_DIR="${DGL_ROOT}/data")
 target_link_libraries(tick_bench PRIVATE Threads::Threads m PkgConfig::SODIUM OpenSSL::SSL OpenSSL::Crypto ${DRAGONGL_CJSON_LIBS})
 
+# The campaign (tools/quality.sh campaign): a bot of every class plays the
+# whole dungeon; minutes to hours, not a CTest entry.
+add_executable(campaign_sim campaign_sim.c fixture.c
+    ${DRAGONGL_SERVER_LIB_SRCS} ${DRAGONGL_SHARED_SRCS})
+target_include_directories(campaign_sim PRIVATE ${DGL_INCLUDES})
+target_compile_definitions(campaign_sim PRIVATE DGL_TEST_DATA_DIR="${DGL_ROOT}/data")
+target_link_libraries(campaign_sim PRIVATE Threads::Threads m PkgConfig::SODIUM OpenSSL::SSL OpenSSL::Crypto ${DRAGONGL_CJSON_LIBS})
+
 enable_testing()
 
 # The harness writes saves/ into its working directory: give it its own.
@@ -85,17 +93,17 @@ foreach(t trade_offer_revalidated_on_accept trade_moves_item_and_gold
           shop_no_arbitrage ammunition_bundles shop_reactive_prices shop_needs_a_merchant wear_cursed_stays merchant_restocks
           boss_floor_is_playable dm_spawn_and_place numeric_arguments
           tunnel_keeps_the_border floors_without_characters_sleep
-          swarm_splits_into_free_slots autosave_in_steps metrics_and_telemetry)
+          swarm_splits_into_free_slots full_table_spares_the_boss autosave_in_steps metrics_and_telemetry)
     add_test(NAME ${t} COMMAND server_harness ${t} WORKING_DIRECTORY "${DGL_WORK}")
 endforeach()
 # Combat, loot, death and tombstones (harness_combat.c).
 foreach(t melee_attack weapons_and_arrows monster_attacks loot party_shares_xp
-          boss_and_event_kills death_and_tombstone conquest_of_the_dungeon ghost_is_not_a_boss tombstone_expires
+          boss_and_event_kills death_and_tombstone conquest_of_the_dungeon leaving_the_game in_a_fight ghost_is_not_a_boss tombstone_expires
           combat_log)
     add_test(NAME ${t} COMMAND server_harness ${t} WORKING_DIRECTORY "${DGL_WORK}")
 endforeach()
 # Traps, search, look, town services, mining, steps (harness_world.c).
-foreach(t every_trap search_and_disarm look_and_examine town_services mining steps)
+foreach(t every_trap search_and_disarm look_and_examine town_services mining steps ground_journal)
     add_test(NAME ${t} COMMAND server_harness ${t} WORKING_DIRECTORY "${DGL_WORK}")
 endforeach()
 # Items, merchants' services, character, social (harness_items.c).

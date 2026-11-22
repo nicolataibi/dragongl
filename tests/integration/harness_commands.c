@@ -12,6 +12,7 @@
 
 #include "items.h"
 #include "map.h"
+#include "server_combat.h"
 #include "server_commands.h"
 #include "server_entities.h"
 #include "ai.h"
@@ -707,6 +708,51 @@ int test_swarm_splits_into_free_slots(void) {
     CHECK(!waiting->active && waiting->entity_id == waiting_id && waiting->respawn_timer > 0 &&
               waiting->archetype == ARCH_MELEE,
           "a clone took the slot of a monster waiting to respawn");
+
+    /* Killed, a clone does not come back and frees its slot; the swarm of
+     * the start comes back as before. */
+    NPC *clone = NULL;
+    for (int i = 0; i < MAX_NPCS && !clone; i++) {
+        NPC *n = &g_game.npcs[i];
+        clone = n->active && n->archetype == ARCH_SWARM && n != swarm ? n : NULL;
+    }
+    CHECK(clone && clone->respawn_timer < 0, "a clone waits to come back");
+    npc_killed(&g_game, c, clone, NULL);
+    CHECK(!clone->active && clone->respawn_timer < 0, "a dead clone will come back");
+    npc_killed(&g_game, c, swarm, NULL);
+    CHECK(swarm->respawn_timer == RESPAWN_TICKS, "the first swarm does not come back");
+    return 0;
+}
+
+/* A full table takes the slot of a dead monster for new loot, never the
+ * slot of a dead boss (its stairs would stay sealed for good). */
+int test_full_table_spares_the_boss(void) {
+    Client *c = adventurer();
+    CHECK(c != NULL, "no player");
+    static NPC saved[MAX_NPCS];
+    memcpy(saved, g_game.npcs, sizeof(saved));
+    for (int i = 0; i < MAX_NPCS; i++) { /* every slot taken */
+        NPC *n = &g_game.npcs[i];
+        memset(n, 0, sizeof(*n));
+        n->template = &bestiary_data[0];
+        n->active = true;
+        n->entity_id = 100000 + i;
+    }
+    NPC *boss = &g_game.npcs[7], *dead = &g_game.npcs[9];
+    boss->active = dead->active = false;
+    boss->archetype = ARCH_BOSS;
+    boss->respawn_timer = dead->respawn_timer = 50;
+    dead->archetype = ARCH_MELEE;
+    g_game.npc_alloc_hint = 0;
+    NPC *got = npc_alloc(&g_game);
+    bool ok = got == dead;
+    boss->archetype = ARCH_MELEE;
+    dead->active = true;
+    NPC *again = npc_alloc(&g_game); /* now a dead monster like the others */
+    memcpy(g_game.npcs, saved, sizeof(saved));
+    floor_index_rebuild(&g_game);
+    CHECK(ok, "the slot of a dead boss was taken (%ld)", got ? (long)(got - g_game.npcs) : -1L);
+    CHECK(again == boss, "a dead monster's slot is not taken when the table is full");
     return 0;
 }
 

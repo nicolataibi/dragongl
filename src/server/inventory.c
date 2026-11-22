@@ -60,6 +60,35 @@ int find_carried(const Client *c, const char *query, bool *in_belt) {
     return -1;
 }
 
+bool item_is_food(const ItemTemplate *t) {
+    return strncasecmp(t->name, "Rations", 7) == 0;
+}
+
+int find_food(const Client *c, const char *query, bool *in_belt) {
+    if (isdigit((unsigned char)query[0])) {
+        int idx = find_carried(c, query, in_belt);
+        return idx >= 0 && item_is_food(&item_database[c->backpack[idx].template_idx]) ? idx : -1;
+    }
+    *in_belt = false;
+    for (int i = 0; i < c->backpack_count; i++) {
+        const ItemTemplate *t =
+            c->backpack[i].template_idx != -1 ? &item_database[c->backpack[i].template_idx] : NULL;
+        if (t && item_is_food(t) && strcasestr(t->name, query) != NULL) {
+            return i;
+        }
+    }
+    for (int i = 0; i < MAX_BELT; i++) {
+        const ItemTemplate *t = c->belt[i].template_idx != -1 && c->belt[i].stack_count > 0
+                                    ? &item_database[c->belt[i].template_idx]
+                                    : NULL;
+        if (t && item_is_food(t) && strcasestr(t->name, query) != NULL) {
+            *in_belt = true;
+            return i;
+        }
+    }
+    return -1;
+}
+
 /*Takes the item out of the backpack (closing the gap) or off the belt.*/
 void remove_carried(Client *c, int idx, bool in_belt) {
     if (in_belt) {

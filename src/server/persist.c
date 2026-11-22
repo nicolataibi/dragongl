@@ -906,3 +906,34 @@ BinFileStatus persist_read_flags(const char *path, bool *flags, int count, char 
     }
     return st;
 }
+
+/* --- Lists of entity ids (the journal of the ground) ------------------------------- */
+
+bool persist_write_ids(const char *path, const int32_t *ids, int n) {
+    BinWriter w;
+    bw_init(&w);
+    bw_u32(&w, (uint32_t)n);
+    for (int i = 0; i < n; i++) {
+        bw_i32(&w, ids[i]);
+    }
+    return write_and_free(path, PERSIST_JRNL_MAGIC, PERSIST_JRNL_VERSION, &w);
+}
+
+BinFileStatus persist_read_ids(const char *path, int32_t *ids, int cap, int *n, char *why,
+                               size_t why_len) {
+    BinReader r;
+    uint8_t *buf = NULL;
+    *n = 0;
+    BinFileStatus st =
+        read_payload(path, PERSIST_JRNL_MAGIC, PERSIST_JRNL_VERSION, &r, &buf, why, why_len);
+    if (st != BINFILE_OK) {
+        return st;
+    }
+    int count = (int)br_count(&r, (uint32_t)cap);
+    for (int i = 0; i < count && !r.failed; i++) {
+        ids[i] = br_i32(&r);
+    }
+    st = finish_read(&r, buf, why, why_len);
+    *n = st == BINFILE_OK ? count : 0;
+    return st;
+}

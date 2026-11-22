@@ -33,6 +33,7 @@
  */
 
 #include "server_world.h"
+#include "ground_journal.h"
 #include "item_effects.h"
 #include "server_internal.h"
 #include "ai.h"
@@ -124,10 +125,14 @@ static bool world_paths(char *world, char *npcs, size_t n) {
 
 bool save_world_state(Game *game) {
     char world_path[STATE_DIR_MAX + 32], npcs_path[STATE_DIR_MAX + 32];
-    return world_paths(world_path, npcs_path, sizeof(world_path)) &&
-           persist_write_world(world_path, game->world) &&
-           persist_write_npcs(npcs_path, game->npcs, &game->pools, MAX_NPCS, game->next_id,
-                              game->total_turns);
+    bool ok = world_paths(world_path, npcs_path, sizeof(world_path)) &&
+              persist_write_world(world_path, game->world) &&
+              persist_write_npcs(npcs_path, game->npcs, &game->pools, MAX_NPCS, game->next_id,
+                                 game->total_turns);
+    if (ok) {
+        ground_journal_clear(); /*the ground of npcs.dat is the ground now*/
+    }
+    return ok;
 }
 
 bool autosave_step(Client *clients, Game *game, int step) {
@@ -149,8 +154,12 @@ bool autosave_step(Client *clients, Game *game, int step) {
         }
         return ok;
     }
-    return persist_write_npcs(npcs_path, game->npcs, &game->pools, MAX_NPCS, game->next_id,
-                              game->total_turns);
+    bool ok = persist_write_npcs(npcs_path, game->npcs, &game->pools, MAX_NPCS, game->next_id,
+                                 game->total_turns);
+    if (ok) {
+        ground_journal_clear();
+    }
+    return ok;
 }
 
 /*Once a minute, over AUTOSAVE_STEPS consecutive rounds (autosave_step).*/
@@ -172,7 +181,9 @@ static void autosave_if_due(Client *clients, Game *game) {
 }
 
 /*The global invasion event: starts every 1500 rounds on a random floor
- * 1-10, ends with a reward when its goal is met or when time runs out.*/
+ * 1-10, ends with a reward when its goal is met or when time runs out. The
+ * reward goes to the defenders: who killed one of the invaders, and his
+ * party on the floor (npc_killed), still on the floor at the end.*/
 static void update_global_event(Game *game, Client *clients) {
     if (game->event.type == 0) {
         if (game->total_turns % 1500 == 0) {          //Every ~300 seconds (5 min real at 5 tick/s)
@@ -181,6 +192,7 @@ static void update_global_event(Game *game, Client *clients) {
             game->event.time_left = 1500;             // 5 minutes
             game->event.progress = 0;
             game->event.goal = 5; // 5 Skeletons
+            game->event.serial++;
 
             //Broadcast to everyone
             for (int j = 0; j < MAX_CLIENTS; j++) {
@@ -201,7 +213,9 @@ static void update_global_event(Game *game, Client *clients) {
                     send_text_to_client(
                         clients[j].sock,
                         "[GLOBAL EVENT] The invasion has been stopped! Defenders are rewarded.");
-                    if (clients[j].floor_id == game->event.floor_id) {
+                    /*The defenders: who fought this invasion, on its floor.*/
+                    if (clients[j].floor_id == game->event.floor_id &&
+                        clients[j].event_serial == game->event.serial) {
                         clients[j].gold += 500;
                         send_text_to_client(clients[j].sock,
                                             "[SYSTEM] You received 500 gold for your bravery!");
@@ -488,7 +502,9 @@ NPC *npc_alloc(Game *game) {
             game->npc_alloc_hint = (i + 1) % MAX_NPCS;
             return &game->npcs[i];
         }
-        if (!dead) {
+        /*A full table takes the slot of a dead monster, never of a boss:
+         * a boss that does not come back seals its stairs for good.*/
+        if (!dead && game->npcs[i].archetype != ARCH_BOSS) {
             dead = &game->npcs[i];
         }
     }
@@ -640,8 +656,42 @@ static void npc_condition_saves(NPC *n) {
     }
 }
 
+/*Where a monster comes back: its spawn point, or, when loot lies there (a
+ * gold pile, a treasure: the bounty of a boss, ten piles within 3 steps,
+ * covers the tile of the kill too), the nearest free tile within
+ * RESPAWN_NEAR steps. False if a creature or a character stands there, or
+ * the loot leaves no room.*/
+#define RESPAWN_NEAR 6
+static bool respawn_tile(Game *game, const NPC *n, int *x, int *y) {
+    const Floor *fl = &game->world->floors[n->floor_id];
+    int held = fl->entity_grid[n->spawn_y][n->spawn_x];
+    *x = n->spawn_x;
+    *y = n->spawn_y;
+    if (held == 0) {
+        return true;
+    }
+    const NPC *o = npc_by_entity_id(game, held);
+    if (!o || (o->archetype != ARCH_GOLD && o->archetype != ARCH_TREASURE)) {
+        return false;
+    }
+    for (int r = 1; r <= RESPAWN_NEAR; r++) {
+        for (int dy = -r; dy <= r; dy++) {
+            for (int dx = -r; dx <= r; dx++) {
+                if ((abs(dx) == r || abs(dy) == r) &&
+                    tile_free(fl, n->spawn_x + dx, n->spawn_y + dy)) {
+                    *x = n->spawn_x + dx;
+                    *y = n->spawn_y + dy;
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
 /*A dead monster counts down and comes back at its spawn point (5 rounds
- * later if the tile is taken).*/
+ * later if a creature or a character stands there; next to it if loot lies
+ * there, respawn_tile).*/
 static void npc_respawn_round(Game *game, NPC *n) {
     if (n->respawn_timer > 0) {
         n->respawn_timer--;
@@ -655,13 +705,14 @@ static void npc_respawn_round(Game *game, NPC *n) {
         n->spawn_y < 0 || n->spawn_y >= MAP_HEIGHT) {
         return;
     }
-    if (game->world->floors[n->floor_id].entity_grid[n->spawn_y][n->spawn_x] != 0) {
+    int x, y;
+    if (!respawn_tile(game, n, &x, &y)) {
         n->respawn_timer = 5;
         return;
     }
     npc_set_active(game, n, true);
-    n->x = n->spawn_x;
-    n->y = n->spawn_y;
+    n->x = x;
+    n->y = y;
     n->hp = n->max_hp;
     n->effect_count = 0;
     n->morale = 0;
@@ -820,8 +871,16 @@ void update_world(Client *clients, Game *game) {
     /*Spawns, deaths and splits of this round.*/
     floor_index_rebuild(game);
     /*The AI moved the monsters: realign the entity grid, or players would
-     * walk through them.*/
-    sync_entity_grid(game);
+     * walk through them. Only where someone is, or was a round ago (the
+     * last cleaning of a floor left): elsewhere no monster moves, and
+     * clearing all the 101 grids (36 MB) was most of the round.*/
+    static bool was_awake[MAX_FLOORS];
+    bool rebuild[MAX_FLOORS];
+    for (int f = 0; f < MAX_FLOORS; f++) {
+        rebuild[f] = awake[f] || was_awake[f];
+        was_awake[f] = awake[f];
+    }
+    sync_entity_grid_floors(game, rebuild);
     if (game->total_turns % DENSITY_CHECK == 0) {
         rebalance_floor_density(game);
     }

@@ -248,6 +248,10 @@ typedef struct {
     /*--- The end of the game (server_conquest.c) ---*/
     int64_t conquered_at; /*when the dungeon was conquered (time_t), 0: not yet*/
     bool saves_sealed;    /*conquered and saved once: nothing more is saved*/
+    /*--- Leaving in a fight (server_combat.h, client_in_combat) ---*/
+    long long last_combat_ms;  /*last blow given or wound taken (get_time_ms)*/
+    long long linger_until_ms; /*disconnected in a fight: stays in the world until then*/
+    int event_serial;          /*the last invasion he fought in (WorldEvent.serial), 0: none*/
 } Client;
 
 /*One ActiveEffect flattened to plain data for the save file: the

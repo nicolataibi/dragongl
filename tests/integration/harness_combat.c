@@ -19,6 +19,8 @@
 #include "server_entities.h"
 #include "server_internal.h"
 #include "combat_log.h"
+#include "server_cmd.h"
+#include "server_log.h"
 #include "server_conquest.h"
 #include "binio.h"
 #include "persist.h"
@@ -377,6 +379,14 @@ int test_death_and_tombstone(void) {
     CHECK(c->floor_id == 0 && c->hp == c->max_hp, "floor %d, HP %d", c->floor_id, c->hp);
     CHECK(c->gold == 0 && c->backpack_count == 0 && c->slot_hand_r.template_idx == -1,
           "the character kept its things");
+    /* Saved emptied at once (before the tombstone): a crash now cannot
+     * find the belongings both in the save and in the tombstone. */
+    static Client saved;
+    memset(&saved, 0, sizeof(saved));
+    snprintf(saved.username, sizeof(saved.username), "%s", c->username);
+    CHECK(load_player_data(&saved, "pw-unlucky") == 1 && saved.gold == 0 &&
+              saved.backpack_count == 0 && saved.slot_hand_r.template_idx == -1,
+          "the save still holds what the tombstone holds (gold %lu)", (unsigned long)saved.gold);
     const Tombstone *t = &g_game.tombstones[0];
     CHECK(t->active && t->floor_id == FLOOR && t->x == CX && t->y == CY && t->gold == 777,
           "no tombstone where the character fell");
@@ -601,5 +611,70 @@ int test_conquest_of_the_dungeon(void) {
     run(c, "top");
     CHECK(said("1. legend (Level") && said("CONQUEROR 2") && said("Conquerors of the dungeon: 1"),
           "the leaderboard does not name the conqueror first");
+    return 0;
+}
+
+/* A character who leaves the game leaves his party (its leader disbands
+ * it) and his trade (the other side is told). */
+int test_leaving_the_game(void) {
+    hx_reset_world();
+    Client *a = hero(0, "chief", FLOOR, CX, CY);
+    Client *b = hero(1, "follower", FLOOR, CX + 1, CY);
+    Client *d = hero(2, "dealer", FLOOR, CX, CY + 1);
+    CHECK(a && b && d, "no players");
+    run(a, "invite follower");
+    run(b, "join");
+    CHECK(strcmp(b->party_leader, "chief") == 0, "no party");
+    run(a, "trade dealer");
+    run(d, "trade chief");
+    CHECK(strcmp(d->trading_with, "chief") == 0, "no trade");
+    hush(b);
+    hush(d);
+    social_client_gone(a, &g_game);
+    heard(b);
+    CHECK(b->party_leader[0] == '\0' && said("disbanded"), "the party outlived its leader");
+    heard(d);
+    CHECK(d->trading_with[0] == '\0' && said("cancelled"), "the trade outlived the trader");
+    CHECK(a->party_leader[0] == '\0' && a->trading_with[0] == '\0', "the leaver kept them");
+    return 0;
+}
+
+/* In a fight: a wound taken or a blow given in the last COMBAT_LINGER_MS;
+ * a character who leaves then stays in the world that long. */
+int test_in_a_fight(void) {
+    hx_reset_world();
+    Client *c = hero(0, "fighter", FLOOR, CX, CY);
+    CHECK(c != NULL, "no player");
+    long long now = get_time_ms();
+    CHECK(!client_in_combat(c, now), "in a fight before any blow");
+    NPC *m = monster(10, NULL, FLOOR, CX + 1, CY);
+    c->hp = 500;
+    rules_force_d20(20);
+    perform_attack_npc(m, c, &g_game);
+    rules_force_d20(0);
+    now = get_time_ms();
+    CHECK(c->hp < 500 && client_in_combat(c, now), "a wound is no fight");
+    CHECK(!client_in_combat(c, now + COMBAT_LINGER_MS + 1), "the fight never ends");
+    c->last_combat_ms = 0;
+    perform_attack(c, m, &g_game);
+    now = get_time_ms();
+    CHECK(client_in_combat(c, now), "a blow given is no fight");
+
+    /* Leaving now: he stays, without a socket, until the fight is over;
+     * a DM or a character out of the fight leaves at once. */
+    c->is_dm = true;
+    CHECK(!client_linger(c, now), "a DM lingers");
+    c->is_dm = false;
+    CHECK(!client_linger(c, now + COMBAT_LINGER_MS), "a character out of a fight lingers");
+    CHECK(client_linger(c, now) && c->sock == -1 && c->active, "left in a fight: gone at once");
+    CHECK(!client_linger_over(c, now + COMBAT_LINGER_MS - 1), "gone before the time");
+    CHECK(client_linger_over(c, now + COMBAT_LINGER_MS), "never gone");
+    c->hp = 3;
+    m->ai_ctx.current_target_id = c->entity_id;
+    rules_force_d20(20);
+    perform_attack_npc(m, c, &g_game);
+    rules_force_d20(0);
+    CHECK(c->hp < 3 || c->floor_id == 0, "the monster spares a character who left");
+    c->linger_until_ms = 0;
     return 0;
 }

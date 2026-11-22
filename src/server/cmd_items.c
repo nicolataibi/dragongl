@@ -510,7 +510,7 @@ static bool use_fuel(Client *c, const ItemTemplate *fuel) {
 static void use_healing(Game *game, Client *c, const ItemTemplate *tmpl) {
     int healed = tmpl->heal_amount;
     c->hp = c->hp + healed > c->max_hp ? c->max_hp : c->hp + healed;
-    if (strcasestr(tmpl->name, "Ration") != NULL) {
+    if (item_is_food(tmpl)) {
         c->hunger_level = 0;
         send_text_to_client(c->sock, "[ITEM] You ate %s. Hunger fully satisfied! (+%d HP).",
                             tmpl->name, healed);
@@ -651,8 +651,12 @@ bool cmd_use(Client *c, const char *cmd, Game *game) {
     }
     const char *ritual = ritual_word_of(cmd);
     bool in_belt = false;
-    int idx = find_carried(c, input, &in_belt);
+    int idx = is_eat_cmd ? find_food(c, input, &in_belt) : find_carried(c, input, &in_belt);
     ItemInstance *it = NULL;
+    if (idx == -1 && is_eat_cmd) {
+        send_text_to_client(c->sock, "[ERROR] You have nothing to eat.");
+        return true;
+    }
     if (idx == -1) {
         it = ritual ? NULL : find_equipped(c, input);
         if (!it || item_database[it->template_idx].cast_spell_idx < 0) {

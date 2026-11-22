@@ -154,7 +154,7 @@ NPC *monster(int slot, const char *name, int floor, int x, int y) {
     n->xp_reward = 50;
     n->floor_id = floor;
     n->entity_id = 9000 + slot;
-    n->respawn_timer = -1;
+    n->respawn_timer = 0; /* a monster of the dungeon: it comes back (clones: -1) */
     n->ai_ctx.current_target_id = -1;
     npc_set_active(&g_game, n, true);
     g_game.world->floors[floor].entity_grid[y][x] = n->entity_id;

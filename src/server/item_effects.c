@@ -28,6 +28,7 @@
 #include "spells.h"
 #include "classes.h"
 #include "spell_rules.h"
+#include "server_log.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -268,6 +269,7 @@ int player_damage(Client *c, int dmg, int type) {
     if (dmg <= 0) {
         return 0;
     }
+    c->last_combat_ms = get_time_ms(); /*hurt: in a fight (client_in_combat)*/
     int prot = damage_protection(c, type);
     if (prot == 2) {
         send_text_to_client(c->sock, "[MAGIC] You are immune: the damage has no effect on you.");

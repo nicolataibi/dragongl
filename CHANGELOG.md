@@ -1,3 +1,99 @@
+* Sun Nov 22 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.22.06
+- TOOLS: tools/quality.sh campaign: can the game be played to its end?
+  tests/integration/campaign_sim plays a world with a character of every
+  class, each a bot inside the server process (its commands and steps go
+  through the server's own code): it shops, studies, trains, rests,
+  hunts until it has the level of the floor (three more before a boss),
+  fights the bosses, goes back to the town to heal and sell, takes its
+  belongings back from its ghost. The report gives, per class, the
+  deepest floor, the level, the deaths, the rounds to every tenth floor
+  and why it stopped; the check fails when nobody conquers the dungeon
+  of seed 1. DGL_CAMPAIGN_TRACE follows one bot. Not in 'all': six
+  minutes of a 2-core machine.
+- DOCS: DEVELOPMENT.md gives the campaign of 2026-11-22: over the worlds
+  of seeds 1 to 3, 20 conquests out of 36, by nine classes of twelve, in
+  2.6 to 4.6 hours of game time; the Warlock and the Wizard reached
+  floor 99, the Monk 69, and in the world of the default seed nobody
+  went past floor 73. Deaths stopped the bots more than a wall did.
+
+* Sun Nov 22 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.22.05
+- BALANCE: a monster's attack bonus grows by +1 every 4 floors down to
+  floor 60 (+17), and no more (LORE.md, Monster Defences and Attacks): a
+  character stops growing at level 20, around floor 40 to 60, while the
+  monsters went on to +27 on floor 100 (+30 for its boss), and hit a
+  character in the best armour of the game but on a 1. A monster of an
+  older world keeps its bonus until it falls and comes back.
+- DOCS: the rules that stay, now written in LORE.md: every character
+  starts with 20 + CON hit points whatever his class; an attack roll adds
+  half the character level (up to +10), not the proficiency bonus, since
+  the monsters reach +17; the High Flame-Lord of floors 34-70 takes no
+  harm from any weapon, as its description says (its only immunity of
+  the kind in the bestiary).
+
+* Sun Nov 22 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.22.04
+- RULES: leaving in a fight (LORE.md, Leaving in a Fight). A character
+  who leaves the game within 10 seconds of a blow given or a wound taken
+  stays in the world, without a connection, 10 seconds more: the
+  monsters go on fighting him, and closing the client no longer saves
+  him from a lost battle. Then he leaves and is saved as before; a new
+  login meanwhile is told why it is refused. A DM leaves at once.
+- WORLD: the rooms of floors 56-75 and 91-100 have stone walls, as
+  LORE.md describes the rooms of every floor: they had walls of
+  obsidian, which is walked on (LORE.md, 4.13), and a character walked
+  through them. A world saved before gets them back at its next start
+  (the obsidian against the rock around a room; the decorations inside
+  stay), before the stairs are checked.
+- EVENTS: the 500 gold of a stopped invasion go to its defenders, who
+  killed one of the invaders and his party on the floor, not to whoever
+  happened to stand on the floor (LORE.md, Server-Generated World
+  Events).
+
+* Sun Nov 22 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.22.03
+- WORLD: the bounty of a boss lying on its spawn point (ten piles within
+  3 steps of the kill) kept it from coming back, for good: its stairs
+  stayed sealed for whoever had not beaten it yet. A monster whose spawn
+  point holds loot (a gold pile, a treasure) comes back on the nearest
+  free tile within 6 steps, and the loot stays (LORE.md, MMO Respawn
+  System).
+- WORLD: a swarm clone killed does not come back; only the swarm of the
+  start respawns (LORE.md, Swarm Intelligence). The dead clones waiting
+  for a respawn filled the 50,000 places of the table of the NPCs within
+  a few hours of play, and new loot then took the places of the dead
+  bosses: a full table now gives new loot the place of a dead monster,
+  never of a dead boss.
+- ITEMS: 'eat' looks among the food only: it took the first item with
+  "ration" in its name, and with a Ring of Regeneration or the Sonatas
+  of Inspiration carried before the rations the character could not eat
+  ("You have nothing to eat" when there is no food).
+- These three came out of a campaign of bots playing the whole game
+  (2026.11.22.06), which they stopped.
+
+* Sun Nov 22 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.22.02
+- PERF: a round rebuilds the entity grid only of the floors where a
+  character is, or was a round ago; the others keep theirs, since no
+  monster moves there. Clearing the 101 grids (36 MB) every round was
+  most of it: tick_bench crowd p50 from 5.0 to 2.5 ms, a round of the
+  campaign of twelve characters from 5 to 2.6 ms.
+
+* Sun Nov 22 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.22.01
+- SAVE: what is picked up from the ground (a gold pile, an item) is
+  written at once to a journal of the state directory (ground.journal),
+  before the save of the character: the ground is saved only by the
+  autosave of a minute, and a server stopped in between gave the gold to
+  the character and left it on the ground too. At the next start the
+  piles of the journal leave the ground; the journal empties when
+  npcs.dat is written.
+- SAVE: at a death the emptied character is saved before his tombstone:
+  a stop in between may lose his belongings, it never gives them twice.
+- SAVE: the table of the NPCs is emptied before npcs.dat loads into it:
+  a slot that still held an entity made the file "malformed", and the
+  world was generated anew.
+- NET: a character who leaves the game leaves his party (a party with a
+  leader gone was left without one) and cancels his trade.
+- AI: the Magic Missile of a monster mage needs its range (24 tiles) and
+  a line without a wall, a door or rock: it hit through walls from
+  anywhere on the floor. Without them the mage walks towards its target.
+
 * Sat Nov 21 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.21.22
 - CI: tools/quality.sh bench measures once more a run over the limits,
   and fails when both are: on a shared runner the main branch failed with

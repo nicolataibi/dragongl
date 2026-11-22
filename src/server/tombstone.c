@@ -173,18 +173,19 @@ void tombstone_load_all(Game *game) {
 /*---------------------------------------------------------------
  * tombstone_create
  * Creates a new tombstone for a newly deceased player.
- * Called by save_bones() before emptying the inventory.
+ * Called by save_bones() before emptying the inventory; the caller saves
+ * it (tombstone_save) once the emptied character is saved.
  * ---------------------------------------------------------------*/
-void tombstone_create(Game *game, Client *c) {
+Tombstone *tombstone_create(Game *game, Client *c) {
     if (!c) {
-        return;
+        return NULL;
     }
 
     /*Do not create tombstones on floor 0 (city)*/
     if (c->floor_id <= 0) {
         server_log("TOMB", "WARNING: attempt to create tombstone in city for %s, ignored",
                    c->username);
-        return;
+        return NULL;
     }
 
     /*Look for a free slot*/
@@ -237,10 +238,9 @@ void tombstone_create(Game *game, Client *c) {
     t->slot_feet = c->slot_feet;
     memcpy(t->slot_rings, c->slot_rings, sizeof(c->slot_rings));
 
-    tombstone_save(t);
-
     server_log("TOMB", "Tombstone created for %s on floor %d (%d,%d)", c->username, c->floor_id,
                c->x, c->y);
+    return t;
 }
 
 /*---------------------------------------------------------------

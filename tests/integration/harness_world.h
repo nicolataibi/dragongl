@@ -16,5 +16,6 @@ int test_look_and_examine(void);
 int test_town_services(void);
 int test_mining(void);
 int test_steps(void);
+int test_ground_journal(void);
 
 #endif

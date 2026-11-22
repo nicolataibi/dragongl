@@ -32,6 +32,7 @@
 #include "server_internal.h"
 #include "server_combat.h"
 #include "server_conquest.h"
+#include "ground_journal.h"
 #include "server_world.h"
 #include "rules.h"
 #include "player.h"
@@ -98,6 +99,7 @@ static bool cannot_move(Client *c) {
 
 /*The loot NPC is gone from the tile: the player can step there.*/
 static void loot_taken(Game *game, NPC *n, Floor *fl, int nx, int ny, int respawn_timer) {
+    ground_journal_taken(game, n); /*before the save of the character*/
     npc_set_active(game, n, false);
     n->respawn_timer = respawn_timer;
     fl->entity_grid[ny][nx] = 0;

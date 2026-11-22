@@ -44,6 +44,7 @@ typedef struct {
     int time_left;
     int progress;
     int goal;
+    int serial; /*1, 2, ...: which invasion (Client.event_serial)*/
 } WorldEvent;
 
 struct Game {

@@ -38,6 +38,18 @@
  * @npcs: Array of all NPCs (for secondary AOEs).*/
 void perform_attack(Client *c, NPC *t, Game *game);
 
+/*A character who leaves the game within COMBAT_LINGER_MS of a blow given
+ * or a wound taken stays in the world that long (LORE.md, Leaving in a
+ * Fight): the monsters go on fighting him.*/
+#define COMBAT_LINGER_MS 10000
+bool client_in_combat(const Client *c, long long now_ms);
+/*The connection of the character is gone: true if he stays in the world
+ * (a player, not a DM, in a fight), without a socket, until
+ * linger_until_ms; false if he leaves at once.*/
+bool client_linger(Client *c, long long now_ms);
+/*True when a character who stayed after a fight must leave now.*/
+bool client_linger_over(const Client *c, long long now_ms);
+
 /*An attack or a hostile spell reveals an invisible character: the
  * condition ends (told to the character).*/
 void client_reveal(Client *c);

@@ -22,6 +22,8 @@
  */
 
 #include "server_startup.h"
+#include "ground_journal.h"
+#include <string.h>
 #include "data_loader.h"
 #include "dragongl_config.h"
 #include "login_worker.h"
@@ -126,10 +128,11 @@ void generate_world(Game *game) {
 /*world.dat and npcs.dat are a pair: both load, or a new world is generated
  * and saved (never a partial one). False if the new world cannot be saved.*/
 bool load_or_generate_world(Game *game) {
+    /*Every slot empty: npcs.dat refuses a slot that already holds an
+     * entity (a load into a table in use, as a test does).*/
+    memset(game->npcs, 0, sizeof(NPC) * MAX_NPCS);
     for (int i = 0; i < MAX_NPCS; i++) {
-        game->npcs[i].active = false;
         game->npcs[i].archetype = ARCH_MELEE;
-        game->npcs[i].effect_count = 0;
         game->npcs[i].respawn_timer = -1;
     }
     char world_path[STATE_DIR_MAX + 32], npcs_path[STATE_DIR_MAX + 32], why[96];
@@ -156,6 +159,17 @@ bool load_or_generate_world(Game *game) {
     }
 
     if (world_ok && npcs_ok) {
+        /*A world generated with walls of obsidian on the deep floors: they
+         * are walls again, before the stairs are checked.*/
+        int walled = 0;
+        for (int f = 1; f < MAX_FLOORS; f++) {
+            walled += map_obsidian_band(f) ? map_wall_up_obsidian(&game->world->floors[f].map) : 0;
+        }
+        if (walled > 0) {
+            server_log("SYS",
+                       "Walled up %d tile(s) of obsidian around the rooms of the deep floors.",
+                       walled);
+        }
         /*A world generated before the stairs were connected may hold a
          * floor whose stairs down cannot be reached.*/
         int opened = 0;
@@ -164,6 +178,14 @@ bool load_or_generate_world(Game *game) {
         }
         if (opened > 0) {
             server_log("SYS", "Opened the way to the stairs down on %d floor(s).", opened);
+        }
+        /*What was picked up after npcs.dat, before a crash: not twice.*/
+        int taken = ground_journal_apply(game);
+        if (taken > 0) {
+            server_log("SYS",
+                       "%d item(s) or gold pile(s) picked up before the last stop left "
+                       "the ground.",
+                       taken);
         }
         /*Re-bind what is not stored: the template pointer (from template_idx)
      * and the behavior derived from the archetype.*/

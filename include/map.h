@@ -144,6 +144,13 @@ void generate_procedural_dungeon(Map *map, int floor_id);
  * door, rock a cobbled tunnel). True if a way was opened. A new floor
  * gets it, and so does every floor of a world loaded from disk.*/
 bool map_connect_stairs(Map *map);
+/*The floors of ash and lava (56-75, 91-100). A world generated before
+ * their rooms got stone walls has walls of obsidian, which is walked on:
+ * map_wall_up_obsidian turns the obsidian that touches the rock around a
+ * room back into a wall (the decorations stand inside the rooms) and
+ * returns how many. A new floor has none.*/
+bool map_obsidian_band(int floor_id);
+int map_wall_up_obsidian(Map *map);
 
 /* Angle in radians of shop slot 0..10 on the ring of floor 0 (map.c,
  * generate_city). The server places the shop doors and merchants with the

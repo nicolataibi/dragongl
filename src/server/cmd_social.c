@@ -853,3 +853,16 @@ bool cmd_blocks(Client *c, const char *cmd, Game *game) {
     }
     return true;
 }
+
+/*A character leaves the game (disconnection): he leaves his party (a
+ * leader disbands it: its members were left in a party of nobody) and his
+ * trade (the other side is told).*/
+void social_client_gone(Client *c, Game *game) {
+    if (c->party_leader[0] != '\0') {
+        (void)cmd_leave(c, "leave", game);
+        c->party_leader[0] = '\0';
+    }
+    if (c->trading_with[0] != '\0') {
+        (void)cmd_cancel(c, "cancel", game);
+    }
+}
