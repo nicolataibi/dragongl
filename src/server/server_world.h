@@ -57,6 +57,9 @@ void floor_stats_rebuild(Game *game);
 /*Counters of one floor (rebuilding the cache when stale); false when the
  * floor is out of range.*/
 bool floor_stats_get(Game *game, int floor_id, int *total, int *active);
+/*Living swarm clones of a floor (ai_swarm_behavior): they are not in the
+ * counts of floor_stats_get(), which are of the creatures that respawn.*/
+int floor_swarm_clones(Game *game, int floor_id);
 void floor_stats_npc_died(int floor_id);
 void floor_stats_npc_spawned(int floor_id);
 
@@ -76,6 +79,10 @@ void npc_set_active(Game *game, NPC *n, bool active);
  * not respawn). NULL when every slot is alive. The caller fills the
  * fields and activates it with npc_set_active().*/
 NPC *npc_alloc(Game *game);
+/*The same, without the last resort: a free slot or NULL, never the slot
+ * of a dead monster waiting for its respawn. For what is not worth a
+ * monster of the world (a swarm clone).*/
+NPC *npc_alloc_free(Game *game);
 
 /*An item lying on the ground at (x, y): the NPC that carries it (archetype
  * ARCH_TREASURE, registered on the entity grid), or NULL without a slot.*/

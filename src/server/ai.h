@@ -26,6 +26,12 @@
  * most (LORE.md, Monster Defences and Attacks).*/
 #define MONSTER_ATTACK_FLOOR_CAP 60
 
+/*Living clones on a floor over which its swarms stop splitting. The
+ * clones are counted apart (floor_swarm_clones): 64 on each of the 101
+ * floors is about 6,500 slots, well within the free slots of a new world
+ * (some 16,000), so the clones never take the room of the respawns.*/
+#define SWARM_CLONES_PER_FLOOR 64
+
 // Function pointer for Behavior Tree nodes
 
 // Initializes the AI of an NPC

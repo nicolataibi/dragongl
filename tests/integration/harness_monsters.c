@@ -292,3 +292,42 @@ int test_boss_hit_points(void) {
     CHECK(MONSTER_ATTACK_FLOOR_CAP == 60, "the cap of the docs is floor 60 (+17)");
     return 0;
 }
+
+/* LORE.md, Monster Defences and Attacks: a monster of the bestiary has the
+ * hit points, armour class and damage of its entry, whatever its archetype;
+ * the archetype adds only the attack bonus of the docs (an assassin and a
+ * dragon +2). A dragon of floor 71 had twice its hit points, +3 armour
+ * class and 5d10 for the 4d6 of its entry. */
+int test_monsters_are_their_entry(void) {
+    static const char *const k_kinds[] = {"dragon", "brute",    "swarm",
+                                          "caster", "assassin", "melee"};
+    for (size_t k = 0; k < sizeof(k_kinds) / sizeof(k_kinds[0]); k++) {
+        int t = -1;
+        for (int i = 0; i < bestiary_size && t < 0; i++) {
+            const MonsterTemplate *m = &bestiary_data[i];
+            if (m->archetype && strcmp(m->archetype, k_kinds[k]) == 0 && m->hp_avg > 0 &&
+                m->damage_dice > 0 && m->damage_sides > 0) {
+                t = i;
+            }
+        }
+        if (t < 0) {
+            continue; /* no such archetype in the bestiary */
+        }
+        const MonsterTemplate *m = &bestiary_data[t];
+        NPC n;
+        memset(&n, 0, sizeof(n));
+        n.template_idx = t;
+        n.template = m;
+        ai_init_npc(&n, m->name, 71);
+        bool plus2 = n.archetype == ARCH_DRAGON || n.archetype == ARCH_ASSASSIN;
+        CHECK(n.hp == m->hp_avg && n.max_hp == m->hp_avg, "%s (%s): %d HP, its entry %d", m->name,
+              k_kinds[k], n.hp, m->hp_avg);
+        CHECK(n.ac == m->ac, "%s (%s): AC %d, its entry %d", m->name, k_kinds[k], n.ac, m->ac);
+        CHECK(n.damage_dice == m->damage_dice && n.damage_sides == m->damage_sides,
+              "%s (%s): %dd%d, its entry %dd%d", m->name, k_kinds[k], n.damage_dice, n.damage_sides,
+              m->damage_dice, m->damage_sides);
+        CHECK(n.attack_bonus == 2 + MONSTER_ATTACK_FLOOR_CAP / 4 + (plus2 ? 2 : 0),
+              "%s (%s): attack +%d on floor 71", m->name, k_kinds[k], n.attack_bonus);
+    }
+    return 0;
+}

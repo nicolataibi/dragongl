@@ -1,3 +1,60 @@
+* Sun Nov 22 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.22.11
+- FIX: a monster of the bestiary has the hit points, armour class and
+  damage of its entry, whatever its archetype (LORE.md, Monster Defences
+  and Attacks). The archetype changed them as it does for a monster
+  without an entry: a dragon had twice its hit points, +3 armour class
+  and 5d10 for the 4d6 of its entry, a brute half again its hit points
+  and a bigger die, a swarm 60% of its hit points and a d4, a caster
+  70%, an assassin 80% and +2 armour class. The dragons are 207 of the
+  482 monsters of floors 56-100 and the only kind left from floor 71 on:
+  seven classes of twelve stopped there. Now the archetype adds only
+  what the docs say: the attack bonus (a boss +3, an assassin and a
+  dragon +2) and the hit points of a boss (Dynamic Scaling); a boss
+  keeps its rewards, a caster its spell slots. A monster of a saved
+  world keeps its stats until it falls and comes back.
+- TESTS: monsters_are_their_entry: a dragon, a brute, a swarm, a caster,
+  an assassin and a melee monster of floor 71 have the hit points,
+  armour class and damage of their entry and the attack bonus of the
+  docs; it fails with the old stats.
+- DOCS: LORE.md, the stats of a monster are those of its entry; the
+  global limit of the swarms is the cap of 64 clones a floor (it named a
+  counter that does not exist). DEVELOPMENT.md, the campaign: 4
+  conquests out of 12, three classes still going down when the rounds
+  end, the casters stopped by the rooms of the last tier.
+
+* Sun Nov 22 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.22.10
+- FIX: the swarm clones emptied the dungeon. The cap of a floor (500
+  living creatures) counted the creatures that respawn, and a clone
+  never does: the clones grew until they filled the table of the NPCs
+  (by round 50,000 of a campaign, 38 free slots of 50,000), and from
+  then on every new clone took the slot of a dead monster waiting for
+  its respawn, on any floor. Floors 1 to 3 were left without a monster,
+  and five bots that had lost everything on floors 94 and 95 found
+  nothing to hunt for 60,000 rounds. A floor now holds at most 64 living
+  clones (counted apart, floor_swarm_clones()), and a clone takes only a
+  free slot (npc_alloc_free()), never the slot of a dead monster
+  (LORE.md, Swarm Intelligence). A world where the clones already took
+  those slots keeps its empty floors: dragongl-reset-world gives a new
+  one.
+- TESTS: swarm_clones_stop_at_the_floor_cap (30 swarms split for 2,000
+  rounds: 64 clones, the counter equal to the count after a kill and a
+  rebuild) and swarm_spares_the_dead_in_a_full_table; both fail with the
+  old cap.
+- TESTS: fuzz_persist reads the ground journal too (persist_read_ids,
+  the one reader of the state directory it did not reach), with a seed
+  written by persist_write_ids.
+- TOOLS: the campaign bot without its transit spell walks back up to
+  heal at half its hit points, instead of fighting on floor 1 without
+  gear or spells until it dies (55 of 78 deaths of a campaign, once the
+  floors kept their monsters).
+- CI: campaign-nightly.yml plays tools/quality.sh campaign every night
+  (a bot of every class, 150,000 rounds, a restart every 20,000), its
+  report on the page of the run and campaign.json as an artifact.
+- DOCS: DEVELOPMENT.md, the campaign with every floor populated: 1
+  conquest out of 12 (the Fighter); seven classes stop at floor 71, the
+  densest walk of floors 65 to 79. The conquests of 2026.11.22.08 came
+  from a world the clones had thinned out.
+
 * Sun Nov 22 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.22.09
 - REPO: the empty lock files of four test state directories
   (state-ammunition_bundles/, state-books_and_lore/,
