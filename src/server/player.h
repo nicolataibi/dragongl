@@ -39,6 +39,12 @@ int clamp_stat(int v);
 /*The six abilities with the bonuses of the equipment and of the effects.*/
 void get_total_stats(Client *c, int *ts, int *td, int *tc, int *ti, int *tw, int *th);
 int get_player_ac(Client *c);
+/*What a body armour takes of a DEX modifier: all of it (light), +2 at
+ * most (medium), nothing and no malus (heavy). LORE.md, Armour Class.*/
+int armour_dex(const ItemTemplate *t, int dex);
+/*" + DEX", " + DEX (max 2)" or "": how a body armour counts DEX, for
+ * the shops and the character sheet.*/
+const char *armour_dex_note(const ItemTemplate *t);
 int get_vision_radius(Client *c);
 float get_current_weight(Client *c);
 float get_movement_cooldown(Client *c);

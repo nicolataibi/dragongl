@@ -311,10 +311,25 @@ int get_vision_radius(Client *c) {
     return best_radius;
 }
 
-/*Body armour gives its base (else 10 + DEX), its enchantment and its
- * quality; every other worn piece, shield and ring adds its bonus and its
- * enchantment, a shield its quality too; a weapon in a hand adds only an
- * enchantment of its own.*/
+int armour_dex(const ItemTemplate *t, int dex) {
+    if (t->ac_dex_max == 0) {
+        return 0;
+    }
+    return dex < t->ac_dex_max ? dex : t->ac_dex_max;
+}
+
+const char *armour_dex_note(const ItemTemplate *t) {
+    if (t->ac_dex_max == 0) {
+        return "";
+    }
+    return t->ac_dex_max <= 2 ? " + DEX (max 2)" : " + DEX";
+}
+
+/*Body armour gives its base (else 10 + DEX) plus the DEX modifier its
+ * kind allows (light all, medium +2 at most, heavy none), its enchantment
+ * and its quality; every other worn piece, shield and ring adds its bonus
+ * and its enchantment, a shield its quality too; a weapon in a hand adds
+ * only an enchantment of its own.*/
 int get_player_ac(Client *c) {
     int ts, td, tc, ti, tw, th;
     get_total_stats(c, &ts, &td, &tc, &ti, &tw, &th);
@@ -349,7 +364,11 @@ int get_player_ac(Client *c) {
                    item_database[c->slot_hand_l.template_idx].category == ITEM_SHIELD);
     bonus += w.ac + (ac_b == 0 && !shield ? w.ac_unarmored : 0);
     int unarmored = w.unarmored_base > 10 ? w.unarmored_base : 10;
-    int final_ac = (ac_b > 0 ? ac_b : unarmored + rules_get_modifier(td)) + bonus;
+    int dex = rules_get_modifier(td);
+    if (ac_b > 0) { /*an armour: what of DEX its kind takes (a heavy one none)*/
+        dex = armour_dex(&item_database[c->slot_body.template_idx], dex);
+    }
+    int final_ac = (ac_b > 0 ? ac_b : unarmored) + dex + bonus;
     if (rules_has_condition_t(c->effects, c->effect_count, COND_PETRIFIED)) {
         final_ac += 10;
     }

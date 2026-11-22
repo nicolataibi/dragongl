@@ -159,7 +159,8 @@ bool cmd_stats(Client *c, const char *cmd, Game *game) {
     if (c->slot_body.template_idx != -1) {
         char armor_buf[128];
         get_full_item_name(&c->slot_body, armor_buf, sizeof(armor_buf));
-        send_text_to_client(c->sock, "Armor: %s (base AC %d)", armor_buf, ac_base);
+        send_text_to_client(c->sock, "Armor: %s (base AC %d%s)", armor_buf, ac_base,
+                            armour_dex_note(&item_database[c->slot_body.template_idx]));
     }
     //Spell Slots
     bool has_slots = false;

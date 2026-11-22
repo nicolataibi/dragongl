@@ -629,3 +629,38 @@ int test_spec_dm_commands(void) {
     CHECK(said("No merchant within 5 steps"), "dm_shop reached 6 steps away");
     return 0;
 }
+
+/* An armour adds the DEX modifier its data writes ("11 + Dex"): all of it
+ * for a light one, at most +2 for a medium one, none (and no malus) for a
+ * heavy one (LORE.md, Armour Class). */
+int test_spec_armour_and_dex(void) {
+    hx_reset_world();
+    Client *c = hero(0, "nimble", FLOOR, CX, CY);
+    CHECK(c != NULL, "no player");
+    int leather = item_named("Leather"), half = item_named("Half Plate"),
+        chain = item_named("Chain Mail");
+    CHECK(leather >= 0 && half >= 0 && chain >= 0, "no armour in the data");
+    CHECK(item_database[leather].ac_dex_max > 4 && item_database[half].ac_dex_max == 2 &&
+              item_database[chain].ac_dex_max == 0,
+          "the kinds of armour: %d %d %d", item_database[leather].ac_dex_max,
+          item_database[half].ac_dex_max, item_database[chain].ac_dex_max);
+    c->dex = 18; /* +4 */
+    CHECK(get_player_ac(c) == 14, "naked with DEX 18: AC %d", get_player_ac(c));
+    give(c, leather, 1);
+    run(c, "wear 1");
+    CHECK(get_player_ac(c) == 11 + 4, "leather with DEX 18: AC %d", get_player_ac(c));
+    c->backpack_count = 0;
+    give(c, half, 1);
+    run(c, "wear 1");
+    CHECK(get_player_ac(c) == 15 + 2, "half plate with DEX 18: AC %d", get_player_ac(c));
+    c->backpack_count = 0;
+    c->dex = 6; /* -2 */
+    give(c, chain, 1);
+    run(c, "wear 1");
+    CHECK(get_player_ac(c) == 16, "chain mail with DEX 6: AC %d", get_player_ac(c));
+    c->backpack_count = 0;
+    give(c, leather, 1);
+    run(c, "wear 1");
+    CHECK(get_player_ac(c) == 11 - 2, "leather with DEX 6: AC %d", get_player_ac(c));
+    return 0;
+}

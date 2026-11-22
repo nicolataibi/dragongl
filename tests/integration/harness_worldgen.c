@@ -107,6 +107,29 @@ int test_world_generation(void) {
         CHECK(merchants[f] == (f % 5 == 0 ? 1 : 0), "floor %d: %d wandering merchants", f,
               merchants[f]);
     }
+    /* The town sells every kind of ammunition and the digging tools,
+     * whatever the world (the provisioner of Floor 0): a ranger once found
+     * no arrows, and nobody a pick to dig through a Stone Tomb. */
+    static const char *const k_ammo[] = {"Arrows (20)",        "Crossbow Bolts (20)",
+                                         "Sling Bullets (20)", "Blowgun Needles (50)",
+                                         "Pick, Miner's",      "Shovel"};
+    for (size_t a = 0; a < sizeof(k_ammo) / sizeof(k_ammo[0]); a++) {
+        int want = item_named(k_ammo[a]);
+        bool sold = false;
+        for (int i = 0; i < MAX_NPCS && !sold; i++) {
+            const NPC *n = &g_game.npcs[i];
+            const MerchantData *m = n->active && n->floor_id == 0 && n->archetype == ARCH_MERCHANT
+                                        ? npc_shop_any(&g_game.pools, n)
+                                        : NULL;
+            if (m && strcmp(m->shop_name, "The Drunken Dragon") != 0) {
+                m = NULL; /*the provisioner, whatever the others stock at random*/
+            }
+            for (int k = 0; m && k < m->item_count && !sold; k++) {
+                sold = m->item_templates[k] == want && m->item_stock[k] > 0;
+            }
+        }
+        CHECK(want >= 0 && sold, "the Drunken Dragon does not sell %s", k_ammo[a]);
+    }
     return 0;
 }
 

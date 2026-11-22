@@ -1,3 +1,50 @@
+* Sun Nov 22 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.22.08
+- TOOLS: the campaign restarts the server: DGL_CAMPAIGN_RESTART=<rounds>
+  stops and starts it every that many rounds, a clean stop and a crash
+  in turn (the autosave then runs every 300 rounds, a minute of the
+  server), and every character logs in again from its save. After a
+  clean restart every character (place, level, experience, gold, hit
+  points, hunger, backpack, belt, what he wears, spells, deepest floor,
+  bosses) and every floor must be as before: exit status 3 otherwise.
+  'tools/quality.sh campaign' plays this way (seed 1, a restart every
+  20,000 rounds; about 10 minutes).
+- TOOLS: the campaign counts a death when the server says it ("You
+  died!"), and with DGL_CAMPAIGN_SURVEY=1 describes the world instead of
+  playing it (for each floor the walk from the stairs up to the stairs
+  down and the monsters along it; the healing on sale). New traces:
+  DGL_CAMPAIGN_EVERY, _GEAR (armour class, gear, deaths by floor),
+  _FOES.
+- TOOLS: the bots play better, as a careful player would: the best
+  healing potions they can afford (a Potion of Healing gives 7 hit points
+  of 300), passing through a floor they fight only what is in their way,
+  badly hurt near the stairs down they run for them, they weigh an
+  armour by the armour class it gives them, buy back the book of their
+  transit spell after a death, meditate at a crystal when they have no
+  food, carry a shovel and dig through a wall a trap raised.
+- DOCS: DEVELOPMENT.md, the campaign of 2026-11-22. The barrier of floor
+  73 in the world of the default seed was the bot's, not the floor's
+  (the survey shows it like the others); the Monk died of the armour
+  (2026.11.22.07). Without restarts, 39 conquests out of 48 over four
+  worlds, every class in at least two; with a restart every 20,000
+  rounds, 28 restarts (12 crashes) gave back every character and floor,
+  and 27 conquests out of 48.
+
+* Sun Nov 22 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.22.07
+- RULES: a body armour counts DEX as its data writes it ("11 + Dex"):
+  a light armour all of the modifier, a medium one +2 at most, a heavy
+  one none and no malus (LORE.md, Armour Class). Every armour ignored
+  DEX, so a nimble character lost armour class by putting one on: a
+  Monk of DEX 30 had AC 31 bare and 18 in plate, and died more often than
+  any other class in the campaign. Shops and the character sheet show
+  "AC 11 + DEX", "AC 14 + DEX (max 2)".
+- SHOPS: the Drunken Dragon, the provisioner of the town, always sells
+  every kind of ammunition (arrows, crossbow bolts, sling bullets,
+  blowgun needles) and the tools 'tunnel' needs (miner's pick, shovel).
+  The arrows came only from the random stock of the Iron Anvil, and in
+  three worlds of ten no merchant had them: a ranger could not buy what
+  his bow shoots. No merchant sold a pick or a shovel, and a Stone Tomb
+  or a Ceiling Collapse on the way to the stairs walled it up for good.
+
 * Sun Nov 22 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.22.06
 - TOOLS: tools/quality.sh campaign: can the game be played to its end?
   tests/integration/campaign_sim plays a world with a character of every

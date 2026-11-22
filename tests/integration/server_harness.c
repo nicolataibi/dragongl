@@ -1385,6 +1385,7 @@ static const TestCase k_tests[] = {
     {"spec_disarm_next_to_you", test_spec_disarm_next_to_you},
     {"spec_throw", test_spec_throw},
     {"spec_status_sheet", test_spec_status_sheet},
+    {"spec_armour_and_dex", test_spec_armour_and_dex},
     {"spec_cast_target", test_spec_cast_target},
     {"spec_study_word", test_spec_study_word},
     {"spec_lore_and_fill", test_spec_lore_and_fill},

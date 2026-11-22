@@ -641,7 +641,7 @@ void print_merchant_inventory(Client *c, const MerchantData *shop) {
                      it->damage_dice_sides);
         } else if (it->category == ITEM_ARMOR) {
             strcpy(type_info, "Armor");
-            snprintf(stat_info, sizeof(stat_info), "AC %d", it->ac_base);
+            snprintf(stat_info, sizeof(stat_info), "AC %d%s", it->ac_base, armour_dex_note(it));
         } else if (it->category == ITEM_SHIELD) {
             strcpy(type_info, "Shield");
             snprintf(stat_info, sizeof(stat_info), "+%d AC", it->ac_bonus);

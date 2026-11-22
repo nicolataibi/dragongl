@@ -1,16 +1,16 @@
 <div style="text-align: center; border-bottom: 1px solid #ccc; margin-bottom: 20px;">
 <h1>Dragon GL: The Long Descent into the Dragon's Maw</h1>
 
-![Version](https://img.shields.io/badge/Version-3.0-green)
+![Version](https://img.shields.io/badge/Version-1.0-green)
 ![License](https://img.shields.io/badge/License-GPL%203.0-blue.svg)
 ![Language](https://img.shields.io/badge/Language-C-blue)
 ![Graphics](https://img.shields.io/badge/Graphics-Vulkan%201.3-orange)
-![Platform](https://img.shields.io/badge/Platform-Fedora%2044-blue?logo=fedora)
+![Platform](https://img.shields.io/badge/Platform-Fedora%2045-blue?logo=fedora)
 
 ## Multi-User Client-Server 3D RPG Engine — Vulkan
 
 <p>May 2026</p>
-<p>RC Release</p>
+<p></p>
 <p>Officially released on September, 2026.</p>
 </div>
 
@@ -177,6 +177,7 @@ In a legendary world, beneath the ruins of an ancient arcane civilization, lies 
 
 ### 6. Leveling & Attribute System
 - **Starting Hit Points:** Every character starts with **20 + CON modifier** HP, whatever his class: more than a tabletop hit die (6 to 12), because the first floors are walked alone and without healing. The class shows from level 2 on, in the hit die rolled at every level up.
+- **Armour Class:** without body armour, 10 + the DEX modifier. A body armour gives its base plus what its kind takes of the DEX modifier, as its data writes it ("11 + Dex"): a light armour (padded, leather, studded leather) all of it, a medium one (hide, chain shirt, scale mail, breastplate, half plate) up to +2, a heavy one (ring mail, chain mail, splint, plate) none, and a low DEX takes nothing off it. Then come the shield, the rings, cloaks and other worn pieces, the enchantments and the quality. A nimble character in a light armour can stand as well as a knight in plate; before 2026.11.22.07 every armour ignored DEX, and a Monk or a Rogue lost AC by putting one on.
 - **Attack Roll:** d20 + the modifier of Strength (Dexterity for a ranged weapon, or a finesse weapon when it is higher) + **half the character level** (rounded down: +0 at level 1, +10 at level 20) + the bonuses of the weapon and of the items worn. Half the level takes the place of the proficiency bonus (+2 to +6) on purpose: the dungeon is a hundred floors deep, and a monster's attack bonus reaches +17 (see *Monster Defences and Attacks*).
 - **Leveling Up:** Players advance from level 1 to 20, automatically gaining HP based on their hit dice (one roll of the class's Hit Die + CON modifier, at least 1: `1d12` for a Barbarian, `1d6` for a Wizard) and unlocking new spell tiers in their spellbooks.
 - **Saving Throws:** A character adds his proficiency bonus (+2 at level 1, +3 at 5, +4 at 9, +5 at 13, +6 at 17) to the saving throws his class lists under *Saves* (a Fighter's Strength and Constitution, a Wizard's Intelligence and Wisdom).
@@ -360,7 +361,7 @@ In addition to classic hazards, Dragon GL introduces complex environmental inter
 | :--- | :--- |
 | **Ceiling Collapse** | Fills the surrounding 5x5 area with `VOXEL_ROCK`, crushing or burying anyone caught inside. |
 | **Flood** | Hidden valves submerge a 7x7 area with `VOXEL_WATER`. Lightning attacks in this area will deal double damage! |
-| **Stone Tomb** | Instantly generates an impassable 3x3 perimeter of `VOXEL_WALL` around the victim, walling them in alive. |
+| **Stone Tomb** | Instantly generates an impassable 3x3 perimeter of `VOXEL_WALL` around the victim, walling them in alive. The walls stay: whoever comes that way digs through them (`tunnel`, with the pick or the shovel the Drunken Dragon sells), or casts a transit spell. |
 | **Spring Spear** | A spear shoots from the side wall, dealing piercing damage and applying the *Restrained* condition, pinning the victim to the wall. |
 | **Explosive Gas Vein** | Spawned only on ash or mud, it detonates engulfing the player in pure fire damage. |
 | **Body Swap** | An arcane curse instantly swaps the target's Hit Points with those of the nearest hostile monster. |
@@ -1299,7 +1300,7 @@ Dragon GL implements a dynamic roguelike modifier system inspired by classics li
 *   **Armor Bonuses `[+AC]`:** Shields and armors can drop with augmented defensive properties (e.g., `Leather Armor [+2]`).
 *   **Elemental Suffixes:** High-tier weapons may roll elemental tags (`Flaming`, `Frost`, `Shocking`, `Poisonous`), causing them to inflict an additional `1d6` elemental damage on successful hits.
 *   **Quality & Blessing:** Items can roll structural qualities (from `Rusty` to `Masterwork`) and spiritual alignments (from `Cursed` to `Blessed`). Quality adds to a weapon's attack and damage rolls and to the armour class of armour and shields: Rusty -1, Normal 0, Fine +1, Masterwork +2.
-*   **Ranged Weapons:** Bows, crossbows, slings and blowguns shoot with `shoot [n|s|e|w]` at the first creature within the weapon's range (its normal range, 5 feet a tile) and the player's sight, spending their own ammunition from the belt (arrows, bolts, sling bullets, needles) and hitting with DEX; a shot at a neighbour has disadvantage. Ammunition is sold in bundles and a bundle is what its name says: *Arrows (20)* are twenty arrows, *Blowgun Needles (50)* fifty; a single piece sells for its share of the bundle. A ranger starts with a bundle of arrows on the belt. Finesse weapons hit with the better of STR and DEX, the others with STR.
+*   **Ranged Weapons:** Bows, crossbows, slings and blowguns shoot with `shoot [n|s|e|w]` at the first creature within the weapon's range (its normal range, 5 feet a tile) and the player's sight, spending their own ammunition from the belt (arrows, bolts, sling bullets, needles) and hitting with DEX; a shot at a neighbour has disadvantage. Ammunition is sold in bundles and a bundle is what its name says: *Arrows (20)* are twenty arrows, *Blowgun Needles (50)* fifty; a single piece sells for its share of the bundle. A ranger starts with a bundle of arrows on the belt. The Drunken Dragon (the provisioner of Floor 0) always sells every kind of ammunition: arrows, crossbow bolts, sling bullets and blowgun needles, and the tools `tunnel` needs, the miner's pick and the shovel. Finesse weapons hit with the better of STR and DEX, the others with STR.
 
 These modifiers apply in real-time during the `perform_attack` d20 combat calculations, providing an endless variety of exciting loot drops!
 
