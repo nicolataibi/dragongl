@@ -3,8 +3,10 @@ build/
 _build/
 _local_build
 
-# Server state (world, saves, logs) of a development tree
+# Server state (world, saves, logs) of a development tree, and the state
+# directories the integration tests create where they are run
 /state/
+/state-*/
 saves/
 __pycache__/
 

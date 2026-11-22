@@ -1,3 +1,11 @@
+* Sun Nov 22 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.22.09
+- REPO: the empty lock files of four test state directories
+  (state-ammunition_bundles/, state-books_and_lore/,
+  state-conquest_of_the_dungeon/, state-look_and_examine/) had been
+  committed with 2026.11.21.18, .20 and .21: server_harness, run from the
+  root of the tree, leaves state-<test>/ there. They are removed, and
+  .gitignore keeps /state-*/ out.
+
 * Sun Nov 22 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.22.08
 - TOOLS: the campaign restarts the server: DGL_CAMPAIGN_RESTART=<rounds>
   stops and starts it every that many rounds, a clean stop and a crash
