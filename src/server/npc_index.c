@@ -33,6 +33,7 @@
 typedef struct {
     int total;  /*Total NPCs allocated on this floor (non-merchants)*/
     int active; /*Active (living) NPCs on this floor*/
+    int clones; /*Living swarm clones (not in total/active: they never respawn)*/
 } FloorStats;
 
 /*Global cache: one counter per floor + one slot for excluded merchants*/
@@ -51,14 +52,35 @@ bool floor_stats_get(Game *game, int floor_id, int *total, int *active) {
     return true;
 }
 
+/*A swarm clone: a creature that never respawns (respawn_timer < 0, see
+ * ai_swarm_behavior) on a floor in range.*/
+static bool is_swarm_clone(const NPC *n) {
+    return n->template != NULL && n->archetype == ARCH_SWARM && n->respawn_timer < 0 &&
+           n->floor_id >= 0 && n->floor_id < MAX_FLOORS;
+}
+
+int floor_swarm_clones(Game *game, int floor_id) {
+    if (floor_id < 0 || floor_id >= MAX_FLOORS) {
+        return 0;
+    }
+    if (g_floor_stats_dirty) {
+        floor_stats_rebuild(game);
+    }
+    return g_floor_stats[floor_id].clones;
+}
+
 /*Completely rebuilds cache (called only once at startup
 * and after a load from file). Cost: O(N) one-off.*/
 void floor_stats_rebuild(Game *game) {
     for (int f = 0; f < MAX_FLOORS; f++) {
         g_floor_stats[f].total = 0;
         g_floor_stats[f].active = 0;
+        g_floor_stats[f].clones = 0;
     }
     for (int i = 0; i < MAX_NPCS; i++) {
+        if (game->npcs[i].active && is_swarm_clone(&game->npcs[i])) {
+            g_floor_stats[game->npcs[i].floor_id].clones++;
+        }
         if (game->npcs[i].template == NULL) {
             continue;
         }
@@ -124,6 +146,15 @@ void npc_set_active(Game *game, NPC *n, bool active) {
     }
     if (n->archetype == ARCH_MERCHANT) {
         return; /*excluded from the cache, like in floor_stats_rebuild*/
+    }
+    if (is_swarm_clone(n)) {
+        int *clones = &g_floor_stats[n->floor_id].clones;
+        if (active) {
+            (*clones)++;
+        } else if (*clones > 0) {
+            (*clones)--;
+        }
+        return;
     }
     if (n->template == NULL || n->respawn_timer < 0) {
         return; /*not counted by the rebuild: nothing to keep in sync*/

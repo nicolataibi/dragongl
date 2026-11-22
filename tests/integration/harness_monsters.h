@@ -17,5 +17,6 @@ int test_monster_blows(void);
 int test_monster_magic(void);
 int test_spell_weapon_riders(void);
 int test_boss_hit_points(void);
+int test_monsters_are_their_entry(void);
 
 #endif

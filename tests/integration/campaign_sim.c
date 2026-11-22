@@ -38,8 +38,8 @@
  *     floor it goes for the boss;
  *   - after a death, on the floor of its ghost, it walks to it and takes
  *     its belongings back; without its transit spell (its books stayed
- *     there) it stays near the town, picks up gold and loot to sell, and
- *     goes up to buy the book.
+ *     there) it stays near the town, picks up gold and loot to sell, walks
+ *     back up to heal at half its hit points, and goes up to buy the book.
  * Errands in town cost TOWN_ROUNDS rounds of the world.
  *
  * The report: for every class the deepest floor, the level, the deaths
@@ -1019,9 +1019,13 @@ static void dungeon(Bot *b) {
     if (transit < 0 && c->floor_id > 0) {
         /*No way home by spell (its books stayed with its ghost): it stays
          * near the town, picks up gold, and goes up to buy food and the
-         * book of its transit spell.*/
+         * book of its transit spell. Without its gear and its spells it
+         * walks home to heal at half its hit points: the way out by spell
+         * it would take is gone.*/
         bool hungry = c->hunger_level > 1300 && count_items(c, "Rations") == 0;
-        goal = hungry || c->gold >= 3000 || c->backpack_count >= 20 || f > 3 ? GOAL_UP : GOAL_GOLD;
+        bool hurt = c->hp * 2 < c->max_hp;
+        goal = hungry || hurt || c->gold >= 3000 || c->backpack_count >= 20 || f > 3 ? GOAL_UP
+                                                                                     : GOAL_GOLD;
         if (goal == GOAL_GOLD && !first_step(b, goal, &dx, &dy, &dist)) {
             goal = GOAL_HUNT; /*their loot, to sell*/
         }

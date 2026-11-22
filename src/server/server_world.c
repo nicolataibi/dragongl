@@ -489,7 +489,7 @@ static void respawn_traps_and_crystals(Game *game) {
     }
 }
 
-NPC *npc_alloc(Game *game) {
+static NPC *alloc_slot(Game *game, bool take_dead) {
     /*The search starts where the last one ended: a table that fills up is
      * not walked from the top at every spawn.*/
     NPC *dead = NULL;
@@ -504,11 +504,19 @@ NPC *npc_alloc(Game *game) {
         }
         /*A full table takes the slot of a dead monster, never of a boss:
          * a boss that does not come back seals its stairs for good.*/
-        if (!dead && game->npcs[i].archetype != ARCH_BOSS) {
+        if (take_dead && !dead && game->npcs[i].archetype != ARCH_BOSS) {
             dead = &game->npcs[i];
         }
     }
     return dead;
+}
+
+NPC *npc_alloc(Game *game) {
+    return alloc_slot(game, true);
+}
+
+NPC *npc_alloc_free(Game *game) {
+    return alloc_slot(game, false);
 }
 
 NPC *npc_spawn_item(Game *game, int floor_id, int x, int y, const ItemInstance *item) {

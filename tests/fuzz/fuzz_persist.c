@@ -6,7 +6,7 @@
  * Fuzz target: the save-file readers (persist.c, binio.c).
  *
  * The first input byte selects the reader (low 3 bits: player, NPCs,
- * tombstone, flags, world). The rest is a payload: it is wrapped in a
+ * tombstone, flags, world, the ground journal). The rest is a payload: it is wrapped in a
  * valid container (magic, version, length, CRC-32) so the fuzzer reaches
  * the field decoders instead of stopping at the CRC. With bit 7 set, the
  * rest is written as the whole file instead, to exercise the container
@@ -26,10 +26,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-enum { KIND_PLAYER, KIND_NPCS, KIND_TOMB, KIND_FLAGS, KIND_WORLD, KIND_COUNT };
+enum { KIND_PLAYER, KIND_NPCS, KIND_TOMB, KIND_FLAGS, KIND_WORLD, KIND_JOURNAL, KIND_COUNT };
 
 #define FUZZ_NPCS  256
 #define FUZZ_FLAGS 58 /* MAX_ARTIFACTS in main_server.c */
+#define FUZZ_IDS   64 /* fewer than GROUND_JOURNAL_CAP: the count is clamped */
 
 static const struct {
     uint32_t magic;
@@ -37,7 +38,7 @@ static const struct {
 } k_formats[KIND_COUNT] = {
     {PERSIST_SAVE_MAGIC, PERSIST_SAVE_VERSION},   {PERSIST_NPCS_MAGIC, PERSIST_NPCS_VERSION},
     {PERSIST_TOMB_MAGIC, PERSIST_TOMB_VERSION},   {PERSIST_ART_MAGIC, PERSIST_ART_VERSION},
-    {PERSIST_WORLD_MAGIC, PERSIST_WORLD_VERSION},
+    {PERSIST_WORLD_MAGIC, PERSIST_WORLD_VERSION}, {PERSIST_JRNL_MAGIC, PERSIST_JRNL_VERSION},
 };
 
 static char g_path[512];
@@ -71,8 +72,9 @@ static void read_back(int kind) {
     static NPC npcs[FUZZ_NPCS];
     static Tombstone tomb;
     bool flags[FUZZ_FLAGS];
+    int32_t ids[FUZZ_IDS];
     char why[128];
-    int next_id = 0, turns = 0, loaded = 0;
+    int next_id = 0, turns = 0, loaded = 0, n_ids = 0;
     switch (kind) {
     case KIND_PLAYER:
         (void)persist_read_player(g_path, &sd, why, sizeof(why));
@@ -88,6 +90,9 @@ static void read_back(int kind) {
         break;
     case KIND_FLAGS:
         (void)persist_read_flags(g_path, flags, FUZZ_FLAGS, why, sizeof(why));
+        break;
+    case KIND_JOURNAL:
+        (void)persist_read_ids(g_path, ids, FUZZ_IDS, &n_ids, why, sizeof(why));
         break;
     default:
         (void)persist_read_world(g_path, g_game.world, why, sizeof(why));
@@ -171,6 +176,12 @@ static void write_seeds(const char *dir) {
         exit(1);
     }
     seed_from_file(dir, "flags", KIND_FLAGS);
+
+    const int32_t ids[] = {7, 42, 1000};
+    if (!persist_write_ids(g_path, ids, 3)) {
+        exit(1);
+    }
+    seed_from_file(dir, "journal", KIND_JOURNAL);
 }
 
 /* The signature is libFuzzer's: argc and argv may be changed by the target. */

@@ -704,7 +704,8 @@ int test_swarm_splits_into_free_slots(void) {
         CHECK(npc_by_entity_id(&g_game, n->entity_id) == n, "swarm %d is not in the entity map", i);
     }
     CHECK(swarms >= 2, "the swarm never split in 400 rounds");
-    CHECK(swarms <= 500, "%d swarms on one floor: the cap does not hold", swarms);
+    CHECK(swarms <= 1 + SWARM_CLONES_PER_FLOOR, "%d swarms on one floor: the cap does not hold",
+          swarms);
     CHECK(!waiting->active && waiting->entity_id == waiting_id && waiting->respawn_timer > 0 &&
               waiting->archetype == ARCH_MELEE,
           "a clone took the slot of a monster waiting to respawn");
@@ -721,6 +722,100 @@ int test_swarm_splits_into_free_slots(void) {
     CHECK(!clone->active && clone->respawn_timer < 0, "a dead clone will come back");
     npc_killed(&g_game, c, swarm, NULL);
     CHECK(swarm->respawn_timer == RESPAWN_TICKS, "the first swarm does not come back");
+    return 0;
+}
+
+static int living_swarms(int floor_id) {
+    int n = 0;
+    for (int i = 0; i < MAX_NPCS; i++) {
+        n += g_game.npcs[i].active && g_game.npcs[i].archetype == ARCH_SWARM &&
+             g_game.npcs[i].floor_id == floor_id;
+    }
+    return n;
+}
+
+/* The clones of a floor stop at SWARM_CLONES_PER_FLOOR, however long the
+ * swarm lives: the respawning creatures do not count them, so a cap on
+ * those let the clones fill the whole NPC table (a long campaign of
+ * twelve characters left floors 1 to 3 without a monster). */
+int test_swarm_clones_stop_at_the_floor_cap(void) {
+    Client *c = adventurer();
+    CHECK(c != NULL, "no player");
+    c->hp = c->max_hp = 1000000;
+    enum { FIRST = 30 }; /* swarms of the start, apart: each one splits */
+    for (int k = 0; k < FIRST; k++) {
+        NPC *swarm = monster_at(1 + k, FLOOR, CX + 20 + 4 * k, CY + 60);
+        swarm->archetype = ARCH_SWARM;
+        ai_attach_behavior(swarm);
+        swarm->hp = swarm->max_hp = 1 << 16;
+    }
+    floor_index_rebuild(&g_game);
+    floor_stats_rebuild(&g_game);
+    srand(11);
+    for (int round = 0; round < 2000; round++) {
+        c->hp = c->max_hp;
+        update_world(g_game.clients, &g_game);
+    }
+    int swarms = living_swarms(FLOOR);
+    CHECK(swarms == FIRST + SWARM_CLONES_PER_FLOOR, "%d clones after 2000 rounds, the cap is %d",
+          swarms - FIRST, SWARM_CLONES_PER_FLOOR);
+    CHECK(floor_swarm_clones(&g_game, FLOOR) == swarms - FIRST,
+          "the floor counts %d clones, %d live", floor_swarm_clones(&g_game, FLOOR),
+          swarms - FIRST);
+    /* A clone killed frees its place under the cap: the counter follows. */
+    NPC *clone = NULL;
+    for (int i = 0; i < MAX_NPCS && !clone; i++) {
+        NPC *n = &g_game.npcs[i];
+        clone = n->active && n->archetype == ARCH_SWARM && n->respawn_timer < 0 ? n : NULL;
+    }
+    CHECK(clone != NULL, "no clone");
+    npc_killed(&g_game, c, clone, NULL);
+    int clones = swarms - FIRST - 1;
+    CHECK(floor_swarm_clones(&g_game, FLOOR) == clones, "a dead clone is still counted");
+    floor_stats_rebuild(&g_game);
+    CHECK(floor_swarm_clones(&g_game, FLOOR) == clones,
+          "the rebuild counts %d clones, the round %d", floor_swarm_clones(&g_game, FLOOR), clones);
+    return 0;
+}
+
+/* A full table: the swarm does not split, even with a dead monster
+ * waiting for its respawn whose slot new loot could take. */
+int test_swarm_spares_the_dead_in_a_full_table(void) {
+    Client *c = adventurer();
+    CHECK(c != NULL, "no player");
+    c->hp = c->max_hp = 1000000;
+    static NPC saved[MAX_NPCS];
+    memcpy(saved, g_game.npcs, sizeof(saved));
+    for (int i = 0; i < MAX_NPCS; i++) { /* every slot taken, on the town floor */
+        NPC *n = &g_game.npcs[i];
+        memset(n, 0, sizeof(*n));
+        n->template = &bestiary_data[0];
+        n->active = true;
+        n->entity_id = 100000 + i;
+    }
+    NPC *waiting = &g_game.npcs[9];
+    waiting->active = false;
+    waiting->archetype = ARCH_MELEE;
+    waiting->respawn_timer = 100000;
+    NPC *swarm = monster_at(1, FLOOR, CX + 40, CY + 40);
+    swarm->archetype = ARCH_SWARM;
+    ai_attach_behavior(swarm);
+    swarm->hp = swarm->max_hp = 4096;
+    floor_index_rebuild(&g_game);
+    floor_stats_rebuild(&g_game);
+    srand(5);
+    for (int round = 0; round < 200; round++) {
+        c->hp = c->max_hp;
+        update_world(g_game.clients, &g_game);
+    }
+    bool spared = !waiting->active && waiting->archetype == ARCH_MELEE &&
+                  waiting->entity_id == 100009 && waiting->respawn_timer > 0;
+    int swarms = living_swarms(FLOOR);
+    memcpy(g_game.npcs, saved, sizeof(saved));
+    floor_index_rebuild(&g_game);
+    floor_stats_rebuild(&g_game);
+    CHECK(spared, "a clone took the slot of a dead monster waiting to respawn");
+    CHECK(swarms == 1, "%d swarms: a clone found a slot in a full table", swarms);
     return 0;
 }
 

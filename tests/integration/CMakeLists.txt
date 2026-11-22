@@ -93,7 +93,8 @@ foreach(t trade_offer_revalidated_on_accept trade_moves_item_and_gold
           shop_no_arbitrage ammunition_bundles shop_reactive_prices shop_needs_a_merchant wear_cursed_stays merchant_restocks
           boss_floor_is_playable dm_spawn_and_place numeric_arguments
           tunnel_keeps_the_border floors_without_characters_sleep
-          swarm_splits_into_free_slots full_table_spares_the_boss autosave_in_steps metrics_and_telemetry)
+          swarm_splits_into_free_slots full_table_spares_the_boss swarm_clones_stop_at_the_floor_cap
+          swarm_spares_the_dead_in_a_full_table autosave_in_steps metrics_and_telemetry)
     add_test(NAME ${t} COMMAND server_harness ${t} WORKING_DIRECTORY "${DGL_WORK}")
 endforeach()
 # Combat, loot, death and tombstones (harness_combat.c).
@@ -140,6 +141,7 @@ endforeach()
 foreach(t magic_items_kinds magic_items_abilities magic_items_defence magic_items_resistance
           magic_items_potions magic_items_charges magic_items_world magic_items_weapons magic_items_hud
           monster_defences monster_blows monster_magic spell_weapon_riders boss_hit_points
+          monsters_are_their_entry
           class_hit_dice class_saves
     class_spell_slots)
     add_test(NAME ${t} COMMAND server_harness ${t} WORKING_DIRECTORY "${DGL_WORK}")

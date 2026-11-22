@@ -1,0 +1,65 @@
+name: Campaign (nightly)
+
+# Can the game be played to its end? A bot of every class plays the world
+# of seed 1 for 150,000 rounds (about 8 hours of game time), the server
+# stopped and started again every 20,000 rounds, a clean stop and a crash
+# in turn (tools/quality.sh campaign, tests/integration/campaign_sim.c).
+# It fails when no character conquers the dungeon or a clean restart
+# changes a character or a floor. The report (on the page of the run, and
+# campaign.json) says how deep every class went and why it stopped.
+on:
+  schedule:
+    - cron: "53 1 * * *"
+  workflow_dispatch:
+    inputs:
+      rounds:
+        description: "Rounds of the world"
+        default: "150000"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: campaign-nightly
+  cancel-in-progress: false
+
+jobs:
+  campaign:
+    name: A bot of every class (${{ inputs.rounds || '150000' }} rounds)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      ROUNDS: ${{ inputs.rounds || '150000' }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang cmake ninja-build pkg-config libsodium-dev libssl-dev python3
+
+      - name: Campaign
+        run: |
+          set -o pipefail
+          tools/quality.sh campaign "$ROUNDS" 2>&1 | tee campaign.txt
+
+      - name: Report
+        if: always()
+        run: |
+          {
+            echo '### Campaign'
+            echo '```'
+            sed -n '/^class /,/^  ok:/p' campaign.txt || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Measurements
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: campaign
+          path: |
+            build-quality/release/campaign.json
+            campaign.txt
+          if-no-files-found: ignore

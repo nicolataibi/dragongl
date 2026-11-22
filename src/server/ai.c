@@ -74,6 +74,73 @@ static void attach_behavior_by_archetype(NPC *npc) {
     }
 }
 
+/*What the archetype adds to the stats. A monster of the bestiary is what
+ * its entry says (LORE.md, Monster Defences and Attacks): its archetype
+ * adds only the attack bonus of the docs (a boss +3, an assassin and a
+ * dragon +2) and the hit points of a boss (Dynamic Scaling); a boss keeps
+ * its rewards too, and a caster its spell slots. Only a monster without an
+ * entry (the stats made up from the floor) takes its hit points, armour
+ * class and damage from the archetype.*/
+static int archetype_adjust(NPC *npc, int hp_base, int floor_id, bool from_entry) {
+    switch (npc->archetype) {
+    case ARCH_BOSS:
+        /*LORE.md, Dynamic Scaling: HP = Base_HP * (1 + (floor_id / 10) * 0.5),
+         * half the base more for each block of 10 floors (x1.5 on floor 10,
+         * x6 on floor 100).*/
+        hp_base = hp_base * (2 + floor_id / 10) / 2;
+        npc->attack_bonus += 3;
+        npc->xp_reward = (npc->xp_reward * 10) + (floor_id * 500);
+        npc->gold_drop = (npc->gold_drop * 10) + (floor_id * 100);
+        if (!from_entry) {
+            npc->ac += 2;
+            npc->damage_sides = 8;
+        }
+        break;
+    case ARCH_CASTER:
+        npc->spell_slots[1] = 2 + (floor_id / 10);
+        if (!from_entry) {
+            hp_base = hp_base * 7 / 10;
+            npc->ac -= 1;
+        }
+        break;
+    case ARCH_ASSASSIN:
+        npc->attack_bonus += 2;
+        if (!from_entry) {
+            hp_base = hp_base * 8 / 10;
+            npc->ac += 2;
+            npc->damage_sides = 8;
+        }
+        break;
+    case ARCH_DRAGON:
+        npc->attack_bonus += 2;
+        if (!from_entry) {
+            hp_base *= 2;
+            npc->ac += 3;
+            npc->damage_dice += 1;
+            npc->damage_sides = 10;
+        }
+        break;
+    case ARCH_BRUTE:
+        if (!from_entry) {
+            hp_base = hp_base * 3 / 2;
+            npc->ac -= 1;
+            npc->damage_dice += 1;
+            npc->damage_sides = 8;
+        }
+        break;
+    case ARCH_SWARM:
+        if (!from_entry) {
+            hp_base = hp_base * 6 / 10;
+            npc->ac -= 2;
+            npc->damage_sides = 4;
+        }
+        break;
+    default:
+        break;
+    }
+    return hp_base;
+}
+
 void ai_init_npc(NPC *npc, const char *monster_name, int floor_id) {
     memset(&npc->ai_ctx, 0, sizeof(AIContext));
     npc->ai_ctx.current_target_id = -1;
@@ -133,52 +200,8 @@ void ai_init_npc(NPC *npc, const char *monster_name, int floor_id) {
         npc->archetype = ARCH_BOSS;
     }
 
-    // --- Modify stats based on archetype ---
-    switch (npc->archetype) {
-    case ARCH_BOSS:
-        /*LORE.md, Dynamic Scaling: HP = Base_HP * (1 + (floor_id / 10) * 0.5),
-         * half the base more for each block of 10 floors (x1.5 on floor 10,
-         * x6 on floor 100). It was 5 x the base + 50 a floor: 560 HP on
-         * floor 10, a hundred rounds of a level 3 fighter.*/
-        hp_base = hp_base * (2 + floor_id / 10) / 2;
-        npc->ac += 2;
-        npc->attack_bonus += 3;
-        npc->damage_sides = 8;
-        npc->xp_reward = (npc->xp_reward * 10) + (floor_id * 500);
-        npc->gold_drop = (npc->gold_drop * 10) + (floor_id * 100);
-        break;
-    case ARCH_CASTER:
-        hp_base = (int)((float)hp_base * 0.7f);
-        npc->ac -= 1;
-        npc->spell_slots[1] = 2 + (floor_id / 10);
-        break;
-    case ARCH_ASSASSIN:
-        hp_base = (int)((float)hp_base * 0.8f);
-        npc->ac += 2;
-        npc->attack_bonus += 2;
-        npc->damage_sides = 8;
-        break;
-    case ARCH_DRAGON:
-        hp_base = (int)((float)hp_base * 2.0f);
-        npc->ac += 3;
-        npc->attack_bonus += 2;
-        npc->damage_dice += 1;
-        npc->damage_sides = 10;
-        break;
-    case ARCH_BRUTE:
-        hp_base = (int)((float)hp_base * 1.5f);
-        npc->ac -= 1;
-        npc->damage_dice += 1;
-        npc->damage_sides = 8;
-        break;
-    case ARCH_SWARM:
-        hp_base = (int)((float)hp_base * 0.6f);
-        npc->ac -= 2;
-        npc->damage_sides = 4;
-        break;
-    default:
-        break;
-    }
+    hp_base = archetype_adjust(npc, hp_base, floor_id,
+                               npc->template != NULL && npc->template->hp_avg > 0);
 
     npc->hp = hp_base;
     npc->max_hp = hp_base;
@@ -361,9 +384,6 @@ static void default_ai_update(Game *game, NPC *npc, Client *clients, int num_cli
     }
 }
 
-/*Living NPCs on a floor over which its swarms stop splitting.*/
-#define SWARM_SPLIT_FLOOR_CAP 500
-
 AINodeStatus ai_swarm_behavior(Game *game, NPC *npc, Client *clients, int num_clients,
                                bool new_round) {
     if (new_round && npc->hp > 1) {
@@ -402,11 +422,16 @@ AINodeStatus ai_swarm_behavior(Game *game, NPC *npc, Client *clients, int num_cl
                     // Check if occupied by another npc or a player
                     bool occupied = cell_occupied(game, nx, ny, npc, clients, num_clients);
                     if (!occupied) {
-                        /*A floor already crowded gets no more swarms: they
-                         * would end up owning the whole NPC table.*/
-                        int total = 0, alive = 0;
-                        floor_stats_get(game, npc->floor_id, &total, &alive);
-                        NPC *clone = alive < SWARM_SPLIT_FLOOR_CAP ? npc_alloc(game) : NULL;
+                        /*A floor with its share of clones gets no more,
+                         * and a clone takes a free slot only, never the
+                         * slot of a dead monster waiting for its respawn:
+                         * the clones would end up owning the NPC table,
+                         * and the floors cleared by the players would
+                         * stay empty for good.*/
+                        NPC *clone =
+                            floor_swarm_clones(game, npc->floor_id) < SWARM_CLONES_PER_FLOOR
+                                ? npc_alloc_free(game)
+                                : NULL;
                         if (clone) {
                             // Split!
                             npc->hp = (npc->hp / 2) > 0 ? (npc->hp / 2) : 1;
