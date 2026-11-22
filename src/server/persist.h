@@ -60,13 +60,16 @@
 #define PERSIST_WORLD_MAGIC   0x57475244u /* "DRGW" */
 #define PERSIST_WORLD_VERSION 4
 #define PERSIST_NPCS_MAGIC    0x43504E44u /* "DNPC" */
-#define PERSIST_NPCS_VERSION  3
-#define PERSIST_TOMB_MAGIC    0x424D5444u /* "DTMB" */
-#define PERSIST_TOMB_VERSION  1
-#define PERSIST_ART_MAGIC     0x54524144u /* "DART" */
-#define PERSIST_ART_VERSION   1
-#define PERSIST_JRNL_MAGIC    0x4C4E524Au /* "JRNL" */
-#define PERSIST_JRNL_VERSION  1
+/* npcs.dat 4 has the layout of 3: a table of 3 may have lost for good the
+ * monsters whose slots the swarm clones took (2026.11.22.10), so it is
+ * refused and the world generated anew. */
+#define PERSIST_NPCS_VERSION 4
+#define PERSIST_TOMB_MAGIC   0x424D5444u /* "DTMB" */
+#define PERSIST_TOMB_VERSION 2           /* 2: death_turn */
+#define PERSIST_ART_MAGIC    0x54524144u /* "DART" */
+#define PERSIST_ART_VERSION  1
+#define PERSIST_JRNL_MAGIC   0x4C4E524Au /* "JRNL" */
+#define PERSIST_JRNL_VERSION 1
 
 /* --- State directory ------------------------------------------------------- */
 

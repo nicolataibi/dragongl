@@ -16,6 +16,8 @@ int test_loot(void);
 int test_party_shares_xp(void);
 int test_boss_and_event_kills(void);
 int test_death_and_tombstone(void);
+int test_tombstone_takes_the_backpack(void);
+int test_tombstones_load_in_order(void);
 int test_conquest_of_the_dungeon(void);
 int test_leaving_the_game(void);
 int test_in_a_fight(void);

@@ -60,10 +60,12 @@ bool tombstone_is_expired(const Tombstone *t) {
     return hours_diff > TOMBSTONE_EXPIRE_HOURS;
 }
 
-/* <state>/saves/tombstone_<owner>_<time>_<x>_<y>.dat */
+/* <state>/saves/tombstone_<owner>_<death_turn>_<x>_<y>.dat: the round, not
+ * the clock, so two deaths of a character on one tile within a second have
+ * two files. */
 static bool tombstone_path(const Tombstone *t, char *out, size_t out_len) {
     return state_path(out, out_len, "saves/tombstone_%s_%lld_%d_%d.dat", t->owner,
-                      (long long)t->death_time, t->x, t->y);
+                      (long long)t->death_turn, t->x, t->y);
 }
 
 /*---------------------------------------------------------------
@@ -100,6 +102,26 @@ static void tombstone_delete_file(const Tombstone *t) {
  * Load all tombstones from disk on startup.
  * Called by main_server.c after world initialization.
  * ---------------------------------------------------------------*/
+/*The active tombstones first, by the round of the death, then by owner and
+ * place (a total order: the same files load in the same slots).*/
+static int tombstone_order(const void *pa, const void *pb) {
+    const Tombstone *a = pa, *b = pb;
+    if (a->active != b->active) {
+        return a->active ? -1 : 1;
+    }
+    if (a->death_turn != b->death_turn) {
+        return a->death_turn < b->death_turn ? -1 : 1;
+    }
+    int by_owner = strcmp(a->owner, b->owner);
+    if (by_owner != 0) {
+        return by_owner;
+    }
+    if (a->floor_id != b->floor_id) {
+        return a->floor_id - b->floor_id;
+    }
+    return a->y != b->y ? a->y - b->y : a->x - b->x;
+}
+
 void tombstone_load_all(Game *game) {
     memset(game->tombstones, 0, sizeof(game->tombstones));
     for (int i = 0; i < MAX_TOMBSTONES; i++) {
@@ -167,6 +189,9 @@ void tombstone_load_all(Game *game) {
         }
     }
     closedir(dir);
+    /*In the order of the deaths, whatever the order of the directory: the
+     * first tombstone of a character on a floor is the one he finds.*/
+    qsort(game->tombstones, MAX_TOMBSTONES, sizeof(Tombstone), tombstone_order);
     server_log("TOMB", "%d tombstones loaded", loaded);
 }
 
@@ -200,12 +225,12 @@ Tombstone *tombstone_create(Game *game, Client *c) {
     }
     if (slot == -1) {
         server_log("TOMB", "WARNING: no free tombstone slots, reusing the oldest");
-        /*Reuse the older one*/
-        time_t oldest = game->tombstones[0].death_time;
+        /*Reuse the oldest, by the round of the death*/
+        int64_t oldest = game->tombstones[0].death_turn;
         slot = 0;
         for (int i = 1; i < MAX_TOMBSTONES; i++) {
-            if (game->tombstones[i].death_time < oldest) {
-                oldest = game->tombstones[i].death_time;
+            if (game->tombstones[i].death_turn < oldest) {
+                oldest = game->tombstones[i].death_turn;
                 slot = i;
             }
         }
@@ -219,11 +244,23 @@ Tombstone *tombstone_create(Game *game, Client *c) {
     t->y = c->y;
     t->floor_id = c->floor_id;
     t->death_time = time(NULL);
+    t->death_turn = game->total_turns;
     copy_str(t->owner, c->username, sizeof(t->owner));
 
     t->gold = c->gold;
-    t->backpack_count = c->backpack_count;
-    memcpy(t->backpack, c->backpack, sizeof(c->backpack));
+    /*The items of the backpack, not the array: a slot past backpack_count
+     * may still hold the copy of an item sold or worn before (a second
+     * one, recovered with the rest).*/
+    int carried = c->backpack_count < 0 ? 0 : c->backpack_count;
+    carried = carried > TOMBSTONE_BACKPACK_SIZE ? TOMBSTONE_BACKPACK_SIZE : carried;
+    for (int j = 0; j < TOMBSTONE_BACKPACK_SIZE; j++) {
+        if (j < carried && j < MAX_BACKPACK) {
+            t->backpack[j] = c->backpack[j];
+        } else {
+            t->backpack[j].template_idx = -1;
+        }
+    }
+    t->backpack_count = carried;
     memcpy(t->belt, c->belt, sizeof(c->belt));
 
     t->slot_head = c->slot_head;
@@ -414,9 +451,14 @@ static void tombstone_transfer(Client *c, Tombstone *t) {
             continue;
         }
         c->backpack[c->backpack_count++] = t->backpack[j];
-        t->backpack_count--;
         t->backpack[j].template_idx = -1;
         t->backpack[j].stack_count = 0;
+    }
+    /*What is left, counted: the file of a tombstone partly recovered is
+     * read back with this count.*/
+    t->backpack_count = 0;
+    for (int j = 0; j < TOMBSTONE_BACKPACK_SIZE; j++) {
+        t->backpack_count += t->backpack[j].template_idx >= 0;
     }
     for (int j = 0; j < 4; j++) {
         if (t->belt[j].template_idx >= 0) {

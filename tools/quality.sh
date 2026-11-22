@@ -63,15 +63,20 @@ Checks
   load [SECONDS]  tools/loadtest.py (Release server): 64 TLS clients play for
                   SECONDS (default 60), then a shutdown under load and a
                   restart, against the "load" limits of the same file
-  campaign [ROUNDS]
+  campaign [ROUNDS [SEED]]
                   tests/integration/campaign_sim (Release): a bot of every
                   class plays the whole game, in process, for ROUNDS rounds
-                  of the world of seed 1 (default 150000, about 8 hours of
-                  play), the server stopped and started again every 20000
-                  rounds (a clean stop and a crash in turn); fails when no
-                  character conquers the dungeon or a clean restart changes
-                  a character or a floor. The report: how deep each class
-                  went, its deaths, where it stopped
+                  of the world of SEED (default 150000 rounds, about 8 hours
+                  of play, seed 1), the server stopped and started again
+                  every 20000 rounds (a clean stop and a crash in turn);
+                  fails when a clean restart changes a character or a floor,
+                  or the world breaks an invariant (a floor loses creatures,
+                  the NPC table fills, the swarm clones pass their cap).
+                  The campaign of reference (seed 1, 150000 rounds) fails
+                  too under campaign_conquests_min conquests of
+                  tools/quality_limits.json; another seed only reports
+                  them. The report: how deep each class went, its deaths,
+                  where it stopped
   play [SECONDS]  tools/playtest.py (Release server): a character of every
                   class plays down the dungeon for SECONDS (default 300);
                   fails on a command with no answer, a character stuck, a
@@ -330,18 +335,29 @@ check_load() {
 }
 
 check_campaign() {
-    local rounds=${1:-150000}
-    section "campaign (a bot of every class, ${rounds} rounds)"
+    local rounds=${1:-150000} seed=${2:-1}
+    section "campaign (a bot of every class, ${rounds} rounds, seed ${seed})"
     build_release
-    local run="$OUT/release/campaign-run"
+    local run="$OUT/release/campaign-run" json="$OUT/release/campaign.json"
     rm -rf "$run"
     mkdir -p "$run"
     local rc=0
-    (cd "$run" && DGL_CAMPAIGN_RESTART=20000 "$OUT/release/campaign_sim" "$rounds" 1 \
-        "$OUT/release/campaign.json") || rc=$?
+    (cd "$run" && DGL_CAMPAIGN_RESTART=20000 "$OUT/release/campaign_sim" "$rounds" "$seed" \
+        "$json") || rc=$?
     [ "$rc" -ne 3 ] || die "a clean restart of the server changed a character or a floor"
-    [ "$rc" -eq 0 ] || die "no character conquered the dungeon in $rounds rounds"
-    ok "the dungeon can be conquered, across restarts (numbers in ${OUT#"$ROOT"/}/release/campaign.json)"
+    [ "$rc" -ne 4 ] || die "the world broke an invariant (the line 'world:' of the report)"
+    [ "$rc" -le 1 ] || die "campaign_sim failed (exit status $rc)"
+    local got min
+    got="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["conquests"])' "$json")"
+    if [[ $seed == 1 && $rounds == 150000 ]]; then
+        # The campaign of reference: a ratchet, like the coverage. A change
+        # may raise campaign_conquests_min, never lower it.
+        min="$(limit campaign_conquests_min)"
+        ((got >= min)) || die "$got conquests of 12, under the limit $min (tools/quality_limits.json)"
+        ok "$got conquests of 12 (at least $min), the world whole across restarts (${json#"$ROOT"/})"
+    else
+        ok "$got conquests of 12, the world whole across restarts (${json#"$ROOT"/})"
+    fi
 }
 
 check_play() {
@@ -463,11 +479,14 @@ main() {
             if [[ ${2:-} =~ ^[0-9]+$ ]]; then checks+=("play:$2"); shift; else checks+=(play:300); fi
             ;;
         campaign)
-            if [[ ${2:-} =~ ^[0-9]+$ ]]; then
-                checks+=("campaign:$2")
+            if [[ ${2:-} =~ ^[0-9]+$ && ${3:-} =~ ^[0-9]+$ ]]; then
+                checks+=("campaign:$2:$3")
+                shift 2
+            elif [[ ${2:-} =~ ^[0-9]+$ ]]; then
+                checks+=("campaign:$2:1")
                 shift
             else
-                checks+=(campaign:150000)
+                checks+=(campaign:150000:1)
             fi
             ;;
         all) checks+=(format protocol deps tidy data spelling ascii links commands man coverage metrics tsan repro fuzz:30) ;;
@@ -505,7 +524,10 @@ main() {
         repro) check_repro ;;
         load:*) check_load "${c#load:}" ;;
         play:*) check_play "${c#play:}" ;;
-        campaign:*) check_campaign "${c#campaign:}" ;;
+        campaign:*)
+            c="${c#campaign:}"
+            check_campaign "${c%%:*}" "${c#*:}"
+            ;;
         fuzz:*) check_fuzz "${c#fuzz:}" ;;
         esac
     done

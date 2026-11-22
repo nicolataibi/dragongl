@@ -3,5 +3,6 @@
   "function_lines_max": 120,
   "functions_over_120": 0,
   "file_lines_max": 1000,
-  "files_over_1000": 0
+  "files_over_1000": 0,
+  "campaign_conquests_min": 4
 }

@@ -56,7 +56,10 @@
  * clean restart every character and every floor must be as they were.
  *
  * Exit status 0 when a character conquered the dungeon, 1 when none did,
- * 3 when a clean restart changed something.
+ * 3 when a clean restart changed something, 4 when the world broke one of
+ * its invariants (invariants_check(): a floor lost creatures, the table of
+ * the NPCs filled, the swarm clones went past their cap or were counted
+ * wrong).
  *
  * The server log is dropped (DGL_CAMPAIGN_LOG=1 keeps it on stdout). To
  * follow one bot, DGL_CAMPAIGN_TRACE=<slot> (the class number): its state
@@ -1443,6 +1446,101 @@ static Client *create(int slot, ClassType cls) {
     return c;
 }
 
+/* --- the invariants of the world ------------------------------------------------- */
+
+/*Every INVARIANT_EVERY rounds the world is checked against what must hold
+ * however long it is played: every floor keeps the creatures that respawn
+ * it was generated with (a slot taken from a dead monster empties a floor
+ * for good), the table of the NPCs keeps room (FREE_SLOTS_MIN), the swarm
+ * clones stay within their cap and are counted right, and so are the
+ * living creatures of every floor. Exit status 4 when one fails.*/
+#define INVARIANT_EVERY 1000
+#define FREE_SLOTS_MIN  2000
+
+static int g_floor_creatures0[MAX_FLOORS]; /*creatures that respawn, at the start*/
+static int g_free_min = MAX_NPCS;          /*fewest free slots seen*/
+static int g_clones_max;                   /*most clones seen on one floor*/
+static int g_invariant_round;              /*first round an invariant failed, 0: none*/
+static char g_invariant_what[200];
+
+static void broken(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+static void broken(const char *fmt, ...) {
+    if (g_invariant_round) {
+        return; /*the first one tells*/
+    }
+    g_invariant_round = g_round;
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(g_invariant_what, sizeof(g_invariant_what), fmt, ap);
+    va_end(ap);
+    fprintf(stderr, "campaign_sim: round %d: %s\n", g_round, g_invariant_what);
+}
+
+/*A slot that a respawning creature holds (alive or waiting), of a floor.*/
+static bool respawning_creature(const NPC *n) {
+    return n->template != NULL && n->archetype != ARCH_MERCHANT && n->respawn_timer >= 0 &&
+           n->floor_id >= 0 && n->floor_id < MAX_FLOORS;
+}
+
+static void count_world(int *creatures, int *alive, int *clones, int *free_slots) {
+    memset(creatures, 0, sizeof(int) * MAX_FLOORS);
+    memset(alive, 0, sizeof(int) * MAX_FLOORS);
+    memset(clones, 0, sizeof(int) * MAX_FLOORS);
+    *free_slots = 0;
+    for (int i = 0; i < MAX_NPCS; i++) {
+        const NPC *n = &g_game.npcs[i];
+        if (!n->active && (n->template == NULL || n->respawn_timer < 0)) {
+            (*free_slots)++;
+        }
+        if (respawning_creature(n)) {
+            creatures[n->floor_id]++;
+            alive[n->floor_id] += n->active;
+        } else if (n->active && n->template && n->archetype == ARCH_SWARM && n->floor_id >= 0 &&
+                   n->floor_id < MAX_FLOORS) {
+            clones[n->floor_id]++;
+        }
+    }
+}
+
+static void invariants_start(void) {
+    int alive[MAX_FLOORS], clones[MAX_FLOORS], free_slots;
+    count_world(g_floor_creatures0, alive, clones, &free_slots);
+}
+
+static void invariants_check(void) {
+    int creatures[MAX_FLOORS], alive[MAX_FLOORS], clones[MAX_FLOORS], free_slots;
+    count_world(creatures, alive, clones, &free_slots);
+    g_free_min = free_slots < g_free_min ? free_slots : g_free_min;
+    if (free_slots < FREE_SLOTS_MIN) {
+        broken("the table of the NPCs has %d free slots (at least %d)", free_slots, FREE_SLOTS_MIN);
+    }
+    for (int f = 0; f < MAX_FLOORS; f++) {
+        int total = 0, active = 0;
+        floor_stats_get(&g_game, f, &total, &active);
+        g_clones_max = clones[f] > g_clones_max ? clones[f] : g_clones_max;
+        if (creatures[f] < g_floor_creatures0[f]) {
+            broken("floor %d keeps %d of the %d creatures it was generated with", f, creatures[f],
+                   g_floor_creatures0[f]);
+        } else if (clones[f] > SWARM_CLONES_PER_FLOOR) {
+            broken("floor %d has %d swarm clones (at most %d)", f, clones[f],
+                   SWARM_CLONES_PER_FLOOR);
+        } else if (floor_swarm_clones(&g_game, f) != clones[f]) {
+            broken("floor %d counts %d swarm clones, %d live", f, floor_swarm_clones(&g_game, f),
+                   clones[f]);
+        } else if (active != alive[f]) {
+            broken("floor %d counts %d living creatures, %d live", f, active, alive[f]);
+        }
+    }
+}
+
+static int conquests(void) {
+    int n = 0;
+    for (int i = 0; i < BOTS; i++) {
+        n += g_bots[i].conquered_round != 0;
+    }
+    return n;
+}
+
 static void report(FILE *json, int limit) {
     fprintf(g_out, "%-10s %5s %5s %6s %9s  %s\n", "class", "floor", "level", "deaths", "rounds",
             "rounds to floor 10/20/.../100 (level)");
@@ -1468,10 +1566,18 @@ static void report(FILE *json, int limit) {
             fprintf(g_out, "\n");
         }
     }
+    fprintf(g_out,
+            "world: fewest free slots of the NPC table %d (at least %d), most swarm clones on a "
+            "floor %d (at most %d), %s\n",
+            g_free_min, FREE_SLOTS_MIN, g_clones_max, SWARM_CLONES_PER_FLOOR,
+            g_invariant_round ? g_invariant_what : "every floor kept its creatures");
     if (json) {
         fprintf(json,
-                "{\n  \"rounds\": %d,\n  \"restarts\": %d,\n  \"crashes\": %d,\n  \"classes\": [\n",
-                g_round, g_restarts, g_crashes);
+                "{\n  \"rounds\": %d,\n  \"restarts\": %d,\n  \"crashes\": %d,\n"
+                "  \"conquests\": %d,\n  \"free_slots_min\": %d,\n  \"clones_max\": %d,\n"
+                "  \"invariant_round\": %d,\n  \"classes\": [\n",
+                g_round, g_restarts, g_crashes, conquests(), g_free_min, g_clones_max,
+                g_invariant_round);
     }
     for (int i = 0; i < BOTS; i++) {
         Bot *b = &g_bots[i];
@@ -1548,8 +1654,12 @@ int main(int argc, char **argv) {
             g_bots[i].miss_floor[g] = -1;
         }
     }
+    invariants_start();
     const char *every_env = getenv("DGL_CAMPAIGN_RESTART");
     int restart_every = every_env ? str_to_int(every_env) : 0;
+    if (restart_every > 0) {
+        autosave_set_period(0); /*it saves by the rounds below: the same world on every machine*/
+    }
     int restarts = 0;
     int done = 0;
     for (g_round = 1; g_round <= limit && done < BOTS; g_round++) {
@@ -1584,6 +1694,9 @@ int main(int argc, char **argv) {
             fx_drain(i);
             b->last_floor = c->floor_id;
         }
+        if (g_round % INVARIANT_EVERY == 0) {
+            invariants_check();
+        }
         if (g_round % 50000 == 0) {
             fprintf(stderr, "campaign_sim: round %d:", g_round);
             for (int i = 0; i < BOTS; i++) {
@@ -1601,10 +1714,8 @@ int main(int argc, char **argv) {
     if (g_restart_diffs) {
         return 3; /*a restart lost or changed something*/
     }
-    for (int i = 0; i < BOTS; i++) {
-        if (g_bots[i].conquered_round) {
-            return 0;
-        }
+    if (g_invariant_round) {
+        return 4; /*the world broke an invariant*/
     }
-    return 1;
+    return conquests() > 0 ? 0 : 1;
 }

@@ -248,10 +248,18 @@ def main():
     ap.add_argument("--stuck", type=int, default=30)
     ap.add_argument("--answer-timeout", type=float, default=5.0)
     ap.add_argument("--keep", action="store_true", help="keep the working directory")
+    ap.add_argument("--work", metavar="DIR",
+                    help="working directory, created if missing and kept: a run on the DIR of "
+                         "an earlier one goes on with its world and its characters (the weekly "
+                         "soak, .github/workflows/soak-weekly.yml)")
     ap.add_argument("--verbose", action="store_true", help="trace the first character")
     args = ap.parse_args()
 
-    work = tempfile.mkdtemp(prefix="dgl-play-")
+    if args.work:
+        work = os.path.abspath(args.work)
+        os.makedirs(work, exist_ok=True)
+    else:
+        work = tempfile.mkdtemp(prefix="dgl-play-")
     server = loadtest.Server(os.path.abspath(args.server), os.path.abspath(args.data), work)
     failed = False
     try:
@@ -291,7 +299,7 @@ def main():
     finally:
         if server.alive():
             server.stop(30)
-        if args.keep:
+        if args.keep or args.work:
             print("working directory:", work)
         else:
             shutil.rmtree(work, ignore_errors=True)

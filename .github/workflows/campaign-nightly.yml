@@ -1,12 +1,18 @@
 name: Campaign (nightly)
 
-# Can the game be played to its end? A bot of every class plays the world
-# of seed 1 for 150,000 rounds (about 8 hours of game time), the server
-# stopped and started again every 20,000 rounds, a clean stop and a crash
-# in turn (tools/quality.sh campaign, tests/integration/campaign_sim.c).
-# It fails when no character conquers the dungeon or a clean restart
-# changes a character or a floor. The report (on the page of the run, and
-# campaign.json) says how deep every class went and why it stopped.
+# Can the game be played to its end? A bot of every class plays a world for
+# 150,000 rounds (about 8 hours of game time), the server stopped and
+# started again every 20,000 rounds, a clean stop and a crash in turn
+# (tools/quality.sh campaign, tests/integration/campaign_sim.c). Every
+# 1,000 rounds the world is checked: every floor keeps its creatures, the
+# table of the NPCs keeps room, the swarm clones stay within their cap.
+#
+#   reference: the world of seed 1; fails too under the
+#              campaign_conquests_min conquests of tools/quality_limits.json
+#              (a ratchet: it only goes up).
+#   seed of the day: another world every night (the date, YYYYMMDD), to
+#              find what only some worlds do; its conquests are reported.
+#              Replayed with: tools/quality.sh campaign 150000 <seed>
 on:
   schedule:
     - cron: "53 1 * * *"
@@ -15,6 +21,9 @@ on:
       rounds:
         description: "Rounds of the world"
         default: "150000"
+      seed:
+        description: "Seed of the second campaign (empty: the date)"
+        default: ""
 
 permissions:
   contents: read
@@ -25,11 +34,21 @@ concurrency:
 
 jobs:
   campaign:
-    name: A bot of every class (${{ inputs.rounds || '150000' }} rounds)
+    name: ${{ matrix.name }}
     runs-on: ubuntu-24.04
     timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Campaign of reference (seed 1)
+            which: reference
+          - name: Campaign of the seed of the day
+            which: day
     env:
       ROUNDS: ${{ inputs.rounds || '150000' }}
+      SEED_INPUT: ${{ inputs.seed || '' }}
+      WHICH: ${{ matrix.which }}
     steps:
       - uses: actions/checkout@v5
 
@@ -39,18 +58,32 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             clang cmake ninja-build pkg-config libsodium-dev libssl-dev python3
 
+      - name: Seed
+        run: |
+          if [[ $WHICH == reference ]]; then
+            seed=1
+          elif [[ $SEED_INPUT =~ ^[0-9]+$ ]]; then
+            seed=$SEED_INPUT
+          else
+            seed=$(date -u +%Y%m%d)
+          fi
+          [[ $ROUNDS =~ ^[0-9]+$ ]] || { echo "rounds: a number" >&2; exit 1; }
+          echo "SEED=$seed" >> "$GITHUB_ENV"
+
       - name: Campaign
         run: |
           set -o pipefail
-          tools/quality.sh campaign "$ROUNDS" 2>&1 | tee campaign.txt
+          tools/quality.sh campaign "$ROUNDS" "$SEED" 2>&1 | tee campaign.txt
 
       - name: Report
         if: always()
         run: |
           {
-            echo '### Campaign'
+            echo "### Campaign: seed $SEED, $ROUNDS rounds"
+            echo "Replay: \`tools/quality.sh campaign $ROUNDS $SEED\`"
             echo '```'
             sed -n '/^class /,/^  ok:/p' campaign.txt || true
+            grep -E '^campaign_sim: round [0-9]+: [a-z]' campaign.txt || true
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -58,7 +91,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: campaign
+          name: campaign-${{ matrix.which }}
           path: |
             build-quality/release/campaign.json
             campaign.txt

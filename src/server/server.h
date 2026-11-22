@@ -35,7 +35,7 @@
 /** Tombstone — Tombstone left at the player's death point.
  * Contains all inventory (backpack + equipped slots) and gold.
  * Only the owner player can recover items.
- * It is saved to disk in saves/tombstone_<owner>.dat*/
+ * It is saved to disk in saves/tombstone_<owner>_<death_turn>_<x>_<y>.dat*/
 typedef struct {
     bool active;
     int x;
@@ -43,7 +43,9 @@ typedef struct {
     int floor_id;
     char owner[32]; /*username of the dead player*/
     uint64_t gold;
-    time_t death_time;
+    time_t death_time;  /*the clock: a tombstone expires 24 hours after it*/
+    int64_t death_turn; /*the round of the world (total_turns): the name of
+                          * its file, the order of the tombstones*/
 
     /*Backpack*/
     ItemInstance backpack[TOMBSTONE_BACKPACK_SIZE];

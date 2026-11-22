@@ -162,15 +162,24 @@ bool autosave_step(Client *clients, Game *game, int step) {
     return ok;
 }
 
+static int g_autosave_period_s = 60;
+
+void autosave_set_period(int seconds) {
+    g_autosave_period_s = seconds;
+}
+
 /*Once a minute, over AUTOSAVE_STEPS consecutive rounds (autosave_step).*/
 static void autosave_if_due(Client *clients, Game *game) {
     static time_t last_autosave = 0;
     static int step = -1; /*-1: no autosave in progress*/
+    if (g_autosave_period_s <= 0 && step < 0) {
+        return;
+    }
     time_t now = time(NULL);
     if (last_autosave == 0) {
         last_autosave = now;
     }
-    if (step < 0 && now - last_autosave >= 60) {
+    if (step < 0 && now - last_autosave >= g_autosave_period_s) {
         last_autosave = now;
         step = 0;
     }

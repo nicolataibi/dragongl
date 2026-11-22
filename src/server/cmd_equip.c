@@ -118,8 +118,7 @@ bool cmd_wear(Client *c, const char *cmd, Game *game) {
     if (in_belt) {
         c->belt[si].template_idx = -1;
     } else {
-        c->backpack[si] = c->backpack[c->backpack_count - 1];
-        c->backpack_count--;
+        backpack_take_swap_last(c, si);
     }
     if (prev.template_idx != -1) {
         c->backpack[c->backpack_count++] = prev;
@@ -263,8 +262,7 @@ bool cmd_belt(Client *c, const char *cmd, Game *game) {
         for (int i = 0; i < MAX_BELT; i++) {
             if (c->belt[i].template_idx == -1) {
                 c->belt[i] = c->backpack[bi];
-                c->backpack[bi] = c->backpack[c->backpack_count - 1];
-                c->backpack_count--;
+                backpack_take_swap_last(c, bi);
                 send_text_to_client(c->sock, "[SYSTEM] %s moved to belt.",
                                     item_database[c->belt[i].template_idx].name);
                 send_detailed_state(game, c); //Update client view radius

@@ -1,3 +1,63 @@
+* Sun Nov 22 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.22.12
+- FIX: a tombstone gave its owner back items he no longer had. Taking an
+  item out of the backpack (selling it, wearing it, moving it to the
+  belt, remove_carried) closed the gap but left the last item copied
+  past backpack_count, and the tombstone copied the whole array of 32
+  slots: the copies came back at the recovery as second items. The
+  tombstone now takes the items of the backpack only, and the four
+  places that take an item out empty the slot that frees up
+  (backpack_take_swap_last, backpack_clear_tail).
+- FIX: a tombstone partly recovered was lost at the next start. The
+  recovery counted its items down one by one, the copies too, so the
+  count went below zero; the file saved with it was refused as malformed
+  (46 times in a campaign of 110,000 rounds), and what the character had
+  left in it was gone. The count is now the items left.
+- FIX: two deaths of a character on one tile within a second wrote one
+  tombstone file (its name had the time of the clock): the second
+  replaced the first. A tombstone records the round of the death
+  (death_turn: the name of its file, the order in which the tombstones
+  load and the oldest one to reuse); the clock dates it only for the
+  expiry of 24 hours. Tombstone files of version 1 are refused
+  (PERSIST_TOMB_VERSION 2).
+- PERSISTENCE: npcs.dat version 4, the layout of 3: a table saved before
+  2026.11.22.10 may have lost for good the monsters whose slots the
+  swarm clones took, so it is refused and the world is generated anew at
+  the first start; the characters stay.
+- TOOLS: the campaign checks the invariants of the world every 1,000
+  rounds: every floor keeps the creatures that respawn it was generated
+  with, the table of the NPCs keeps 2,000 free slots, the swarm clones
+  stay within 64 a floor, the counters of the floors match a count of
+  the table (exit status 4; the line 'world:' of the report). With the
+  swarms of 2026.11.22.09 it stops at round 1,000.
+- TOOLS: the campaign is deterministic: the same seed gives the same
+  game and the same server log, line for line, at any speed. It saves by
+  its rounds (autosave_set_period(0): the autosave by the clock fell on
+  a round that depended on the machine, and a crash took the world back
+  to a different save), and the tombstones load in the order of the
+  deaths.
+- TOOLS: tools/quality.sh campaign [ROUNDS [SEED]]; the campaign of
+  reference (seed 1, 150,000 rounds) fails under campaign_conquests_min
+  conquests of tools/quality_limits.json, a ratchet like the coverage,
+  set at 4. tools/playtest.py --work DIR plays on the world and
+  characters of an earlier run.
+- CI: campaign-nightly.yml plays two campaigns every night, the
+  reference and a world of the day (the date as its seed, replayed with
+  tools/quality.sh campaign 150000 <seed>). soak-weekly.yml plays the
+  real server built with ASan/UBSan for four hours every Sunday, six
+  segments of 40 minutes on one world with a restart between them, then
+  reads its log with tools/analyze_log.py --strict.
+- TESTS: tombstone_takes_the_backpack (an item taken out leaves no copy;
+  a copy past the count stays out of the tombstone; a tombstone partly
+  recovered comes back after a restart) and tombstones_load_in_order;
+  both parts of the first fail with the old code. The network suite of
+  the integration tests failed once under ASan on a machine of 2 cores
+  also running clang-tidy; 11 runs since, 9 of them three at a time and
+  2 under the same load, all passed.
+- DOCS: docs/RELEASING.md, a stable release: a freeze, a candidate
+  marked as a pre-release, seven nights of every scheduled workflow
+  green and the weekly soak, a few evenings of real players, then the
+  same version as the latest release, the one of the Fedora review.
+
 * Sun Nov 22 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.22.11
 - FIX: a monster of the bestiary has the hit points, armour class and
   damage of its entry, whatever its archetype (LORE.md, Monster Defences
