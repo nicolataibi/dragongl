@@ -815,6 +815,7 @@ bool persist_write_tombstone(const char *path, const Tombstone *t) {
     bw_str(&w, t->owner, sizeof(t->owner));
     bw_u64(&w, t->gold);
     bw_i64(&w, (int64_t)t->death_time);
+    bw_i64(&w, t->death_turn);
     bw_i32(&w, t->backpack_count);
     put_items(&w, t->backpack, TOMBSTONE_BACKPACK_SIZE);
     put_items(&w, t->belt, 4);
@@ -845,6 +846,7 @@ BinFileStatus persist_read_tombstone(const char *path, Tombstone *t, char *why, 
     br_str(&r, t->owner, sizeof(t->owner));
     t->gold = br_u64(&r);
     t->death_time = (time_t)br_i64(&r);
+    t->death_turn = br_i64(&r);
     t->backpack_count = br_i32(&r);
     get_items(&r, t->backpack, TOMBSTONE_BACKPACK_SIZE);
     get_items(&r, t->belt, 4);

@@ -51,6 +51,12 @@ bool save_world_state(Game *game);
  * then one round apart, as they already were two separate writes.*/
 #define AUTOSAVE_STEPS 2
 bool autosave_step(Client *clients, Game *game, int step);
+/*The autosave of the world runs every that many seconds of the clock (60).
+ * 0: never by the clock. A run that saves by its rounds (the campaign,
+ * autosave_step) turns it off: an autosave at a time of the clock would
+ * fall on a round that depends on the speed of the machine, and a crash
+ * would then take the world back to a different save.*/
+void autosave_set_period(int seconds);
 
 /* Floor Stats Cache — incremental O(1) updates */
 void floor_stats_rebuild(Game *game);

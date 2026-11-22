@@ -79,6 +79,49 @@ entries; CI runs it on every push, the spec runs it in `%check`.
   release; the attestation does. COPR signs the packages it builds with
   the key of the project there.
 
+## A stable release
+
+Every green release is fit to install; a *stable* one is a release that
+was also played for a long time before being called so. Two defects of
+November 2026 (the swarm clones emptying the floors, the monsters twice
+as strong as their entry) passed every test of CI and showed up only
+when the server was played for hours. A stable release therefore goes
+through these steps:
+
+1. **Freeze.** From the candidate on, `main` takes fixes only: no new
+   rules, content or balance, which would move what is being measured.
+   A freeze lasts one to two weeks.
+2. **Candidate.** Release the version as usual, then mark its GitHub
+   release as a pre-release:
+
+   ```bash
+   gh release edit <version> --prerelease
+   ```
+
+3. **A week of nights.** Every scheduled workflow green on the candidate
+   for seven nights in a row: Load, Fuzz, Links and both jobs of
+   Campaign (the world of seed 1 at or above `campaign_conquests_min`
+   conquests of `tools/quality_limits.json`, the seed of the day with
+   every invariant of the world held), and the weekly Soak (hours of
+   the real server under ASan/UBSan, `tools/analyze_log.py --strict`
+   clean). A red night is investigated before anything else; a fix is a
+   new candidate, and the week starts again.
+4. **People.** Two or three players for a few evenings on a server of
+   the candidate; afterwards its log through `dragongl-analyze-log`.
+   Bots find what blocks the game; people find what confuses or annoys.
+   What they report is either fixed (a new candidate) or written down as
+   known.
+5. **Stable.** The same version, not rebuilt, becomes the latest
+   release, and it is the one the Fedora review and COPR carry:
+
+   ```bash
+   gh release edit <version> --prerelease=false --latest
+   ```
+
+A server that upgrades across a change of the format of a state file
+(`src/server/persist.h`) starts on a new world; the characters stay.
+Say so in the notes of the release.
+
 ## Packaging for Fedora
 
 How the spec meets the Fedora packaging guidelines, point by point, and

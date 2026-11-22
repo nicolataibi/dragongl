@@ -36,6 +36,14 @@ int list_index(const char *s);
 int find_carried(const Client *c, const char *query, bool *in_belt);
 /*Takes the item out of the backpack (closing the gap) or off the belt.*/
 void remove_carried(Client *c, int idx, bool in_belt);
+
+/*Takes backpack[idx] out and closes the gap with the last item; the slot
+ * that frees up is emptied. Nothing past backpack_count may hold an item:
+ * the remains of a character copy the backpack, and a stale copy left
+ * there came back to its owner as a second item.*/
+void backpack_take_swap_last(Client *c, int idx);
+/*Empties the slot past the last item (after backpack_count--).*/
+void backpack_clear_tail(Client *c);
 /*True for food: the rations ("Ring of Regeneration" and "Sonatas of
  * Inspiration" also hold the letters "ration").*/
 bool item_is_food(const ItemTemplate *t);

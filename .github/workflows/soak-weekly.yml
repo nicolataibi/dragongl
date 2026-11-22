@@ -1,0 +1,101 @@
+name: Soak (weekly)
+
+# The closest thing to a public server: the real server (TLS, the login
+# worker, the autosave of a minute), built with ASan/UBSan, plays a
+# character of every class (tools/playtest.py) for hours, stopped and
+# started again on the same world between the segments: every character
+# logs in again from its save. Then tools/analyze_log.py --strict reads the
+# whole log. Fails on a character stuck, a command with no answer, a
+# connection closed, a server that exits or a sanitizer report (playtest),
+# and on any problem of the log (analyze_log: warnings, errors, failed or
+# unreadable saves, a start without a clean shutdown).
+on:
+  schedule:
+    - cron: "17 5 * * 0"
+  workflow_dispatch:
+    inputs:
+      segments:
+        description: "Segments of play (the server restarted between them)"
+        default: "6"
+      seconds:
+        description: "Seconds of a segment"
+        default: "2400"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: soak-weekly
+  cancel-in-progress: false
+
+jobs:
+  soak:
+    name: A character of every class, ${{ inputs.segments || '6' }} x ${{ inputs.seconds || '2400' }} s (ASan/UBSan)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 330
+    env:
+      SEGMENTS: ${{ inputs.segments || '6' }}
+      SECONDS_EACH: ${{ inputs.seconds || '2400' }}
+      ASAN_OPTIONS: detect_leaks=0
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang libclang-rt-18-dev cmake ninja-build pkg-config \
+            libsodium-dev libssl-dev python3
+
+      - name: Build
+        run: |
+          cmake -B build-soak -G Ninja -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_C_COMPILER=clang tests/integration \
+            -DCMAKE_C_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer" \
+            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
+          cmake --build build-soak --target dragongl_server_it
+
+      - name: Play
+        run: |
+          [[ $SEGMENTS =~ ^[0-9]+$ && $SECONDS_EACH =~ ^[0-9]+$ ]] ||
+            { echo "segments and seconds: numbers" >&2; exit 1; }
+          work="$RUNNER_TEMP/soak"
+          fail=0
+          for i in $(seq 1 "$SEGMENTS"); do
+            echo "::group::segment $i of $SEGMENTS"
+            PYTHONDONTWRITEBYTECODE=1 python3 tools/playtest.py \
+              --server build-soak/dragongl_server_it --seconds "$SECONDS_EACH" \
+              --work "$work" | tee -a playtest.txt || fail=1
+            echo "::endgroup::"
+          done
+          cp "$work/server.log" server.log
+          exit "$fail"
+
+      - name: Server log
+        if: always()
+        run: |
+          [ -f server.log ] || exit 0
+          set -o pipefail
+          python3 tools/analyze_log.py --strict server.log | tee analyze.txt
+
+      - name: Report
+        if: always()
+        run: |
+          {
+            echo "### Soak: $SEGMENTS segments of $SECONDS_EACH s"
+            echo '```'
+            grep -E '^(playtest:|play[0-9]+ )' playtest.txt 2>/dev/null | tail -n 13 || true
+            cat analyze.txt 2>/dev/null | head -n 60 || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Logs
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: soak
+          path: |
+            server.log
+            playtest.txt
+            analyze.txt
+          if-no-files-found: ignore

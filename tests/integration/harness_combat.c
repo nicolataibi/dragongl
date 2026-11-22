@@ -12,6 +12,7 @@
 
 #include "harness_util.h"
 
+#include "inventory.h"
 #include "items.h"
 #include "player.h"
 #include "server_combat.h"
@@ -481,10 +482,11 @@ int test_tombstone_expires(void) {
     save_bones(&g_game, c);
     Tombstone *t = &g_game.tombstones[0];
     CHECK(t->active, "no tombstone");
-    /* The file is named after the time of death: the old name goes. */
+    /* The file is named after the round of the death; the clock only
+     * dates it for the expiry. */
     char path[256];
     snprintf(path, sizeof(path), "state-tombstone_expires/saves/tombstone_ancient_%lld_%d_%d.dat",
-             (long long)t->death_time, t->x, t->y);
+             (long long)t->death_turn, t->x, t->y);
     CHECK(unlink(path) == 0, "no file %s", path);
     t->death_time = time(NULL) - 3600L * 24 * 30;
     tombstone_save(t);
@@ -676,5 +678,90 @@ int test_in_a_fight(void) {
     rules_force_d20(0);
     CHECK(c->hp < 3 || c->floor_id == 0, "the monster spares a character who left");
     c->linger_until_ms = 0;
+    return 0;
+}
+
+/* The tombstone takes the items of the backpack, not the whole array: a
+ * slot past backpack_count may hold the copy of an item sold or worn
+ * before, which came back to its owner as a second one. A tombstone
+ * partly recovered is saved with what is left and read back after a
+ * restart (its count went below zero, and the file was refused as
+ * malformed: the rest of the belongings were lost). */
+int test_tombstone_takes_the_backpack(void) {
+    hx_reset_world();
+    remove_with_prefix("state-tombstone_takes_the_backpack/saves", "tombstone_");
+    Client *c = hero(0, "hoarder", FLOOR, CX, CY);
+    CHECK(c != NULL, "no player");
+    int sword = item_of(ITEM_WEAPON), potion = item_of(ITEM_CONSUMABLE);
+    CHECK(sword >= 0 && potion >= 0, "no weapon or potion in the data");
+    c->backpack_count = 0;
+    give(c, potion, 1);
+    give(c, sword, 1);
+    give(c, potion, 2);
+    /* Taken out, the item leaves no copy behind. */
+    remove_carried(c, 1, false);
+    CHECK(c->backpack_count == 2 && c->backpack[2].template_idx == -1,
+          "remove_carried left %s past the last item",
+          c->backpack[2].template_idx >= 0 ? item_database[c->backpack[2].template_idx].name : "-");
+    /* A copy past the count, as the older code left them. */
+    c->backpack[5] = c->backpack[0];
+    c->backpack[5].template_idx = sword;
+    c->gold = 0;
+    save_bones(&g_game, c);
+    const Tombstone *t = &g_game.tombstones[0];
+    CHECK(t->active && t->backpack_count == 2, "the tombstone holds %d items, not 2",
+          t->backpack_count);
+    for (int j = 2; j < TOMBSTONE_BACKPACK_SIZE; j++) {
+        CHECK(t->backpack[j].template_idx == -1, "the tombstone took slot %d past the backpack", j);
+    }
+    /* Room for one item only: the other stays, and the tombstone with it. */
+    place(c, FLOOR, CX, CY);
+    c->backpack_count = 0;
+    while (c->backpack_count < MAX_BACKPACK - 1) {
+        give(c, potion, 1);
+    }
+    run(c, "pickup");
+    CHECK(said("PART of your belongings") && c->backpack_count == MAX_BACKPACK,
+          "not a partial recovery (%d items)", c->backpack_count);
+    CHECK(t->active && t->backpack_count == 1, "the tombstone counts %d items, 1 is left",
+          t->backpack_count);
+    /* After a restart the tombstone is there, with what is left. */
+    tombstone_load_all(&g_game);
+    bool back = false;
+    for (int i = 0; i < MAX_TOMBSTONES; i++) {
+        const Tombstone *r = &g_game.tombstones[i];
+        back = back || (r->active && strcmp(r->owner, "hoarder") == 0 && r->backpack_count == 1);
+    }
+    CHECK(back, "the tombstone partly recovered did not come back after a restart");
+    return 0;
+}
+
+/* Tombstones load in the order of the deaths (the round, death_turn),
+ * whatever the order of the directory: the first tombstone of a character
+ * on a floor is the one he finds, the same on every start. Two deaths of
+ * a character on one tile have two files. */
+int test_tombstones_load_in_order(void) {
+    hx_reset_world();
+    remove_with_prefix("state-tombstones_load_in_order/saves", "tombstone_");
+    Client *c = hero(0, "twice", FLOOR, CX, CY);
+    CHECK(c != NULL, "no player");
+    static const int k_turns[] = {9000, 3000, 6000};
+    for (size_t k = 0; k < sizeof(k_turns) / sizeof(k_turns[0]); k++) {
+        g_game.total_turns = k_turns[k];
+        c->gold = (uint64_t)(100 + k);
+        save_bones(&g_game, c); /* the same tile every time, within a second */
+    }
+    CHECK(file_with_prefix("state-tombstones_load_in_order/saves", "tombstone_twice_3000_") &&
+              file_with_prefix("state-tombstones_load_in_order/saves", "tombstone_twice_6000_") &&
+              file_with_prefix("state-tombstones_load_in_order/saves", "tombstone_twice_9000_"),
+          "three deaths on one tile did not leave three files");
+    tombstone_load_all(&g_game);
+    CHECK(g_game.tombstones[0].active && g_game.tombstones[0].death_turn == 3000 &&
+              g_game.tombstones[1].death_turn == 6000 && g_game.tombstones[2].death_turn == 9000 &&
+              !g_game.tombstones[3].active,
+          "loaded in the order %lld %lld %lld", (long long)g_game.tombstones[0].death_turn,
+          (long long)g_game.tombstones[1].death_turn, (long long)g_game.tombstones[2].death_turn);
+    CHECK(g_game.tombstones[0].gold == 101, "the oldest tombstone holds %lu gold",
+          (unsigned long)g_game.tombstones[0].gold);
     return 0;
 }

@@ -100,6 +100,7 @@ endforeach()
 # Combat, loot, death and tombstones (harness_combat.c).
 foreach(t melee_attack weapons_and_arrows monster_attacks loot party_shares_xp
           boss_and_event_kills death_and_tombstone conquest_of_the_dungeon leaving_the_game in_a_fight ghost_is_not_a_boss tombstone_expires
+          tombstone_takes_the_backpack tombstones_load_in_order
           combat_log)
     add_test(NAME ${t} COMMAND server_harness ${t} WORKING_DIRECTORY "${DGL_WORK}")
 endforeach()

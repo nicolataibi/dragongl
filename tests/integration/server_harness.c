@@ -480,6 +480,7 @@ static int test_tombstone_and_flags_roundtrip(void) {
     t.floor_id = 7;
     t.gold = 1ULL << 40;
     t.death_time = 1700000000;
+    t.death_turn = 123456789012LL;
     t.backpack_count = 1;
     snprintf(t.owner, sizeof(t.owner), "fallen");
     t.backpack[0].template_idx = 3;
@@ -493,8 +494,9 @@ static int test_tombstone_and_flags_roundtrip(void) {
     char why[96];
     CHECK(persist_read_tombstone(path, &l, why, sizeof(why)) == BINFILE_OK, "tombstone read: %s",
           why);
-    CHECK(l.gold == t.gold && l.death_time == t.death_time && strcmp(l.owner, "fallen") == 0 &&
-              l.backpack[0].is_artifact && strcmp(l.backpack[0].artifact_name, "Void Blade") == 0 &&
+    CHECK(l.gold == t.gold && l.death_time == t.death_time && l.death_turn == t.death_turn &&
+              strcmp(l.owner, "fallen") == 0 && l.backpack[0].is_artifact &&
+              strcmp(l.backpack[0].artifact_name, "Void Blade") == 0 &&
               l.slot_rings[9].template_idx == 4,
           "tombstone fields");
     remove(path);
@@ -1304,6 +1306,8 @@ static const TestCase k_tests[] = {
     {"party_shares_xp", test_party_shares_xp},
     {"boss_and_event_kills", test_boss_and_event_kills},
     {"death_and_tombstone", test_death_and_tombstone},
+    {"tombstone_takes_the_backpack", test_tombstone_takes_the_backpack},
+    {"tombstones_load_in_order", test_tombstones_load_in_order},
     {"conquest_of_the_dungeon", test_conquest_of_the_dungeon},
     {"leaving_the_game", test_leaving_the_game},
     {"in_a_fight", test_in_a_fight},

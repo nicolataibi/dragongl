@@ -295,8 +295,7 @@ bool cmd_sell(Client *c, const char *cmd, Game *game) {
     if (c->backpack[si].stack_count > 1) {
         c->backpack[si].stack_count--;
     } else {
-        c->backpack[si] = c->backpack[c->backpack_count - 1];
-        c->backpack_count--;
+        backpack_take_swap_last(c, si);
     }
     c->pending_trade_merchant_id = -1;
     save_player_data(c);

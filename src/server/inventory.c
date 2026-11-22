@@ -100,6 +100,20 @@ void remove_carried(Client *c, int idx, bool in_belt) {
         c->backpack[i] = c->backpack[i + 1];
     }
     c->backpack_count--;
+    backpack_clear_tail(c);
+}
+
+void backpack_clear_tail(Client *c) {
+    if (c->backpack_count >= 0 && c->backpack_count < MAX_BACKPACK) {
+        memset(&c->backpack[c->backpack_count], 0, sizeof(ItemInstance));
+        c->backpack[c->backpack_count].template_idx = -1;
+    }
+}
+
+void backpack_take_swap_last(Client *c, int idx) {
+    c->backpack[idx] = c->backpack[c->backpack_count - 1];
+    c->backpack_count--;
+    backpack_clear_tail(c);
 }
 
 void item_instance_new(ItemInstance *out, int template_idx) {
