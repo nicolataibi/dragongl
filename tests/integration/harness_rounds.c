@@ -19,10 +19,24 @@
 #include "server_combat.h"
 #include "server_internal.h"
 #include "server_spawn.h"
+#include "server_world.h"
 
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 enum { CX = HX_CX, CY = HX_CY, FLOOR = HX_FLOOR };
+
+/* Back on (x, y): the mage may have stepped towards a wall. */
+static void place_npc_back(NPC *n, int x, int y) {
+    Floor *fl = &g_game.world->floors[n->floor_id];
+    if (fl->entity_grid[n->y][n->x] == n->entity_id) {
+        fl->entity_grid[n->y][n->x] = 0;
+    }
+    n->x = x;
+    n->y = y;
+    fl->entity_grid[y][x] = n->entity_id;
+}
 
 static bool has(const ActiveEffect *fx, int count, const char *name) {
     for (int i = 0; i < count; i++) {
@@ -132,14 +146,28 @@ int test_global_event(void) {
     CHECK(g_game.event.type == 1 && g_game.event.goal == 5 && said("Invasion on floor"),
           "no invasion");
     g_game.event.floor_id = FLOOR;
+    /* The defenders: who killed an invader and his party on the floor; a
+     * character idle on the floor gets nothing. */
+    Client *idle = hero(2, "idle", FLOOR, CX + 5, CY);
+    Client *mate = hero(3, "mate", FLOOR, CX - 5, CY);
+    CHECK(idle && mate, "no players");
+    snprintf(c->party_leader, sizeof(c->party_leader), "%s", c->username);
+    snprintf(mate->party_leader, sizeof(mate->party_leader), "%s", c->username);
+    NPC *bones = monster(20, "Skeleton", FLOOR, CX + 1, CY);
+    CHECK(bones->template && strcasestr(bones->template->name, "Skeleton"), "no skeleton");
+    npc_killed(&g_game, c, bones, NULL);
+    CHECK(g_game.event.progress == 1, "the skeleton did not count");
     g_game.event.progress = 5;
-    uint64_t gold = c->gold, other = o->gold;
+    uint64_t gold = c->gold, other = o->gold, idle_gold = idle->gold, mate_gold = mate->gold;
     hush(c);
     round_at(1501);
     heard(c);
     CHECK(g_game.event.type == 0 && c->gold == gold + 500 && o->gold == other &&
               said("has been stopped"),
           "no victory");
+    CHECK(mate->gold == mate_gold + 500, "the party of the defender gets nothing");
+    CHECK(idle->gold == idle_gold, "an idle character is rewarded");
+    c->party_leader[0] = mate->party_leader[0] = '\0';
 
     g_game.event.type = 1;
     g_game.event.progress = 0;
@@ -198,6 +226,23 @@ int test_world_respawns(void) {
     blocked->respawn_timer = 1;
     blocked->spawn_x = stiff->x;
     blocked->spawn_y = stiff->y;
+    /* Gold on the spawn point (the bounty of a boss killed there): the
+     * monster comes back next to it, the gold stays. */
+    NPC *buried = monster(15, NULL, FLOOR, CX - 20, CY + 20);
+    npc_set_active(&g_game, buried, false);
+    fl->entity_grid[CY + 20][CX - 20] = 0;
+    buried->respawn_timer = 1;
+    NPC *gold = npc_spawn_gold(&g_game, FLOOR, CX - 20, CY + 20, 77);
+    CHECK(gold != NULL, "no gold pile");
+    /* The bounty of a boss: the 3 steps around the spawn point covered
+     * too (water, gold); it comes back 4 steps away. */
+    for (int dy = -3; dy <= 3; dy++) {
+        for (int dx = -3; dx <= 3; dx++) {
+            if (dx != 0 || dy != 0) {
+                fl->map.data[0][CY + 20 + dy][CX - 20 + dx] = VOXEL_WATER;
+            }
+        }
+    }
     floor_index_rebuild(&g_game);
 
     rules_force_d20(20);
@@ -213,6 +258,12 @@ int test_world_respawns(void) {
     CHECK(!has(stiff->effects, stiff->effect_count, "Paralyzed"), "the paralysis stays");
     CHECK(back->active && back->hp == back->max_hp && back->x == CX + 20, "no respawn");
     CHECK(!blocked->active && blocked->respawn_timer == 5, "a respawn on a taken tile");
+    CHECK(buried->active && abs(buried->x - (CX - 20)) <= 4 && abs(buried->y - (CY + 20)) <= 4 &&
+              (abs(buried->x - (CX - 20)) == 4 || abs(buried->y - (CY + 20)) == 4) &&
+              (buried->x != CX - 20 || buried->y != CY + 20) && gold->active &&
+              fl->entity_grid[CY + 20][CX - 20] == gold->entity_id,
+          "gold on the spawn point keeps the monster dead (%d at %d,%d)", buried->active, buried->x,
+          buried->y);
 
     NPC *afraid = monster(14, NULL, FLOOR, CX - 30, CY);
     afraid->respawn_timer = 0;
@@ -278,6 +329,16 @@ int test_monster_minds(void) {
     ai_attach_behavior(mage);
     mage->spell_slots[1] = 1;
     c->hp = 60;
+    /* A wall between them stops the missile: the mage does not cast. */
+    VoxelType *wall = &g_game.world->floors[FLOOR].map.data[0][CY][CX + 2];
+    VoxelType ground = *wall;
+    *wall = VOXEL_WALL;
+    for (int r = 0; r < 5; r++) {
+        (void)ai_mage_behavior(&g_game, mage, g_game.clients, MAX_CLIENTS, true);
+    }
+    CHECK(mage->spell_slots[1] == 1 && c->hp == 60, "a missile through a wall");
+    *wall = ground;
+    place_npc_back(mage, CX + 3, CY);
     hush(c);
     for (int r = 0; r < 10 && mage->spell_slots[1] > 0; r++) {
         round_at(401 + r);

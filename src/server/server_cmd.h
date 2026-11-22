@@ -129,6 +129,8 @@ bool cmd_save(Client *c, const char *cmd, Game *game);
 
 /* cmd_social.c */
 bool cmd_top(Client *c, const char *cmd, Game *game);
+/*A character leaves the game: his party and his trade (cmd_social.c).*/
+void social_client_gone(Client *c, Game *game);
 bool cmd_event(Client *c, const char *cmd, Game *game);
 bool cmd_invite(Client *c, const char *cmd, Game *game);
 bool cmd_join(Client *c, const char *cmd, Game *game);

@@ -95,7 +95,11 @@ void ai_init_npc(NPC *npc, const char *monster_name, int floor_id) {
         npc->damage_dice = 1 + (floor_id / 20);
         npc->damage_sides = 6;
     }
-    npc->attack_bonus = 2 + (floor_id / 4);
+    /*LORE.md, Monster Defences and Attacks: +1 every 4 floors, at most +17
+     * (floor 60): a character stops growing at level 20, the attack
+     * bonus of the deep floors stopped with him (it was +27 on floor 100).*/
+    npc->attack_bonus =
+        2 + (floor_id < MONSTER_ATTACK_FLOOR_CAP ? floor_id : MONSTER_ATTACK_FLOOR_CAP) / 4;
 
     //--- Archetype: JSON template takes priority ---
     const char *arch_str = NULL;
@@ -427,6 +431,11 @@ AINodeStatus ai_swarm_behavior(Game *game, NPC *npc, Client *clients, int num_cl
                              * spot after dying in different places.*/
                             clone->spawn_x = nx;
                             clone->spawn_y = ny;
+                            /*Killed, a clone does not come back: the dead
+                             * clones waiting for a respawn filled the NPC
+                             * table, and then took the slots of the dead
+                             * bosses (npc_alloc).*/
+                            clone->respawn_timer = -1;
                             /*All fields are final: activate the clone
                              * through npc_set_active so the floor caches
                              * count it.*/
@@ -496,7 +505,7 @@ static void ally_dismiss(Game *game, NPC *npc, Client *owner) {
         game->world->floors[npc->floor_id].entity_grid[npc->y][npc->x] = 0;
     }
     npc_set_active(game, npc, false);
-    npc->respawn_timer = RESPAWN_TICKS;
+    npc->respawn_timer = npc->respawn_timer < 0 ? -1 : RESPAWN_TICKS; /*a clone: never*/
 }
 
 /*A hostile creature an ally may fight: alive, not loot, not a merchant,
@@ -621,6 +630,37 @@ void ai_update_npc(Game *game, NPC *npc, Client *clients, int num_clients, bool 
     }
 }
 
+/*Range of the Magic Missile of a monster mage: 120 feet, 24 tiles.*/
+#define MAGE_MISSILE_RANGE 24
+
+/*True if nothing that stops a missile (rock, a wall, a door) lies between
+ * the two tiles, on the straight line that joins them (Bresenham).*/
+static bool line_clear(const Map *map, int x0, int y0, int x1, int y1) {
+    int dx = abs(x1 - x0), dy = -abs(y1 - y0);
+    int sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+    int err = dx + dy;
+    for (int x = x0, y = y0;;) {
+        if ((x != x0 || y != y0) && (x != x1 || y != y1)) {
+            VoxelType v = map->data[0][y][x];
+            if (v == VOXEL_ROCK || v == VOXEL_WALL || v == VOXEL_DOOR) {
+                return false;
+            }
+        }
+        if (x == x1 && y == y1) {
+            return true;
+        }
+        int e2 = 2 * err;
+        if (e2 >= dy) {
+            err += dy;
+            x += sx;
+        }
+        if (e2 <= dx) {
+            err += dx;
+            y += sy;
+        }
+    }
+}
+
 AINodeStatus ai_mage_behavior(Game *game, NPC *npc, Client *clients, int num_clients,
                               bool new_round) {
     Client *target = find_closest_target(game, npc, clients, num_clients);
@@ -630,9 +670,13 @@ AINodeStatus ai_mage_behavior(Game *game, NPC *npc, Client *clients, int num_cli
 
     int d = abs(target->x - npc->x) + abs(target->y - npc->y);
 
+    /*The missile needs its range and a clear line: through a wall the
+     * mage walks towards its target instead.*/
+    bool in_sight = d <= MAGE_MISSILE_RANGE && line_clear(&game->world->floors[npc->floor_id].map,
+                                                          npc->x, npc->y, target->x, target->y);
     if (new_round) {
         // Try to cast a spell if spell slots are available
-        if (npc->spell_slots[1] > 0) {
+        if (npc->spell_slots[1] > 0 && in_sight) {
             send_text_to_client(target->sock, "[DANGER] The Mage casts 'Magic Missile' at you!");
             /*Magic Missile: 3 homing missiles, 1d4+1 force damage each,
              * always hits (no attack roll, no AC); a brooch of shielding
@@ -666,7 +710,7 @@ AINodeStatus ai_mage_behavior(Game *game, NPC *npc, Client *clients, int num_cli
 
     // Movement (maintains distance): one axis per step, and never
     // onto a cell occupied by a player or another NPC.
-    if (d > 3 && rand() % 2 == 0) {
+    if ((d > 3 || !in_sight) && rand() % 2 == 0) {
         int nx = npc->x, ny = npc->y;
         if (npc->x < target->x) {
             nx++;

@@ -301,6 +301,29 @@ int test_floors_traversable(void) {
         CHECK(beside, "the merchant of floor %d (%d,%d) cannot be walked to", f, n->x, n->y);
     }
 
+    /* The deep floors have stone walls, not obsidian (walked on): an
+     * older world has them back at load; a new one has nothing to wall. */
+    for (int f = 1; f < MAX_FLOORS; f++) {
+        CHECK(!map_obsidian_band(f) || map_wall_up_obsidian(&g_game.world->floors[f].map) == 0,
+              "floor %d: obsidian against the rock in a new world", f);
+    }
+    {
+        Map *deep = &g_game.world->floors[60].map;
+        int wx = -1, wy = -1;
+        for (int y = 1; y < MAP_HEIGHT - 1 && wx < 0; y++) {
+            for (int x = 1; x < MAP_WIDTH - 1 && wx < 0; x++) {
+                if (deep->data[0][y][x] == VOXEL_WALL && deep->data[0][y][x + 1] == VOXEL_ROCK) {
+                    wx = x;
+                    wy = y;
+                }
+            }
+        }
+        CHECK(wx >= 0, "floor 60 has no stone wall against the rock");
+        deep->data[0][wy][wx] = VOXEL_OBSIDIAN; /*as the older worlds had it*/
+        CHECK(map_wall_up_obsidian(deep) == 1 && deep->data[0][wy][wx] == VOXEL_WALL,
+              "the obsidian wall of an older world stays");
+    }
+
     /* A floor of an older world, its stairs down walled in: the way is
      * opened (at load, server_startup.c), once. */
     Map *m = &g_game.world->floors[3].map;

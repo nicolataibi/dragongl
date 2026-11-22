@@ -159,7 +159,7 @@ The main loop runs `update_world()` on a fixed-step clock: one round every 200 m
 
 - **Floors without characters sleep.** A living NPC acts, saves against its conditions and ages its effects only on a floor where at least one character stands. On the other floors the dead still count down to their respawn and the merchants restock; nothing else moves. Of some 36,000 NPCs alive in a new world, a round visits those of at most 64 floors.
 - **The autosave is split.** Once a minute `autosave_step()` runs in two consecutive rounds: the characters and the world, then the NPC table. Each part is encoded on the game thread and written by the writer thread. The record of an NPC carries a shop only for a merchant and loot only for the remains of a character or an item on the ground.
-- **Swarms** count their neighbours through the entity grid and split into slots from `npc_alloc()`, up to 500 living NPCs on the floor.
+- **Swarms** count their neighbours through the entity grid and split into slots from `npc_alloc()`, up to 500 living NPCs on the floor. A clone does not come back once killed (`respawn_timer` -1): the dead clones waiting for a respawn used to fill the 50,000 slots. A full table gives new loot the slot of a dead monster, never of a dead boss.
 - **Rate limits.** A client gets one step per 200 ms and, separately, ten text commands per second; over that the commands are dropped and the client is told once per second.
 
 `server_metrics.c` keeps a histogram of the duration of every round and of every loop pass (250 µs buckets). `dm_telemetry` shows mean, p50, p99 and maximum, the rounds over budget, the depth of the writer queue and the logins waiting; the server logs a `[PERF]` line every 5 minutes and one for its whole life at shutdown.
@@ -255,11 +255,12 @@ Every quality gate of CI runs locally with one command; build trees go to `build
 | `bench` | `tests/integration/tick_bench` in a Release build: 600 rounds with 64 characters in a full world (one per floor, then all on one floor) and the autosave | a p99, or the longest autosave round, over `tests/bench_limits.json` in two runs (a run over the limits is measured once more: a stalled shared machine fails one run, a slower round both) |
 | `load [S]` | `tools/loadtest.py` with a Release server: 64 TLS clients walk to the dungeon and play for S seconds (default 60), the server is stopped under load and started again | a lost connection, round p99 or command p99 over the limits, a slow or failed shutdown, a character not saved |
 | `play [S]` | `tools/playtest.py` with a Release server: a character of every class plays for S seconds (default 300), down the dungeon on the map the server sends, fighting what is in the way and typing the commands a player types | a command with no answer in 5 s, a character that cannot move for 30 s away from a boss floor, a lost connection, an "Unrecognized command" for a command of its list, a server that exits or a sanitizer report |
+| `campaign [R]` | `tests/integration/campaign_sim` in a Release build: the world of seed 1 and a character of every class, each played by a bot inside the server process (commands and steps through the server's own code) for R rounds (default 150,000: about 8 hours of game time, 6 minutes of a 2-core machine). The report gives, per class, the deepest floor, the level, the deaths, the rounds to every tenth floor and why it stopped: the conquest, the rounds, or no progress for 60,000 rounds. `DGL_CAMPAIGN_TRACE=<class>` follows one bot (see the head of the file) | no character conquers the dungeon |
 | `links` / `links-external` | `tools/check_links.py` (after its own tests): links between the Markdown files, `#anchors`, files of the tree named in backticks; `links-external` also fetches every http(s) link | a link to a file or heading that does not exist, a named file that is gone, a URL that does not answer |
 | `commands` / `commands-fix` | `dragongl_server --print-commands` against `docs/COMMANDS.md` | the file is not what the command table (`src/server/cmd_help.c`) gives (`commands-fix` writes it) |
 | `man` | the man pages as installed, through `mandoc -T lint -W warning` | any warning |
 | `repro` | two copies of the tree at different paths, RelWithDebInfo, installed | a file that differs, or one that names its build directory |
-| `all` | all of the above but `bench`, `load` and `play`, fuzzing 30 s per target | |
+| `all` | all of the above but `bench`, `load`, `play` and `campaign`, fuzzing 30 s per target | |
 
 ```bash
 tools/quality.sh format-fix         # before a commit that touches C code
@@ -267,7 +268,10 @@ tools/quality.sh format tidy data   # the static checks
 tools/quality.sh coverage metrics   # numbers next to their limits
 tools/quality.sh fuzz 300           # a longer fuzzing session
 tools/quality.sh bench load 300     # performance, on a quiet machine
+tools/quality.sh campaign           # can the game be played to its end?
 ```
+
+The campaign of 2026-11-22, four worlds of 150,000 rounds each. In the worlds of seeds 1, 2 and 3 the dungeon was conquered 20 times out of 36, by nine classes of twelve (Barbarian, Bard, Cleric, Druid, Fighter, Paladin, Ranger, Rogue, Sorcerer), in 47,000 to 83,000 rounds: 2.6 to 4.6 hours of game time. The Warlock and the Wizard reached floor 99, the Monk floor 69. In the world of the default seed (20261121) nobody went past floor 73: the bots of five classes reached it at level 20 and went back to the town at every try. The bots that did not finish were stopped by deaths more than by a wall: a Monk or a caster dies on the deep floors, comes back to the town with nothing, and walks down again without the books of his transit spell. `quality.sh campaign` plays the world of seed 1 (nine conquests), so that a change which makes the end unreachable fails it. The campaign found and fixed: the bounty of a boss lying on its spawn point kept it from coming back (its stairs sealed for whoever had not beaten it), the dead swarm clones filled the table of the NPCs and new loot then took the slots of the dead bosses, `eat` ate the first item with "ration" in its name (a *Ring of Regeneration*).
 
 `tools/quality_limits.json` is a ratchet: a change may tighten a limit (more coverage, shorter functions), never loosen it. A sanitizer report in a server started by `test_server.py` fails the test that started it (the server log is scanned), so the ASan/UBSan and TSan runs of the network tests are real gates.
 

@@ -18,6 +18,9 @@
 #include "server_move.h"
 #include "server_traps.h"
 #include "traps.h"
+#include "server_startup.h"
+#include "server_world.h"
+#include "persist.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -500,5 +503,50 @@ int test_steps(void) {
     place(c, 10, CX, CY);
     step(c, 1, 0);
     CHECK(c->floor_id == 11, "a defeated boss still seals the stairs");
+    return 0;
+}
+
+/* ground.journal: gold picked up after the last npcs.dat is not on the
+ * ground again after a restart that did not save the world (a crash);
+ * once npcs.dat is written, the journal is empty. */
+int test_ground_journal(void) {
+    hx_reset_world();
+    Client *c = hero(0, "picker", FLOOR, CX, CY);
+    CHECK(c != NULL, "no player");
+    NPC *pile = npc_spawn_gold(&g_game, FLOOR, CX + 1, CY, 120);
+    NPC *walked = npc_spawn_gold(&g_game, FLOOR, CX, CY + 1, 30);
+    CHECK(pile != NULL && walked != NULL, "no gold pile");
+    int id = pile->entity_id, walked_id = walked->entity_id;
+    CHECK(save_world_state(&g_game), "the world was not saved");
+    uint64_t gold = c->gold;
+    run(c, "get e");
+    CHECK(c->gold == gold + 120 && !pile->active, "the pile was not picked up");
+    MsgMove south = {.dx = 0, .dy = 1}; /*the other one by walking onto it*/
+    c->last_action_ms = 0;
+    player_move(c, &south, g_test_clients, &g_game);
+    CHECK(c->gold == gold + 150 && !walked->active, "the pile walked onto was not picked up");
+
+    /* A crash: npcs.dat still has the pile, the journal names it. */
+    CHECK(load_or_generate_world(&g_game), "the world did not load");
+    bool on_ground = false;
+    for (int i = 0; i < MAX_NPCS; i++) {
+        on_ground = on_ground || (g_game.npcs[i].active && (g_game.npcs[i].entity_id == id ||
+                                                            g_game.npcs[i].entity_id == walked_id));
+    }
+    CHECK(!on_ground, "the gold picked up is on the ground again");
+
+    /* A second crash before an autosave: still not there. */
+    CHECK(load_or_generate_world(&g_game), "the world did not load twice");
+    for (int i = 0; i < MAX_NPCS; i++) {
+        CHECK(!(g_game.npcs[i].active && g_game.npcs[i].entity_id == id),
+              "the gold is back after a second crash");
+    }
+    CHECK(save_world_state(&g_game), "the world was not saved again");
+    char path[STATE_DIR_MAX + 32];
+    int32_t ids[8];
+    int n = -1;
+    CHECK(state_path(path, sizeof(path), "ground.journal") &&
+              persist_read_ids(path, ids, 8, &n, NULL, 0) == BINFILE_OK && n == 0,
+          "the journal is not empty after npcs.dat (%d)", n);
     return 0;
 }

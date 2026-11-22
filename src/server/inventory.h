@@ -36,6 +36,12 @@ int list_index(const char *s);
 int find_carried(const Client *c, const char *query, bool *in_belt);
 /*Takes the item out of the backpack (closing the gap) or off the belt.*/
 void remove_carried(Client *c, int idx, bool in_belt);
+/*True for food: the rations ("Ring of Regeneration" and "Sonatas of
+ * Inspiration" also hold the letters "ration").*/
+bool item_is_food(const ItemTemplate *t);
+/*The food to eat ('eat', 'eat <name>'): as find_carried, among the food
+ * only; -1 if the character carries none.*/
+int find_food(const Client *c, const char *query, bool *in_belt);
 
 /*A new, identified, ordinary instance of the template: one unit, full
  * durability (a lantern full of oil), every charge of a wand, the damage

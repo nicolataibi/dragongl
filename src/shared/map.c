@@ -305,6 +305,30 @@ static void place_polygon_rooms(Map *map) {
     }
 }
 
+bool map_obsidian_band(int floor_id) {
+    return (floor_id >= 56 && floor_id <= 75) || (floor_id >= 91 && floor_id <= 100);
+}
+
+int map_wall_up_obsidian(Map *map) {
+    static const int dx[4] = {1, -1, 0, 0}, dy[4] = {0, 0, 1, -1};
+    int walled = 0;
+    for (int y = 1; y < MAP_HEIGHT - 1; y++) {
+        for (int x = 1; x < MAP_WIDTH - 1; x++) {
+            if (map->data[0][y][x] != VOXEL_OBSIDIAN) {
+                continue;
+            }
+            for (int d = 0; d < 4; d++) {
+                if (map->data[0][y + dy[d]][x + dx[d]] == VOXEL_ROCK) {
+                    map->data[0][y][x] = VOXEL_WALL;
+                    walled++;
+                    break;
+                }
+            }
+        }
+    }
+    return walled;
+}
+
 static void apply_biome(Map *map, int floor_id) {
     VoxelType b_rock = VOXEL_ROCK;
     VoxelType b_wall = VOXEL_WALL;
@@ -326,9 +350,9 @@ static void apply_biome(Map *map, int floor_id) {
         b_rock = VOXEL_ROCK;
         b_wall = VOXEL_WALL;
         b_floor = VOXEL_SAND;
-    } else if ((floor_id >= 56 && floor_id <= 75) || (floor_id >= 91 && floor_id <= 100)) {
+    } else if (map_obsidian_band(floor_id)) {
         b_rock = VOXEL_ROCK;
-        b_wall = VOXEL_OBSIDIAN;
+        b_wall = VOXEL_WALL; /*not obsidian: it is walked on (LORE.md, 4.13)*/
         b_floor = VOXEL_ASH;
     } else if (floor_id >= 76 && floor_id <= 90) {
         b_rock = VOXEL_ROCK;

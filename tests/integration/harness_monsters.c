@@ -282,6 +282,13 @@ int test_boss_hit_points(void) {
         int want = bestiary_data[t].hp_avg * k_rows[r].times2 / 2;
         CHECK(n.archetype == ARCH_BOSS && n.hp == want && n.max_hp == want,
               "floor %d: %d HP, not %d", k_rows[r].floor, n.hp, want);
+        /* The attack bonus: +2, +1 every 4 floors, no more past floor 60;
+         * a boss +3. */
+        int floor =
+            k_rows[r].floor < MONSTER_ATTACK_FLOOR_CAP ? k_rows[r].floor : MONSTER_ATTACK_FLOOR_CAP;
+        CHECK(n.attack_bonus == 2 + floor / 4 + 3, "floor %d: attack +%d", k_rows[r].floor,
+              n.attack_bonus);
     }
+    CHECK(MONSTER_ATTACK_FLOOR_CAP == 60, "the cap of the docs is floor 60 (+17)");
     return 0;
 }

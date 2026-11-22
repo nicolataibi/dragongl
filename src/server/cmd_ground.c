@@ -22,6 +22,7 @@
  */
 
 #include "inventory.h"
+#include "ground_journal.h"
 #include "strnum.h"
 #include "server_internal.h"
 #include "player.h"
@@ -61,6 +62,7 @@ static bool direction_step(const char *word, int *dx, int *dy) {
 /*Takes one thing from the ground: gold into the purse, an item into the
  * backpack, or the loot of a closed chest onto the ground.*/
 static void collect(Game *game, Client *c, NPC *n) {
+    ground_journal_taken(game, n); /*before the save of the character*/
     if (n->archetype == ARCH_GOLD) {
         c->gold += (uint64_t)(n->gold_drop > 0 ? n->gold_drop : 0);
         send_text_to_client(c->sock, "[SYSTEM] You have collected %d gold coins!", n->gold_drop);

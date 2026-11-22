@@ -22,6 +22,7 @@ int test_numeric_arguments(void);
 int test_tunnel_keeps_the_border(void);
 int test_floors_without_characters_sleep(void);
 int test_swarm_splits_into_free_slots(void);
+int test_full_table_spares_the_boss(void);
 int test_autosave_in_steps(void);
 int test_metrics_and_telemetry(void);
 

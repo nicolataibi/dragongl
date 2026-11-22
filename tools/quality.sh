@@ -63,6 +63,13 @@ Checks
   load [SECONDS]  tools/loadtest.py (Release server): 64 TLS clients play for
                   SECONDS (default 60), then a shutdown under load and a
                   restart, against the "load" limits of the same file
+  campaign [ROUNDS]
+                  tests/integration/campaign_sim (Release): a bot of every
+                  class plays the whole game, in process, for ROUNDS rounds
+                  of the world of seed 1 (default 150000, about 8 hours of
+                  play); fails when no character conquers the dungeon. The
+                  report: how deep each class went, its deaths, where it
+                  stopped
   play [SECONDS]  tools/playtest.py (Release server): a character of every
                   class plays down the dungeon for SECONDS (default 300);
                   fails on a command with no answer, a character stuck, a
@@ -320,6 +327,18 @@ check_load() {
     ok "within tests/bench_limits.json (numbers in ${OUT#"$ROOT"/}/release/load.json)"
 }
 
+check_campaign() {
+    local rounds=${1:-150000}
+    section "campaign (a bot of every class, ${rounds} rounds)"
+    build_release
+    local run="$OUT/release/campaign-run"
+    rm -rf "$run"
+    mkdir -p "$run"
+    (cd "$run" && "$OUT/release/campaign_sim" "$rounds" 1 "$OUT/release/campaign.json") ||
+        die "no character conquered the dungeon in $rounds rounds"
+    ok "the dungeon can be conquered (numbers in ${OUT#"$ROOT"/}/release/campaign.json)"
+}
+
 check_play() {
     local seconds=${1:-300}
     section "playtest (a character of every class, ${seconds}s)"
@@ -438,6 +457,14 @@ main() {
         play)
             if [[ ${2:-} =~ ^[0-9]+$ ]]; then checks+=("play:$2"); shift; else checks+=(play:300); fi
             ;;
+        campaign)
+            if [[ ${2:-} =~ ^[0-9]+$ ]]; then
+                checks+=("campaign:$2")
+                shift
+            else
+                checks+=(campaign:150000)
+            fi
+            ;;
         all) checks+=(format protocol deps tidy data spelling ascii links commands man coverage metrics tsan repro fuzz:30) ;;
         format | format-fix | tidy | data | deps | spelling | metrics | protocol | coverage | tsan | bench | \
             commands | commands-fix | man | repro | links | links-external | ascii)
@@ -473,6 +500,7 @@ main() {
         repro) check_repro ;;
         load:*) check_load "${c#load:}" ;;
         play:*) check_play "${c#play:}" ;;
+        campaign:*) check_campaign "${c#campaign:}" ;;
         fuzz:*) check_fuzz "${c#fuzz:}" ;;
         esac
     done

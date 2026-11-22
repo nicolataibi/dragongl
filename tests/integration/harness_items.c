@@ -108,6 +108,22 @@ int test_use_items(void) {
     run(c, "eat");
     CHECK(c->hunger_level == 0 && c->backpack_count == 0 && said("You ate"), "no meal");
 
+    /* 'eat' looks among the food: a ring of regeneration or the Sonatas of
+     * Inspiration ("ration" in the name) carried before the rations is
+     * not eaten. */
+    int ring = item_named("Ring of Regeneration"), book = item_named("Sonatas of Inspiration");
+    CHECK(ring >= 0 && book >= 0, "data: ring %d book %d", ring, book);
+    give(c, book, 1);
+    give(c, ring, 1);
+    run(c, "eat");
+    CHECK(said("nothing to eat") && c->backpack_count == 2, "ate something else");
+    c->hunger_level = 5;
+    give(c, ration, 1);
+    run(c, "eat");
+    CHECK(c->hunger_level == 0 && c->backpack_count == 2 && said("You ate"),
+          "no meal behind a ring");
+    c->backpack_count = 0;
+
     give(c, effect, 1)->is_identified = false;
     run(c, "use 1");
     CHECK(said("must first identify") && c->backpack_count == 1, "used an unknown item");

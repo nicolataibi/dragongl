@@ -22,6 +22,10 @@
 
 #include "server_entities.h"
 
+/*A monster attacks at +2, +1 every 4 floors down to this floor: +17 at
+ * most (LORE.md, Monster Defences and Attacks).*/
+#define MONSTER_ATTACK_FLOOR_CAP 60
+
 // Function pointer for Behavior Tree nodes
 
 // Initializes the AI of an NPC

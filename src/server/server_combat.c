@@ -27,6 +27,7 @@
 #include "player.h"
 #include "server_loot.h"
 #include "server_tiles.h"
+#include "server_log.h"
 
 // Define LOOT_DROP_CHANCE here since it is used in perform_attack -> drop_loot_from_monster
 // NOTE: canonical value is defined in server_internal.h — do NOT redefine here.
@@ -108,7 +109,8 @@ bool client_can_act(Client *c) {
 
 int npc_killed(Game *game, Client *c, NPC *t, const char *by) {
     npc_set_active(game, t, false); /*also updates the floor caches*/
-    t->respawn_timer = RESPAWN_TICKS;
+    /*A swarm clone (respawn_timer -1) never comes back: its slot is free.*/
+    t->respawn_timer = t->respawn_timer < 0 ? -1 : RESPAWN_TICKS;
     if (t->floor_id >= 0 && t->floor_id < MAX_FLOORS && t->x >= 0 && t->x < MAP_WIDTH &&
         t->y >= 0 && t->y < MAP_HEIGHT) {
         game->world->floors[t->floor_id].entity_grid[t->y][t->x] = 0;
@@ -134,6 +136,14 @@ int npc_killed(Game *game, Client *c, NPC *t, const char *by) {
     if (game->event.type == 1 && t->floor_id == game->event.floor_id && t->template &&
         strcasestr(t->template->name, "Skeleton")) {
         game->event.progress++;
+        for (int i = 0; i < MAX_CLIENTS; i++) { /*the killer and his party here*/
+            Client *p = &game->clients[i];
+            if (p == c ||
+                (p->active && c->party_leader[0] != '\0' &&
+                 strcmp(p->party_leader, c->party_leader) == 0 && p->floor_id == c->floor_id)) {
+                p->event_serial = game->event.serial;
+            }
+        }
         send_text_to_client(c->sock, "[EVENT] You destroyed a minion of darkness! Progress: %d/%d",
                             game->event.progress, game->event.goal);
     }
@@ -489,7 +499,25 @@ static void player_strike(Client *c, NPC *t, Game *game, bool shot) {
     }
 }
 
+bool client_in_combat(const Client *c, long long now_ms) {
+    return c->last_combat_ms > 0 && now_ms - c->last_combat_ms < COMBAT_LINGER_MS;
+}
+
+bool client_linger(Client *c, long long now_ms) {
+    if (!c->authenticated || c->is_dm || !client_in_combat(c, now_ms)) {
+        return false;
+    }
+    c->sock = -1; /*no connection: nothing is sent to him any more*/
+    c->linger_until_ms = now_ms + COMBAT_LINGER_MS;
+    return true;
+}
+
+bool client_linger_over(const Client *c, long long now_ms) {
+    return c->active && c->linger_until_ms > 0 && now_ms >= c->linger_until_ms;
+}
+
 void perform_attack(Client *c, NPC *t, Game *game) {
+    c->last_combat_ms = get_time_ms(); /*a blow given: in a fight*/
     player_strike(c, t, game, false);
 }
 

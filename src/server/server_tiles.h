@@ -29,6 +29,9 @@
 
 /*Rebuilds the entity grid of every floor from the NPCs and the players.*/
 void sync_entity_grid(Game *game);
+/*The same for the floors marked in rebuild only; the others keep their
+ * grid (a floor nobody is on: its monsters do not move).*/
+void sync_entity_grid_floors(Game *game, const bool rebuild[MAX_FLOORS]);
 /*A tile a character can stand on (never the outermost ring of the map).*/
 bool tile_walkable(const Floor *fl, int x, int y);
 /*A walkable tile with no creature, player or item on it.*/
