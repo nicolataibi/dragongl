@@ -263,6 +263,7 @@ The DM has commands of its own (`dm_goto`, `dm_spawn`, `dm_boss`, `dm_merchant`,
 - [LORE.md](LORE.md) — Comprehensive narrative, dungeon chronicle, and chapter lore
 - [docs/COMMANDS.md](docs/COMMANDS.md) — Every command of the game (generated from the server)
 - [docs/PACKAGING.md](docs/PACKAGING.md) — The RPM packages against the Fedora packaging guidelines
+- [docs/QUALITY.md](docs/QUALITY.md) — Quality scorecard: sixteen criteria and the checks behind each score
 - [docs/RELEASING.md](docs/RELEASING.md) — How a release is made and published
 - [PROTOCOL.md](PROTOCOL.md) — Network wire protocol and packet specification
 - [SECURITY.md](SECURITY.md) — Security policy and vulnerability reporting

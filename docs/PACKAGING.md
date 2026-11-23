@@ -92,6 +92,13 @@ What it reported, and what was done:
 | "Fully versioned dependency in subpackages" | not applicable: no subpackage requires the base package; `-server` and `-tools` require `-data` at the same version-release |
 | `gpgverify` not used | upstream publishes no signature: GitHub attestations instead (see below) |
 
+## Quality of the project
+
+How the code itself is checked (tests, sanitizers, fuzzing, the nightly
+campaign and load test, the weekly soak, the protected branch) is in
+[docs/QUALITY.md](QUALITY.md), a score for each of sixteen criteria with
+the check behind it.
+
 ## Known gaps
 
 - **Not run yet:** a build on an architecture other than x86 (aarch64 in

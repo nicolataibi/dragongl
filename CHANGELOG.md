@@ -1,3 +1,11 @@
+* Mon Nov 23 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.23.01
+- DOCS: docs/QUALITY.md, the quality scorecard of the project: sixteen
+  criteria, the score of each and the check behind it (a required check
+  of CI, a scheduled workflow or a command of tools/quality.sh), how to
+  run them locally and the known limits. Linked from README.md and
+  docs/PACKAGING.md for the reviewers. Documentation only: the candidate
+  of the stable release stays 2026.11.22.12.
+
 * Sun Nov 22 2026 Nicola Taibi <nicola.taibi.1967@gmail.com> - 2026.11.22.12
 - FIX: a tombstone gave its owner back items he no longer had. Taking an
   item out of the backpack (selling it, wearing it, moving it to the
